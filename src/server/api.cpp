@@ -3,7 +3,9 @@
 // =============================================================================
 
 #include "api.h"
+#include "../core/base64.h"
 #include "../core/text_utils.h"
+#include "../core/tools/pdf_extract.h"
 #include "httplib.h"
 #include <chrono>
 #include <filesystem>
@@ -17,14 +19,41 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr size_t MAX_MESSAGE_BYTES  = 16 * 1024;
-constexpr size_t MAX_MEMORY_BYTES   = 4 * 1024;
-constexpr size_t MAX_UPLOAD_BYTES   = 5 * 1024 * 1024;  // stored on disk in full
-constexpr size_t MAX_UPLOAD_PREVIEW = 32 * 1024;        // embedded in the chat message
+constexpr size_t MAX_MESSAGE_BYTES      = 16 * 1024;
+constexpr size_t MAX_MEMORY_BYTES       = 4 * 1024;
+constexpr size_t MAX_UPLOAD_BYTES       = 5 * 1024 * 1024;  // stored on disk in full
+constexpr size_t MAX_UPLOAD_PREVIEW     = 32 * 1024;        // embedded in the chat message
+constexpr size_t MAX_IMAGE_BASE64_BYTES = 8 * 1024 * 1024;  // ~6 MB raw
+constexpr size_t MAX_IMAGES_PER_MESSAGE = 4;
+constexpr int    PDF_UPLOAD_TIMEOUT_S   = 15;
+
+bool looks_like_pdf(const std::string& content) {
+    return content.rfind("%PDF", 0) == 0;
+}
 
 bool valid_session(const std::string& s) {
     static const std::regex re(R"(^[A-Za-z0-9_-]{1,64}$)");
     return std::regex_match(s, re);
+}
+
+// Sniffs magic bytes rather than trusting the filename — returns the mime
+// type for a recognized image format, or "" if `content` isn't one.
+std::string detect_image_mime(const std::string& content) {
+    auto starts_with = [&](size_t offset, std::initializer_list<unsigned char> bytes) {
+        if (content.size() < offset + bytes.size()) return false;
+        size_t i = offset;
+        for (unsigned char b : bytes)
+            if (static_cast<unsigned char>(content[i++]) != b) return false;
+        return true;
+    };
+
+    if (starts_with(0, {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A})) return "image/png";
+    if (starts_with(0, {0xFF, 0xD8, 0xFF}))                           return "image/jpeg";
+    if (starts_with(0, {'G', 'I', 'F', '8', '7', 'a'})
+        || starts_with(0, {'G', 'I', 'F', '8', '9', 'a'}))            return "image/gif";
+    if (starts_with(0, {'R', 'I', 'F', 'F'}) && starts_with(8, {'W', 'E', 'B', 'P'}))
+        return "image/webp";
+    return "";
 }
 
 void json_reply(httplib::Response& res, int status, const json& body) {
@@ -146,8 +175,28 @@ void FunesApi::mount(httplib::Server& srv) {
         const std::string session = body.value("session", "");
         const std::string agent_name = body.value("agent", "");
 
-        if (message.empty())
-            return json_error(res, 400, "'message' is required");
+        std::vector<ImageAttachment> images;
+        if (body.contains("images")) {
+            if (!body["images"].is_array())
+                return json_error(res, 400, "'images' must be an array");
+            if (body["images"].size() > MAX_IMAGES_PER_MESSAGE)
+                return json_error(res, 400, "Too many images (max " +
+                                  std::to_string(MAX_IMAGES_PER_MESSAGE) + ")");
+            for (const auto& img : body["images"]) {
+                const std::string mime = img.value("mime_type", "");
+                if (!img.is_object() || mime.rfind("image/", 0) != 0
+                    || !img.contains("data") || !img["data"].is_string())
+                    return json_error(res, 400,
+                        "Each image needs a 'mime_type' starting with image/ and a base64 'data' string");
+                std::string data = img["data"].get<std::string>();
+                if (data.size() > MAX_IMAGE_BASE64_BYTES)
+                    return json_error(res, 400, "Image too large (max ~6 MB)");
+                images.push_back({mime, std::move(data)});
+            }
+        }
+
+        if (message.empty() && images.empty())
+            return json_error(res, 400, "'message' or 'images' is required");
         if (message.size() > MAX_MESSAGE_BYTES)
             return json_error(res, 400, "'message' too long (max 16 KB)");
         if (!valid_session(session))
@@ -161,9 +210,11 @@ void FunesApi::mount(httplib::Server& srv) {
         struct ChatJob {
             AgentConfig   cfg;
             std::string   message, session;
+            std::vector<ImageAttachment> images;
             FunesApi*     api;
         };
-        auto job = std::make_shared<ChatJob>(ChatJob{std::move(cfg), message, session, this});
+        auto job = std::make_shared<ChatJob>(
+            ChatJob{std::move(cfg), message, session, std::move(images), this});
 
         res.set_header("Cache-Control", "no-store");
         res.set_chunked_content_provider("text/event-stream",
@@ -177,7 +228,7 @@ void FunesApi::mount(httplib::Server& srv) {
                 try {
                     FunesAgent agent(job->cfg, job->api->tools_, job->api->memory_,
                                      job->api->defaults_);
-                    std::string answer = agent.run(job->message, job->session, emit);
+                    std::string answer = agent.run(job->message, job->session, emit, job->images);
                     emit("done", {{"text", answer}});
                 } catch (const std::exception& e) {
                     emit("error", {{"message", e.what()}});
@@ -287,12 +338,38 @@ void FunesApi::mount(httplib::Server& srv) {
         out << file.content;
         out.close();
 
-        const bool is_text = funes::looks_like_text(file.content);
-        std::string preview = is_text ? file.content : "";
+        const std::string image_mime = detect_image_mime(file.content);
+        if (!image_mime.empty()) {
+            return json_reply(res, 200, {
+                {"ok", true},
+                {"filename", safe_name},
+                {"path", dest.string()},
+                {"size", file.content.size()},
+                {"is_text", false},
+                {"is_image", true},
+                {"mime_type", image_mime},
+                {"data", funes::base64_encode(file.content)},
+                {"content", ""},
+                {"truncated", false}
+            });
+        }
+
+        bool is_text = false;
+        std::string preview;
         bool truncated = false;
-        if (is_text && preview.size() > MAX_UPLOAD_PREVIEW) {
-            funes::truncate_utf8_safe(preview, MAX_UPLOAD_PREVIEW);
-            truncated = true;
+
+        if (looks_like_pdf(file.content)) {
+            funes::pdf::ExtractResult extracted = funes::pdf::extract_text(
+                dest, workspace_dir_, PDF_UPLOAD_TIMEOUT_S, MAX_UPLOAD_PREVIEW);
+            is_text = extracted.ok;
+            if (extracted.ok) preview = extracted.text_or_error;
+        } else if (funes::looks_like_text(file.content)) {
+            is_text = true;
+            preview = file.content;
+            if (preview.size() > MAX_UPLOAD_PREVIEW) {
+                funes::truncate_utf8_safe(preview, MAX_UPLOAD_PREVIEW);
+                truncated = true;
+            }
         }
 
         json_reply(res, 200, {
@@ -301,6 +378,7 @@ void FunesApi::mount(httplib::Server& srv) {
             {"path", dest.string()},
             {"size", file.content.size()},
             {"is_text", is_text},
+            {"is_image", false},
             {"content", preview},
             {"truncated", truncated}
         });

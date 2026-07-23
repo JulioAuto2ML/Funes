@@ -27,6 +27,16 @@ using json = nlohmann::json;
 
 // ── Data structures ───────────────────────────────────────────────────────────
 
+// An inline image on a user turn. Whether the model actually *sees* it
+// depends entirely on the backend: cloud OpenAI/Anthropic models handle
+// this natively, but a local llama-server needs a vision-capable model and
+// an --mmproj file loaded — with a text-only model, these are silently
+// ignored or rejected by the backend, not by anything in this client.
+struct ImageAttachment {
+    std::string mime_type;    // e.g. "image/png", "image/jpeg"
+    std::string base64_data;  // raw base64, no "data:" prefix
+};
+
 struct ChatMessage {
     std::string role;           // "system" | "user" | "assistant" | "tool"
     std::string content;
@@ -34,6 +44,7 @@ struct ChatMessage {
     std::string name;           // set when role == "tool" (tool name)
     json        tool_calls;     // set when role == "assistant" and model called tools
                                 // (json::array of OpenAI-format tool call objects)
+    std::vector<ImageAttachment> images;  // only meaningful for role == "user"
 };
 
 struct ToolCall {

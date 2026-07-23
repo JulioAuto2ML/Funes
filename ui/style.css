@@ -233,6 +233,20 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 .msg pre code { background: none; padding: 0; }
 .msg a { color: var(--accent); }
 
+.msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.msg-images img {
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
 /* activity chips (recalled memories, tool calls) */
 
 .activity {
@@ -330,6 +344,14 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   padding: 4px 6px 4px 10px;
 }
 .attachment-chip.binary { color: var(--text-dim); font-style: italic; }
+.attachment-chip.image { padding: 4px; }
+.attachment-chip.image img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 7px;
+  display: block;
+}
 
 .attachment-chip button {
   background: none;

@@ -33,3 +33,11 @@ add_test(NAME shell_tool COMMAND test_shell_tool)
 add_executable(test_web_fetch test_web_fetch.cpp)
 target_link_libraries(test_web_fetch PRIVATE funes_core)
 add_test(NAME web_fetch COMMAND test_web_fetch)
+
+add_executable(test_base64 test_base64.cpp)
+target_link_libraries(test_base64 PRIVATE funes_core)
+add_test(NAME base64 COMMAND test_base64)
+
+add_executable(test_llm_client_images test_llm_client_images.cpp)
+target_link_libraries(test_llm_client_images PRIVATE funes_core)
+add_test(NAME llm_client_images COMMAND test_llm_client_images)

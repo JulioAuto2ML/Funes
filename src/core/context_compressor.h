@@ -28,13 +28,21 @@ inline int estimate_tokens(const std::string& text) {
     return static_cast<int>(text.size() / 4);
 }
 
+// Flat per-image guess (vision APIs typically spend a few hundred to a
+// couple thousand tokens per image depending on resolution/provider) — a
+// base64 byte count isn't a text-token proxy the way chars/4 is, so this
+// isn't trying to be precise, just non-zero.
+constexpr int kEstimatedTokensPerImage = 800;
+
 inline int estimate_tokens(const std::vector<ChatMessage>& messages) {
     size_t chars = 0;
+    size_t images = 0;
     for (const auto& m : messages) {
         chars += m.content.size();
         if (!m.tool_calls.is_null()) chars += m.tool_calls.dump().size();
+        images += m.images.size();
     }
-    return static_cast<int>(chars / 4);
+    return static_cast<int>(chars / 4) + static_cast<int>(images) * kEstimatedTokensPerImage;
 }
 
 struct CompressOutcome {

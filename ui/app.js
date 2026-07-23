@@ -37,7 +37,9 @@ const state = {
   session: urlSession || localStorage.getItem('funes.session') || newSessionId(),
   agent:   localStorage.getItem('funes.agent') || '',
   busy:    false,
-  attachments: [],  // [{filename, content, isText, truncated}]
+  // Text: {kind:'text', filename, content, isText, truncated}
+  // Image: {kind:'image', filename, mimeType, data (base64)}
+  attachments: [],
 };
 localStorage.setItem('funes.session', state.session);
 
@@ -75,12 +77,25 @@ function scrollDown() {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, images) {
   hideWelcome();
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  if (role === 'assistant') div.innerHTML = renderMarkdown(text);
-  else div.textContent = text;
+  if (images && images.length) {
+    const thumbs = document.createElement('div');
+    thumbs.className = 'msg-images';
+    for (const img of images) {
+      const el = document.createElement('img');
+      el.src = 'data:' + img.mimeType + ';base64,' + img.data;
+      el.alt = img.filename || 'attached image';
+      thumbs.appendChild(el);
+    }
+    div.appendChild(thumbs);
+  }
+  const textEl = document.createElement('div');
+  if (role === 'assistant') textEl.innerHTML = renderMarkdown(text);
+  else textEl.textContent = text;
+  if (text) div.appendChild(textEl);
   els.messages.appendChild(div);
   scrollDown();
   return div;
@@ -109,10 +124,11 @@ function addChip(cls, icon, label, detail) {
 
 /* ── SSE chat ────────────────────────────────────────────────────────────── */
 
-async function sendMessage(displayText, fullText) {
+async function sendMessage(displayText, fullText, images) {
   state.busy = true;
   els.send.disabled = true;
-  addMessage('user', displayText);
+  addMessage('user', displayText,
+    images.map(img => ({ mimeType: img.mime_type, data: img.data })));
 
   const bubble = addMessage('assistant', '');
   bubble.classList.add('thinking');
@@ -124,6 +140,7 @@ async function sendMessage(displayText, fullText) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: fullText,
+        images:  images,
         session: state.session,
         agent:   state.agent,
       }),
@@ -253,12 +270,22 @@ async function uploadFile(file) {
       addChip('error', '⚠️', 'Upload failed: ' + (data.error || 'unknown error'));
       return;
     }
-    state.attachments.push({
-      filename: data.filename,
-      content:  data.content,
-      isText:   data.is_text,
-      truncated: data.truncated,
-    });
+    if (data.is_image) {
+      state.attachments.push({
+        kind: 'image',
+        filename: data.filename,
+        mimeType: data.mime_type,
+        data: data.data,
+      });
+    } else {
+      state.attachments.push({
+        kind: 'text',
+        filename: data.filename,
+        content:  data.content,
+        isText:   data.is_text,
+        truncated: data.truncated,
+      });
+    }
     renderAttachments();
   } catch (e) {
     addChip('error', '⚠️', 'Upload failed: ' + e.message);
@@ -270,11 +297,19 @@ function renderAttachments() {
   els.attachments.hidden = state.attachments.length === 0;
   state.attachments.forEach((a, i) => {
     const chip = document.createElement('span');
-    chip.className = 'attachment-chip' + (a.isText ? '' : ' binary');
-    const label = document.createElement('span');
-    label.textContent = '📎 ' + a.filename + (a.truncated ? ' (truncated)' : '')
-                       + (a.isText ? '' : ' (binary, saved only)');
-    chip.appendChild(label);
+    if (a.kind === 'image') {
+      chip.className = 'attachment-chip image';
+      const thumb = document.createElement('img');
+      thumb.src = 'data:' + a.mimeType + ';base64,' + a.data;
+      thumb.alt = a.filename;
+      chip.appendChild(thumb);
+    } else {
+      chip.className = 'attachment-chip' + (a.isText ? '' : ' binary');
+      const label = document.createElement('span');
+      label.textContent = '📎 ' + a.filename + (a.truncated ? ' (truncated)' : '')
+                         + (a.isText ? '' : ' (binary, saved only)');
+      chip.appendChild(label);
+    }
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.textContent = '✕';
@@ -296,16 +331,31 @@ function buildDisplayText(text, attachments) {
   return chips || text;
 }
 
-// What actually goes to the model: file contents inlined as fenced blocks.
+// What actually goes to the model as text: file contents inlined as fenced
+// blocks, plus a marker line for each image (the pixels go separately, in
+// the `images` field — see collectImages — but this marker is what survives
+// into future turns, since images themselves aren't persisted in history).
 function buildFullText(text, attachments) {
   let out = '';
   for (const a of attachments) {
+    if (a.kind === 'image') {
+      out += '[Attached image: ' + a.filename + ']\n\n';
+      continue;
+    }
     out += '[Attached file: ' + a.filename + ']\n';
     out += a.isText ? ('```\n' + a.content + '\n```\n\n')
                     : '(binary file, saved to the workspace, not shown here)\n\n';
   }
   out += text;
   return out.trim() || '(see attached file)';
+}
+
+// What goes to the model as actual pixels — only image attachments, in the
+// {mime_type, data} shape /api/chat expects.
+function collectImages(attachments) {
+  return attachments
+    .filter(a => a.kind === 'image')
+    .map(a => ({ mime_type: a.mimeType, data: a.data }));
 }
 
 /* ── context usage gauge ─────────────────────────────────────────────────── */
@@ -438,11 +488,12 @@ els.composer.addEventListener('submit', (e) => {
 
   const displayText = buildDisplayText(text, state.attachments);
   const fullText = buildFullText(text, state.attachments);
+  const images = collectImages(state.attachments);
   els.input.value = '';
   els.input.style.height = 'auto';
   state.attachments = [];
   renderAttachments();
-  sendMessage(displayText, fullText);
+  sendMessage(displayText, fullText, images);
 });
 
 els.attachBtn.addEventListener('click', () => els.fileInput.click());

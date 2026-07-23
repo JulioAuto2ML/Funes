@@ -146,8 +146,8 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 
 // ── run ───────────────────────────────────────────────────────────────────────
 
-std::string FunesAgent::run(const std::string& user_message,
-                            const std::string& session, const EventFn& emit) {
+std::string FunesAgent::run(const std::string& user_message, const std::string& session,
+                            const EventFn& emit, const std::vector<ImageAttachment>& images) {
     ToolContext ctx{cfg_.name, session};
 
     // 1. Recall relevant memories and surface them to the UI.
@@ -182,7 +182,8 @@ std::string FunesAgent::run(const std::string& user_message,
         constexpr int    kMinKeep = 4;
         const int budget = static_cast<int>(cfg_.context_limit * kCompressTriggerFraction);
         const int estimated = estimate_tokens(cfg_.system_prompt) + estimate_tokens(summary)
-                            + estimate_tokens(recent) + estimate_tokens(user_message);
+                            + estimate_tokens(recent) + estimate_tokens(user_message)
+                            + static_cast<int>(images.size()) * kEstimatedTokensPerImage;
         if (estimated > budget) {
             CompressOutcome result = compress_oldest_half(memory_, llm_, session, cfg_.name,
                                                            recent, summary, kMinKeep);
@@ -211,7 +212,7 @@ std::string FunesAgent::run(const std::string& user_message,
     for (auto& turn : recent)
         history.push_back(std::move(turn));
     {
-        ChatMessage m; m.role = "user"; m.content = user_message;
+        ChatMessage m; m.role = "user"; m.content = user_message; m.images = images;
         history.push_back(std::move(m));
     }
 

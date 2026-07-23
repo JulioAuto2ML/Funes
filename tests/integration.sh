@@ -95,7 +95,7 @@ check "loop completed"     "$OUT" 'with-tool-result'
 
 echo "— chat validation"
 OUT=$(curl -s -X POST "$BASE/api/chat" -d '{"session":"it-session-1"}')
-check "missing message rejected" "$OUT" "'message' is required"
+check "missing message rejected" "$OUT" "'message' or 'images' is required"
 OUT=$(curl -s -X POST "$BASE/api/chat" -d '{"message":"hi","session":"bad session!"}')
 check "bad session rejected" "$OUT" 'session'
 OUT=$(curl -s -X POST "$BASE/api/chat" -d '{"message":"hi","session":"s1","agent":"ghost"}')
@@ -124,11 +124,34 @@ check "text upload content"  "$OUT" 'the quick brown fox'
 rm -f "$TEXT_FILE"
 
 BIN_FILE=$(mktemp /tmp/funes_it_upload_XXXX.bin)
-printf '\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01' > "$BIN_FILE"
+printf '\x00\x01\x02\x03\x04\x05\x06\x07' > "$BIN_FILE"
 OUT=$(curl -s -F "file=@$BIN_FILE" "$BASE/api/upload")
 check "binary upload ok"        "$OUT" '"ok":true'
 check "binary upload not text"  "$OUT" '"is_text":false'
+check "binary upload not image" "$OUT" '"is_image":false'
 rm -f "$BIN_FILE"
+
+PNG_FILE=$(mktemp /tmp/funes_it_upload_XXXX.png)
+# 1x1 red pixel PNG.
+echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" \
+    | base64 -d > "$PNG_FILE"
+OUT=$(curl -s -F "file=@$PNG_FILE" "$BASE/api/upload")
+check "image upload ok"        "$OUT" '"ok":true'
+check "image upload is_image"  "$OUT" '"is_image":true'
+check "image upload mime type" "$OUT" '"mime_type":"image/png"'
+check "image upload has data"  "$OUT" '"data":"iVBOR'
+rm -f "$PNG_FILE"
+
+echo "— chat with an image attachment"
+IMG_B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d "{\"message\":\"what color is this\",\"session\":\"it-session-2\",\"images\":[{\"mime_type\":\"image/png\",\"data\":\"$IMG_B64\"}]}")
+check "chat with image done"        "$OUT" 'event: done'
+check "chat with image mock reply"  "$OUT" 'MOCK-REPLY'
+
+OUT=$(curl -s -X POST "$BASE/api/chat" \
+      -d '{"session":"it-session-2","images":[{"mime_type":"text/plain","data":"eA=="}]}')
+check "non-image mime_type rejected" "$OUT" "'mime_type'"
 
 OUT=$(curl -s -F "notfile=nope" "$BASE/api/upload")
 check "upload missing file rejected" "$OUT" '"ok":false'

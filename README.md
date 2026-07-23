@@ -29,8 +29,10 @@ remembers (and lets you delete any of it).
   want more.
 - **A workspace it can touch.** `read_file`/`write_file` are confined to one
   workspace directory; drag a file into the chat and its contents go straight
-  into the model's context. `execute_shell` is real code execution and is
-  off by default — see [Configuration](#configuration).
+  into the model's context — including PDFs (text extracted automatically)
+  and images (sent to the model as an actual image, if your LLM backend
+  supports vision). `execute_shell` is real code execution and is off by
+  default — see [Configuration](#configuration).
 - **Agents as YAML.** An agent is a name, a prompt, and a tool allowlist in
   `agents/*.yaml`. Ship your own in five lines.
 
@@ -41,7 +43,9 @@ remembers (and lets you delete any of it).
 ## Quick start
 
 **Requirements:** Linux, CMake ≥ 3.14, a C++17 compiler, `libssl-dev`, `libyaml-cpp-dev`.
-Everything else (SQLite, sqlite-vec, HTTP, JSON, MCP) is vendored.
+Everything else (SQLite, sqlite-vec, HTTP, JSON, MCP) is vendored. Optional:
+`poppler-utils` (for `pdftotext`) if you want `read_file`/uploads to extract
+text from PDFs — without it, PDFs just get a clear "not installed" error.
 
 ```bash
 git clone https://github.com/Auto2ML/Funes.git
@@ -137,21 +141,34 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 
 ---
 
-## Files & shell
+## Files, PDFs, images & shell
 
 `read_file` and `write_file` are confined to `FUNES_WORKSPACE_DIR` — a path
 like `../secret` or `/etc/passwd` is refused, whether or not it exists yet, so
 the model can only ever touch that one directory. Attach a file from the chat
-UI (📎) and its contents are inlined into your message and saved into the
-workspace, so a follow-up question can reference it and `read_file`/`write_file`
-can act on it later.
+UI (📎) and it's saved into the workspace, so a follow-up question can
+reference it and `read_file`/`write_file` can act on it later. What happens
+to the attachment depends on its type:
 
-`execute_shell` is different: it's real, unconfined code execution with the
-Funes process's own permissions — only its *working directory* is the
-workspace, not its reach. It's **off by default**; set `FUNES_ALLOW_SHELL=1`
-to turn it on, and only do that for a Funes instance you trust with full
-access to your account. When enabled, each call still gets a hard timeout
-(`timeout_seconds`, default 20s, max 120s) and a capped output size.
+- **Text** (code, markdown, JSON, …) is inlined into your message as a
+  fenced block.
+- **PDF** has its text extracted (via `pdftotext`) and inlined the same way.
+  Scanned/image-only PDFs extract no text and get a clear error instead.
+- **Images** (PNG/JPEG/GIF/WEBP) are sent to the model as an actual image —
+  a real multimodal message, not a text description. This only works if
+  your LLM backend supports vision: cloud OpenAI/Anthropic models do; a
+  local llama-server needs a vision-capable model *and* an `--mmproj` file
+  loaded, or it'll reply with a plain error ("image input is not
+  supported…") that Funes just relays rather than hides.
+- Anything else is saved but not shown to the model.
+
+`execute_shell` is different from all of the above: it's real, unconfined
+code execution with the Funes process's own permissions — only its *working
+directory* is the workspace, not its reach. It's **off by default**; set
+`FUNES_ALLOW_SHELL=1` to turn it on, and only do that for a Funes instance
+you trust with full access to your account. When enabled, each call still
+gets a hard timeout (`timeout_seconds`, default 20s, max 120s) and a capped
+output size.
 
 The `funes` agent gets `read_file`/`write_file` by default. `operator`
 (`agents/operator.yaml`) adds `execute_shell` on top, for when you want a
@@ -192,16 +209,19 @@ Everything the UI does is plain HTTP — script it if you like:
 GET    /api/status                    health + model + memory stats
 GET    /api/agents                    available agents
 POST   /api/agents/reload             re-read agents/*.yaml
-POST   /api/chat                      {agent?, session, message} → SSE stream
+POST   /api/chat                      {agent?, session, message?, images?} → SSE stream
 GET    /api/memories?agent=&q=        list / semantic search
 POST   /api/memories                  {text, agent?} — teach a fact
 DELETE /api/memories/<id>             forget
 GET    /api/history?session=          a session's turns
-POST   /api/upload                    multipart 'file' → saved to the workspace + text preview
+POST   /api/upload                    multipart 'file' → saved to the workspace, plus a text
+                                       preview (text/PDF) or base64 (image) for the UI to send on
 ```
 
-The chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
-`done`, and `error` SSE events.
+`images` is an array of `{mime_type, data}` (base64, no `data:` prefix), max 4
+per message — the same shape `/api/upload` hands back for an image file. The
+chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
+`context_compressed`, `usage`, `done`, and `error` SSE events.
 
 ---
 
@@ -221,9 +241,11 @@ Funes/
 ├── agents/            # agent definitions (funes, researcher, operator, tool-builder, agent-builder…)
 ├── config/            # funes.conf (defaults) + funes.local (secrets, gitignored)
 ├── src/
-│   ├── core/          # llm_client, memory, tools, agent runtime, context compression
-│   │   └── tools/     # web_search/fetch, remember/recall, read/write_file, execute_shell,
-│   │                  # compress_context, create_tool/create_agent (+ generated/, self-registering)
+│   ├── core/          # llm_client (+ multimodal messages), memory, tools, agent runtime,
+│   │   │              # context compression, base64, UTF-8-safety helpers
+│   │   └── tools/     # web_search/fetch, remember/recall, read/write_file (+ PDF extraction),
+│   │                  # execute_shell, compress_context, create_tool/create_agent
+│   │                  # (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test

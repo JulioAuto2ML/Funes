@@ -7,6 +7,8 @@
 #include "../text_utils.h"
 #include "../tools.h"
 #include "fs_guard.h"
+#include "pdf_extract.h"
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -15,8 +17,21 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr size_t MAX_READ_BYTES  = 64 * 1024;
-constexpr size_t MAX_WRITE_BYTES = 256 * 1024;
+constexpr size_t MAX_READ_BYTES        = 64 * 1024;
+constexpr size_t MAX_WRITE_BYTES       = 256 * 1024;
+constexpr int    PDF_EXTRACT_TIMEOUT_S = 15;
+
+bool has_extension(const fs::path& p, const char* ext) {
+    std::string e = p.extension().string();
+    for (char& c : e) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return e == ext;
+}
+
+ToolResult extract_pdf_text(const fs::path& workspace, const fs::path& resolved) {
+    funes::pdf::ExtractResult r =
+        funes::pdf::extract_text(resolved, workspace, PDF_EXTRACT_TIMEOUT_S, MAX_READ_BYTES);
+    return {r.text_or_error, !r.ok};
+}
 
 ToolResult read_file_handler(const fs::path& workspace, const json& args, const ToolContext&) {
     if (!args.contains("path") || !args["path"].is_string())
@@ -29,6 +44,9 @@ ToolResult read_file_handler(const fs::path& workspace, const json& args, const 
     std::error_code ec;
     if (!fs::is_regular_file(*resolved, ec))
         return {"Not a file: " + resolved->string(), true};
+
+    if (has_extension(*resolved, ".pdf"))
+        return extract_pdf_text(workspace, *resolved);
 
     std::ifstream f(*resolved, std::ios::binary);
     if (!f) return {"Could not open " + resolved->string(), true};
@@ -86,8 +104,9 @@ void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
     reg.add({
         "read_file",
         "Read a text file from the workspace directory (" + workspace.string() + "). "
-        "The path is relative to the workspace and can't escape it. Binary files are "
-        "rejected. Output capped at 64 KB.",
+        "The path is relative to the workspace and can't escape it. .pdf files have "
+        "their text extracted automatically; other binary files are rejected. Output "
+        "capped at 64 KB.",
         {
             {"type", "object"},
             {"properties", {

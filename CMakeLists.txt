@@ -74,10 +74,13 @@ add_library(funes_core STATIC
     src/core/agent_config.cpp
     src/core/context_compressor.cpp
     src/core/text_utils.cpp
+    src/core/base64.cpp
     src/core/memory.cpp
     src/core/tools.cpp
     src/core/tools/net_guard.cpp
     src/core/tools/fs_guard.cpp
+    src/core/tools/process_runner.cpp
+    src/core/tools/pdf_extract.cpp
     src/core/tools/web_search.cpp
     src/core/tools/web_fetch.cpp
     src/core/tools/memory_tools.cpp

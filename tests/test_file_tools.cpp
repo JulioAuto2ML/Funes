@@ -110,10 +110,60 @@ int test_read_write_file() {
     return 0;
 }
 
+// Minimal hand-built single-page PDF whose content stream is just
+// "Hello PDF World" — enough for pdftotext to extract real text from
+// without pulling in a PDF-generation dependency for the test.
+constexpr const char* kMinimalPdf =
+    "%PDF-1.4\n"
+    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]"
+    "/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n"
+    "4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+    "5 0 obj<</Length 44>>stream\n"
+    "BT /F1 12 Tf 10 50 Td (Hello PDF World) Tj ET\n"
+    "endstream\n"
+    "endobj\n"
+    "xref\n"
+    "0 6\n"
+    "trailer<</Size 6/Root 1 0 R>>\n"
+    "%%EOF";
+
+int test_pdf_extraction() {
+    fs::path ws = fs::temp_directory_path() / "funes_test_pdf_ws";
+    fs::remove_all(ws);
+    fs::create_directories(ws);
+    {
+        std::ofstream f(ws / "doc.pdf", std::ios::binary);
+        f << kMinimalPdf;
+    }
+
+    ToolRegistry reg;
+    register_file_tools(reg, ws.string());
+    ToolContext ctx{"funes", "s1"};
+
+    auto r = reg.call("read_file", {{"path", "doc.pdf"}}, ctx);
+    if (r.error && r.text.find("'pdftotext' isn't installed") != std::string::npos) {
+        std::cerr << "test_pdf_extraction: pdftotext not installed, skipping content check\n";
+        fs::remove_all(ws);
+        return 0;
+    }
+    CHECK(!r.error);
+    CHECK(r.text.find("Hello PDF World") != std::string::npos);
+
+    // A non-existent PDF still gets a clear error, not a crash.
+    auto missing = reg.call("read_file", {{"path", "nope.pdf"}}, ctx);
+    CHECK(missing.error);
+
+    fs::remove_all(ws);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_fs_guard();
     rc |= test_read_write_file();
+    rc |= test_pdf_extraction();
     if (rc == 0) std::cout << "test_file_tools: all tests passed\n";
     return rc;
 }

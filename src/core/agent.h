@@ -54,10 +54,15 @@ public:
                const AgentDefaults& defaults);
     ~FunesAgent();
 
-    // Run one conversational turn. Returns the final assistant text.
-    // Throws std::runtime_error on unrecoverable LLM errors.
+    // Run one conversational turn. `images` (if any) attach to this turn's
+    // user message only — they are not persisted into session history, so
+    // they don't replay (or bloat storage) on future turns. Whether the
+    // model actually sees them depends on the backend supporting vision.
+    // Returns the final assistant text. Throws std::runtime_error on
+    // unrecoverable LLM errors.
     std::string run(const std::string& user_message, const std::string& session,
-                    const EventFn& emit = nullptr);
+                    const EventFn& emit = nullptr,
+                    const std::vector<ImageAttachment>& images = {});
 
     const AgentConfig& config() const { return cfg_; }
 

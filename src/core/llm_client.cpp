@@ -77,6 +77,24 @@ static bool is_qwen_model(const std::string& model) {
     return false;
 }
 
+// OpenAI multimodal content: a plain string when there are no images (the
+// common case, byte-identical to the old wire format), or an array mixing
+// a text part with one image_url part per attachment.
+static json openai_content_value(const ChatMessage& msg) {
+    if (msg.images.empty()) return msg.content;
+
+    json parts = json::array();
+    if (!msg.content.empty())
+        parts.push_back({{"type", "text"}, {"text", msg.content}});
+    for (const auto& img : msg.images) {
+        parts.push_back({
+            {"type", "image_url"},
+            {"image_url", {{"url", "data:" + img.mime_type + ";base64," + img.base64_data}}}
+        });
+    }
+    return parts;
+}
+
 json LLMClient::build_messages_json(const std::vector<ChatMessage>& messages) {
     json arr = json::array();
     const bool qwen = is_qwen_model(model_);
@@ -111,7 +129,7 @@ json LLMClient::build_messages_json(const std::vector<ChatMessage>& messages) {
             ++i;
         }
         else {
-            arr.push_back({{"role", msg.role}, {"content", msg.content}});
+            arr.push_back({{"role", msg.role}, {"content", openai_content_value(msg)}});
             ++i;
         }
     }
@@ -478,6 +496,28 @@ json LLMClient::openai_tools_to_anthropic(const json& openai_tools) {
     return result;
 }
 
+// Anthropic multimodal content: a plain string with no images (unchanged
+// wire format), or an array mixing a text block with one image block per
+// attachment (source.type=base64, same bytes web_fetch/upload already have).
+static json anthropic_content_value(const ChatMessage& msg) {
+    if (msg.images.empty()) return msg.content;
+
+    json parts = json::array();
+    if (!msg.content.empty())
+        parts.push_back({{"type", "text"}, {"text", msg.content}});
+    for (const auto& img : msg.images) {
+        parts.push_back({
+            {"type", "image"},
+            {"source", {
+                {"type",       "base64"},
+                {"media_type", img.mime_type},
+                {"data",       img.base64_data}
+            }}
+        });
+    }
+    return parts;
+}
+
 std::pair<std::string, json> LLMClient::build_anthropic_messages(
     const std::vector<ChatMessage>& messages)
 {
@@ -491,7 +531,7 @@ std::pair<std::string, json> LLMClient::build_anthropic_messages(
             system_text = msg.content;
             ++i;
         } else if (msg.role == "user") {
-            arr.push_back({{"role", "user"}, {"content", msg.content}});
+            arr.push_back({{"role", "user"}, {"content", anthropic_content_value(msg)}});
             ++i;
         } else if (msg.role == "assistant") {
             json content = json::array();
