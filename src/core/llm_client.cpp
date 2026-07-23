@@ -19,11 +19,13 @@
 #include "llm_client.h"
 #include "httplib.h"
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 
 // ── URL parsing ───────────────────────────────────────────────────────────────
 
@@ -129,53 +131,85 @@ static int llm_read_timeout() {
     return cached;
 }
 
+// Transient connection failures (backend restarting, brief network blip)
+// should not kill a whole agent turn. Connection-level errors are retried
+// with a short backoff; HTTP-level errors (4xx/5xx) are never retried here.
+static bool is_transient(httplib::Error err) {
+    return err == httplib::Error::Connection ||
+           err == httplib::Error::ConnectionTimeout ||
+           err == httplib::Error::ProxyConnection;
+}
+
+static constexpr int MAX_CONNECT_RETRIES = 2;
+
 static httplib::Result do_post(bool https, const std::string& host, int port,
                                const std::string& path,
                                const httplib::Headers& headers,
                                const std::string& body) {
     const int timeout = llm_read_timeout();
-    if (https) {
-        httplib::SSLClient cli(host, port);
-        cli.set_connection_timeout(10);
-        cli.set_read_timeout(timeout);
-        cli.enable_server_certificate_verification(true);
-        return cli.Post(path, headers, body, "application/json");
-    } else {
-        httplib::Client cli(host, port);
-        cli.set_connection_timeout(10);
-        cli.set_read_timeout(timeout);
-        return cli.Post(path, headers, body, "application/json");
+    httplib::Result result;
+    for (int attempt = 0; ; ++attempt) {
+        if (https) {
+            httplib::SSLClient cli(host, port);
+            cli.set_connection_timeout(10);
+            cli.set_read_timeout(timeout);
+            cli.enable_server_certificate_verification(true);
+            result = cli.Post(path, headers, body, "application/json");
+        } else {
+            httplib::Client cli(host, port);
+            cli.set_connection_timeout(10);
+            cli.set_read_timeout(timeout);
+            result = cli.Post(path, headers, body, "application/json");
+        }
+        if (result || !is_transient(result.error()) || attempt >= MAX_CONNECT_RETRIES)
+            return result;
+        std::cerr << "[llm_client] connection to " << host << ":" << port
+                  << " failed (attempt " << attempt + 1 << "), retrying…\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(400 * (attempt + 1)));
     }
 }
 
 // Streaming POST: feeds response bytes to `receiver` as they arrive.
+// Retries transient connection failures only while nothing has been received
+// yet — once bytes have flowed, a retry would duplicate streamed output.
 static httplib::Result do_post_stream(bool https, const std::string& host, int port,
                                       const std::string& path,
                                       const httplib::Headers& headers,
                                       const std::string& body,
                                       const httplib::ContentReceiver& receiver) {
     const int timeout = llm_read_timeout();
-    httplib::Request req;
-    req.method  = "POST";
-    req.path    = path;
-    req.headers = headers;
-    req.body    = body;
-    req.set_header("Content-Type", "application/json");
-    req.content_receiver = [receiver](const char* data, size_t len,
-                                      uint64_t, uint64_t) {
-        return receiver(data, len);
-    };
-    if (https) {
-        httplib::SSLClient cli(host, port);
-        cli.set_connection_timeout(10);
-        cli.set_read_timeout(timeout);
-        cli.enable_server_certificate_verification(true);
-        return cli.send(req);
-    } else {
-        httplib::Client cli(host, port);
-        cli.set_connection_timeout(10);
-        cli.set_read_timeout(timeout);
-        return cli.send(req);
+    httplib::Result result;
+    for (int attempt = 0; ; ++attempt) {
+        bool received_any = false;
+        httplib::Request req;
+        req.method  = "POST";
+        req.path    = path;
+        req.headers = headers;
+        req.body    = body;
+        req.set_header("Content-Type", "application/json");
+        req.content_receiver = [receiver, &received_any](const char* data, size_t len,
+                                                         uint64_t, uint64_t) {
+            received_any = true;
+            return receiver(data, len);
+        };
+        if (https) {
+            httplib::SSLClient cli(host, port);
+            cli.set_connection_timeout(10);
+            cli.set_read_timeout(timeout);
+            cli.enable_server_certificate_verification(true);
+            result = cli.send(req);
+        } else {
+            httplib::Client cli(host, port);
+            cli.set_connection_timeout(10);
+            cli.set_read_timeout(timeout);
+            result = cli.send(req);
+        }
+        if (result || received_any || !is_transient(result.error())
+            || attempt >= MAX_CONNECT_RETRIES)
+            return result;
+        std::cerr << "[llm_client] connection to " << host << ":" << port
+                  << " failed (attempt " << attempt + 1 << "), retrying…\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(400 * (attempt + 1)));
     }
 }
 
@@ -670,6 +704,42 @@ CompletionResponse LLMClient::complete(
     }
     return on_delta ? stream_openai(messages, tools_schema, on_delta)
                     : complete_openai(messages, tools_schema);
+}
+
+// ── model discovery ───────────────────────────────────────────────────────────
+
+std::string fetch_default_model(const std::string& base_url, const std::string& api_key) {
+    try {
+        bool https; std::string host; int port; std::string base_path;
+        parse_http_url(base_url, https, host, port, base_path);
+
+        httplib::Headers headers = {{"Accept", "application/json"}};
+        if (!api_key.empty())
+            headers.emplace("Authorization", "Bearer " + api_key);
+
+        const std::string path = base_path + "/v1/models";
+        httplib::Result result;
+        if (https) {
+            httplib::SSLClient cli(host, port);
+            cli.set_connection_timeout(5);
+            cli.set_read_timeout(10);
+            cli.enable_server_certificate_verification(true);
+            result = cli.Get(path.c_str(), headers);
+        } else {
+            httplib::Client cli(host, port);
+            cli.set_connection_timeout(5);
+            cli.set_read_timeout(10);
+            result = cli.Get(path.c_str(), headers);
+        }
+        if (!result || result->status != 200) return "";
+
+        json resp = json::parse(result->body);
+        if (resp.contains("data") && resp["data"].is_array() && !resp["data"].empty())
+            return resp["data"][0].value("id", "");
+    } catch (...) {
+        // Discovery is best-effort; the caller keeps its configured name.
+    }
+    return "";
 }
 
 // ── EmbeddingClient ───────────────────────────────────────────────────────────

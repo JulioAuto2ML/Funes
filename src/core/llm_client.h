@@ -125,6 +125,12 @@ private:
     static void recover_tool_calls_from_content(CompletionResponse& out);
 };
 
+// Ask an OpenAI-compatible server which model it serves (GET /v1/models).
+// Returns the first model id, or "" on any failure. Lets FUNES_LLM_MODEL stay
+// "default" with llama-server while model-specific quirks (e.g. Qwen tool-result
+// formatting) still activate on the real model name.
+std::string fetch_default_model(const std::string& base_url, const std::string& api_key);
+
 // ── EmbeddingClient ───────────────────────────────────────────────────────────
 // POSTs to any OpenAI-compatible /v1/embeddings endpoint (llama-server with
 // --embedding, OpenAI, etc.). Used by the memory engine for semantic search.

@@ -244,8 +244,22 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             }
         }
 
-        if (resp.tool_calls.empty())
+        if (resp.tool_calls.empty()) {
+            // Some local models return an empty completion right after a tool
+            // round trip. One follow-up call with tools disabled reliably
+            // produces the text answer from the results already in history.
+            if (resp.content.empty() && step > 0) {
+                llm_.set_tool_choice("none");
+                CompletionResponse retry = llm_.complete(history, json::array(), on_delta);
+                llm_.set_tool_choice(cfg_.tool_choice);
+                if (!retry.content.empty())
+                    return retry.content;
+                return last_tool_result.empty()
+                    ? "(the model returned an empty answer)"
+                    : last_tool_result;
+            }
             return resp.content;
+        }
 
         // Assistant message with tool_calls must precede each tool result.
         json tc_arr = json::array();

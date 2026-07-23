@@ -64,6 +64,17 @@ int main() {
         db_path = home + "/.funes/memory.db";
     }
 
+    // With llama-server the model name is usually left as "default" — resolve
+    // the real one so model-specific handling (e.g. Qwen tool-result format)
+    // keys off the actual model, and the UI shows what is really running.
+    if (defaults.llm_model == "default" && defaults.llm_provider == "openai") {
+        std::string discovered = fetch_default_model(defaults.llm_url, defaults.llm_api_key);
+        if (!discovered.empty()) {
+            std::cerr << "[funes] LLM backend serves model: " << discovered << "\n";
+            defaults.llm_model = discovered;
+        }
+    }
+
     // ── embedding client (optional — memory degrades to keyword search) ───────
     std::unique_ptr<EmbeddingClient> embedder;
     const std::string embed_url = funes::env("FUNES_EMBED_URL");
