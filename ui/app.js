@@ -25,8 +25,10 @@ const els = {
   statusDot:    $('status-dot'),
 };
 
+const urlSession = new URLSearchParams(location.search).get('session');
+
 const state = {
-  session: localStorage.getItem('funes.session') || newSessionId(),
+  session: urlSession || localStorage.getItem('funes.session') || newSessionId(),
   agent:   localStorage.getItem('funes.agent') || '',
   busy:    false,
 };
