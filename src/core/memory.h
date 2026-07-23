@@ -78,6 +78,22 @@ public:
     // Last n user/assistant turns of a session, oldest first.
     std::vector<ChatMessage> recent_turns(const std::string& session, int n = 10);
 
+    // Total user/assistant turns stored for a session (ignores the n cap above).
+    int64_t turn_count(const std::string& session);
+
+    // Delete all but the most recent `keep` turns of a session. Used after
+    // folding the older turns into the running summary below.
+    void prune_turns(const std::string& session, int keep);
+
+    // ── Rolling conversation summary (context compression) ────────────────────
+    // One summary per session, replaced (not appended) each time it is
+    // recompressed so it stays roughly constant size regardless of how long
+    // the conversation runs.
+
+    std::string get_summary(const std::string& session);
+    void set_summary(const std::string& session, const std::string& agent,
+                     const std::string& summary);
+
 private:
     sqlite3*         db_ = nullptr;
     std::mutex       mu_;

@@ -167,10 +167,33 @@ std::string FunesAgent::run(const std::string& user_message,
         }
     }
 
-    // 2. Build the conversation: system (+memories), recent turns, user message.
+    // 2. Load the rolling summary + recent turns, compressing the oldest half
+    //    of the window into the summary first if it's about to crowd out the
+    //    context window (automatic safety net; see context_compressor.h).
+    std::string summary = memory_.get_summary(session);
+    std::vector<ChatMessage> recent = memory_.recent_turns(session, defaults_.memory_turns);
+    {
+        constexpr double kCompressTriggerFraction = 0.7;
+        constexpr int    kMinKeep = 4;
+        const int budget = static_cast<int>(cfg_.context_limit * kCompressTriggerFraction);
+        const int estimated = estimate_tokens(cfg_.system_prompt) + estimate_tokens(summary)
+                            + estimate_tokens(recent) + estimate_tokens(user_message);
+        if (estimated > budget) {
+            CompressOutcome result = compress_oldest_half(memory_, llm_, session, cfg_.name,
+                                                           recent, summary, kMinKeep);
+            if (result.compressed && emit)
+                emit("context_compressed", {{"turns_folded", result.turns_folded},
+                                            {"summary_preview", result.summary_preview}});
+        }
+    }
+
+    // 3. Build the conversation: system (+memories+summary), recent turns, user message.
     std::vector<ChatMessage> history;
     {
         std::string sys = cfg_.system_prompt;
+        if (!summary.empty()) {
+            sys += "\n\n## Summary of earlier conversation\n" + summary;
+        }
         if (!memory_block.empty()) {
             sys += "\n\n## Relevant memories from past conversations\n" + memory_block
                  + "\nUse these naturally when they help; ignore them when irrelevant.";
@@ -180,17 +203,18 @@ std::string FunesAgent::run(const std::string& user_message,
             history.push_back(std::move(m));
         }
     }
-    for (auto& turn : memory_.recent_turns(session, defaults_.memory_turns))
+    for (auto& turn : recent)
         history.push_back(std::move(turn));
     {
         ChatMessage m; m.role = "user"; m.content = user_message;
         history.push_back(std::move(m));
     }
 
-    // 3. The tool loop.
-    std::string final_text = run_loop(history, ctx, emit);
+    // 4. The tool loop.
+    int prompt_tokens = 0;
+    std::string final_text = run_loop(history, ctx, emit, prompt_tokens);
 
-    // 4. Persist the exchange: session history always; long-term memory when
+    // 5. Persist the exchange: session history always; long-term memory when
     //    auto-memory is on (source "auto" so the UI can distinguish it).
     memory_.append_turn(session, cfg_.name, "user", user_message);
     memory_.append_turn(session, cfg_.name, "assistant", final_text);
@@ -208,11 +232,22 @@ std::string FunesAgent::run(const std::string& user_message,
         }
     }
 
+    // 6. Report context usage for the UI's gauge. Real token counts come from
+    //    the LLM's usage field when the backend reports one; otherwise fall
+    //    back to the same char-based estimate used for the compression trigger.
+    if (emit) {
+        const bool estimated_usage = prompt_tokens <= 0;
+        const int used = estimated_usage ? estimate_tokens(history) : prompt_tokens;
+        emit("usage", {{"used", used}, {"limit", cfg_.context_limit},
+                       {"estimated", estimated_usage}});
+    }
+
     return final_text;
 }
 
 std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
-                                 const ToolContext& ctx, const EventFn& emit) {
+                                 const ToolContext& ctx, const EventFn& emit,
+                                 int& prompt_tokens_out) {
     // Exact-signature loop detection: the same (tool, args) called 3+ times
     // means a tight loop — return early with the last result. Same tool with
     // different args is legitimate.
@@ -243,6 +278,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 throw;
             }
         }
+        if (resp.prompt_tokens > 0) prompt_tokens_out = resp.prompt_tokens;
 
         if (resp.tool_calls.empty()) {
             // Some local models return an empty completion right after a tool
@@ -252,6 +288,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 llm_.set_tool_choice("none");
                 CompletionResponse retry = llm_.complete(history, json::array(), on_delta);
                 llm_.set_tool_choice(cfg_.tool_choice);
+                if (retry.prompt_tokens > 0) prompt_tokens_out = retry.prompt_tokens;
                 if (!retry.content.empty())
                     return retry.content;
                 return last_tool_result.empty()

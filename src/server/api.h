@@ -11,6 +11,8 @@
 //   POST   /api/memories            — {agent?, text} (manual memory from UI)
 //   DELETE /api/memories/<id>
 //   GET    /api/history             — ?session=&limit= (restore chat on reload)
+//   POST   /api/upload               — multipart 'file' → saved into the workspace,
+//                                       returns a text preview for the UI to embed
 //   GET    /*                       — static web UI
 //
 // The chat SSE stream emits:
@@ -34,7 +36,8 @@ public:
              const AgentDefaults& defaults,
              const std::string& agents_dir,
              const std::string& ui_dir,
-             const std::string& default_agent);
+             const std::string& default_agent,
+             const std::string& workspace_dir);
 
     // Register all routes on the given server.
     void mount(httplib::Server& srv);
@@ -51,6 +54,7 @@ private:
     std::string   agents_dir_;
     std::string   ui_dir_;
     std::string   default_agent_;
+    std::string   workspace_dir_;
 
     std::map<std::string, AgentConfig> agents_;
     mutable std::mutex agents_mu_;

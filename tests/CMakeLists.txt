@@ -9,3 +9,23 @@ add_test(NAME tools COMMAND test_tools)
 add_executable(test_agent_config test_agent_config.cpp)
 target_link_libraries(test_agent_config PRIVATE funes_core)
 add_test(NAME agent_config COMMAND test_agent_config)
+
+add_executable(test_context_compressor test_context_compressor.cpp)
+target_link_libraries(test_context_compressor PRIVATE funes_core)
+add_test(NAME context_compressor COMMAND test_context_compressor)
+
+add_executable(test_meta_tools test_meta_tools.cpp)
+target_link_libraries(test_meta_tools PRIVATE funes_core)
+add_test(NAME meta_tools COMMAND test_meta_tools)
+
+add_executable(test_text_utils test_text_utils.cpp)
+target_link_libraries(test_text_utils PRIVATE funes_core)
+add_test(NAME text_utils COMMAND test_text_utils)
+
+add_executable(test_file_tools test_file_tools.cpp)
+target_link_libraries(test_file_tools PRIVATE funes_core)
+add_test(NAME file_tools COMMAND test_file_tools)
+
+add_executable(test_shell_tool test_shell_tool.cpp)
+target_link_libraries(test_shell_tool PRIVATE funes_core)
+add_test(NAME shell_tool COMMAND test_shell_tool)

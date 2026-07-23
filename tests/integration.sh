@@ -12,6 +12,7 @@ FUNES_BIN=${FUNES_BIN:-./bin/funes}
 LLM_PORT=18080
 API_PORT=18484
 DB=$(mktemp -u /tmp/funes_it_XXXX.db)
+WORKSPACE=$(mktemp -d /tmp/funes_it_ws_XXXX)
 
 FAILURES=0
 check() {  # check <name> <haystack> <needle>
@@ -27,6 +28,7 @@ cleanup() {
     [ -n "${FUNES_PID:-}" ] && kill "$FUNES_PID" 2>/dev/null
     [ -n "${MOCK_PID:-}" ]  && kill "$MOCK_PID" 2>/dev/null
     rm -f "$DB" "$DB-wal" "$DB-shm"
+    rm -rf "$WORKSPACE"
 }
 trap cleanup EXIT
 
@@ -38,6 +40,7 @@ echo "— starting funes on :$API_PORT"
 FUNES_LLM_URL="http://127.0.0.1:$LLM_PORT" \
 FUNES_EMBED_URL="http://127.0.0.1:$LLM_PORT" \
 FUNES_DB="$DB" \
+FUNES_WORKSPACE_DIR="$WORKSPACE" \
 FUNES_HOST=127.0.0.1 \
 FUNES_PORT=$API_PORT \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
@@ -110,6 +113,25 @@ OUT=$(curl -s -X DELETE "$BASE/api/memories/$MEM_ID")
 check "memory forgotten" "$OUT" '"ok":true'
 OUT=$(curl -s -X DELETE "$BASE/api/memories/$MEM_ID")
 check "double-forget 404" "$OUT" '"ok":false'
+
+echo "— file upload"
+TEXT_FILE=$(mktemp /tmp/funes_it_upload_XXXX.txt)
+echo "the quick brown fox" > "$TEXT_FILE"
+OUT=$(curl -s -F "file=@$TEXT_FILE" "$BASE/api/upload")
+check "text upload ok"       "$OUT" '"ok":true'
+check "text upload is_text"  "$OUT" '"is_text":true'
+check "text upload content"  "$OUT" 'the quick brown fox'
+rm -f "$TEXT_FILE"
+
+BIN_FILE=$(mktemp /tmp/funes_it_upload_XXXX.bin)
+printf '\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01' > "$BIN_FILE"
+OUT=$(curl -s -F "file=@$BIN_FILE" "$BASE/api/upload")
+check "binary upload ok"        "$OUT" '"ok":true'
+check "binary upload not text"  "$OUT" '"is_text":false'
+rm -f "$BIN_FILE"
+
+OUT=$(curl -s -F "notfile=nope" "$BASE/api/upload")
+check "upload missing file rejected" "$OUT" '"ok":false'
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

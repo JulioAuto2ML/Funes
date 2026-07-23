@@ -20,6 +20,7 @@
 using json = nlohmann::json;
 
 class MemoryStore;
+struct AgentDefaults;
 
 // Per-call context: which agent and chat session triggered the tool.
 struct ToolContext {
@@ -63,3 +64,14 @@ private:
 // ── built-in tool packs ───────────────────────────────────────────────────────
 void register_web_tools(ToolRegistry& reg);                        // web_search, web_fetch
 void register_memory_tools(ToolRegistry& reg, MemoryStore& store); // remember, recall
+void register_context_tools(ToolRegistry& reg, MemoryStore& store,
+                            const AgentDefaults& defaults);        // compress_context
+void register_introspection_tools(ToolRegistry& reg);              // list_tools
+void register_tool_builder(ToolRegistry& reg,
+                           const std::string& generated_dir);       // create_tool
+void register_agent_builder(ToolRegistry& reg, const std::string& agents_dir,
+                            std::function<void()> reload_agents);  // create_agent
+void register_file_tools(ToolRegistry& reg,
+                         const std::string& workspace_dir);        // read_file, write_file
+void register_shell_tool(ToolRegistry& reg,
+                         const std::string& workspace_dir);        // execute_shell

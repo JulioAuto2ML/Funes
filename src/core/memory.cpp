@@ -133,6 +133,12 @@ void MemoryStore::migrate() {
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session, id);
+        CREATE TABLE IF NOT EXISTS session_summaries (
+            session    TEXT PRIMARY KEY,
+            agent      TEXT NOT NULL,
+            summary    TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     )sql");
 
     // Restore the vec table dimension recorded by a previous run.
@@ -427,4 +433,50 @@ std::vector<ChatMessage> MemoryStore::recent_turns(const std::string& session, i
         out.push_back(std::move(m));
     }
     return out;
+}
+
+int64_t MemoryStore::turn_count(const std::string& session) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT COUNT(*) FROM turns WHERE session = ? AND role IN ('user','assistant')");
+    s.bind_text(1, session);
+    s.step();
+    return s.col_int64(0);
+}
+
+void MemoryStore::prune_turns(const std::string& session, int keep) {
+    if (keep < 0) keep = 0;
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, R"sql(
+        DELETE FROM turns WHERE session = ? AND id NOT IN (
+            SELECT id FROM turns WHERE session = ? ORDER BY id DESC LIMIT ?
+        )
+    )sql");
+    s.bind_text(1, session);
+    s.bind_text(2, session);
+    s.bind_int64(3, keep);
+    s.step();
+}
+
+// ── rolling summary ───────────────────────────────────────────────────────────
+
+std::string MemoryStore::get_summary(const std::string& session) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT summary FROM session_summaries WHERE session = ?");
+    s.bind_text(1, session);
+    return s.step() ? s.col_text(0) : "";
+}
+
+void MemoryStore::set_summary(const std::string& session, const std::string& agent,
+                              const std::string& summary) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, R"sql(
+        INSERT INTO session_summaries(session, agent, summary, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(session) DO UPDATE SET
+            summary = excluded.summary, updated_at = excluded.updated_at
+    )sql");
+    s.bind_text(1, session);
+    s.bind_text(2, agent);
+    s.bind_text(3, summary);
+    s.step();
 }

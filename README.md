@@ -22,9 +22,15 @@ remembers (and lets you delete any of it).
   and Anthropic's native API, with token streaming. Fully local or cloud — your
   choice per config.
 - **Tools without the burden.** Built-in tools (`web_search`, `web_fetch`,
-  `remember`, `recall`) run in-process — no protocol overhead. External
+  `remember`, `recall`, `read_file`, `write_file`, `execute_shell`,
+  `compress_context`, and meta-tools that scaffold new tools/agents from a
+  conversation) run in-process — no protocol overhead. External
   [MCP](https://modelcontextprotocol.io) servers can be plugged in when you
   want more.
+- **A workspace it can touch.** `read_file`/`write_file` are confined to one
+  workspace directory; drag a file into the chat and its contents go straight
+  into the model's context. `execute_shell` is real code execution and is
+  off by default — see [Configuration](#configuration).
 - **Agents as YAML.** An agent is a name, a prompt, and a tool allowlist in
   `agents/*.yaml`. Ship your own in five lines.
 
@@ -126,6 +132,30 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_AUTO_MEMORY` | `1` | Store each exchange as an `auto` memory |
 | `FUNES_MCP_SERVERS` | *(empty)* | Extra MCP servers, `;`-separated URLs |
 | `FUNES_ALLOW_LOCAL_FETCH` | `0` | Let `web_fetch` reach private/loopback hosts |
+| `FUNES_WORKSPACE_DIR` | `~/.funes/workspace` | Sandbox root for `read_file`/`write_file`/`execute_shell` and uploads |
+| `FUNES_ALLOW_SHELL` | `0` | Let `execute_shell` actually run commands (real code execution — see below) |
+
+---
+
+## Files & shell
+
+`read_file` and `write_file` are confined to `FUNES_WORKSPACE_DIR` — a path
+like `../secret` or `/etc/passwd` is refused, whether or not it exists yet, so
+the model can only ever touch that one directory. Attach a file from the chat
+UI (📎) and its contents are inlined into your message and saved into the
+workspace, so a follow-up question can reference it and `read_file`/`write_file`
+can act on it later.
+
+`execute_shell` is different: it's real, unconfined code execution with the
+Funes process's own permissions — only its *working directory* is the
+workspace, not its reach. It's **off by default**; set `FUNES_ALLOW_SHELL=1`
+to turn it on, and only do that for a Funes instance you trust with full
+access to your account. When enabled, each call still gets a hard timeout
+(`timeout_seconds`, default 20s, max 120s) and a capped output size.
+
+The `funes` agent gets `read_file`/`write_file` by default. `operator`
+(`agents/operator.yaml`) adds `execute_shell` on top, for when you want a
+single agent dedicated to workspace/shell tasks.
 
 ---
 
@@ -167,6 +197,7 @@ GET    /api/memories?agent=&q=        list / semantic search
 POST   /api/memories                  {text, agent?} — teach a fact
 DELETE /api/memories/<id>             forget
 GET    /api/history?session=          a session's turns
+POST   /api/upload                    multipart 'file' → saved to the workspace + text preview
 ```
 
 The chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
@@ -187,11 +218,12 @@ bash tests/integration.sh               # end-to-end against a mock LLM, no netw
 
 ```
 Funes/
-├── agents/            # agent definitions (funes, researcher, yours…)
+├── agents/            # agent definitions (funes, researcher, operator, tool-builder, agent-builder…)
 ├── config/            # funes.conf (defaults) + funes.local (secrets, gitignored)
 ├── src/
-│   ├── core/          # llm_client, memory, tools, agent runtime
-│   │   └── tools/     # web_search, web_fetch, remember/recall
+│   ├── core/          # llm_client, memory, tools, agent runtime, context compression
+│   │   └── tools/     # web_search/fetch, remember/recall, read/write_file, execute_shell,
+│   │                  # compress_context, create_tool/create_agent (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test

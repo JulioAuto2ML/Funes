@@ -18,10 +18,13 @@
 //       "delta"       {text}                       — streamed answer fragment
 //       "tool_call"   {name, args}
 //       "tool_result" {name, preview, error}
+//       "context_compressed" {turns_folded, summary_preview}
+//       "usage"       {used, limit, estimated}     — one per run(), context gauge
 // =============================================================================
 
 #pragma once
 #include "agent_config.h"
+#include "context_compressor.h"
 #include "llm_client.h"
 #include "memory.h"
 #include "tools.h"
@@ -78,5 +81,5 @@ private:
                              const ToolContext& ctx);
 
     std::string run_loop(std::vector<ChatMessage>& history, const ToolContext& ctx,
-                         const EventFn& emit);
+                         const EventFn& emit, int& prompt_tokens_out);
 };

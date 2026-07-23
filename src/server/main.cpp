@@ -11,6 +11,7 @@
 #include "api.h"
 #include "memory.h"
 #include "tools.h"
+#include "tools/http_tool_runtime.h"
 #include "httplib.h"
 #include <csignal>
 #include <filesystem>
@@ -55,6 +56,8 @@ int main() {
     const std::string default_agent = funes::env("FUNES_DEFAULT_AGENT", "funes");
     const std::string agents_dir    = resolve_dir(funes::env("FUNES_AGENTS_DIR"), "agents");
     const std::string ui_dir        = resolve_dir(funes::env("FUNES_UI_DIR"), "ui");
+    const std::string generated_tools_dir = resolve_dir(
+        funes::env("FUNES_GENERATED_TOOLS_DIR"), "src/core/tools/generated");
 
     std::string db_path = funes::env("FUNES_DB");
     if (db_path.empty()) {
@@ -62,6 +65,17 @@ int main() {
         std::error_code ec;
         fs::create_directories(home + "/.funes", ec);
         db_path = home + "/.funes/memory.db";
+    }
+
+    // read_file/write_file/execute_shell are confined to this directory.
+    std::string workspace_dir = funes::env("FUNES_WORKSPACE_DIR");
+    if (workspace_dir.empty()) {
+        const std::string home = funes::env("HOME", ".");
+        workspace_dir = home + "/.funes/workspace";
+    }
+    {
+        std::error_code ec;
+        fs::create_directories(workspace_dir, ec);
     }
 
     // With llama-server the model name is usually left as "default" — resolve
@@ -91,8 +105,18 @@ int main() {
     ToolRegistry tools;
     register_web_tools(tools);
     register_memory_tools(tools, memory);
+    register_context_tools(tools, memory, defaults);
+    register_introspection_tools(tools);
+    register_file_tools(tools, workspace_dir);
+    register_shell_tool(tools, workspace_dir);
+    funes::tools::register_all_generated_tools(tools);
+    register_tool_builder(tools, generated_tools_dir);
 
-    FunesApi api(tools, memory, defaults, agents_dir, ui_dir, default_agent);
+    FunesApi api(tools, memory, defaults, agents_dir, ui_dir, default_agent, workspace_dir);
+
+    // create_agent needs to trigger a live reload after writing a new agent
+    // YAML, so it's wired up once FunesApi (which owns the agent table) exists.
+    register_agent_builder(tools, agents_dir, [&api] { api.load_agents(); });
 
     // Embed any memories that are missing vectors (e.g. stored while the
     // embedding endpoint was down) without blocking startup.
@@ -117,6 +141,8 @@ int main() {
               << "  Memory:    " << db_path << " (" << memory.count() << " memories, "
               << (embedder ? "semantic" : "keyword-only") << ")\n"
               << "  Agents:    " << api.agent_count() << " from " << agents_dir << "\n"
+              << "  Workspace: " << workspace_dir << " (shell "
+              << (funes::env("FUNES_ALLOW_SHELL", "0") == "1" ? "enabled" : "disabled") << ")\n"
               << "\n";
 
     signal(SIGPIPE, SIG_IGN);  // dropped SSE clients must not kill the process

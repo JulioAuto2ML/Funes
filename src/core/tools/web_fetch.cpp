@@ -9,39 +9,17 @@
 // LLM-chosen URL can't probe the local network by default.
 
 #include "../tools.h"
+#include "net_guard.h"
 #include "httplib.h"
 #include <cstdlib>
+#include <cstring>
 #include <regex>
 #include <string>
 
 namespace {
 
+using funes::net::ParsedUrl;
 constexpr size_t MAX_TEXT_BYTES = 8 * 1024;
-
-struct ParsedUrl {
-    bool        https = false;
-    std::string host;
-    int         port  = 80;
-    std::string path  = "/";
-};
-
-bool parse_url(const std::string& url, ParsedUrl& out) {
-    static const std::regex re(R"(^(https?)://([^/:?#]+)(?::(\d+))?([^#]*)?)");
-    std::smatch m;
-    if (!std::regex_match(url, m, re)) return false;
-    out.https = (m[1].str() == "https");
-    out.host  = m[2].str();
-    out.port  = m[3].matched ? std::stoi(m[3].str()) : (out.https ? 443 : 80);
-    out.path  = (m[4].matched && !m[4].str().empty()) ? m[4].str() : "/";
-    return true;
-}
-
-bool is_private_host(const std::string& host) {
-    if (host == "localhost" || host == "::1") return true;
-    static const std::regex private_ip(
-        R"(^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|0\.).*)");
-    return std::regex_match(host, private_ip);
-}
 
 std::string decode_entities(std::string s) {
     static const std::pair<const char*, const char*> entities[] = {
@@ -98,11 +76,10 @@ ToolResult web_fetch_handler(const json& args, const ToolContext&) {
 
     const std::string url = args["url"].get<std::string>();
     ParsedUrl parsed;
-    if (!parse_url(url, parsed))
+    if (!funes::net::parse_http_url(url, parsed))
         return {"Invalid URL (only http:// and https:// are supported): " + url, true};
 
-    const char* allow_local = std::getenv("FUNES_ALLOW_LOCAL_FETCH");
-    if (is_private_host(parsed.host) && !(allow_local && *allow_local == '1'))
+    if (funes::net::is_private_host(parsed.host) && !funes::net::local_fetch_allowed())
         return {"Refusing to fetch private/loopback host '" + parsed.host +
                 "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)", true};
 

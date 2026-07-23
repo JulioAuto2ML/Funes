@@ -3,8 +3,11 @@
 // =============================================================================
 
 #include "api.h"
+#include "../core/text_utils.h"
 #include "httplib.h"
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <regex>
 
@@ -14,8 +17,10 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr size_t MAX_MESSAGE_BYTES = 16 * 1024;
-constexpr size_t MAX_MEMORY_BYTES  = 4 * 1024;
+constexpr size_t MAX_MESSAGE_BYTES  = 16 * 1024;
+constexpr size_t MAX_MEMORY_BYTES   = 4 * 1024;
+constexpr size_t MAX_UPLOAD_BYTES   = 5 * 1024 * 1024;  // stored on disk in full
+constexpr size_t MAX_UPLOAD_PREVIEW = 32 * 1024;        // embedded in the chat message
 
 bool valid_session(const std::string& s) {
     static const std::regex re(R"(^[A-Za-z0-9_-]{1,64}$)");
@@ -46,9 +51,11 @@ FunesApi::FunesApi(ToolRegistry& tools, MemoryStore& memory,
                    const AgentDefaults& defaults,
                    const std::string& agents_dir,
                    const std::string& ui_dir,
-                   const std::string& default_agent)
+                   const std::string& default_agent,
+                   const std::string& workspace_dir)
     : tools_(tools), memory_(memory), defaults_(defaults)
     , agents_dir_(agents_dir), ui_dir_(ui_dir), default_agent_(default_agent)
+    , workspace_dir_(workspace_dir)
 {
     load_agents();
 }
@@ -251,6 +258,50 @@ void FunesApi::mount(httplib::Server& srv) {
         for (const auto& turn : memory_.recent_turns(session, limit))
             arr.push_back({{"role", turn.role}, {"content", turn.content}});
         json_reply(res, 200, {{"ok", true}, {"turns", arr}});
+    });
+
+    // ── upload (attach a file to the chat from the UI) ────────────────────────
+    srv.Post("/api/upload", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_file("file"))
+            return json_error(res, 400, "Missing 'file' field (multipart/form-data)");
+
+        const auto file = req.get_file_value("file");
+        if (file.content.size() > MAX_UPLOAD_BYTES)
+            return json_error(res, 400, "File too large (max 5 MB)");
+
+        std::string safe_name = fs::path(file.filename).filename().string();
+        if (safe_name.empty() || safe_name == "." || safe_name == "..")
+            safe_name = "upload";
+        const auto stamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        safe_name = std::to_string(stamp) + "_" + safe_name;
+
+        std::error_code ec;
+        fs::create_directories(workspace_dir_, ec);
+        fs::path dest = fs::path(workspace_dir_) / safe_name;
+
+        std::ofstream out(dest, std::ios::binary | std::ios::trunc);
+        if (!out) return json_error(res, 500, "Could not save upload");
+        out << file.content;
+        out.close();
+
+        const bool is_text = funes::looks_like_text(file.content);
+        std::string preview = is_text ? file.content : "";
+        bool truncated = false;
+        if (is_text && preview.size() > MAX_UPLOAD_PREVIEW) {
+            funes::truncate_utf8_safe(preview, MAX_UPLOAD_PREVIEW);
+            truncated = true;
+        }
+
+        json_reply(res, 200, {
+            {"ok", true},
+            {"filename", safe_name},
+            {"path", dest.string()},
+            {"size", file.content.size()},
+            {"is_text", is_text},
+            {"content", preview},
+            {"truncated", truncated}
+        });
     });
 
     // ── static UI ─────────────────────────────────────────────────────────────

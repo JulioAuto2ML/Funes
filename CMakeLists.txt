@@ -72,20 +72,44 @@ target_link_libraries(mcp PUBLIC
 add_library(funes_core STATIC
     src/core/llm_client.cpp
     src/core/agent_config.cpp
+    src/core/context_compressor.cpp
+    src/core/text_utils.cpp
     src/core/memory.cpp
     src/core/tools.cpp
+    src/core/tools/net_guard.cpp
+    src/core/tools/fs_guard.cpp
     src/core/tools/web_search.cpp
     src/core/tools/web_fetch.cpp
     src/core/tools/memory_tools.cpp
+    src/core/tools/context_tools.cpp
+    src/core/tools/introspection.cpp
+    src/core/tools/tool_builder.cpp
+    src/core/tools/agent_builder.cpp
+    src/core/tools/file_tools.cpp
+    src/core/tools/shell_tool.cpp
     src/core/agent.cpp
 )
 target_include_directories(funes_core PUBLIC src/core)
 target_link_libraries(funes_core PUBLIC mcp funes_sqlite ${YAML_CPP_LIB})
 
 # ── funes binary ──────────────────────────────────────────────────────────────
+# Tools scaffolded by the `create_tool` meta-tool (see src/core/tools/tool_builder.cpp)
+# land in src/core/tools/generated/ as plain .cpp files that self-register via a
+# static initializer (see http_tool_runtime.h). CONFIGURE_DEPENDS means new ones
+# are picked up on the next `cmake --build` without editing this file.
+#
+# These must be sources of the *executable*, not of funes_core: a static
+# library only pulls in .o files that resolve an external symbol reference,
+# and nothing calls a generated file's self-registration function directly —
+# it's only reached through a function pointer recorded by its own static
+# initializer. Linked via a .a, that .o would be silently dropped.
+file(GLOB FUNES_GENERATED_TOOLS CONFIGURE_DEPENDS src/core/tools/generated/*.cpp)
+
 add_executable(funes
     src/server/main.cpp
     src/server/api.cpp
+    src/core/tools/http_tool_runtime.cpp
+    ${FUNES_GENERATED_TOOLS}
 )
 target_link_libraries(funes PRIVATE funes_core)
 

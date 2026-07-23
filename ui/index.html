@@ -21,6 +21,10 @@
         <button id="toggle-memory" class="ghost" title="Show what Funes remembers">
           Memory <span id="memory-count" class="pill">0</span>
         </button>
+        <span id="context-gauge" class="context-gauge" title="Context usage" hidden>
+          <span class="bar"><span id="context-bar-fill" class="bar-fill"></span></span>
+          <span id="context-pct">0%</span>
+        </span>
         <span id="status-dot" class="dot" title="Checking…"></span>
       </div>
     </header>
@@ -35,7 +39,10 @@
                it will remember. Everything is stored locally in a single file.</p>
           </div>
         </div>
+        <div id="attachments" class="attachments" hidden></div>
         <form id="composer" class="composer" autocomplete="off">
+          <input id="file-input" type="file" multiple hidden>
+          <button id="attach-btn" type="button" class="ghost" title="Attach a file">📎</button>
           <textarea id="input" rows="1" placeholder="Say something to Funes…"
                     spellcheck="false"></textarea>
           <button id="send" type="submit" title="Send">↑</button>

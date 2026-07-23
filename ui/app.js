@@ -23,6 +23,12 @@ const els = {
   memoryCount:  $('memory-count'),
   semanticBadge:$('semantic-badge'),
   statusDot:    $('status-dot'),
+  contextGauge: $('context-gauge'),
+  contextBarFill:$('context-bar-fill'),
+  contextPct:   $('context-pct'),
+  attachments:  $('attachments'),
+  attachBtn:    $('attach-btn'),
+  fileInput:    $('file-input'),
 };
 
 const urlSession = new URLSearchParams(location.search).get('session');
@@ -31,6 +37,7 @@ const state = {
   session: urlSession || localStorage.getItem('funes.session') || newSessionId(),
   agent:   localStorage.getItem('funes.agent') || '',
   busy:    false,
+  attachments: [],  // [{filename, content, isText, truncated}]
 };
 localStorage.setItem('funes.session', state.session);
 
@@ -102,10 +109,10 @@ function addChip(cls, icon, label, detail) {
 
 /* ── SSE chat ────────────────────────────────────────────────────────────── */
 
-async function sendMessage(text) {
+async function sendMessage(displayText, fullText) {
   state.busy = true;
   els.send.disabled = true;
-  addMessage('user', text);
+  addMessage('user', displayText);
 
   const bubble = addMessage('assistant', '');
   bubble.classList.add('thinking');
@@ -116,7 +123,7 @@ async function sendMessage(text) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: text,
+        message: fullText,
         session: state.session,
         agent:   state.agent,
       }),
@@ -162,6 +169,16 @@ async function sendMessage(text) {
           last.addEventListener('click', () => last.classList.toggle('open'));
           if (data.error) last.classList.add('error');
         }
+      } else if (type === 'context_compressed') {
+        const n = data.turns_folded;
+        els.messages.insertBefore(
+          bubbleChipBefore('compress', '🗜️',
+            'Compressed ' + n + (n === 1 ? ' turn' : ' turns') + ' into a summary',
+            data.summary_preview),
+          bubble);
+        scrollDown();
+      } else if (type === 'usage') {
+        updateUsage(data);
       } else if (type === 'done') {
         bubble.innerHTML = renderMarkdown(data.text || streamed || '…');
       } else if (type === 'error') {
@@ -222,6 +239,86 @@ function summarizeArgs(args) {
   const vals = Object.values(args).map(v =>
     typeof v === 'string' ? (v.length > 40 ? v.slice(0, 40) + '…' : v) : JSON.stringify(v));
   return vals.join(', ');
+}
+
+/* ── attachments ─────────────────────────────────────────────────────────── */
+
+async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const resp = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!data.ok) {
+      addChip('error', '⚠️', 'Upload failed: ' + (data.error || 'unknown error'));
+      return;
+    }
+    state.attachments.push({
+      filename: data.filename,
+      content:  data.content,
+      isText:   data.is_text,
+      truncated: data.truncated,
+    });
+    renderAttachments();
+  } catch (e) {
+    addChip('error', '⚠️', 'Upload failed: ' + e.message);
+  }
+}
+
+function renderAttachments() {
+  els.attachments.innerHTML = '';
+  els.attachments.hidden = state.attachments.length === 0;
+  state.attachments.forEach((a, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'attachment-chip' + (a.isText ? '' : ' binary');
+    const label = document.createElement('span');
+    label.textContent = '📎 ' + a.filename + (a.truncated ? ' (truncated)' : '')
+                       + (a.isText ? '' : ' (binary, saved only)');
+    chip.appendChild(label);
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.textContent = '✕';
+    rm.title = 'Remove attachment';
+    rm.addEventListener('click', () => {
+      state.attachments.splice(i, 1);
+      renderAttachments();
+    });
+    chip.appendChild(rm);
+    els.attachments.appendChild(chip);
+  });
+}
+
+// What the user sees in their own chat bubble — just the filenames, not the
+// (possibly huge) file content that actually gets sent.
+function buildDisplayText(text, attachments) {
+  const chips = attachments.map(a => '📎 ' + a.filename).join('  ');
+  if (chips && text) return chips + '\n' + text;
+  return chips || text;
+}
+
+// What actually goes to the model: file contents inlined as fenced blocks.
+function buildFullText(text, attachments) {
+  let out = '';
+  for (const a of attachments) {
+    out += '[Attached file: ' + a.filename + ']\n';
+    out += a.isText ? ('```\n' + a.content + '\n```\n\n')
+                    : '(binary file, saved to the workspace, not shown here)\n\n';
+  }
+  out += text;
+  return out.trim() || '(see attached file)';
+}
+
+/* ── context usage gauge ─────────────────────────────────────────────────── */
+
+function updateUsage(data) {
+  const pct = data.limit > 0 ? Math.min(100, Math.round((data.used / data.limit) * 100)) : 0;
+  els.contextGauge.hidden = false;
+  els.contextBarFill.style.width = pct + '%';
+  els.contextPct.textContent = pct + '%';
+  els.contextGauge.classList.remove('ok', 'warn', 'danger');
+  els.contextGauge.classList.add(pct < 60 ? 'ok' : pct < 85 ? 'warn' : 'danger');
+  els.contextGauge.title = (data.estimated ? '~' : '') + data.used + ' / ' + data.limit +
+                          ' tokens' + (data.estimated ? ' (estimated)' : '');
 }
 
 /* ── memory pane ─────────────────────────────────────────────────────────── */
@@ -337,10 +434,23 @@ async function restoreHistory() {
 els.composer.addEventListener('submit', (e) => {
   e.preventDefault();
   const text = els.input.value.trim();
-  if (!text || state.busy) return;
+  if ((!text && state.attachments.length === 0) || state.busy) return;
+
+  const displayText = buildDisplayText(text, state.attachments);
+  const fullText = buildFullText(text, state.attachments);
   els.input.value = '';
   els.input.style.height = 'auto';
-  sendMessage(text);
+  state.attachments = [];
+  renderAttachments();
+  sendMessage(displayText, fullText);
+});
+
+els.attachBtn.addEventListener('click', () => els.fileInput.click());
+
+els.fileInput.addEventListener('change', async () => {
+  const files = Array.from(els.fileInput.files);
+  els.fileInput.value = '';
+  for (const file of files) await uploadFile(file);
 });
 
 els.input.addEventListener('keydown', (e) => {
@@ -364,6 +474,8 @@ els.agentSelect.addEventListener('change', () => {
 els.newChat.addEventListener('click', () => {
   state.session = newSessionId();
   localStorage.setItem('funes.session', state.session);
+  state.attachments = [];
+  renderAttachments();
   els.messages.innerHTML =
     '<div class="welcome"><h2>“I have more memories than all mankind…”</h2>' +
     '<p>New conversation — but Funes still remembers everything from before.</p></div>';

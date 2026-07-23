@@ -110,6 +110,39 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 .dot.ok  { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 .dot.err { background: var(--error); box-shadow: 0 0 6px var(--error); }
 
+/* context usage gauge */
+
+.context-gauge[hidden] { display: none; }
+
+.context-gauge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.context-gauge .bar {
+  width: 46px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.context-gauge .bar-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ok);
+  transition: width .25s ease-out, background-color .25s ease-out;
+}
+
+.context-gauge.warn   .bar-fill { background: var(--accent); }
+.context-gauge.danger .bar-fill { background: var(--error); }
+.context-gauge.danger #context-pct { color: var(--error); }
+
 /* ── layout ──────────────────────────────────────────────────────────────── */
 
 .layout {
@@ -221,6 +254,7 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 }
 .chip .chip-icon { margin-right: 6px; }
 .chip.memory { border-color: rgba(212,162,78,.35); color: var(--accent); cursor: pointer; }
+.chip.compress { border-color: rgba(127,174,122,.4); color: var(--ok); cursor: pointer; }
 .chip.error  { border-color: var(--error); color: var(--error); }
 .chip .detail {
   display: none;
@@ -265,6 +299,48 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   transition: opacity .15s;
 }
 #send:disabled { opacity: 0.4; cursor: default; }
+
+#attach-btn {
+  width: 40px;
+  align-self: flex-end;
+  font-size: 16px;
+  padding: 0;
+}
+
+/* ── attachments ─────────────────────────────────────────────────────────── */
+
+.attachments[hidden] { display: none; }
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px 8px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px 6px 4px 10px;
+}
+.attachment-chip.binary { color: var(--text-dim); font-style: italic; }
+
+.attachment-chip button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px;
+}
+.attachment-chip button:hover { color: var(--error); }
 
 /* ── memory pane ─────────────────────────────────────────────────────────── */
 
