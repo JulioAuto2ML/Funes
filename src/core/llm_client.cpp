@@ -17,6 +17,7 @@
 // =============================================================================
 
 #include "llm_client.h"
+#include "text_utils.h"
 #include "httplib.h"
 #include <cctype>
 #include <chrono>
@@ -341,7 +342,7 @@ CompletionResponse LLMClient::complete_openai(
     json body = build_openai_body(messages, tools_schema, /*stream=*/false);
     const std::string path = base_path_ + "/v1/chat/completions";
     auto result = do_post(https_, host_, port_, path,
-                          openai_headers(api_key_), body.dump());
+                          openai_headers(api_key_), funes::dump_safe(body));
 
     if (!result)
         throw std::runtime_error("HTTP request failed: " +
@@ -430,7 +431,7 @@ CompletionResponse LLMClient::stream_openai(
     };
 
     auto result = do_post_stream(https_, host_, port_, path,
-                                 openai_headers(api_key_), body.dump(),
+                                 openai_headers(api_key_), funes::dump_safe(body),
         [&](const char* data, size_t len) {
             sse.feed(data, len);
             error_body.append(data, len);  // kept in case of a non-200 status
@@ -565,7 +566,7 @@ CompletionResponse LLMClient::complete_anthropic(
     json body = build_anthropic_body(messages, tools_schema, /*stream=*/false);
     const std::string path = base_path_ + "/v1/messages";
     auto result = do_post(https_, host_, port_, path,
-                          anthropic_headers(api_key_), body.dump());
+                          anthropic_headers(api_key_), funes::dump_safe(body));
 
     if (!result)
         throw std::runtime_error("HTTP request failed: " +
@@ -662,7 +663,7 @@ CompletionResponse LLMClient::stream_anthropic(
     };
 
     auto result = do_post_stream(https_, host_, port_, path,
-                                 anthropic_headers(api_key_), body.dump(),
+                                 anthropic_headers(api_key_), funes::dump_safe(body),
         [&](const char* data, size_t len) {
             sse.feed(data, len);
             error_body.append(data, len);
@@ -763,7 +764,7 @@ std::vector<float> EmbeddingClient::embed(const std::string& text) {
         headers.emplace("Authorization", "Bearer " + api_key_);
 
     const std::string path = base_path_ + "/v1/embeddings";
-    auto result = do_post(https_, host_, port_, path, headers, body.dump());
+    auto result = do_post(https_, host_, port_, path, headers, funes::dump_safe(body));
 
     if (!result)
         throw std::runtime_error("Embedding request failed: " +

@@ -30,7 +30,9 @@ bool valid_session(const std::string& s) {
 void json_reply(httplib::Response& res, int status, const json& body) {
     res.status = status;
     res.set_header("Cache-Control", "no-store");
-    res.set_content(body.dump(), "application/json");
+    // dump_safe, not dump(): a memory/tool-result string that isn't valid
+    // UTF-8 must not be able to take down the whole response.
+    res.set_content(funes::dump_safe(body), "application/json");
 }
 
 void json_error(httplib::Response& res, int status, const std::string& message) {
@@ -39,7 +41,7 @@ void json_error(httplib::Response& res, int status, const std::string& message) 
 
 // Write one SSE event to the sink. Returns false if the client disconnected.
 bool sse_write(httplib::DataSink& sink, const std::string& type, const json& data) {
-    std::string frame = "event: " + type + "\ndata: " + data.dump() + "\n\n";
+    std::string frame = "event: " + type + "\ndata: " + funes::dump_safe(data) + "\n\n";
     return sink.write(frame.data(), frame.size());
 }
 

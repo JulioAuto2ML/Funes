@@ -8,6 +8,7 @@
 // Private/loopback hosts are refused unless FUNES_ALLOW_LOCAL_FETCH=1, so an
 // LLM-chosen URL can't probe the local network by default.
 
+#include "../text_utils.h"
 #include "../tools.h"
 #include "net_guard.h"
 #include "httplib.h"
@@ -116,10 +117,17 @@ ToolResult web_fetch_handler(const json& args, const ToolContext&) {
         return {"Unsupported content type '" + content_type + "' for " + url, true};
     }
 
-    if (text.size() > MAX_TEXT_BYTES) {
-        text.resize(MAX_TEXT_BYTES);
-        text += "\n\n[content truncated at 8 KB]";
-    }
+    const bool was_truncated = text.size() > MAX_TEXT_BYTES;
+    if (was_truncated) funes::truncate_utf8_safe(text, MAX_TEXT_BYTES);
+
+    // A page served with a non-UTF-8 charset (or a text/* response that's
+    // actually binary) would otherwise flow into the chat history and crash
+    // JSON serialization the first time it's dumped.
+    if (!funes::looks_like_text(text))
+        return {"Fetched " + url + " but its content isn't valid UTF-8 text "
+                "(wrong charset or not actually text) — can't return it.", true};
+
+    if (was_truncated) text += "\n\n[content truncated at 8 KB]";
     if (text.empty())
         return {"Fetched " + url + " but extracted no text content.", true};
     return {text};

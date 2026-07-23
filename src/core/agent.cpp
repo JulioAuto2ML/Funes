@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "agent.h"
+#include "text_utils.h"
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -129,11 +130,15 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 
     try {
         json result = mcp_clients_[it->second]->call_tool(name, args);
-        // MCP result format: {content: [{type: "text", text: "..."}]}
+        // MCP result format: {content: [{type: "text", text: "..."}]}. The
+        // server is a separate process over the wire — its "text" isn't
+        // guaranteed valid UTF-8, so it goes through dump_safe rather than a
+        // bare .dump() (which throws on invalid UTF-8 instead of degrading).
         if (result.contains("content") && result["content"].is_array()
-            && !result["content"].empty())
-            return {result["content"][0].value("text", result.dump())};
-        return {result.dump()};
+            && !result["content"].empty() && result["content"][0].contains("text")
+            && result["content"][0]["text"].is_string())
+            return {result["content"][0]["text"].get<std::string>()};
+        return {funes::dump_safe(result)};
     } catch (const std::exception& e) {
         return {std::string("MCP tool '") + name + "' failed: " + e.what(), true};
     }
@@ -326,8 +331,14 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             ToolResult result = dispatch_tool(tc.name, tc.arguments, ctx);
 
             if (emit) {
-                std::string preview = result.text.substr(0, 200);
-                if (result.text.size() > 200) preview += "…";
+                // Truncate on bytes first (result.text may be arbitrarily
+                // long native-tool or MCP output), then trim to a clean
+                // UTF-8 boundary so the preview itself is always safe to
+                // dump — a bare substr() can split a multi-byte character.
+                std::string preview = result.text;
+                const bool was_truncated = preview.size() > 200;
+                if (was_truncated) funes::truncate_utf8_safe(preview, 200);
+                if (was_truncated) preview += "…";
                 emit("tool_result", {{"name", tc.name}, {"preview", preview},
                                      {"error", result.error}});
             }
@@ -337,8 +348,9 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
             ChatMessage tool_msg;
             tool_msg.role         = "tool";
-            tool_msg.content      = result.error ? "{\"error\": " + json(result.text).dump() + "}"
-                                                 : result.text;
+            tool_msg.content      = result.error
+                ? "{\"error\": " + funes::dump_safe(json(result.text)) + "}"
+                : result.text;
             tool_msg.tool_call_id = tc.id;
             tool_msg.name         = tc.name;
             history.push_back(std::move(tool_msg));

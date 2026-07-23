@@ -9,6 +9,7 @@
 // process group, and a capped output size. Only enable this for a Funes
 // instance you trust with full access to your account.
 
+#include "../text_utils.h"
 #include "../tools.h"
 #include <chrono>
 #include <cstdlib>
@@ -108,7 +109,12 @@ ShellResult run_shell(const std::string& command, const fs::path& cwd, int timeo
     close(pipefd[0]);
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
-    if (result.output.size() >= MAX_OUTPUT_BYTES) result.output += "\n[output truncated at 16 KB]";
+    if (result.output.size() >= MAX_OUTPUT_BYTES) {
+        // The byte cap above can land mid-character; trim back to a clean
+        // UTF-8 boundary before the caller ever sees this text.
+        funes::truncate_utf8_safe(result.output, MAX_OUTPUT_BYTES);
+        result.output += "\n[output truncated at 16 KB]";
+    }
     return result;
 }
 
@@ -134,6 +140,13 @@ ToolResult execute_shell_handler(const fs::path& workspace, const json& args, co
     if (timeout > MAX_TIMEOUT_SECS) timeout = MAX_TIMEOUT_SECS;
 
     ShellResult r = run_shell(command, workspace, timeout);
+
+    // A command's stdout/stderr is arbitrary bytes, not guaranteed text
+    // (e.g. `cat` on a binary file) — refuse to pass that through raw the
+    // same way read_file/web_fetch do, rather than risk it downstream.
+    if (!funes::looks_like_text(r.output))
+        r.output = "[" + std::to_string(r.output.size()) +
+                   " bytes of output omitted — not valid UTF-8 text]";
 
     std::string text;
     if (r.timed_out)

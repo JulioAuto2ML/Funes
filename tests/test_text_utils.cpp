@@ -6,6 +6,8 @@
 #include <iostream>
 #include <string>
 
+using json = nlohmann::json;
+
 #define CHECK(cond) do { \
     if (!(cond)) { \
         std::cerr << "FAILED at " << __FILE__ << ":" << __LINE__ << " — " #cond "\n"; \
@@ -56,10 +58,41 @@ int test_truncate_utf8_safe() {
     return 0;
 }
 
+int test_dump_safe() {
+    // Valid content dumps normally.
+    const json good = {{"text", "hello"}};
+    CHECK(funes::dump_safe(good) == good.dump());
+
+    // Invalid UTF-8 would make a bare .dump() throw json::type_error.316 —
+    // dump_safe must not throw, and must still produce valid JSON output.
+    const json bad = {{"text", std::string("caf\xe9")}};
+    std::string out;
+    bool threw = false;
+    try { out = funes::dump_safe(bad); }
+    catch (...) { threw = true; }
+    CHECK(!threw);
+    CHECK(!out.empty());
+    // The result itself must be valid, re-parseable JSON.
+    bool reparse_threw = false;
+    json reparsed;
+    try { reparsed = json::parse(out); } catch (...) { reparse_threw = true; }
+    CHECK(!reparse_threw);
+    CHECK(reparsed.is_object());
+
+    // A bare dump() on the same value really does throw — confirms the test
+    // is exercising the actual failure mode, not a no-op.
+    bool bare_dump_threw = false;
+    try { (void)bad.dump(); } catch (const json::type_error&) { bare_dump_threw = true; }
+    CHECK(bare_dump_threw);
+
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_looks_like_text();
     rc |= test_truncate_utf8_safe();
+    rc |= test_dump_safe();
     if (rc == 0) std::cout << "test_text_utils: all tests passed\n";
     return rc;
 }
