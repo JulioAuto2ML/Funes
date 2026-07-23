@@ -1,0 +1,383 @@
+/* =============================================================================
+   Funes UI — ink & parchment
+   ========================================================================== */
+
+:root {
+  --bg:          #0e1013;
+  --bg-raised:   #16191e;
+  --bg-input:    #1c2027;
+  --border:      #262b33;
+  --text:        #e6e1d6;
+  --text-dim:    #8f8a7e;
+  --accent:      #d4a24e;
+  --accent-soft: rgba(212, 162, 78, 0.14);
+  --user-bubble: #24405e;
+  --error:       #c96a5a;
+  --ok:          #7fae7a;
+  --serif: Georgia, 'Times New Roman', serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ── top bar ─────────────────────────────────────────────────────────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { display: flex; align-items: baseline; gap: 12px; }
+
+.brand h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+.tagline {
+  color: var(--text-dim);
+  font-style: italic;
+  font-family: var(--serif);
+  font-size: 14px;
+}
+
+.controls { display: flex; align-items: center; gap: 10px; }
+
+select, button, input, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+}
+
+#agent-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+button.ghost:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+.pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 12px;
+}
+
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  display: inline-block;
+}
+.dot.ok  { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.dot.err { background: var(--error); box-shadow: 0 0 6px var(--error); }
+
+/* ── layout ──────────────────────────────────────────────────────────────── */
+
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+}
+
+.chat-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── messages ────────────────────────────────────────────────────────────── */
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+
+.welcome {
+  margin: auto;
+  max-width: 480px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.welcome h2 {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.msg {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  animation: rise .18s ease-out;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+  border-bottom-right-radius: 4px;
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.msg.assistant.thinking::after {
+  content: "▍";
+  color: var(--accent);
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.msg code {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: rgba(255,255,255,0.07);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.msg pre {
+  background: #0a0c0f;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  overflow-x: auto;
+}
+.msg pre code { background: none; padding: 0; }
+.msg a { color: var(--accent); }
+
+/* activity chips (recalled memories, tool calls) */
+
+.activity {
+  align-self: flex-start;
+  max-width: 78%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chip {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--bg-raised);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 5px 10px;
+  cursor: default;
+}
+.chip .chip-icon { margin-right: 6px; }
+.chip.memory { border-color: rgba(212,162,78,.35); color: var(--accent); cursor: pointer; }
+.chip.error  { border-color: var(--error); color: var(--error); }
+.chip .detail {
+  display: none;
+  margin-top: 6px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+.chip.open .detail { display: block; }
+
+/* ── composer ────────────────────────────────────────────────────────────── */
+
+.composer {
+  display: flex;
+  gap: 10px;
+  padding: 12px 4px 16px;
+  border-top: 1px solid var(--border);
+}
+
+#input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 14px;
+  resize: none;
+  max-height: 160px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color .15s;
+}
+#input:focus { border-color: var(--accent); }
+
+#send {
+  width: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #14110a;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+#send:disabled { opacity: 0.4; cursor: default; }
+
+/* ── memory pane ─────────────────────────────────────────────────────────── */
+
+.memory-pane[hidden] { display: none; }
+
+.memory-pane {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 4px;
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  overflow: hidden;
+}
+
+.memory-head { display: flex; align-items: center; gap: 8px; }
+.memory-head h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.badge {
+  font-size: 11px;
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+
+.memory-add { display: flex; gap: 6px; }
+.memory-add input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+}
+.memory-add input:focus { border-color: var(--accent); }
+.memory-add button { padding: 4px 10px; }
+
+#memory-search {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+}
+#memory-search:focus { border-color: var(--accent); }
+
+.memory-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.memory-item {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  position: relative;
+}
+.memory-item .meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.memory-item .src {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 5px;
+}
+.memory-item .src.user { color: var(--accent); border-color: rgba(212,162,78,.4); }
+.memory-item .src.tool { color: var(--ok); border-color: rgba(127,174,122,.4); }
+.memory-item .forget {
+  position: absolute;
+  top: 6px; right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.memory-item:hover .forget { opacity: 1; }
+.memory-item .forget:hover { color: var(--error); }
+
+.memory-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 24px;
+}
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 860px) {
+  .memory-pane { position: fixed; right: 0; top: 0; bottom: 0;
+                 background: var(--bg); z-index: 10; box-shadow: -12px 0 30px rgba(0,0,0,.5); }
+  .tagline { display: none; }
+  .msg { max-width: 92%; }
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "funes",
+      "runtimeExecutable": "./bin/funes",
+      "runtimeArgs": [],
+      "port": 8484
+    }
+  ]
+}

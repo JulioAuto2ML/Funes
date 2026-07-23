@@ -1,0 +1,73 @@
+// =============================================================================
+// src/core/agent_config.cpp — YAML parsing for AgentConfig
+// =============================================================================
+// Expected YAML schema (all optional except `name`) — see agents/ for examples.
+// Uses yaml-cpp (libyaml-cpp-dev).
+
+#include "agent_config.h"
+#include <yaml-cpp/yaml.h>
+#include <stdexcept>
+
+static AgentConfig from_node(const YAML::Node& root, const std::string& source) {
+    if (!root["name"])
+        throw std::runtime_error("Agent YAML missing required field 'name' in: " + source);
+
+    AgentConfig cfg;
+    cfg.name          = root["name"].as<std::string>();
+    cfg.description   = root["description"]   ? root["description"].as<std::string>()   : "";
+    cfg.model         = root["model"]         ? root["model"].as<std::string>()         : "default";
+    cfg.llm_url       = root["llm_url"]       ? root["llm_url"].as<std::string>()       : "";
+    cfg.llm_api_key   = root["llm_api_key"]   ? root["llm_api_key"].as<std::string>()   : "";
+    cfg.llm_provider  = root["llm_provider"]  ? root["llm_provider"].as<std::string>()  : "";
+    cfg.system_prompt = root["system_prompt"] ? root["system_prompt"].as<std::string>() : "";
+    cfg.tool_choice   = root["tool_choice"]   ? root["tool_choice"].as<std::string>()   : "auto";
+
+    if (root["context_limit"])
+        cfg.context_limit = root["context_limit"].as<int>();
+    if (root["max_steps"])
+        cfg.max_steps = root["max_steps"].as<int>();
+
+    if (root["tools"] && root["tools"].IsSequence()) {
+        for (const auto& t : root["tools"])
+            cfg.tools.push_back(t.as<std::string>());
+    }
+
+    if (root["mcp_servers"] && root["mcp_servers"].IsSequence()) {
+        for (const auto& entry : root["mcp_servers"]) {
+            McpServerConfig srv;
+            if (entry.IsScalar()) {
+                // Bare URL shorthand: "- http://localhost:9000"
+                srv.url  = entry.as<std::string>();
+                srv.name = srv.url;
+            } else {
+                if (entry["url"])  srv.url  = entry["url"].as<std::string>();
+                if (entry["name"]) srv.name = entry["name"].as<std::string>();
+                if (srv.name.empty()) srv.name = srv.url;
+            }
+            if (!srv.url.empty())
+                cfg.mcp_servers.push_back(std::move(srv));
+        }
+    }
+
+    return cfg;
+}
+
+AgentConfig AgentConfig::from_file(const std::string& path) {
+    YAML::Node root;
+    try {
+        root = YAML::LoadFile(path);
+    } catch (const YAML::Exception& e) {
+        throw std::runtime_error("Failed to parse agent YAML '" + path + "': " + e.what());
+    }
+    return from_node(root, path);
+}
+
+AgentConfig AgentConfig::from_string(const std::string& yaml_content) {
+    YAML::Node root;
+    try {
+        root = YAML::Load(yaml_content);
+    } catch (const YAML::Exception& e) {
+        throw std::runtime_error("Failed to parse agent YAML string: " + std::string(e.what()));
+    }
+    return from_node(root, "<string>");
+}

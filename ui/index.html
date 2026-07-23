@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Funes — an assistant that remembers</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128024;</text></svg>">
+</head>
+<body>
+  <div class="app">
+
+    <header class="topbar">
+      <div class="brand">
+        <h1>Funes</h1>
+        <span class="tagline">an assistant that remembers</span>
+      </div>
+      <div class="controls">
+        <select id="agent-select" title="Agent"></select>
+        <button id="new-chat" class="ghost" title="Start a new conversation">New chat</button>
+        <button id="toggle-memory" class="ghost" title="Show what Funes remembers">
+          Memory <span id="memory-count" class="pill">0</span>
+        </button>
+        <span id="status-dot" class="dot" title="Checking…"></span>
+      </div>
+    </header>
+
+    <main class="layout">
+
+      <section class="chat-pane">
+        <div id="messages" class="messages">
+          <div class="welcome" id="welcome">
+            <h2>“I have more memories than all mankind…”</h2>
+            <p>Tell Funes about yourself, ask it anything, come back tomorrow —
+               it will remember. Everything is stored locally in a single file.</p>
+          </div>
+        </div>
+        <form id="composer" class="composer" autocomplete="off">
+          <textarea id="input" rows="1" placeholder="Say something to Funes…"
+                    spellcheck="false"></textarea>
+          <button id="send" type="submit" title="Send">↑</button>
+        </form>
+      </section>
+
+      <aside class="memory-pane" id="memory-pane">
+        <div class="memory-head">
+          <h3>What Funes remembers</h3>
+          <span id="semantic-badge" class="badge" hidden>semantic</span>
+        </div>
+        <form id="memory-add" class="memory-add">
+          <input id="memory-add-text" type="text" maxlength="2000"
+                 placeholder="Teach Funes a fact…">
+          <button type="submit" class="ghost">＋</button>
+        </form>
+        <input id="memory-search" type="search" placeholder="Search memories…">
+        <div id="memory-list" class="memory-list"></div>
+      </aside>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

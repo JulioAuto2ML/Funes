@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+bin/
+compile_commands.json
+
+# Local secrets and machine-local overrides
+config/funes.local
+
+# Runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
