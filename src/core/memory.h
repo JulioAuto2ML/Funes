@@ -94,6 +94,18 @@ public:
     void set_summary(const std::string& session, const std::string& agent,
                      const std::string& summary);
 
+    // ── Sessions (the UI's conversation list) ─────────────────────────────────
+
+    struct SessionSummary {
+        std::string session;
+        std::string last_message_at;  // UTC "YYYY-MM-DD HH:MM:SS" of the newest turn
+        std::string preview;          // the session's first user message, as a title
+        int64_t     turn_count = 0;   // user+assistant turns, not counting the preview lookup
+    };
+
+    // Every session that has at least one turn, newest activity first.
+    std::vector<SessionSummary> list_sessions(int limit = 50);
+
 private:
     sqlite3*         db_ = nullptr;
     std::mutex       mu_;

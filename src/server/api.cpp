@@ -122,6 +122,14 @@ AgentConfig FunesApi::find_agent(const std::string& name) const {
     return it->second;
 }
 
+std::vector<std::string> FunesApi::agent_names() const {
+    std::lock_guard<std::mutex> lock(agents_mu_);
+    std::vector<std::string> names;
+    names.reserve(agents_.size());
+    for (const auto& [name, cfg] : agents_) names.push_back(name);
+    return names;
+}
+
 // ── routes ────────────────────────────────────────────────────────────────────
 
 void FunesApi::mount(httplib::Server& srv) {
@@ -311,6 +319,24 @@ void FunesApi::mount(httplib::Server& srv) {
         for (const auto& turn : memory_.recent_turns(session, limit))
             arr.push_back({{"role", turn.role}, {"content", turn.content}});
         json_reply(res, 200, {{"ok", true}, {"turns", arr}});
+    });
+
+    // ── sessions (the UI's conversation list) ──────────────────────────────────
+    srv.Get("/api/sessions", [this](const httplib::Request& req, httplib::Response& res) {
+        int limit = 50;
+        if (req.has_param("limit")) limit = std::atoi(req.get_param_value("limit").c_str());
+        if (limit < 1 || limit > 200) limit = 50;
+
+        json arr = json::array();
+        for (const auto& s : memory_.list_sessions(limit)) {
+            arr.push_back({
+                {"session",         s.session},
+                {"last_message_at", s.last_message_at},
+                {"preview",         s.preview},
+                {"turn_count",      s.turn_count}
+            });
+        }
+        json_reply(res, 200, {{"ok", true}, {"sessions", arr}});
     });
 
     // ── upload (attach a file to the chat from the UI) ────────────────────────

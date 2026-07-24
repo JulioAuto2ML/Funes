@@ -16,8 +16,10 @@
         <span class="tagline">an assistant that remembers</span>
       </div>
       <div class="controls">
-        <select id="agent-select" title="Agent"></select>
         <button id="new-chat" class="ghost" title="Start a new conversation">New chat</button>
+        <button id="toggle-chats" class="ghost" title="Browse past conversations">
+          Chats
+        </button>
         <button id="toggle-memory" class="ghost" title="Show what Funes remembers">
           Memory <span id="memory-count" class="pill">0</span>
         </button>
@@ -30,6 +32,13 @@
     </header>
 
     <main class="layout">
+
+      <aside class="chats-pane" id="chats-pane" hidden>
+        <div class="chats-head">
+          <h3>Conversations</h3>
+        </div>
+        <div id="chats-list" class="chats-list"></div>
+      </aside>
 
       <section class="chat-pane">
         <div id="messages" class="messages">

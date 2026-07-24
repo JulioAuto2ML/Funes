@@ -68,6 +68,21 @@ class Handler(BaseHTTPRequestHandler):
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
             return
 
+        if "delegate-now" in last_user and not has_tool_result:
+            tool_call = {"id": "call_delegate", "type": "function",
+                         "function": {"name": "delegate_to_agent",
+                                      "arguments": json.dumps({
+                                          "agent": "researcher",
+                                          "task": "look something up"})}}
+            if stream:
+                self._stream_tool_call(tool_call)
+            else:
+                self._json(200, {"choices": [{"message": {
+                    "role": "assistant", "content": None,
+                    "tool_calls": [tool_call]}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+            return
+
         text = "MOCK-REPLY"
         if has_tool_result:
             text += " with-tool-result"

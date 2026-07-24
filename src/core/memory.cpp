@@ -16,6 +16,7 @@
 #include "memory.h"
 #include "sqlite3.h"
 #include "sqlite-vec.h"
+#include "text_utils.h"
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -130,7 +131,7 @@ void MemoryStore::migrate() {
             agent      TEXT NOT NULL,
             role       TEXT NOT NULL,
             content    TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
         );
         CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session, id);
         CREATE TABLE IF NOT EXISTS session_summaries (
@@ -479,4 +480,42 @@ void MemoryStore::set_summary(const std::string& session, const std::string& age
     s.bind_text(2, agent);
     s.bind_text(3, summary);
     s.step();
+}
+
+// ── sessions ───────────────────────────────────────────────────────────────────
+
+std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int limit) {
+    std::lock_guard<std::mutex> lock(mu_);
+
+    Stmt s(db_, R"sql(
+        SELECT g.session, g.last_at, g.cnt,
+               (SELECT content FROM turns
+                WHERE session = g.session AND role = 'user'
+                ORDER BY id ASC LIMIT 1) AS preview
+        FROM (
+            SELECT session, MAX(created_at) AS last_at, COUNT(*) AS cnt
+            FROM turns
+            WHERE role IN ('user', 'assistant')
+            GROUP BY session
+        ) g
+        ORDER BY g.last_at DESC
+        LIMIT ?
+    )sql");
+    s.bind_int64(1, limit);
+
+    constexpr size_t kMaxPreviewBytes = 120;
+    std::vector<SessionSummary> out;
+    while (s.step()) {
+        SessionSummary summary;
+        summary.session         = s.col_text(0);
+        summary.last_message_at = s.col_text(1);
+        summary.turn_count      = s.col_int64(2);
+        summary.preview         = s.col_text(3);
+        if (summary.preview.size() > kMaxPreviewBytes) {
+            funes::truncate_utf8_safe(summary.preview, kMaxPreviewBytes);
+            summary.preview += "…";
+        }
+        out.push_back(std::move(summary));
+    }
+    return out;
 }

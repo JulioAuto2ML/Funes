@@ -118,6 +118,12 @@ int main() {
     // YAML, so it's wired up once FunesApi (which owns the agent table) exists.
     register_agent_builder(tools, agents_dir, [&api] { api.load_agents(); });
 
+    // delegate_to_agent needs to look up other personas by name — also
+    // wired up post-construction since FunesApi owns the agent table.
+    register_delegation_tool(tools, memory, defaults,
+        [&api](const std::string& name) { return api.find_agent(name); },
+        [&api] { return api.agent_names(); });
+
     // Embed any memories that are missing vectors (e.g. stored while the
     // embedding endpoint was down) without blocking startup.
     std::thread([&memory] {

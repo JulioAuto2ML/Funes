@@ -147,7 +147,8 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 // ── run ───────────────────────────────────────────────────────────────────────
 
 std::string FunesAgent::run(const std::string& user_message, const std::string& session,
-                            const EventFn& emit, const std::vector<ImageAttachment>& images) {
+                            const EventFn& emit, const std::vector<ImageAttachment>& images,
+                            bool persist) {
     ToolContext ctx{cfg_.name, session};
 
     // 1. Recall relevant memories and surface them to the UI.
@@ -175,9 +176,12 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     // 2. Load the rolling summary + recent turns, compressing the oldest half
     //    of the window into the summary first if it's about to crowd out the
     //    context window (automatic safety net; see context_compressor.h).
-    std::string summary = memory_.get_summary(session);
+    //    Skipped for non-persisting (delegated) calls: a specialist doing one
+    //    task shouldn't rewrite the shared session's summary or prune its
+    //    turns as a side effect — that's the persisting caller's job.
+    std::string summary = persist ? memory_.get_summary(session) : std::string();
     std::vector<ChatMessage> recent = memory_.recent_turns(session, defaults_.memory_turns);
-    {
+    if (persist) {
         constexpr double kCompressTriggerFraction = 0.7;
         constexpr int    kMinKeep = 4;
         const int budget = static_cast<int>(cfg_.context_limit * kCompressTriggerFraction);
@@ -222,19 +226,24 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
 
     // 5. Persist the exchange: session history always; long-term memory when
     //    auto-memory is on (source "auto" so the UI can distinguish it).
-    memory_.append_turn(session, cfg_.name, "user", user_message);
-    memory_.append_turn(session, cfg_.name, "assistant", final_text);
+    //    Skipped for delegated calls (persist=false) — the task/answer isn't
+    //    a real turn in the visible conversation, and the orchestrating
+    //    call already persists its own user message and final answer.
+    if (persist) {
+        memory_.append_turn(session, cfg_.name, "user", user_message);
+        memory_.append_turn(session, cfg_.name, "assistant", final_text);
 
-    if (defaults_.auto_memory && !final_text.empty()) {
-        std::string reply = final_text.substr(0, 300);
-        if (final_text.size() > 300) reply += "…";
-        try {
-            memory_.remember(cfg_.name,
-                             "User said: \"" + user_message + "\" — I replied: \"" + reply + "\"",
-                             "auto");
-        } catch (const std::exception& e) {
-            std::cerr << "[agent:" << cfg_.name << "] auto-memory failed: "
-                      << e.what() << "\n";
+        if (defaults_.auto_memory && !final_text.empty()) {
+            std::string reply = final_text.substr(0, 300);
+            if (final_text.size() > 300) reply += "…";
+            try {
+                memory_.remember(cfg_.name,
+                                 "User said: \"" + user_message + "\" — I replied: \"" + reply + "\"",
+                                 "auto");
+            } catch (const std::exception& e) {
+                std::cerr << "[agent:" << cfg_.name << "] auto-memory failed: "
+                          << e.what() << "\n";
+            }
         }
     }
 

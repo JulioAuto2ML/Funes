@@ -90,6 +90,7 @@ add_library(funes_core STATIC
     src/core/tools/agent_builder.cpp
     src/core/tools/file_tools.cpp
     src/core/tools/shell_tool.cpp
+    src/core/tools/delegation.cpp
     src/core/agent.cpp
 )
 target_include_directories(funes_core PUBLIC src/core)

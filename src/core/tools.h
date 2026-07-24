@@ -21,6 +21,7 @@ using json = nlohmann::json;
 
 class MemoryStore;
 struct AgentDefaults;
+struct AgentConfig;
 
 // Per-call context: which agent and chat session triggered the tool.
 struct ToolContext {
@@ -75,3 +76,7 @@ void register_file_tools(ToolRegistry& reg,
                          const std::string& workspace_dir);        // read_file, write_file
 void register_shell_tool(ToolRegistry& reg,
                          const std::string& workspace_dir);        // execute_shell
+void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,
+                              std::function<AgentConfig(const std::string&)> find_agent,
+                              std::function<std::vector<std::string>()> list_agent_names);
+                                                                     // delegate_to_agent

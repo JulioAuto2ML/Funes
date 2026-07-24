@@ -23,6 +23,14 @@ check() {  # check <name> <haystack> <needle>
         FAILURES=$((FAILURES + 1))
     fi
 }
+check_absent() {  # check_absent <name> <haystack> <needle>
+    if echo "$2" | grep -q "$3"; then
+        echo "  FAIL: $1 — did not expect '$3' in: $(echo "$2" | head -c 300)"
+        FAILURES=$((FAILURES + 1))
+    else
+        echo "  ok: $1"
+    fi
+}
 
 cleanup() {
     [ -n "${FUNES_PID:-}" ] && kill "$FUNES_PID" 2>/dev/null
@@ -92,6 +100,32 @@ OUT=$(curl -s -N -X POST "$BASE/api/chat" \
 check "tool_call event"    "$OUT" 'event: tool_call'
 check "tool_result event"  "$OUT" 'event: tool_result'
 check "loop completed"     "$OUT" 'with-tool-result'
+
+echo "— chat (SSE, delegate_to_agent — orchestration + persist=false)"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"please delegate-now","session":"it-session-delegate"}')
+check "delegate tool_call event"   "$OUT" 'delegate_to_agent'
+check "delegate tool_result event" "$OUT" 'event: tool_result'
+check "delegate loop completed"    "$OUT" 'with-tool-result'
+
+OUT=$(curl -s "$BASE/api/history?session=it-session-delegate")
+check "delegated session has orchestrator turn" "$OUT" 'please delegate-now'
+# The delegated sub-call (researcher's own "look something up" task/answer)
+# must NOT show up as its own turn — persist=false is what keeps history to
+# exactly the one exchange the user actually had.
+TURN_COUNT=$(echo "$OUT" | grep -o '"role"' | wc -l)
+if [ "$TURN_COUNT" -eq 2 ]; then
+    echo "  ok: delegated session has exactly 2 turns, not 4"
+else
+    echo "  FAIL: delegated session has exactly 2 turns, not 4 — got $TURN_COUNT"
+    FAILURES=$((FAILURES + 1))
+fi
+check_absent "delegated task text absent from history" "$OUT" 'look something up'
+
+OUT=$(curl -s "$BASE/api/sessions")
+check "sessions list ok"                  "$OUT" '"ok":true'
+check "sessions list has delegate session" "$OUT" 'it-session-delegate'
+check "sessions list has preview"          "$OUT" '"preview":"please delegate-now"'
 
 echo "— chat validation"
 OUT=$(curl -s -X POST "$BASE/api/chat" -d '{"session":"it-session-1"}')

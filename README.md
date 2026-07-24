@@ -33,8 +33,17 @@ remembers (and lets you delete any of it).
   and images (sent to the model as an actual image, if your LLM backend
   supports vision). `execute_shell` is real code execution and is off by
   default — see [Configuration](#configuration).
-- **Agents as YAML.** An agent is a name, a prompt, and a tool allowlist in
-  `agents/*.yaml`. Ship your own in five lines.
+- **One front door, no picker.** You only ever talk to `funes`. It orchestrates:
+  when a request needs a specialist (shell/file work, deep research, building a
+  new tool or agent), it delegates via `delegate_to_agent` and relays the
+  result in its own voice — you don't pick an agent, it does.
+- **Agents as YAML** — really personas. Every "agent" is a name, a prompt, and
+  a tool allowlist in `agents/*.yaml`, run by the same shared runtime — not
+  independent autonomous entities. Delegation is what makes it a real (if
+  simple) multi-agent setup rather than just a persona switch. Ship your own
+  persona in five lines.
+- **Pick up where you left off.** Every conversation with at least one message
+  shows up in the conversations panel — click to switch back to it.
 
 ![Funes UI](docs/screenshot.png)
 
@@ -105,7 +114,12 @@ Funes has three layers of memory, all in one SQLite file:
    prompted to quietly store facts worth keeping (preferences, projects,
    decisions) and to search its past before saying “I don't know”.
 3. **Conversation history.** Each chat session's turns are stored and reloaded,
-   so a page refresh doesn't lose the thread.
+   so a page refresh doesn't lose the thread. Every session with at least one
+   message is browsable from the **conversations panel** (*Chats* in the
+   topbar) — a preview of the first message, last-active time, and a click
+   to switch back to it. A delegated sub-agent's own task/answer isn't a
+   separate turn here — only what you actually said and what `funes` actually
+   answered.
 
 Every memory is visible in the **memory panel**: source-tagged (`user` — you
 taught it, `tool` — the model chose to keep it, `auto` — conversation log),
@@ -176,7 +190,7 @@ single agent dedicated to workspace/shell tasks.
 
 ---
 
-## Agents
+## Agents (and why that word is doing some work)
 
 ```yaml
 # agents/researcher.yaml
@@ -188,8 +202,24 @@ system_prompt: |
   You are a research assistant with persistent memory. ...
 ```
 
-Drop a file in `agents/`, hit *reload* (`POST /api/agents/reload`), and it
-appears in the UI's agent picker. Each agent has its own memory namespace.
+Honestly: an "agent" here is a name, a prompt, and a tool allowlist, run by
+the one shared tool-calling loop — closer to a persona/config profile than an
+independent autonomous agent. Each has its own memory namespace (`remember`/
+`recall` are scoped by agent name), and each can be talked to directly via
+the API (`{"agent": "researcher", ...}` on `/api/chat`) — but the UI only
+ever talks to `funes`, which delegates to the others through
+`delegate_to_agent` rather than making you switch. That delegation is what
+turns "a few personas" into something closer to actual multi-agent
+orchestration: `funes` hands a specialist a task, gets back an answer, and
+relays it — the specialist's own tool calls stay hidden, only `funes`'s
+final message and one expandable chip show up in the chat.
+
+Drop a file in `agents/`, hit *reload* (`POST /api/agents/reload`), and
+it's immediately delegatable — no restart needed (unlike a new *tool*,
+which needs a rebuild — see "Files, PDFs, images & shell" below).
+`agent-builder` (delegate a request like "design an agent that...") does
+this for you: it interviews you, drafts the prompt, and calls `create_agent`
+to write and reload the YAML live.
 
 To give an agent tools from an external MCP server:
 
@@ -214,6 +244,7 @@ GET    /api/memories?agent=&q=        list / semantic search
 POST   /api/memories                  {text, agent?} — teach a fact
 DELETE /api/memories/<id>             forget
 GET    /api/history?session=          a session's turns
+GET    /api/sessions?limit=           conversation list: preview + last activity + turn count
 POST   /api/upload                    multipart 'file' → saved to the workspace, plus a text
                                        preview (text/PDF) or base64 (image) for the UI to send on
 ```
@@ -244,8 +275,8 @@ Funes/
 │   ├── core/          # llm_client (+ multimodal messages), memory, tools, agent runtime,
 │   │   │              # context compression, base64, UTF-8-safety helpers
 │   │   └── tools/     # web_search/fetch, remember/recall, read/write_file (+ PDF extraction),
-│   │                  # execute_shell, compress_context, create_tool/create_agent
-│   │                  # (+ generated/, self-registering)
+│   │                  # execute_shell, compress_context, create_tool/create_agent,
+│   │                  # delegate_to_agent (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test

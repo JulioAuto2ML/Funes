@@ -364,6 +364,69 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 }
 .attachment-chip button:hover { color: var(--error); }
 
+/* ── conversations pane ──────────────────────────────────────────────────── */
+
+.chats-pane[hidden] { display: none; }
+
+.chats-pane {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 16px 4px;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.chats-head { display: flex; align-items: center; gap: 8px; }
+.chats-head h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.chats-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.chat-item {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .12s;
+}
+.chat-item:hover { border-color: var(--accent); }
+.chat-item.active { border-color: var(--accent); background: var(--accent-soft); }
+
+.chat-item .preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.chat-item .meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chats-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 24px;
+}
+
 /* ── memory pane ─────────────────────────────────────────────────────────── */
 
 .memory-pane[hidden] { display: none; }
@@ -476,6 +539,8 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 @media (max-width: 860px) {
   .memory-pane { position: fixed; right: 0; top: 0; bottom: 0;
                  background: var(--bg); z-index: 10; box-shadow: -12px 0 30px rgba(0,0,0,.5); }
+  .chats-pane { position: fixed; left: 0; top: 0; bottom: 0;
+                background: var(--bg); z-index: 10; box-shadow: 12px 0 30px rgba(0,0,0,.5); }
   .tagline { display: none; }
   .msg { max-width: 92%; }
 }

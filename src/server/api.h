@@ -11,6 +11,7 @@
 //   POST   /api/memories            — {agent?, text} (manual memory from UI)
 //   DELETE /api/memories/<id>
 //   GET    /api/history             — ?session=&limit= (restore chat on reload)
+//   GET    /api/sessions            — ?limit= (conversation list: preview + last activity)
 //   POST   /api/upload               — multipart 'file' → saved into the workspace,
 //                                       returns a text preview for the UI to embed
 //   GET    /*                       — static web UI
@@ -27,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace httplib { class Server; }
 
@@ -47,6 +49,14 @@ public:
 
     size_t agent_count() const { return agents_.size(); }
 
+    // Returns a default-constructed (empty name) AgentConfig if not found.
+    // Public so the delegate_to_agent tool (src/core/tools/delegation.cpp)
+    // can look up a target persona by name.
+    AgentConfig find_agent(const std::string& name) const;
+
+    // Every loaded agent's name, for delegation error messages.
+    std::vector<std::string> agent_names() const;
+
 private:
     ToolRegistry& tools_;
     MemoryStore&  memory_;
@@ -58,7 +68,4 @@ private:
 
     std::map<std::string, AgentConfig> agents_;
     mutable std::mutex agents_mu_;
-
-    // Returns nullptr-equivalent (empty name) if not found.
-    AgentConfig find_agent(const std::string& name) const;
 };

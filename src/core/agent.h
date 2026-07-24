@@ -58,11 +58,19 @@ public:
     // user message only — they are not persisted into session history, so
     // they don't replay (or bloat storage) on future turns. Whether the
     // model actually sees them depends on the backend supporting vision.
+    //
+    // `persist=false` skips storing the exchange (session history + auto-
+    // memory) entirely — used for delegated sub-agent calls (see
+    // src/core/tools/delegation.cpp), so a specialist's internal task/answer
+    // doesn't show up as a separate turn in the visible conversation. The
+    // specialist's own recall/remember tool calls are unaffected either way.
+    //
     // Returns the final assistant text. Throws std::runtime_error on
     // unrecoverable LLM errors.
     std::string run(const std::string& user_message, const std::string& session,
                     const EventFn& emit = nullptr,
-                    const std::vector<ImageAttachment>& images = {});
+                    const std::vector<ImageAttachment>& images = {},
+                    bool persist = true);
 
     const AgentConfig& config() const { return cfg_; }
 

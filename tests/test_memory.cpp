@@ -5,6 +5,7 @@
 // embedder), dedup, forget, turns, backfill.
 
 #include "memory.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -142,11 +143,51 @@ int test_turns() {
     return 0;
 }
 
+int test_list_sessions() {
+    MemoryStore store(temp_db("sessions"), nullptr);
+
+    // s1: two full exchanges, s2: one, created after s1 so it sorts first.
+    store.append_turn("s1", "funes", "user", "what's the weather like");
+    store.append_turn("s1", "funes", "assistant", "sunny");
+    store.append_turn("s1", "funes", "user", "and tomorrow");
+    store.append_turn("s1", "funes", "assistant", "rain");
+    store.append_turn("s2", "operator", "user", "check disk space");
+    store.append_turn("s2", "operator", "assistant", "42GB free");
+
+    auto sessions = store.list_sessions();
+    CHECK(sessions.size() == 2);
+
+    // Most recently active session first (s2, created after s1's turns).
+    CHECK(sessions[0].session == "s2");
+    CHECK(sessions[0].turn_count == 2);
+    CHECK(sessions[0].preview == "check disk space");
+
+    CHECK(sessions[1].session == "s1");
+    CHECK(sessions[1].turn_count == 4);
+    // Preview is the FIRST user turn, not the latest.
+    CHECK(sessions[1].preview == "what's the weather like");
+
+    // A long first message gets truncated with an ellipsis.
+    store.append_turn("s3", "funes", "user", std::string(200, 'x'));
+    store.append_turn("s3", "funes", "assistant", "ok");
+    auto with_long = store.list_sessions();
+    auto it = std::find_if(with_long.begin(), with_long.end(),
+                           [](const auto& s) { return s.session == "s3"; });
+    CHECK(it != with_long.end());
+    CHECK(it->preview.size() < 200);
+    CHECK(it->preview.find("…") != std::string::npos);
+
+    // limit is respected.
+    CHECK(store.list_sessions(1).size() == 1);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_keyword_only();
     rc |= test_semantic();
     rc |= test_turns();
+    rc |= test_list_sessions();
     if (rc == 0) std::cout << "test_memory: all tests passed\n";
     return rc;
 }

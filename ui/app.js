@@ -12,8 +12,10 @@ const els = {
   composer:     $('composer'),
   input:        $('input'),
   send:         $('send'),
-  agentSelect:  $('agent-select'),
   newChat:      $('new-chat'),
+  toggleChats:  $('toggle-chats'),
+  chatsPane:    $('chats-pane'),
+  chatsList:    $('chats-list'),
   toggleMemory: $('toggle-memory'),
   memoryPane:   $('memory-pane'),
   memoryList:   $('memory-list'),
@@ -35,7 +37,6 @@ const urlSession = new URLSearchParams(location.search).get('session');
 
 const state = {
   session: urlSession || localStorage.getItem('funes.session') || newSessionId(),
-  agent:   localStorage.getItem('funes.agent') || '',
   busy:    false,
   // Text: {kind:'text', filename, content, isText, truncated}
   // Image: {kind:'image', filename, mimeType, data (base64)}
@@ -142,7 +143,6 @@ async function sendMessage(displayText, fullText, images) {
         message: fullText,
         images:  images,
         session: state.session,
-        agent:   state.agent,
       }),
     });
 
@@ -230,6 +230,7 @@ async function sendMessage(displayText, fullText, images) {
     els.send.disabled = false;
     els.input.focus();
     refreshMemories();
+    if (!els.chatsPane.hidden) refreshChats();
   }
 }
 
@@ -376,7 +377,6 @@ function updateUsage(data) {
 async function refreshMemories() {
   const q = els.memorySearch.value.trim();
   const params = new URLSearchParams();
-  if (state.agent) params.set('agent', state.agent);
   if (q) params.set('q', q);
   try {
     const resp = await fetch('/api/memories?' + params);
@@ -435,7 +435,7 @@ async function refreshMemories() {
   } catch (e) { /* server down — status dot will show it */ }
 }
 
-/* ── status + agents ─────────────────────────────────────────────────────── */
+/* ── status ──────────────────────────────────────────────────────────────── */
 
 async function refreshStatus() {
   try {
@@ -451,22 +451,11 @@ async function refreshStatus() {
   }
 }
 
-async function loadAgents() {
-  try {
-    const resp = await fetch('/api/agents');
-    const data = await resp.json();
-    els.agentSelect.innerHTML = '';
-    for (const a of data.agents) {
-      const opt = document.createElement('option');
-      opt.value = a.name;
-      opt.textContent = a.name;
-      opt.title = a.description;
-      els.agentSelect.appendChild(opt);
-      if (a.is_default && !state.agent) state.agent = a.name;
-    }
-    if (state.agent) els.agentSelect.value = state.agent;
-    state.agent = els.agentSelect.value;
-  } catch (e) { /* retried on next status poll */ }
+function showWelcome(message) {
+  els.messages.innerHTML =
+    '<div class="welcome" id="welcome"><h2>“I have more memories than all mankind…”</h2>' +
+    '<p>' + message + '</p></div>';
+  els.welcome = $('welcome');
 }
 
 async function restoreHistory() {
@@ -477,6 +466,69 @@ async function restoreHistory() {
       for (const t of data.turns) addMessage(t.role, t.content);
     }
   } catch (e) { /* fresh chat */ }
+}
+
+/* ── conversations panel ─────────────────────────────────────────────────── */
+
+function formatRelativeTime(sqliteUtc) {
+  // memory.db timestamps are UTC "YYYY-MM-DD HH:MM:SS" — make that explicit
+  // so the browser doesn't parse it as local time.
+  const ms = Date.parse(sqliteUtc.replace(' ', 'T') + 'Z');
+  if (Number.isNaN(ms)) return '';
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return mins + 'm ago';
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  return Math.round(hours / 24) + 'd ago';
+}
+
+async function refreshChats() {
+  try {
+    const resp = await fetch('/api/sessions');
+    const data = await resp.json();
+    if (!data.ok) return;
+
+    els.chatsList.innerHTML = '';
+    if (data.sessions.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'chats-empty';
+      empty.textContent = 'No conversations yet.';
+      els.chatsList.appendChild(empty);
+      return;
+    }
+
+    for (const s of data.sessions) {
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (s.session === state.session ? ' active' : '');
+
+      const preview = document.createElement('div');
+      preview.className = 'preview';
+      preview.textContent = s.preview || '(empty)';
+      item.appendChild(preview);
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = formatRelativeTime(s.last_message_at) + ' · ' + s.turn_count +
+                         (s.turn_count === 1 ? ' turn' : ' turns');
+      item.appendChild(meta);
+
+      item.addEventListener('click', () => switchToSession(s.session));
+      els.chatsList.appendChild(item);
+    }
+  } catch (e) { /* server down — status dot will show it */ }
+}
+
+async function switchToSession(session) {
+  if (session === state.session) return;
+  state.session = session;
+  localStorage.setItem('funes.session', state.session);
+  state.attachments = [];
+  renderAttachments();
+  showWelcome('Loading this conversation…');
+  await restoreHistory();
+  if (els.welcome) showWelcome('Nothing here yet.');
+  refreshChats();
 }
 
 /* ── wiring ──────────────────────────────────────────────────────────────── */
@@ -516,26 +568,24 @@ els.input.addEventListener('input', () => {
   els.input.style.height = Math.min(els.input.scrollHeight, 160) + 'px';
 });
 
-els.agentSelect.addEventListener('change', () => {
-  state.agent = els.agentSelect.value;
-  localStorage.setItem('funes.agent', state.agent);
-  refreshMemories();
-});
-
 els.newChat.addEventListener('click', () => {
   state.session = newSessionId();
   localStorage.setItem('funes.session', state.session);
   state.attachments = [];
   renderAttachments();
-  els.messages.innerHTML =
-    '<div class="welcome"><h2>“I have more memories than all mankind…”</h2>' +
-    '<p>New conversation — but Funes still remembers everything from before.</p></div>';
+  showWelcome('New conversation — but Funes still remembers everything from before.');
   els.input.focus();
+  if (!els.chatsPane.hidden) refreshChats();
 });
 
 els.toggleMemory.addEventListener('click', () => {
   els.memoryPane.hidden = !els.memoryPane.hidden;
   if (!els.memoryPane.hidden) refreshMemories();
+});
+
+els.toggleChats.addEventListener('click', () => {
+  els.chatsPane.hidden = !els.chatsPane.hidden;
+  if (!els.chatsPane.hidden) refreshChats();
 });
 
 els.memorySearch.addEventListener('input', () => {
@@ -551,7 +601,7 @@ els.memoryAdd.addEventListener('submit', async (e) => {
   await fetch('/api/memories', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, agent: state.agent }),
+    body: JSON.stringify({ text }),
   });
   refreshMemories();
 });
@@ -559,9 +609,8 @@ els.memoryAdd.addEventListener('submit', async (e) => {
 /* ── boot ────────────────────────────────────────────────────────────────── */
 
 (async function boot() {
-  // Memory pane: open by default on wide screens, closed on mobile.
+  // Memory + conversations panes: open by default on wide screens, closed on mobile.
   if (window.innerWidth < 860) els.memoryPane.hidden = true;
-  await loadAgents();
   await refreshStatus();
   await restoreHistory();
   refreshMemories();

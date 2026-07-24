@@ -41,3 +41,7 @@ add_test(NAME base64 COMMAND test_base64)
 add_executable(test_llm_client_images test_llm_client_images.cpp)
 target_link_libraries(test_llm_client_images PRIVATE funes_core)
 add_test(NAME llm_client_images COMMAND test_llm_client_images)
+
+add_executable(test_delegation test_delegation.cpp)
+target_link_libraries(test_delegation PRIVATE funes_core)
+add_test(NAME delegation COMMAND test_delegation)
