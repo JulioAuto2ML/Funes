@@ -159,11 +159,64 @@ int test_pdf_extraction() {
     return 0;
 }
 
+// A single blank page with no content stream at all — pdftotext still
+// emits a lone form-feed (page break) for it, which must not be mistaken
+// for real extracted text (this is what image-only/scanned PDFs look like).
+constexpr const char* kBlankPagePdf =
+    "%PDF-1.4\n"
+    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\n"
+    "xref\n"
+    "0 4\n"
+    "trailer<</Size 4/Root 1 0 R>>\n"
+    "%%EOF";
+
+// A page with no text layer must fall back to rendered-image results
+// instead of silently succeeding with a bare form-feed (the bug) or
+// dead-ending the model with an unreadable error (the old fallback-less
+// behavior) — read_file should still return something the model can use.
+int test_pdf_no_text_extraction() {
+    fs::path ws = fs::temp_directory_path() / "funes_test_pdf_blank_ws";
+    fs::remove_all(ws);
+    fs::create_directories(ws);
+    {
+        std::ofstream f(ws / "blank.pdf", std::ios::binary);
+        f << kBlankPagePdf;
+    }
+
+    ToolRegistry reg;
+    register_file_tools(reg, ws.string());
+    ToolContext ctx{"funes", "s1"};
+
+    auto r = reg.call("read_file", {{"path", "blank.pdf"}}, ctx);
+    if (r.error && r.text.find("'pdftotext' isn't installed") != std::string::npos) {
+        std::cerr << "test_pdf_no_text_extraction: pdftotext not installed, skipping\n";
+        fs::remove_all(ws);
+        return 0;
+    }
+    if (r.error && r.text.find("pdftoppm") != std::string::npos &&
+        r.text.find("isn't installed") != std::string::npos) {
+        std::cerr << "test_pdf_no_text_extraction: pdftoppm not installed, skipping\n";
+        fs::remove_all(ws);
+        return 0;
+    }
+    CHECK(!r.error);
+    CHECK(r.text.find("no text layer") != std::string::npos);
+    CHECK(!r.images.empty());
+    CHECK(r.images[0].mime_type == "image/png");
+    CHECK(!r.images[0].base64_data.empty());
+
+    fs::remove_all(ws);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_fs_guard();
     rc |= test_read_write_file();
     rc |= test_pdf_extraction();
+    rc |= test_pdf_no_text_extraction();
     if (rc == 0) std::cout << "test_file_tools: all tests passed\n";
     return rc;
 }

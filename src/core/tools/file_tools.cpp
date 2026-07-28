@@ -30,13 +30,41 @@ bool has_extension(const fs::path& p, const char* ext) {
 ToolResult extract_pdf_text(const fs::path& workspace, const fs::path& resolved) {
     funes::pdf::ExtractResult r =
         funes::pdf::extract_text(resolved, workspace, PDF_EXTRACT_TIMEOUT_S, MAX_READ_BYTES);
-    return {r.text_or_error, !r.ok};
+    if (r.ok) return {r.text_or_error, false};
+
+    // No text layer (e.g. a scanned/photographed bill wrapped in a PDF) —
+    // fall back to rendering pages as images so a vision-capable model can
+    // still read them, instead of dead-ending on a text-extraction error.
+    funes::pdf::RenderResult rendered = funes::pdf::render_pages_as_images(
+        resolved, workspace, PDF_EXTRACT_TIMEOUT_S, /*max_pages=*/2);
+    if (!rendered.ok)
+        return {r.text_or_error + " Rendering fallback also failed: " + rendered.error, true};
+
+    ToolResult out;
+    out.text = "'" + resolved.string() + "' has no text layer (" + r.text_or_error +
+               "). Attached " + std::to_string(rendered.pages.size()) +
+               " rendered page image(s) below — read them visually instead.";
+    for (auto& page : rendered.pages)
+        out.images.push_back({page.mime_type, page.base64_data});
+    return out;
 }
 
-ToolResult read_file_handler(const fs::path& workspace, const json& args, const ToolContext&) {
+// An agent's own `workspace_dir` (agents/*.yaml) overrides the server-wide
+// default so a skill can be scoped to one folder without widening every
+// other agent's file access.
+fs::path effective_workspace(const fs::path& default_workspace, const ToolContext& ctx) {
+    if (ctx.workspace_dir.empty()) return default_workspace;
+    fs::path ws = ctx.workspace_dir;
+    std::error_code ec;
+    fs::create_directories(ws, ec);
+    return ws;
+}
+
+ToolResult read_file_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
     if (!args.contains("path") || !args["path"].is_string())
         return {"Missing 'path' argument", true};
 
+    const fs::path workspace = effective_workspace(default_workspace, ctx);
     auto resolved = funes::fsguard::resolve(workspace, args["path"].get<std::string>());
     if (!resolved)
         return {"Refusing to read outside the workspace (" + workspace.string() + ")", true};
@@ -66,7 +94,7 @@ ToolResult read_file_handler(const fs::path& workspace, const json& args, const 
     return {content};
 }
 
-ToolResult write_file_handler(const fs::path& workspace, const json& args, const ToolContext&) {
+ToolResult write_file_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
     if (!args.contains("path") || !args["path"].is_string())
         return {"Missing 'path' argument", true};
     if (!args.contains("content") || !args["content"].is_string())
@@ -76,6 +104,7 @@ ToolResult write_file_handler(const fs::path& workspace, const json& args, const
     if (content.size() > MAX_WRITE_BYTES)
         return {"Content too large (max 256 KB)", true};
 
+    const fs::path workspace = effective_workspace(default_workspace, ctx);
     auto resolved = funes::fsguard::resolve(workspace, args["path"].get<std::string>());
     if (!resolved)
         return {"Refusing to write outside the workspace (" + workspace.string() + ")", true};
@@ -103,10 +132,11 @@ void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
 
     reg.add({
         "read_file",
-        "Read a text file from the workspace directory (" + workspace.string() + "). "
-        "The path is relative to the workspace and can't escape it. .pdf files have "
-        "their text extracted automatically; other binary files are rejected. Output "
-        "capped at 64 KB.",
+        "Read a text file from this agent's workspace directory (default: " +
+        workspace.string() + "; some agents are scoped to a different folder — the "
+        "error message on a failed path will show which one applies). The path is "
+        "relative to that workspace and can't escape it. .pdf files have their text "
+        "extracted automatically; other binary files are rejected. Output capped at 64 KB.",
         {
             {"type", "object"},
             {"properties", {
@@ -121,9 +151,11 @@ void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
 
     reg.add({
         "write_file",
-        "Write (or append to) a text file in the workspace directory (" +
-        workspace.string() + "). Creates parent directories as needed. The path is "
-        "relative to the workspace and can't escape it. Content capped at 256 KB.",
+        "Write (or append to) a text file in this agent's workspace directory (default: " +
+        workspace.string() + "; some agents are scoped to a different folder — the "
+        "error message on a failed path will show which one applies). Creates parent "
+        "directories as needed. The path is relative to that workspace and can't escape "
+        "it. Content capped at 256 KB.",
         {
             {"type", "object"},
             {"properties", {

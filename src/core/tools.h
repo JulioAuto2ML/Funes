@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include "json.hpp"
+#include "llm_client.h"
 
 using json = nlohmann::json;
 
@@ -27,11 +28,19 @@ struct AgentConfig;
 struct ToolContext {
     std::string agent;
     std::string session;
+    // Overrides the workspace directory read_file/write_file/execute_shell
+    // were registered with, e.g. a skill-specific agent scoped to one
+    // folder. Empty = use the server-wide default.
+    std::string workspace_dir;
 };
 
 struct ToolResult {
     std::string text;
     bool        error = false;
+    // Optional images alongside text (e.g. rendered pages of an image-only
+    // PDF that has no extractable text layer) — carried into the tool-result
+    // ChatMessage so a vision-capable backend can see them.
+    std::vector<ImageAttachment> images;
 };
 
 using ToolHandler = std::function<ToolResult(const json& args, const ToolContext& ctx)>;

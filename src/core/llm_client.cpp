@@ -104,11 +104,22 @@ json LLMClient::build_messages_json(const std::vector<ChatMessage>& messages) {
 
         if (qwen && msg.role == "tool") {
             std::string combined;
+            std::vector<ImageAttachment> combined_images;
             while (i < messages.size() && messages[i].role == "tool") {
                 combined += "<tool_response>\n" + messages[i].content + "\n</tool_response>\n";
+                combined_images.insert(combined_images.end(),
+                                       messages[i].images.begin(), messages[i].images.end());
                 ++i;
             }
-            arr.push_back({{"role", "user"}, {"content", combined}});
+            if (combined_images.empty()) {
+                arr.push_back({{"role", "user"}, {"content", combined}});
+            } else {
+                ChatMessage img_msg;
+                img_msg.role    = "user";
+                img_msg.content = combined;
+                img_msg.images  = std::move(combined_images);
+                arr.push_back({{"role", "user"}, {"content", openai_content_value(img_msg)}});
+            }
         }
         else if (msg.role == "tool") {
             arr.push_back({
@@ -118,6 +129,17 @@ json LLMClient::build_messages_json(const std::vector<ChatMessage>& messages) {
                 {"name",         msg.name}
             });
             ++i;
+            // OpenAI tool-role messages are text-only — a tool that returned
+            // images (e.g. rendered PDF pages) gets a synthetic follow-up
+            // user turn instead, the same mechanism already used for
+            // directly-attached images.
+            if (!msg.images.empty()) {
+                ChatMessage img_msg;
+                img_msg.role    = "user";
+                img_msg.content = "[Image(s) returned by the " + msg.name + " tool call above]";
+                img_msg.images  = msg.images;
+                arr.push_back({{"role", "user"}, {"content", openai_content_value(img_msg)}});
+            }
         }
         else if (msg.role == "assistant"
                  && !msg.tool_calls.is_null() && !msg.tool_calls.empty()) {
@@ -258,6 +280,45 @@ struct SseLineParser {
 // Qwen3-class models occasionally put the tool call JSON in the content field
 // rather than in tool_calls. Detect and re-parse so the agent loop isn't bypassed.
 
+// Some local models fall back to an XML-ish syntax instead of JSON when the
+// served chat template doesn't match what they were fine-tuned on:
+//   <tool_call>
+//   <function=NAME>
+//   <parameter=PARAM>VALUE</parameter>
+//   </function>
+//   </tool_call>
+// Parse that shape too, so it doesn't leak into the final answer as raw text.
+static bool recover_xml_tool_calls(CompletionResponse& out) {
+    static const std::regex re_call(R"(<function=([A-Za-z0-9_]+)>([\s\S]*?)</function>)");
+    static const std::regex re_param(R"(<parameter=([A-Za-z0-9_]+)>([\s\S]*?)</parameter>)");
+
+    auto trim = [](std::string s) {
+        size_t b = s.find_first_not_of(" \t\r\n");
+        if (b == std::string::npos) return std::string();
+        size_t e = s.find_last_not_of(" \t\r\n");
+        return s.substr(b, e - b + 1);
+    };
+
+    bool recovered = false;
+    for (auto it = std::sregex_iterator(out.content.begin(), out.content.end(), re_call);
+         it != std::sregex_iterator(); ++it) {
+        ToolCall call;
+        call.id   = "call_" + std::to_string(out.tool_calls.size());
+        call.name = (*it)[1].str();
+
+        json args = json::object();
+        std::string body = (*it)[2].str();
+        for (auto pit = std::sregex_iterator(body.begin(), body.end(), re_param);
+             pit != std::sregex_iterator(); ++pit) {
+            args[(*pit)[1].str()] = trim((*pit)[2].str());
+        }
+        call.arguments = std::move(args);
+        out.tool_calls.push_back(std::move(call));
+        recovered = true;
+    }
+    return recovered;
+}
+
 void LLMClient::recover_tool_calls_from_content(CompletionResponse& out) {
     if (!out.tool_calls.empty() || out.content.empty()) return;
 
@@ -305,7 +366,12 @@ void LLMClient::recover_tool_calls_from_content(CompletionResponse& out) {
             out.content.clear();
         }
     } catch (...) {
-        // Not JSON — genuine text response.
+        // Not JSON — try the XML-ish <function=..><parameter=..> fallback
+        // format some local models emit instead.
+        if (recover_xml_tool_calls(out)) {
+            std::cerr << "[llm_client] WARNING: tool call recovered from XML-style content\n";
+            out.content.clear();
+        }
     }
 }
 
@@ -555,10 +621,14 @@ std::pair<std::string, json> LLMClient::build_anthropic_messages(
         } else if (msg.role == "tool") {
             json tool_results = json::array();
             while (i < messages.size() && messages[i].role == "tool") {
+                // Anthropic tool_result content blocks accept the same
+                // text/image mix as a user turn — reuse that helper so a
+                // tool that returned images (e.g. rendered PDF pages) is
+                // visible to the model directly in the tool result.
                 tool_results.push_back({
                     {"type",        "tool_result"},
                     {"tool_use_id", messages[i].tool_call_id},
-                    {"content",     messages[i].content}
+                    {"content",     anthropic_content_value(messages[i])}
                 });
                 ++i;
             }

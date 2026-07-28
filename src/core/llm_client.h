@@ -44,7 +44,10 @@ struct ChatMessage {
     std::string name;           // set when role == "tool" (tool name)
     json        tool_calls;     // set when role == "assistant" and model called tools
                                 // (json::array of OpenAI-format tool call objects)
-    std::vector<ImageAttachment> images;  // only meaningful for role == "user"
+    std::vector<ImageAttachment> images;  // meaningful for role == "user", and for
+                                          // role == "tool" (e.g. rendered PDF pages —
+                                          // see build_messages_json/build_anthropic_messages
+                                          // for how each backend surfaces these)
 };
 
 struct ToolCall {

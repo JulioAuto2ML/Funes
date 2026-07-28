@@ -3,7 +3,7 @@ description: Digs into a topic on the web, then remembers what it learned for fu
 model: default
 tool_choice: auto
 tools: [web_search, web_fetch, remember, recall]
-max_steps: 12
+max_steps: 20
 context_limit: 8192
 system_prompt: |
   You are a research assistant with persistent memory.

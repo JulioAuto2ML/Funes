@@ -28,7 +28,16 @@ bool shell_enabled() {
     return v && *v == '1';
 }
 
-ToolResult execute_shell_handler(const fs::path& workspace, const json& args, const ToolContext&) {
+ToolResult execute_shell_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
+    // An agent's own `workspace_dir` (agents/*.yaml) overrides the server-wide
+    // default, same as read_file/write_file — see file_tools.cpp.
+    fs::path workspace = default_workspace;
+    if (!ctx.workspace_dir.empty()) {
+        workspace = ctx.workspace_dir;
+        std::error_code ec;
+        fs::create_directories(workspace, ec);
+    }
+
     if (!shell_enabled())
         return {"Shell execution is disabled. Set FUNES_ALLOW_SHELL=1 to enable it — "
                 "commands then run with the Funes process's own permissions inside " +
@@ -72,10 +81,10 @@ void register_shell_tool(ToolRegistry& reg, const std::string& workspace_dir) {
     reg.add({
         "execute_shell",
         "Run a shell command with the Funes process's own permissions (NOT sandboxed — "
-        "a command can access anything that account can). Working directory is the "
-        "workspace (" + workspace.string() + "); output capped at 16 KB; killed after "
-        "timeout_seconds (default 20, max 120). Disabled unless the operator has set "
-        "FUNES_ALLOW_SHELL=1.",
+        "a command can access anything that account can). Working directory is this "
+        "agent's workspace (default: " + workspace.string() + "; some agents are scoped "
+        "to a different folder); output capped at 16 KB; killed after timeout_seconds "
+        "(default 20, max 120). Disabled unless the operator has set FUNES_ALLOW_SHELL=1.",
         {
             {"type", "object"},
             {"properties", {

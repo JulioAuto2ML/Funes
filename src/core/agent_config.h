@@ -34,6 +34,10 @@ struct AgentConfig {
     std::string system_prompt;
     std::string tool_choice = "auto"; // "auto" | "required" | "none"
 
+    // Overrides the server-wide FUNES_WORKSPACE_DIR for this agent's
+    // read_file/write_file/execute_shell calls. Empty = inherit the default.
+    std::string workspace_dir;
+
     int context_limit = 8192;
     int max_steps     = 8;    // max tool-call rounds per turn
 

@@ -149,7 +149,7 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 std::string FunesAgent::run(const std::string& user_message, const std::string& session,
                             const EventFn& emit, const std::vector<ImageAttachment>& images,
                             bool persist) {
-    ToolContext ctx{cfg_.name, session};
+    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir};
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
@@ -267,6 +267,14 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // means a tight loop — return early with the last result. Same tool with
     // different args is legitimate.
     std::map<std::string, int> sig_counts;
+    // Near-duplicate loop detection: a model that can't get a satisfying
+    // result (e.g. web_search) sometimes reworks the arguments each time
+    // instead of repeating them verbatim, which the exact-signature check
+    // above can't catch. Cap total calls to the same tool per turn — scaled
+    // to the agent's step budget so it doesn't clip legitimately
+    // tool-heavy workflows, with a floor for very short budgets.
+    std::map<std::string, int> name_counts;
+    const int max_same_tool = std::max(cfg_.max_steps, 6);
     std::string last_tool_result;
     std::string last_tool_name;
 
@@ -335,6 +343,10 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             const std::string call_sig = tc.name + "|" + tc.arguments.dump();
             if (++sig_counts[call_sig] >= 3)
                 return "Done. " + last_tool_name + " completed: " + last_tool_result;
+            if (++name_counts[tc.name] > max_same_tool)
+                return "Done. " + tc.name + " was called " + std::to_string(max_same_tool) +
+                       "+ times with varying arguments and made no clear progress. " +
+                       "Last result: " + last_tool_result;
 
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
@@ -363,6 +375,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 : result.text;
             tool_msg.tool_call_id = tc.id;
             tool_msg.name         = tc.name;
+            tool_msg.images       = result.images;
             history.push_back(std::move(tool_msg));
         }
     }
