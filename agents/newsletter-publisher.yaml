@@ -5,7 +5,7 @@ tool_choice: auto
 tools: [read_file, write_file, execute_shell, web_search, web_fetch]
 workspace_dir: /home/julio/Documents/X_posts
 max_steps: 20
-context_limit: 8192
+context_limit: 32768
 system_prompt: |
   You turn a list of already-researched AI/LLM/AGI news items (given to you in
   the task) into the day's X posts file and HTML newsletter, then send it.
