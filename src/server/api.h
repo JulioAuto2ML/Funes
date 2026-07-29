@@ -57,6 +57,19 @@ public:
     // Every loaded agent's name, for delegation error messages.
     std::vector<std::string> agent_names() const;
 
+    // "- name: description\n" per loaded agent other than `exclude`, sorted
+    // by name. Feeds AgentDefaults::agent_roster (see agent.h) so a
+    // delegating agent's system prompt always reflects agents/*.yaml as
+    // currently loaded, without hardcoding names in any one agent's prompt.
+    std::string agent_roster(const std::string& exclude) const;
+
+    // Lets main() inject the AgentDefaults::agent_roster callback into the
+    // AgentDefaults copy FunesApi holds internally, once `api` (the roster's
+    // own data source) exists. See main.cpp.
+    void set_agent_roster(std::function<std::string(const std::string&)> fn) {
+        defaults_.agent_roster = std::move(fn);
+    }
+
 private:
     ToolRegistry& tools_;
     MemoryStore&  memory_;

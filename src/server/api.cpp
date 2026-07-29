@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <regex>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -128,6 +129,16 @@ std::vector<std::string> FunesApi::agent_names() const {
     names.reserve(agents_.size());
     for (const auto& [name, cfg] : agents_) names.push_back(name);
     return names;
+}
+
+std::string FunesApi::agent_roster(const std::string& exclude) const {
+    std::lock_guard<std::mutex> lock(agents_mu_);
+    std::ostringstream oss;
+    for (const auto& [name, cfg] : agents_) {  // agents_ is a std::map: sorted by name
+        if (name == exclude) continue;
+        oss << "- " << name << ": " << cfg.description << "\n";
+    }
+    return oss.str();
 }
 
 // ── routes ────────────────────────────────────────────────────────────────────

@@ -45,6 +45,13 @@ struct AgentDefaults {
     int         memory_turns = 10;      // past turns loaded per run
     int         memory_recall_k = 4;    // memories injected per run
     bool        auto_memory  = true;    // store each exchange as a memory
+
+    // Returns a "- name: description" line per other loaded agent, excluding
+    // the caller (by name). Wired up in main.cpp once FunesApi owns the agent
+    // table, so an agent with the delegate_to_agent tool learns its roster
+    // from agents/*.yaml at request time instead of a hardcoded prompt list.
+    // Left unset in contexts without an agent table (e.g. tests).
+    std::function<std::string(const std::string&)> agent_roster;
 };
 
 class FunesAgent {

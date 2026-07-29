@@ -114,6 +114,17 @@ int main() {
 
     FunesApi api(tools, memory, defaults, agents_dir, ui_dir, default_agent, workspace_dir);
 
+    // Agents with the delegate_to_agent tool get their roster of other
+    // agents (name + description) injected into their system prompt at
+    // request time — see AgentDefaults::agent_roster in agent.h. This needs
+    // `api` to exist (it owns the agent table), so it's wired up post-
+    // construction and applied to both copies of `defaults` in play: the
+    // one FunesApi already copied into itself (used for top-level turns),
+    // and main's local one (used for delegated sub-agents below).
+    auto agent_roster = [&api](const std::string& exclude) { return api.agent_roster(exclude); };
+    api.set_agent_roster(agent_roster);
+    defaults.agent_roster = agent_roster;
+
     // create_agent needs to trigger a live reload after writing a new agent
     // YAML, so it's wired up once FunesApi (which owns the agent table) exists.
     register_agent_builder(tools, agents_dir, [&api] { api.load_agents(); });

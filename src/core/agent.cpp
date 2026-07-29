@@ -4,6 +4,7 @@
 
 #include "agent.h"
 #include "text_utils.h"
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -201,6 +202,16 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     std::vector<ChatMessage> history;
     {
         std::string sys = cfg_.system_prompt;
+        if (defaults_.agent_roster &&
+            (cfg_.tools.empty() ||
+             std::find(cfg_.tools.begin(), cfg_.tools.end(), "delegate_to_agent") != cfg_.tools.end())) {
+            std::string roster = defaults_.agent_roster(cfg_.name);
+            if (!roster.empty()) {
+                sys += "\n\n## Available specialist agents (delegate_to_agent)\n" + roster
+                     + "Delegate to whichever of these fits the task; this list reflects "
+                       "whatever agents are currently loaded.";
+            }
+        }
         if (!summary.empty()) {
             sys += "\n\n## Summary of earlier conversation\n" + summary;
         }
