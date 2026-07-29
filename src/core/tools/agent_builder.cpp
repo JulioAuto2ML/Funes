@@ -26,7 +26,9 @@ bool valid_tool_choice(const std::string& s) {
 std::string emit_agent_yaml(const std::string& name, const std::string& description,
                             const std::string& model, const std::string& tool_choice,
                             const std::vector<std::string>& tools, int max_steps,
-                            int context_limit, const std::string& system_prompt) {
+                            int context_limit, const std::string& system_prompt,
+                            const std::string& workspace_dir,
+                            const std::vector<std::string>& mcp_servers) {
     YAML::Emitter out;
     out << YAML::BeginMap;
     out << YAML::Key << "name"        << YAML::Value << name;
@@ -34,6 +36,10 @@ std::string emit_agent_yaml(const std::string& name, const std::string& descript
     out << YAML::Key << "model"       << YAML::Value << model;
     out << YAML::Key << "tool_choice" << YAML::Value << tool_choice;
     out << YAML::Key << "tools" << YAML::Value << YAML::Flow << tools;
+    if (!workspace_dir.empty())
+        out << YAML::Key << "workspace_dir" << YAML::Value << workspace_dir;
+    if (!mcp_servers.empty())
+        out << YAML::Key << "mcp_servers" << YAML::Value << YAML::Flow << mcp_servers;
     out << YAML::Key << "max_steps"     << YAML::Value << max_steps;
     out << YAML::Key << "context_limit" << YAML::Value << context_limit;
     out << YAML::Key << "system_prompt" << YAML::Value << YAML::Literal << system_prompt;
@@ -93,11 +99,25 @@ ToolResult create_agent_handler(const ToolRegistry& reg, const std::string& agen
         return {"An agent named '" + name + "' already exists at " + path.string() +
                 " — pass overwrite=true to replace it.", true};
 
+    const std::string workspace_dir = args.value("workspace_dir", std::string());
+
+    std::vector<std::string> mcp_servers;
+    if (args.contains("mcp_servers")) {
+        if (!args["mcp_servers"].is_array())
+            return {"'mcp_servers' must be an array of URL strings", true};
+        for (const auto& m : args["mcp_servers"]) {
+            if (!m.is_string())
+                return {"'mcp_servers' must be an array of URL strings", true};
+            mcp_servers.push_back(m.get<std::string>());
+        }
+    }
+
     std::error_code ec;
     fs::create_directories(agents_dir, ec);
 
     const std::string yaml_text = emit_agent_yaml(name, description, model, tool_choice,
-                                                  tools, max_steps, context_limit, system_prompt);
+                                                  tools, max_steps, context_limit, system_prompt,
+                                                  workspace_dir, mcp_servers);
     std::ofstream f(path, std::ios::trunc);
     if (!f)
         return {"Could not write " + path.string(), true};
@@ -121,7 +141,10 @@ void register_agent_builder(ToolRegistry& reg, const std::string& agents_dir,
         "in the UI's agent picker right away. Gather the agent's purpose, tone, and "
         "needed capabilities through conversation first (use list_tools to see valid "
         "tool names), draft the complete system_prompt yourself, confirm the plan "
-        "with the user, then call this once.",
+        "with the user, then call this once. When overwriting an EXISTING agent "
+        "(e.g. to fix one), this replaces the whole file — read its current YAML "
+        "first and pass through any workspace_dir/mcp_servers it already has "
+        "unless you're deliberately changing them, or they'll be silently dropped.",
         {
             {"type", "object"},
             {"properties", {
@@ -134,6 +157,9 @@ void register_agent_builder(ToolRegistry& reg, const std::string& agents_dir,
                 {"tool_choice",   {{"type", "string"}, {"description", "auto|required|none, default auto"}}},
                 {"max_steps",     {{"type", "integer"}, {"description", "Max tool-call rounds per turn, default 8"}}},
                 {"context_limit", {{"type", "integer"}, {"description", "Context window size, default 8192"}}},
+                {"workspace_dir", {{"type", "string"}, {"description", "Overrides the default workspace directory for this agent's read_file/write_file/execute_shell (omit to inherit the server default)"}}},
+                {"mcp_servers",   {{"type", "array"}, {"items", {{"type", "string"}}},
+                                   {"description", "Extra MCP server URLs this agent connects to, on top of native tools (omit if none)"}}},
                 {"overwrite",     {{"type", "boolean"}, {"description", "Replace an existing agent of the same name"}}}
             }},
             {"required", json::array({"name", "description", "system_prompt", "tools"})}
