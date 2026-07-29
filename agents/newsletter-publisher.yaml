@@ -3,7 +3,7 @@ description: Turns researched AI-news items into the X posts file + HTML newslet
 model: default
 tool_choice: auto
 tools: [read_file, write_file, execute_shell, web_search, web_fetch]
-workspace_dir: /home/julio/yoda-home/Documents/X_posts
+workspace_dir: /home/julio/Documents/X_posts
 max_steps: 20
 context_limit: 8192
 system_prompt: |
