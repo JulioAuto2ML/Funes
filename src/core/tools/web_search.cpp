@@ -11,6 +11,7 @@
 #include "../funes_config.h"
 #include "../tools.h"
 #include "httplib.h"
+#include <algorithm>
 #include <sstream>
 
 namespace {
@@ -25,9 +26,22 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
         return {"web_search is not configured: set FUNES_TAVILY_API_KEY (get a free key "
                 "at https://tavily.com) in config/funes.local.", /*error=*/true};
 
+    int max_results = 8;
+    if (args.contains("max_results") && args["max_results"].is_number_integer())
+        max_results = std::clamp(args["max_results"].get<int>(), 1, 10);
+
     json body = {
         {"query",       args["query"].get<std::string>()},
-        {"max_results", 5}
+        {"max_results", max_results},
+        // Social platforms serve a JS shell with no article content to a
+        // plain fetch (and often block it outright), so they're useless as
+        // "source" links regardless of how relevant Tavily thinks the post
+        // is — excluding them up front beats discovering that downstream
+        // when web_fetch/link-verification hits an anti-bot wall.
+        {"exclude_domains", json::array({
+            "tiktok.com", "instagram.com", "facebook.com",
+            "x.com", "twitter.com", "youtube.com", "pinterest.com"
+        })}
     };
     // "news" + a time_range lets the caller ask for genuinely recent results
     // (e.g. "last 24 hours") instead of hoping the query text implies it.
@@ -68,7 +82,7 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
     std::ostringstream oss;
     int n = 0;
     for (const auto& r : resp["results"]) {
-        if (n >= 5) break;
+        if (n >= max_results) break;
         const std::string title   = r.value("title", "");
         const std::string snippet = r.value("content", "");
         const std::string url     = r.value("url", "");
@@ -88,7 +102,10 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
 void register_web_search(ToolRegistry& reg) {
     reg.add({
         "web_search",
-        "Search the web (Tavily API). Returns the top result titles, snippets, and URLs.",
+        "Search the web (Tavily API). Returns the top result titles, snippets, and URLs. "
+        "Social platforms (TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest) are "
+        "excluded — they serve a JS shell with no content to a plain fetch, so they're never "
+        "usable as source links anyway.",
         {
             {"type", "object"},
             {"properties", {
@@ -96,7 +113,9 @@ void register_web_search(ToolRegistry& reg) {
                 {"topic", {{"type", "string"}, {"enum", json::array({"general", "news", "finance"})},
                           {"description", "Search category — use 'news' for current-events queries (default: general)"}}},
                 {"time_range", {{"type", "string"}, {"enum", json::array({"day", "week", "month", "year"})},
-                               {"description", "Restrict results to this recency window — use 'day' for \"last 24 hours\"-style requests"}}}
+                               {"description", "Restrict results to this recency window — use 'day' for \"last 24 hours\"-style requests"}}},
+                {"max_results", {{"type", "integer"}, {"minimum", 1}, {"maximum", 10},
+                                 {"description", "How many results to return (default 8, max 10) — ask for more when you need several distinct items, e.g. a top-10 news roundup"}}}
             }},
             {"required", json::array({"query"})}
         },
