@@ -493,12 +493,12 @@ std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int limit) {
                 WHERE session = g.session AND role = 'user'
                 ORDER BY id ASC LIMIT 1) AS preview
         FROM (
-            SELECT session, MAX(created_at) AS last_at, COUNT(*) AS cnt
+            SELECT session, MAX(created_at) AS last_at, MAX(id) AS last_id, COUNT(*) AS cnt
             FROM turns
             WHERE role IN ('user', 'assistant')
             GROUP BY session
         ) g
-        ORDER BY g.last_at DESC
+        ORDER BY g.last_at DESC, g.last_id DESC
         LIMIT ?
     )sql");
     s.bind_int64(1, limit);
