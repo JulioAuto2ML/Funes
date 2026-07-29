@@ -19,6 +19,7 @@
 #include "llm_client.h"
 #include "text_utils.h"
 #include "httplib.h"
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
@@ -27,6 +28,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <thread>
+#include <utility>
+#include <vector>
 
 // ── URL parsing ───────────────────────────────────────────────────────────────
 
@@ -288,10 +291,38 @@ struct SseLineParser {
 //   </function>
 //   </tool_call>
 // Parse that shape too, so it doesn't leak into the final answer as raw text.
-static bool recover_xml_tool_calls(CompletionResponse& out) {
-    static const std::regex re_call(R"(<function=([A-Za-z0-9_]+)>([\s\S]*?)</function>)");
-    static const std::regex re_param(R"(<parameter=([A-Za-z0-9_]+)>([\s\S]*?)</parameter>)");
+// Extracts every <prefix NAME>BODY<close> block via plain substring scanning.
+// A regex equivalent (`<tag=(name)>([\s\S]*?)</tag>`) is what this replaced —
+// libstdc++'s std::regex backtracks recursively for `[\s\S]*?`, and on a large
+// body (e.g. a full HTML newsletter emitted as a tool argument by a local
+// model that fell back to this XML-ish syntax) that recursion is deep enough
+// to blow the stack and crash the whole server. Manual scanning is O(n) with
+// no recursion.
+static std::vector<std::pair<std::string, std::string>> extract_xml_blocks(
+        const std::string& text, const std::string& open_prefix, const std::string& close_tag) {
+    std::vector<std::pair<std::string, std::string>> blocks;
+    size_t pos = 0;
+    while (true) {
+        size_t open = text.find(open_prefix, pos);
+        if (open == std::string::npos) break;
+        size_t name_start = open + open_prefix.size();
+        size_t name_end = text.find('>', name_start);
+        if (name_end == std::string::npos) break;
+        std::string name = text.substr(name_start, name_end - name_start);
+        size_t body_start = name_end + 1;
+        size_t close = text.find(close_tag, body_start);
+        if (close == std::string::npos) break;
+        if (!name.empty() && std::all_of(name.begin(), name.end(), [](unsigned char c) {
+                return std::isalnum(c) || c == '_';
+            })) {
+            blocks.emplace_back(std::move(name), text.substr(body_start, close - body_start));
+        }
+        pos = close + close_tag.size();
+    }
+    return blocks;
+}
 
+static bool recover_xml_tool_calls(CompletionResponse& out) {
     auto trim = [](std::string s) {
         size_t b = s.find_first_not_of(" \t\r\n");
         if (b == std::string::npos) return std::string();
@@ -300,18 +331,14 @@ static bool recover_xml_tool_calls(CompletionResponse& out) {
     };
 
     bool recovered = false;
-    for (auto it = std::sregex_iterator(out.content.begin(), out.content.end(), re_call);
-         it != std::sregex_iterator(); ++it) {
+    for (auto& [name, body] : extract_xml_blocks(out.content, "<function=", "</function>")) {
         ToolCall call;
         call.id   = "call_" + std::to_string(out.tool_calls.size());
-        call.name = (*it)[1].str();
+        call.name = name;
 
         json args = json::object();
-        std::string body = (*it)[2].str();
-        for (auto pit = std::sregex_iterator(body.begin(), body.end(), re_param);
-             pit != std::sregex_iterator(); ++pit) {
-            args[(*pit)[1].str()] = trim((*pit)[2].str());
-        }
+        for (auto& [pname, pval] : extract_xml_blocks(body, "<parameter=", "</parameter>"))
+            args[pname] = trim(pval);
         call.arguments = std::move(args);
         out.tool_calls.push_back(std::move(call));
         recovered = true;

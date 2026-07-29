@@ -12,9 +12,10 @@
 #include "../tools.h"
 #include "net_guard.h"
 #include "httplib.h"
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
-#include <regex>
 #include <string>
 
 namespace {
@@ -37,35 +38,94 @@ std::string decode_entities(std::string s) {
     return s;
 }
 
-std::string html_to_text(const std::string& html) {
-    // Drop non-content blocks, keep paragraph structure roughly intact.
-    static const std::regex re_script(R"(<script[\s\S]*?</script>)", std::regex::icase);
-    static const std::regex re_style(R"(<style[\s\S]*?</style>)",   std::regex::icase);
-    static const std::regex re_block(R"(</(p|div|h[1-6]|li|tr|section|article|br)>|<br\s*/?>)",
-                                     std::regex::icase);
-    static const std::regex re_tag(R"(<[^>]+>)");
-    static const std::regex re_spaces(R"([ \t]+)");
-    static const std::regex re_newlines(R"(\n{3,})");
+// Tags whose closing tag should become a newline (paragraph/line breaks);
+// everything else collapses to a space, matching typical reading flow.
+bool is_block_close_tag(const std::string& lower, size_t name_start, size_t name_len) {
+    static const char* kTags[] = {
+        "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "section", "article"
+    };
+    for (const char* t : kTags) {
+        size_t len = std::strlen(t);
+        if (name_len == len && lower.compare(name_start, len, t) == 0) return true;
+    }
+    return false;
+}
 
-    std::string text = std::regex_replace(html, re_script, " ");
-    text = std::regex_replace(text, re_style, " ");
-    text = std::regex_replace(text, re_block, "\n");
-    text = std::regex_replace(text, re_tag, " ");
+// Manual scan instead of regex for anything that runs over the full (often
+// 100KB+) fetched body: libstdc++'s std::regex recurses once per repetition
+// for quantified subexpressions (`[\s\S]*?`, `[^>]+`, `[ \t]+`, ...), so a
+// long run of matching characters — an ordinary large inline <script> block,
+// not an edge case — can blow the stack and crash the whole process.
+std::string html_to_text(const std::string& html) {
+    std::string lower(html.size(), '\0');
+    std::transform(html.begin(), html.end(), lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    std::string text;
+    text.reserve(html.size());
+    size_t i = 0;
+    while (i < html.size()) {
+        if (html[i] != '<') { text += html[i++]; continue; }
+
+        if (lower.compare(i, 7, "<script") == 0 || lower.compare(i, 6, "<style") == 0) {
+            const bool is_script = lower.compare(i, 7, "<script") == 0;
+            const std::string close = is_script ? "</script>" : "</style>";
+            size_t close_pos = lower.find(close, i);
+            text += ' ';
+            i = (close_pos == std::string::npos) ? html.size() : close_pos + close.size();
+            continue;
+        }
+
+        if (lower.compare(i, 3, "<br") == 0) {
+            text += '\n';
+            size_t gt = html.find('>', i);
+            i = (gt == std::string::npos) ? html.size() : gt + 1;
+            continue;
+        }
+
+        size_t gt = html.find('>', i);
+        if (gt == std::string::npos) { text += html[i++]; continue; } // stray '<': literal
+
+        size_t name_start = i + 1;
+        bool closing = name_start < gt && html[name_start] == '/';
+        if (closing) ++name_start;
+        size_t name_end = name_start;
+        while (name_end < gt && (std::isalnum(static_cast<unsigned char>(lower[name_end])) || lower[name_end] == '-'))
+            ++name_end;
+
+        text += (closing && is_block_close_tag(lower, name_start, name_end - name_start)) ? '\n' : ' ';
+        i = gt + 1;
+    }
+
     text = decode_entities(text);
-    text = std::regex_replace(text, re_spaces, " ");
-    text = std::regex_replace(text, re_newlines, "\n\n");
+
+    // Collapse runs of spaces/tabs to one space, and runs of 3+ newlines to two.
+    std::string collapsed;
+    collapsed.reserve(text.size());
+    int newline_run = 0;
+    for (char c : text) {
+        if (c == ' ' || c == '\t') {
+            if (collapsed.empty() || collapsed.back() != ' ') collapsed += ' ';
+            newline_run = 0;
+        } else if (c == '\n') {
+            if (++newline_run <= 2) collapsed += '\n';
+        } else {
+            newline_run = 0;
+            collapsed += c;
+        }
+    }
 
     // Trim leading/trailing whitespace on each line.
     std::string out;
-    out.reserve(text.size());
+    out.reserve(collapsed.size());
     size_t start = 0;
-    while (start < text.size()) {
-        size_t end = text.find('\n', start);
-        if (end == std::string::npos) end = text.size();
+    while (start < collapsed.size()) {
+        size_t end = collapsed.find('\n', start);
+        if (end == std::string::npos) end = collapsed.size();
         size_t a = start, b = end;
-        while (a < b && (text[a] == ' ' || text[a] == '\t')) ++a;
-        while (b > a && (text[b-1] == ' ' || text[b-1] == '\t')) --b;
-        if (b > a) { out.append(text, a, b - a); out += '\n'; }
+        while (a < b && (collapsed[a] == ' ' || collapsed[a] == '\t')) ++a;
+        while (b > a && (collapsed[b-1] == ' ' || collapsed[b-1] == '\t')) --b;
+        if (b > a) { out.append(collapsed, a, b - a); out += '\n'; }
         start = end + 1;
     }
     return out;
