@@ -163,6 +163,19 @@ class Handler(BaseHTTPRequestHandler):
                                  % (stored_id, window[:20].replace("\n", " ")), stream)
             return
 
+        # Regression: a model that keeps re-issuing the same call on a big
+        # result until the loop detector gives up. Every bailout answer is
+        # built from last_tool_result, and those answers are read by a
+        # *person* — so they must carry the result's own text, not the preview
+        # envelope the model was shown. (Shipped broken in 2.0: the user got
+        # {"result_id":1,"head":…} as the reply.)
+        if mentions(messages, "big-loop"):
+            self._reply_tool({"id": "call_big", "type": "function",
+                              "function": {"name": "read_file",
+                                           "arguments": json.dumps({"path": "big.txt"})}},
+                             stream)
+            return
+
         # Answer schema (core/answer_schema.h). Same shape as the contract
         # scenarios above: "schema-comply" gets it right once told what was
         # wrong, "schema-refuse" never does and must fail loudly.

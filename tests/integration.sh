@@ -220,6 +220,24 @@ check "window has file content"    "$OUT" 'window=BIGFILESTART'
 OUT=$(curl -s "$BASE/api/history?session=it-session-results")
 check_absent "big payload absent from history" "$OUT" 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm'
 
+echo "— result store: a bailout answer carries content, not the preview envelope"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"big-loop please","session":"it-session-salvage"}')
+check "large result still stored"  "$OUT" 'event: result_stored'
+OUT=$(curl -s "$BASE/api/history?session=it-session-salvage")
+# The user gets the file's own text, bounded — not the preview JSON that was
+# built for the model. Regression from 2.0; see agent.cpp last_tool_result.
+check "salvaged answer is readable"   "$OUT" 'BIGFILESTART'
+check_absent "no preview envelope shown" "$OUT" 'result_id'
+check_absent "no head/tail keys shown"   "$OUT" '\\"head\\":'
+# ...and bounded: the 8KB payload must not land in the answer either.
+if [ "$(echo "$OUT" | wc -c)" -lt 4096 ]; then
+    echo "  ok: salvaged answer is bounded"
+else
+    echo "  FAIL: salvaged answer is bounded — got $(echo "$OUT" | wc -c) bytes"
+    FAILURES=$((FAILURES + 1))
+fi
+
 echo "— answer schema: a malformed answer gets nudged, then accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"schema-comply please","session":"it-session-schema","agent":"schema-tester"}')

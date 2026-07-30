@@ -506,9 +506,6 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // Large results go to the store and the transcript carries a
             // preview instead (see core/result_store.h). Errors are left alone:
             // they're short, and their text is what the model needs to recover.
-            // last_tool_result follows the transcript, not the full value —
-            // the bailout paths below echo it into a final answer, and a 40KB
-            // "answer" would be worse than the preview it replaced.
             std::string tool_text = result.text;
             if (!result.error && funes::exceeds_inline_limit(tool_text)) {
                 try {
@@ -525,7 +522,18 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                               << tc.name << ": " << e.what() << " — inlining\n";
                 }
             }
-            last_tool_result = tool_text;
+            // Every use of last_tool_result below builds a *final answer* —
+            // the empty-completion salvage, the loop detector, the max_steps
+            // bailout. Those are read by a person, so this keeps the result's
+            // own text and not the preview envelope that goes to the model:
+            // handing a user `{"result_id":1,"head":…}` tells them nothing.
+            // Bounded, because the reason the full value left the transcript
+            // applies just as much to an answer bubble.
+            last_tool_result = result.text;
+            if (last_tool_result.size() > funes::kInlineLimit) {
+                funes::truncate_utf8_safe(last_tool_result, funes::kInlineLimit);
+                last_tool_result += "…";
+            }
 
             ChatMessage tool_msg;
             tool_msg.role         = "tool";
