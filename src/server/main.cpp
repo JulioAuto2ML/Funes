@@ -13,10 +13,12 @@
 #include "tools.h"
 #include "tools/http_tool_runtime.h"
 #include "httplib.h"
+#include <chrono>
 #include <csignal>
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <thread>
 #include <unistd.h>
 
@@ -36,6 +38,39 @@ static std::string resolve_dir(const std::string& configured, const std::string&
         if (fs::exists(candidate)) return candidate.string();
     }
     return relative;
+}
+
+// The LLM half of MemoryStore::consolidate: given a cluster of near-identical
+// memories, either one merged sentence or "KEEP ALL". The instruction is
+// deliberately blunt and the reply is deliberately one line — this runs
+// unattended against a local model, and anything it can hedge with ends up
+// stored as a memory.
+static std::string merge_memories(LLMClient& llm, const std::vector<std::string>& texts) {
+    std::ostringstream oss;
+    oss << "These notes were stored separately and look like near-duplicates:\n\n";
+    for (const auto& t : texts) oss << "- " << t << "\n";
+    oss << "\nIf they state the same fact, reply with ONE self-contained sentence "
+           "that preserves every detail from all of them, and nothing else.\n"
+           "If they are genuinely different facts, reply exactly: KEEP ALL";
+
+    std::vector<ChatMessage> msgs;
+    ChatMessage sys;
+    sys.role    = "system";
+    sys.content = "You merge duplicate notes. You reply with either the merged "
+                  "sentence or the exact words KEEP ALL. No preamble, no "
+                  "explanation, no quotes, no list.";
+    msgs.push_back(std::move(sys));
+    ChatMessage user;
+    user.role    = "user";
+    user.content = oss.str();
+    msgs.push_back(std::move(user));
+
+    std::string out = llm.complete(msgs).content;
+    while (!out.empty() && std::isspace(static_cast<unsigned char>(out.front())))
+        out.erase(out.begin());
+    while (!out.empty() && std::isspace(static_cast<unsigned char>(out.back())))
+        out.pop_back();
+    return out;
 }
 
 int main() {
@@ -105,6 +140,7 @@ int main() {
     ToolRegistry tools;
     register_web_tools(tools);
     register_memory_tools(tools, memory);
+    register_result_tools(tools, memory);
     register_context_tools(tools, memory, defaults);
     register_introspection_tools(tools);
     register_file_tools(tools, workspace_dir);
@@ -142,6 +178,48 @@ int main() {
         if (n > 0)
             std::cerr << "[funes] backfilled " << n << " memory embeddings\n";
     }).detach();
+
+    // Stored tool results (see core/result_store.h) are only useful to the turn
+    // that produced them; a startup sweep keeps the table from growing forever.
+    {
+        const int dropped = memory.prune_results_older_than(
+            funes::env_int("FUNES_RESULT_TTL_DAYS", 7));
+        if (dropped > 0)
+            std::cerr << "[funes] pruned " << dropped << " stale tool results\n";
+    }
+
+    // Memory consolidation (see MemoryStore::consolidate): merge near-duplicate
+    // memories, drop auto-captured ones that were never recalled. Sleeps first,
+    // so a restart never costs an immediate LLM burst; FUNES_CONSOLIDATE=off
+    // disables it entirely for debugging.
+    if (funes::env("FUNES_CONSOLIDATE", "on") != "off") {
+        MemoryStore::ConsolidationOptions opt;
+        opt.prune_after_days = funes::env_int("FUNES_CONSOLIDATE_PRUNE_DAYS", 30);
+        opt.max_clusters     = static_cast<size_t>(funes::env_int("FUNES_CONSOLIDATE_MAX_CLUSTERS", 20));
+        const int every_hours = std::max(1, funes::env_int("FUNES_CONSOLIDATE_HOURS", 6));
+
+        std::thread([&memory, &defaults, opt, every_hours] {
+            LLMClient llm(defaults.llm_url, defaults.llm_api_key,
+                          defaults.llm_model, defaults.llm_provider);
+            llm.set_max_tokens(256);
+            for (;;) {
+                std::this_thread::sleep_for(std::chrono::hours(every_hours));
+                try {
+                    auto report = memory.consolidate(
+                        [&llm](const std::vector<std::string>& texts) {
+                            return merge_memories(llm, texts);
+                        }, opt);
+                    if (report.merged || report.pruned || report.clusters_seen)
+                        std::cerr << "[funes] consolidation: " << report.clusters_seen
+                                  << " cluster(s), merged " << report.merged
+                                  << ", kept " << report.kept
+                                  << ", pruned " << report.pruned << "\n";
+                } catch (const std::exception& e) {
+                    std::cerr << "[funes] consolidation run failed: " << e.what() << "\n";
+                }
+            }
+        }).detach();
+    }
 
     // ── HTTP server ───────────────────────────────────────────────────────────
     httplib::Server srv;

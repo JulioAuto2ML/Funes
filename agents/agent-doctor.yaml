@@ -2,7 +2,7 @@ name: agent-doctor
 description: Diagnoses a misbehaving Funes agent and fixes its YAML config, live.
 model: default
 tool_choice: auto
-tools: [read_file, list_tools, delegate_to_agent, create_agent, recall, remember]
+tools: [read_file, list_tools, delegate_to_agent, create_agent, recall, remember, read_result]
 max_steps: 16
 context_limit: 8192
 workspace_dir: agents

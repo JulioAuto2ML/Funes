@@ -5,8 +5,43 @@
 // Uses yaml-cpp (libyaml-cpp-dev).
 
 #include "agent_config.h"
+#include "answer_schema.h"
 #include <yaml-cpp/yaml.h>
 #include <stdexcept>
+
+// YAML and JSON are the same data model here, so `answer_schema:` is written
+// as ordinary YAML and converted rather than embedded as a JSON string.
+// yaml-cpp scalars are untyped, so numbers and booleans are recovered by
+// trying the narrowest type first — a schema's `minItems: 2` has to survive as
+// a number, and `"2"` would validate nothing.
+static nlohmann::json yaml_to_json(const YAML::Node& node) {
+    switch (node.Type()) {
+        case YAML::NodeType::Map: {
+            nlohmann::json obj = nlohmann::json::object();
+            for (const auto& kv : node)
+                obj[kv.first.as<std::string>()] = yaml_to_json(kv.second);
+            return obj;
+        }
+        case YAML::NodeType::Sequence: {
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& item : node)
+                arr.push_back(yaml_to_json(item));
+            return arr;
+        }
+        case YAML::NodeType::Scalar: {
+            bool b;
+            if (YAML::convert<bool>::decode(node, b)) return b;
+            long long i;
+            if (YAML::convert<long long>::decode(node, i)) return i;
+            double d;
+            if (YAML::convert<double>::decode(node, d)) return d;
+            return node.as<std::string>();
+        }
+        case YAML::NodeType::Null:
+        default:
+            return nullptr;
+    }
+}
 
 static AgentConfig from_node(const YAML::Node& root, const std::string& source) {
     if (!root["name"])
@@ -36,6 +71,18 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     if (root["require_tools"] && root["require_tools"].IsSequence()) {
         for (const auto& t : root["require_tools"])
             cfg.require_tools.push_back(t.as<std::string>());
+    }
+
+    if (root["answer_schema"] && root["answer_schema"].IsMap()) {
+        cfg.answer_schema = yaml_to_json(root["answer_schema"]);
+        // The prompt half of the contract is generated, never hand-written:
+        // an agent author edits one place and the model is told exactly what
+        // the loop will enforce.
+        std::string block = funes::schema_prompt_block(cfg.answer_schema);
+        if (!block.empty()) {
+            if (!cfg.system_prompt.empty()) cfg.system_prompt += "\n\n";
+            cfg.system_prompt += block;
+        }
     }
 
     if (root["mcp_servers"] && root["mcp_servers"].IsSequence()) {

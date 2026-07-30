@@ -49,3 +49,11 @@ add_test(NAME delegation COMMAND test_delegation)
 add_executable(test_completion_contract test_completion_contract.cpp)
 target_link_libraries(test_completion_contract PRIVATE funes_core)
 add_test(NAME completion_contract COMMAND test_completion_contract)
+
+add_executable(test_result_store test_result_store.cpp)
+target_link_libraries(test_result_store PRIVATE funes_core)
+add_test(NAME result_store COMMAND test_result_store)
+
+add_executable(test_answer_schema test_answer_schema.cpp)
+target_link_libraries(test_answer_schema PRIVATE funes_core)
+add_test(NAME answer_schema COMMAND test_answer_schema)

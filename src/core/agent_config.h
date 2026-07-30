@@ -7,6 +7,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "json.hpp"
 
 // Connection details for one external MCP server.
 struct McpServerConfig {
@@ -40,6 +41,13 @@ struct AgentConfig {
     // is a side effect — a file written, a mail sent — so "described the work"
     // can't pass for "did the work". See core/completion_contract.h.
     std::vector<std::string> require_tools;
+
+    // Answer schema: the JSON shape this agent's final answer must have. Empty
+    // = no contract (any text is accepted, today's behavior). Declared in YAML
+    // as a JSON-Schema subset; when set, a matching instruction block is
+    // appended to system_prompt at load so the two can't drift apart. See
+    // core/answer_schema.h.
+    nlohmann::json answer_schema;
 
     // Overrides the server-wide FUNES_WORKSPACE_DIR for this agent's
     // read_file/write_file/execute_shell calls. Empty = inherit the default.

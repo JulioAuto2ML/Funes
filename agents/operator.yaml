@@ -2,7 +2,7 @@ name: operator
 description: Reads, writes, and runs commands in your Funes workspace. Shell access requires FUNES_ALLOW_SHELL=1.
 model: default
 tool_choice: auto
-tools: [read_file, write_file, execute_shell, list_tools, recall, remember]
+tools: [read_file, write_file, execute_shell, list_tools, recall, remember, read_result]
 max_steps: 12
 context_limit: 8192
 system_prompt: |

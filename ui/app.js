@@ -186,6 +186,29 @@ async function sendMessage(displayText, fullText, images) {
           last.addEventListener('click', () => last.classList.toggle('open'));
           if (data.error) last.classList.add('error');
         }
+      } else if (type === 'result_stored') {
+        // A big tool result was kept out of the transcript (see
+        // core/result_store.h). Worth surfacing: the agent's next move is
+        // usually a read_result call, which would otherwise look unmotivated.
+        const kb = data.bytes >= 1024 ? Math.round(data.bytes / 1024) + ' KB'
+                                      : data.bytes + ' bytes';
+        els.messages.insertBefore(
+          bubbleChipBefore('compress', '📦',
+            'Stored ' + kb + ' from ' + data.tool + ' (result #' + data.result_id + ')',
+            null),
+          bubble);
+        scrollDown();
+      } else if (type === 'contract_nudge') {
+        els.messages.insertBefore(
+          bubbleChipBefore('', '↩️',
+            'Answered early — still owes ' + (data.missing || []).join(', '), null),
+          bubble);
+        scrollDown();
+      } else if (type === 'schema_nudge') {
+        els.messages.insertBefore(
+          bubbleChipBefore('', '↩️', 'Answer rejected: ' + data.error, null),
+          bubble);
+        scrollDown();
       } else if (type === 'context_compressed') {
         const n = data.turns_folded;
         els.messages.insertBefore(

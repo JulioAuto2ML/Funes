@@ -52,6 +52,42 @@ require_tools: [write_file]
 max_steps: 6
 system_prompt: Write the file you are asked for.
 YAML
+cat > "$AGENTS/schema-tester.yaml" <<'YAML'
+name: schema-tester
+description: Test fixture — an agent whose final answer must be a JSON object.
+tools: [recall]
+max_steps: 6
+system_prompt: Answer the question.
+answer_schema:
+  type: object
+  required: [summary, sources]
+  properties:
+    summary: { type: string }
+    sources:
+      type: array
+      items: { type: string }
+      minItems: 1
+YAML
+cat > "$AGENTS/contract-schema-tester.yaml" <<'YAML'
+name: contract-schema-tester
+description: Test fixture — both contracts at once, to pin down their ordering.
+tools: [write_file]
+require_tools: [write_file]
+max_steps: 8
+system_prompt: Write the file you are asked for, then report.
+answer_schema:
+  type: object
+  required: [summary, sources]
+  properties:
+    summary: { type: string }
+    sources:
+      type: array
+      items: { type: string }
+      minItems: 1
+YAML
+
+# A file well over kInlineLimit (2048 bytes), for the result-store scenario.
+python3 -c "open('$WORKSPACE/big.txt','w').write('BIGFILESTART' + 'm'*8000 + 'BIGFILEEND')"
 
 echo "— starting mock LLM on :$LLM_PORT"
 python3 tests/mock_llm.py $LLM_PORT &
@@ -170,6 +206,49 @@ OUT=$(curl -s "$BASE/api/history?session=it-session-contract-2")
 check "stored answer is the failure"        "$OUT" 'FAILED'
 check "stored answer quotes claim as unverified" "$OUT" 'unverified claim'
 check_absent "no false success stored"      "$OUT" 'with-tool-result'
+
+echo "— result store: a large tool result is stored and dereferenced, not inlined"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"big-result please","session":"it-session-results"}')
+check "large result stored"        "$OUT" 'event: result_stored'
+check "preview names the tool"     "$OUT" '"tool":"read_file"'
+check "model dereferenced it"      "$OUT" 'read_result'
+check "window reached the model"   "$OUT" 'dereferenced id='
+check "window has file content"    "$OUT" 'window=BIGFILESTART'
+# The 8KB payload itself must never reach the stored turn — that's the whole
+# point of the feature.
+OUT=$(curl -s "$BASE/api/history?session=it-session-results")
+check_absent "big payload absent from history" "$OUT" 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm'
+
+echo "— answer schema: a malformed answer gets nudged, then accepted"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"schema-comply please","session":"it-session-schema","agent":"schema-tester"}')
+check "schema nudge emitted"     "$OUT" 'event: schema_nudge'
+check "nudge names the problem"  "$OUT" 'sources'
+OUT=$(curl -s "$BASE/api/history?session=it-session-schema")
+check "stored answer is the JSON"   "$OUT" 'the mock answer'
+# Canonical JSON, not the model's fenced wrapping: a downstream consumer gets
+# something it can parse without knowing how the model likes to format.
+check_absent "no code fence stored" "$OUT" '```'
+check_absent "no preamble stored"   "$OUT" 'Sure — here it is'
+
+echo "— answer schema: a model that never complies fails loudly"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"schema-refuse please","session":"it-session-schema-2","agent":"schema-tester"}')
+check "schema failure reported" "$OUT" 'FAILED'
+OUT=$(curl -s "$BASE/api/history?session=it-session-schema-2")
+check "stored answer is the failure"       "$OUT" 'FAILED'
+check "failure quotes the prose as unverified" "$OUT" 'MOCK-PROSE-ANSWER'
+
+echo "— answer schema + require_tools: side effects come before formatting"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"contract-schema-both please","session":"it-session-both","agent":"contract-schema-tester"}')
+check "tool contract nudged first" "$OUT" 'event: contract_nudge'
+check "required call happened"     "$OUT" 'write_file'
+check "schema nudged after"        "$OUT" 'event: schema_nudge'
+OUT=$(curl -s "$BASE/api/history?session=it-session-both")
+check "final answer satisfies both" "$OUT" 'the mock answer'
+check_absent "no contract failure"  "$OUT" 'FAILED'
 
 echo "— chat validation"
 OUT=$(curl -s -X POST "$BASE/api/chat" -d '{"session":"it-session-1"}')

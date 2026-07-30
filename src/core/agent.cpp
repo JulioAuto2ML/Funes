@@ -3,7 +3,9 @@
 // =============================================================================
 
 #include "agent.h"
+#include "answer_schema.h"
 #include "completion_contract.h"
+#include "result_store.h"
 #include "text_utils.h"
 #include <algorithm>
 #include <cstdlib>
@@ -296,19 +298,40 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // whole point.
     const funes::CompletionContract contract{cfg_.require_tools};
     std::set<std::string> satisfied;
+    // Tool nudges and answer-schema nudges (see core/answer_schema.h) share one
+    // budget: they're the same failure from the model's side — it tried to
+    // finish and wasn't allowed to — and two independent budgets would let a
+    // model alternate between the two failure modes forever.
+    const bool has_schema = !cfg_.answer_schema.is_null() && !cfg_.answer_schema.empty();
+    const int  nudge_budget = contract.active() ? contract.nudge_budget() : 3;
     int nudges_used = 0;
     // Set when a nudge was just injected: that one completion is forced to
     // produce a tool call, so the model can't answer the nudge with more prose.
     bool force_tool_call = false;
 
+    // Empty when the answer validates (or there is no schema); otherwise the
+    // one violation to nudge on.
+    auto schema_error = [&](const std::string& text) -> std::string {
+        if (!has_schema) return "";
+        json value;
+        if (!funes::extract_answer_json(text, value))
+            return "the answer contained no JSON value at all";
+        return funes::validate_answer(cfg_.answer_schema, value);
+    };
+
     // Every "we're done here" exit below routes through this, including the
     // loop-detector and max_steps bailouts: a run that stops with a required
-    // call outstanding is a failed run no matter which branch noticed first.
+    // call outstanding — or with an answer the agent's consumer can't parse —
+    // is a failed run no matter which branch noticed first. In particular the
+    // synthetic "Done. web_search completed: …" bailouts can never satisfy a
+    // schema, and must not be allowed to pretend they do.
     auto finish = [&](const std::string& text) -> std::string {
         if (contract.active()) {
             const std::vector<std::string> missing = contract.missing(satisfied);
             if (!missing.empty()) return funes::contract_failure(missing, text);
         }
+        const std::string err = schema_error(text);
+        if (!err.empty()) return funes::schema_failure(err, text);
         return text;
     };
 
@@ -351,7 +374,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             if (contract.active()) {
                 const std::vector<std::string> missing = contract.missing(satisfied);
                 if (!missing.empty()) {
-                    if (nudges_used++ < contract.nudge_budget()) {
+                    if (nudges_used++ < nudge_budget) {
                         if (!resp.content.empty()) {
                             ChatMessage asst;
                             asst.role    = "assistant";
@@ -368,7 +391,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                         std::cerr << "[agent:" << cfg_.name << "] premature answer at step "
                                   << step << "; still owes " << missing.size()
                                   << " required call(s), nudging (" << nudges_used
-                                  << "/" << contract.nudge_budget() << ")\n";
+                                  << "/" << nudge_budget << ")\n";
                         force_tool_call = true;
                         continue;
                     }
@@ -379,18 +402,58 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // Some local models return an empty completion right after a tool
             // round trip. One follow-up call with tools disabled reliably
             // produces the text answer from the results already in history.
-            if (resp.content.empty() && step > 0) {
+            std::string answer = resp.content;
+            if (answer.empty() && step > 0) {
                 llm_.set_tool_choice("none");
                 CompletionResponse retry = llm_.complete(history, json::array(), on_delta);
                 llm_.set_tool_choice(cfg_.tool_choice);
                 if (retry.prompt_tokens > 0) prompt_tokens_out = retry.prompt_tokens;
-                if (!retry.content.empty())
-                    return retry.content;
-                return last_tool_result.empty()
-                    ? "(the model returned an empty answer)"
-                    : last_tool_result;
+                if (!retry.content.empty()) {
+                    answer = retry.content;
+                } else if (!has_schema) {
+                    // Echoing the last tool result is a best-effort salvage; it
+                    // can't be one under a schema, so that case falls through
+                    // to the validation below and fails honestly instead.
+                    return last_tool_result.empty()
+                        ? "(the model returned an empty answer)"
+                        : last_tool_result;
+                }
             }
-            return resp.content;
+
+            // The answer schema (core/answer_schema.h). Unlike a tool nudge
+            // this doesn't force a tool call — we want text from the model,
+            // just correct text.
+            if (has_schema) {
+                const std::string err = schema_error(answer);
+                if (!err.empty()) {
+                    if (nudges_used++ < nudge_budget) {
+                        if (!answer.empty()) {
+                            ChatMessage asst;
+                            asst.role    = "assistant";
+                            asst.content = answer;
+                            history.push_back(std::move(asst));
+                        }
+                        ChatMessage nudge;
+                        nudge.role    = "user";
+                        nudge.content = funes::schema_nudge(err, cfg_.answer_schema);
+                        history.push_back(std::move(nudge));
+                        if (emit)
+                            emit("schema_nudge", {{"error", err}, {"attempt", nudges_used}});
+                        std::cerr << "[agent:" << cfg_.name << "] answer rejected at step "
+                                  << step << ": " << err << "; nudging (" << nudges_used
+                                  << "/" << nudge_budget << ")\n";
+                        continue;
+                    }
+                    return funes::schema_failure(err, answer);
+                }
+                // Hand the consumer the canonical form, not whatever wrapping
+                // the model chose: a downstream agent gets parseable JSON even
+                // when the model fenced it or prefixed a sentence.
+                json value;
+                funes::extract_answer_json(answer, value);
+                return funes::dump_safe(value);
+            }
+            return answer;
         }
 
         // Assistant message with tool_calls must precede each tool result.
@@ -438,14 +501,37 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             }
 
             last_tool_name   = tc.name;
-            last_tool_result = result.text;
             if (!result.error) satisfied.insert(tc.name);
+
+            // Large results go to the store and the transcript carries a
+            // preview instead (see core/result_store.h). Errors are left alone:
+            // they're short, and their text is what the model needs to recover.
+            // last_tool_result follows the transcript, not the full value —
+            // the bailout paths below echo it into a final answer, and a 40KB
+            // "answer" would be worse than the preview it replaced.
+            std::string tool_text = result.text;
+            if (!result.error && funes::exceeds_inline_limit(tool_text)) {
+                try {
+                    const int64_t rid = memory_.store_result(ctx.session, cfg_.name,
+                                                             tc.name, tool_text);
+                    tool_text = funes::result_preview(rid, tc.name, result.text);
+                    if (emit) emit("result_stored", {{"result_id", rid},
+                                                     {"tool", tc.name},
+                                                     {"bytes", result.text.size()}});
+                } catch (const std::exception& e) {
+                    // Storage is an optimisation; failing it must not lose the
+                    // result the model is waiting for.
+                    std::cerr << "[agent:" << cfg_.name << "] result store failed for "
+                              << tc.name << ": " << e.what() << " — inlining\n";
+                }
+            }
+            last_tool_result = tool_text;
 
             ChatMessage tool_msg;
             tool_msg.role         = "tool";
             tool_msg.content      = result.error
                 ? "{\"error\": " + funes::dump_safe(json(result.text)) + "}"
-                : result.text;
+                : tool_text;
             tool_msg.tool_call_id = tc.id;
             tool_msg.name         = tc.name;
             tool_msg.images       = result.images;

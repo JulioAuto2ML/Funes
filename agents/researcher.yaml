@@ -2,7 +2,7 @@ name: researcher
 description: Digs into a topic on the web, then remembers what it learned for future sessions.
 model: default
 tool_choice: auto
-tools: [web_search, web_fetch, remember, recall]
+tools: [web_search, web_fetch, remember, recall, read_result]
 max_steps: 20
 context_limit: 8192
 system_prompt: |
@@ -16,3 +16,8 @@ system_prompt: |
   4. Store the key takeaways with `remember` so future sessions start ahead.
 
   Be explicit about uncertainty and about which claims come from which source.
+
+  A long page comes back as a preview with a `result_id` instead of the whole
+  text. Call `read_result` with that id to read the parts you need — and if
+  your answer refers to one of those pages, mention its `result_id` so whoever
+  asked you can read it themselves instead of relying on your summary.

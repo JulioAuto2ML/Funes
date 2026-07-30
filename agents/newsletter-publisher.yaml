@@ -2,7 +2,7 @@ name: newsletter-publisher
 description: Turns researched AI-news items into the X posts file, then runs publish_newsletter.py to render, link-check and send the newsletter. Scoped to the X_posts folder only.
 model: default
 tool_choice: auto
-tools: [read_file, write_file, execute_shell, web_search, web_fetch]
+tools: [read_file, write_file, execute_shell, web_search, web_fetch, read_result]
 workspace_dir: /home/julio/Documents/X_posts
 max_steps: 20
 context_limit: 32768

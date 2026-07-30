@@ -51,7 +51,38 @@ mcp_servers:
     CHECK(min.tool_choice == "auto");
     CHECK(min.tools.empty());
     CHECK(min.require_tools.empty());   // no contract unless asked for
+    CHECK(min.answer_schema.is_null());  // ...nor an answer schema
     CHECK(min.max_steps == 8);
+
+    // answer_schema: written as ordinary YAML, converted to JSON. The types
+    // have to survive — a schema whose minItems is the string "1" enforces
+    // nothing.
+    AgentConfig typed = AgentConfig::from_string(R"yaml(
+name: typed
+system_prompt: Answer the question.
+answer_schema:
+  type: object
+  required: [summary, sources]
+  properties:
+    summary: { type: string }
+    sources:
+      type: array
+      items: { type: string }
+      minItems: 1
+)yaml");
+    CHECK(!typed.answer_schema.is_null());
+    CHECK(typed.answer_schema["type"] == "object");
+    CHECK(typed.answer_schema["required"].size() == 2);
+    CHECK(typed.answer_schema["required"][0] == "summary");
+    CHECK(typed.answer_schema["properties"]["sources"]["minItems"] == 1);
+    CHECK(typed.answer_schema["properties"]["sources"]["minItems"].is_number());
+    CHECK(typed.answer_schema["properties"]["summary"]["type"] == "string");
+
+    // The prompt half of the contract is generated at load, so an agent author
+    // can't leave the prompt saying one thing while the loop enforces another.
+    CHECK(typed.system_prompt.find("Answer the question.") != std::string::npos);
+    CHECK(typed.system_prompt.find("sources") != std::string::npos);
+    CHECK(typed.system_prompt.find("JSON") != std::string::npos);
 
     // Missing name → throws.
     bool threw = false;

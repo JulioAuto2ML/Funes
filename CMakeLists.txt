@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 1.0.0 LANGUAGES C CXX)
+project(Funes VERSION 2.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -74,6 +74,8 @@ add_library(funes_core STATIC
     src/core/agent_config.cpp
     src/core/context_compressor.cpp
     src/core/completion_contract.cpp
+    src/core/answer_schema.cpp
+    src/core/result_store.cpp
     src/core/text_utils.cpp
     src/core/base64.cpp
     src/core/memory.cpp
@@ -85,6 +87,7 @@ add_library(funes_core STATIC
     src/core/tools/web_search.cpp
     src/core/tools/web_fetch.cpp
     src/core/tools/memory_tools.cpp
+    src/core/tools/result_tools.cpp
     src/core/tools/context_tools.cpp
     src/core/tools/introspection.cpp
     src/core/tools/tool_builder.cpp

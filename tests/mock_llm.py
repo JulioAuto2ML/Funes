@@ -15,6 +15,14 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
+# A scenario keyword anywhere in the user side of the conversation, not just in
+# the newest turn: the agent loop injects its own user turns (nudges), so the
+# original request stops being `last_user` as soon as one lands.
+def mentions(messages, keyword):
+    return any(keyword in (m.get("content") or "")
+               for m in messages if m.get("role") == "user")
+
+
 def fake_embedding(text):
     vec = [0.0] * 8
     for i, ch in enumerate(text.encode()):
@@ -119,17 +127,82 @@ class Handler(BaseHTTPRequestHandler):
                         "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
                 return
 
+        # Result store (core/result_store.h): a large tool result arrives as a
+        # preview carrying a result_id instead of the content itself, and the
+        # model reaches the rest through read_result. Modelled end to end here
+        # because the interesting part is the handoff, not any one piece.
+        if mentions(messages, "big-result"):
+            stored_id, window = None, None
+            for m in messages:
+                if m.get("role") != "tool":
+                    continue
+                if m.get("name") == "read_result":
+                    window = m.get("content") or ""
+                    continue
+                try:
+                    payload = json.loads(m.get("content") or "")
+                except ValueError:
+                    continue
+                if isinstance(payload, dict) and "result_id" in payload:
+                    stored_id = payload["result_id"]
+
+            if stored_id is None and window is None:
+                self._reply_tool({"id": "call_read", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "big.txt"})}},
+                                 stream)
+            elif window is None:
+                self._reply_tool({"id": "call_deref", "type": "function",
+                                  "function": {"name": "read_result",
+                                               "arguments": json.dumps({"id": stored_id,
+                                                                        "offset": 0,
+                                                                        "limit": 64})}},
+                                 stream)
+            else:
+                self._reply_text("MOCK-REPLY dereferenced id=%s window=%s"
+                                 % (stored_id, window[:20].replace("\n", " ")), stream)
+            return
+
+        # Answer schema (core/answer_schema.h). Same shape as the contract
+        # scenarios above: "schema-comply" gets it right once told what was
+        # wrong, "schema-refuse" never does and must fail loudly.
+        if mentions(messages, "schema-"):
+            schema_nudged = any("does not match the required format" in (m.get("content") or "")
+                                for m in messages if m.get("role") == "user")
+            if schema_nudged and not mentions(messages, "schema-refuse"):
+                self._reply_text(
+                    "Sure — here it is:\n```json\n"
+                    "{\"summary\": \"the mock answer\", "
+                    "\"sources\": [\"https://example.com\"]}\n```", stream)
+            else:
+                self._reply_text("MOCK-PROSE-ANSWER: I looked it all up, trust me.", stream)
+            return
+
         text = "MOCK-REPLY"
         if has_tool_result:
             text += " with-tool-result"
         if "Relevant memories" in system_text:
             text += " with-memories"
 
+        self._reply_text(text, stream)
+
+    # ── reply helpers ────────────────────────────────────────────────────────
+
+    def _reply_text(self, text, stream):
         if stream:
             self._stream_text(text)
         else:
             self._json(200, {"choices": [{"message": {
                 "role": "assistant", "content": text}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+    def _reply_tool(self, tool_call, stream):
+        if stream:
+            self._stream_tool_call(tool_call)
+        else:
+            self._json(200, {"choices": [{"message": {
+                "role": "assistant", "content": None,
+                "tool_calls": [tool_call]}}],
                 "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
 
     def _sse_headers(self):

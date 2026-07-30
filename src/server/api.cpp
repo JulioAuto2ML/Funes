@@ -150,7 +150,7 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
-            {"version",  "1.0.0"},
+            {"version",  "2.0.0"},
             {"agents",   agent_count()},
             {"memories", memory_.count()},
             {"semantic_memory", memory_.semantic_available()},
@@ -271,7 +271,9 @@ void FunesApi::mount(httplib::Server& srv) {
 
         std::vector<MemoryStore::Memory> items = q.empty()
             ? memory_.list(agent, limit, offset)
-            : memory_.recall(agent, q, limit);
+            // touch=false: browsing the memory list is not a recall, and
+            // counting it would shield memories from consolidation's prune.
+            : memory_.recall(agent, q, limit, /*touch=*/false);
 
         json arr = json::array();
         for (const auto& m : items) {
@@ -281,7 +283,10 @@ void FunesApi::mount(httplib::Server& srv) {
                 {"text",       m.text},
                 {"source",     m.source},
                 {"score",      m.score},
-                {"created_at", m.created_at}
+                {"created_at", m.created_at},
+                // Consolidation prunes on this (never-recalled auto memories),
+                // so it's worth being able to see it from outside.
+                {"recall_count", m.recall_count}
             });
         }
         json_reply(res, 200, {{"ok", true}, {"memories", arr},

@@ -13,6 +13,12 @@
 // workers by convention, so there's normally no recursion. The depth guard
 // below is defense in depth in case a future custom agent (built via
 // agent-builder) is ever given this tool too.
+//
+// Delegation by reference comes for free from the result store: the sub-agent
+// runs in the *caller's* session, and its answer is an ordinary ToolResult, so
+// a large one crosses the same kInlineLimit threshold as any other tool output
+// (run_loop, core/result_store.h) and the orchestrator gets a preview plus a
+// result_id it can dereference with read_result. Nothing to plumb here.
 
 #include "../agent.h"
 #include "../tools.h"
@@ -81,7 +87,8 @@ void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const Agen
         "Hand a task to a specialist agent and get back its final answer. Use this instead of "
         "telling the user to switch agents themselves — you stay in the conversation and relay "
         "the result in your own voice. The specialist's own steps aren't shown to the user, so "
-        "briefly mention what you had it do if it's not obvious from your answer.",
+        "briefly mention what you had it do if it's not obvious from your answer. A long answer "
+        "comes back as a preview with a result_id — call read_result with it to read the rest.",
         {
             {"type", "object"},
             {"properties", {

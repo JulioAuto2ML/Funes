@@ -122,9 +122,38 @@ Funes has three layers of memory, all in one SQLite file:
    answered.
 
 Every memory is visible in the **memory panel**: source-tagged (`user` — you
-taught it, `tool` — the model chose to keep it, `auto` — conversation log),
-searchable, and deletable. You can also teach Funes facts directly from the
-panel. Forgetting is a feature: the Borges story is a warning, after all.
+taught it, `tool` — the model chose to keep it, `auto` — conversation log,
+`consolidated` — merged from near-duplicates), searchable, and deletable. You
+can also teach Funes facts directly from the panel. Forgetting is a feature:
+the Borges story is a warning, after all.
+
+And forgetting is now something Funes does on its own. Every few hours a
+background pass **consolidates** the store: memories that say the same thing
+(cosine ≥ 0.92) are handed to the model to merge into one sentence — or left
+alone if it answers `KEEP ALL` — and `auto` memories older than 30 days that
+were never once recalled are dropped. Explicit `user` memories are never
+pruned, each merge is one transaction so a crash can't lose a fact, and the
+whole thing is off with `FUNES_CONSOLIDATE=off`. Without an embedder the merge
+step is skipped and only the prune runs.
+
+### Large results don't eat the context window
+
+A 40KB page fetch used to sit in the transcript for the rest of the turn,
+costing ~10K tokens on every subsequent step. Now anything over 2KB is stored
+once, out of band and scoped to the session, and the model sees a preview
+instead — the size, the head and tail, and a `result_id`:
+
+```json
+{"result_id": 17, "tool": "web_fetch", "bytes": 41320,
+ "head": "…", "tail": "…",
+ "note": "Full result stored, not shown. Use read_result(id=17, offset, limit)…"}
+```
+
+`read_result` reads it back a window at a time, so a dereference can't
+re-import what the preview evicted. Small results are untouched, so most turns
+never notice. Delegation gets this for free: a specialist runs in the caller's
+session, so a long report comes back to the orchestrator as a preview plus an
+id it can read at its own pace.
 
 ---
 
@@ -152,6 +181,11 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_ALLOW_LOCAL_FETCH` | `0` | Let `web_fetch` reach private/loopback hosts |
 | `FUNES_WORKSPACE_DIR` | `~/.funes/workspace` | Sandbox root for `read_file`/`write_file`/`execute_shell` and uploads |
 | `FUNES_ALLOW_SHELL` | `0` | Let `execute_shell` actually run commands (real code execution — see below) |
+| `FUNES_RESULT_TTL_DAYS` | `7` | Age at which stored tool results are swept at startup |
+| `FUNES_CONSOLIDATE` | `on` | `off` disables the memory consolidation pass |
+| `FUNES_CONSOLIDATE_HOURS` | `6` | How often consolidation runs |
+| `FUNES_CONSOLIDATE_PRUNE_DAYS` | `30` | Age at which never-recalled `auto` memories are pruned |
+| `FUNES_CONSOLIDATE_MAX_CLUSTERS` | `20` | Merge calls per run, so a backlog can't hog a local model |
 
 ---
 
@@ -240,6 +274,33 @@ more prose); refuse long enough and the run returns an explicit `FAILED —
 ...` instead of a plausible-sounding lie. Worth setting on any agent whose
 real output is a side effect rather than its text.
 
+### Making an agent answer in a shape you can use
+
+`require_tools` checks that the work happened; it says nothing about what comes
+back. For an agent whose answer feeds something else — another agent, a
+pipeline, a script — declare the shape:
+
+```yaml
+answer_schema:
+  type: object
+  required: [summary, sources]
+  properties:
+    summary: { type: string }
+    sources: { type: array, items: { type: string }, minItems: 1 }
+```
+
+The matching "your final answer must be…" instruction is generated from this
+at load, so the prompt can't drift from what's enforced. An answer that
+doesn't validate gets a nudge naming the exact violation (`sources[1]:
+expected string, got number`); the answer that does validate is returned as
+canonical JSON, fence and preamble stripped. Same nudge budget as
+`require_tools`, and tool nudges go first — side effects before formatting.
+Spend the budget and the run returns `FAILED — …`, including from the
+loop-detector and `max_steps` bailouts, which can't satisfy a schema and
+shouldn't pretend to. Supported keywords are `type`, `required`,
+`properties`, `items`, `enum`, `minItems`/`maxItems`; anything else in the
+schema is ignored rather than rejected.
+
 To give an agent tools from an external MCP server:
 
 ```yaml
@@ -271,7 +332,8 @@ POST   /api/upload                    multipart 'file' → saved to the workspac
 `images` is an array of `{mime_type, data}` (base64, no `data:` prefix), max 4
 per message — the same shape `/api/upload` hands back for an image file. The
 chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
-`context_compressed`, `usage`, `done`, and `error` SSE events.
+`result_stored`, `contract_nudge`, `schema_nudge`, `context_compressed`,
+`usage`, `done`, and `error` SSE events.
 
 ---
 
@@ -292,10 +354,12 @@ Funes/
 ├── config/            # funes.conf (defaults) + funes.local (secrets, gitignored)
 ├── src/
 │   ├── core/          # llm_client (+ multimodal messages), memory, tools, agent runtime,
-│   │   │              # context compression, base64, UTF-8-safety helpers
-│   │   └── tools/     # web_search/fetch, remember/recall, read/write_file (+ PDF extraction),
-│   │                  # execute_shell, compress_context, create_tool/create_agent,
-│   │                  # delegate_to_agent (+ generated/, self-registering)
+│   │   │              # context compression, completion contract + answer schema,
+│   │   │              # result store, base64, UTF-8-safety helpers
+│   │   └── tools/     # web_search/fetch, remember/recall, read_result, read/write_file
+│   │                  # (+ PDF extraction), execute_shell, compress_context,
+│   │                  # create_tool/create_agent, delegate_to_agent
+│   │                  # (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test

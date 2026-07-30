@@ -2,7 +2,7 @@ name: ai-newsletter
 description: Runs the daily AI/LLM/AGI news posts + newsletter pipeline end to end, in two bounded delegated phases (research, then publish).
 model: default
 tool_choice: auto
-tools: [delegate_to_agent, execute_shell]
+tools: [delegate_to_agent, execute_shell, read_result]
 max_steps: 6
 context_limit: 8192
 # Both phases are delegations; an answer that skipped them is a fabricated

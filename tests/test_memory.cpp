@@ -182,12 +182,197 @@ int test_list_sessions() {
     return 0;
 }
 
+// ── consolidation ─────────────────────────────────────────────────────────────
+
+int test_recall_count() {
+    MemoryStore store(temp_db("recall_count"), nullptr);
+    int64_t id = store.remember("funes", "the user prefers dark roast coffee", "auto");
+
+    CHECK(store.list("funes")[0].recall_count == 0);
+
+    store.recall("funes", "coffee", 5);
+    CHECK(store.list("funes")[0].recall_count == 1);
+    store.recall("funes", "coffee", 5);
+    CHECK(store.list("funes")[0].recall_count == 2);
+
+    // Browsing (touch=false) is not a recall: it must not shield a memory
+    // from the prune below.
+    store.recall("funes", "coffee", 5, /*touch=*/false);
+    CHECK(store.list("funes")[0].recall_count == 2);
+
+    // A miss touches nothing.
+    store.recall("funes", "nothing matches this", 5);
+    CHECK(store.list("funes")[0].recall_count == 2);
+    CHECK(id > 0);
+    return 0;
+}
+
+int test_prune_respects_source_age_and_recall() {
+    MemoryStore store(temp_db("prune"), nullptr);   // keyword-only: merge step skipped
+
+    store.remember("funes", "explicitly remembered fact", "user");
+    store.remember("funes", "auto captured and never used", "auto");
+    store.remember("funes", "auto captured but recalled later", "auto");
+    store.recall("funes", "recalled later", 5);     // → recall_count 1
+
+    bool merge_called = false;
+    auto merge = [&](const std::vector<std::string>&) {
+        merge_called = true;
+        return std::string("merged");
+    };
+
+    // Nothing is old enough yet.
+    MemoryStore::ConsolidationOptions young;
+    young.prune_after_days = 1;
+    CHECK(store.consolidate(merge, young).pruned == 0);
+    CHECK(store.count("funes") == 3);
+
+    // Age floor removed: only the auto memory nobody ever recalled goes.
+    MemoryStore::ConsolidationOptions now;
+    now.prune_after_days = 0;
+    auto report = store.consolidate(merge, now);
+    CHECK(report.pruned == 1);
+    CHECK(store.count("funes") == 2);
+
+    auto left = store.list("funes");
+    for (const auto& m : left)
+        CHECK(m.text != "auto captured and never used");
+
+    // Without an embedder there is nothing to cluster on, so the LLM is never
+    // called — a keyword-only install still gets the prune, for free.
+    CHECK(!merge_called);
+    CHECK(report.clusters_seen == 0);
+
+    // Negative = pruning off entirely.
+    MemoryStore::ConsolidationOptions off;
+    off.prune_after_days = -1;
+    store.remember("funes", "another never-recalled auto memory", "auto");
+    CHECK(store.consolidate(merge, off).pruned == 0);
+    CHECK(store.count("funes") == 3);
+    return 0;
+}
+
+int test_merge_near_duplicates() {
+    FakeEmbedder emb;
+    MemoryStore store(temp_db("merge"), &emb);
+
+    // Same letters → identical vector under FakeEmbedder → cosine 1.0. Two
+    // rows saying the same thing in different words is exactly the case.
+    store.remember("funes", "the cat sat on the mat", "auto");
+    store.remember("funes", "the mat sat on the cat", "auto");
+    store.remember("funes", "zzzz qqqq jjjj", "auto");   // distant, untouched
+
+    MemoryStore::ConsolidationOptions opt;
+    opt.prune_after_days = -1;   // isolate the merge step
+
+    int calls = 0;
+    size_t cluster_size = 0;
+    auto report = store.consolidate([&](const std::vector<std::string>& texts) {
+        ++calls;
+        cluster_size = texts.size();
+        return std::string("A cat and a mat sat on each other");
+    }, opt);
+
+    CHECK(calls == 1);
+    CHECK(cluster_size == 2);
+    CHECK(report.clusters_seen == 1);
+    CHECK(report.merged == 2);
+    CHECK(store.count("funes") == 2);           // 3 − 2 originals + 1 merged
+
+    bool found = false;
+    for (const auto& m : store.list("funes")) {
+        if (m.text == "A cat and a mat sat on each other") {
+            found = true;
+            CHECK(m.source == "consolidated");
+        }
+    }
+    CHECK(found);
+
+    // The merged row is searchable, i.e. it got its own embedding.
+    auto r = store.recall("funes", "A cat and a mat sat on each other", 1);
+    CHECK(!r.empty());
+    CHECK(r[0].source == "consolidated");
+    return 0;
+}
+
+int test_merge_keep_all_and_failure() {
+    FakeEmbedder emb;
+    MemoryStore store(temp_db("keepall"), &emb);
+
+    store.remember("funes", "the cat sat on the mat", "auto");
+    store.remember("funes", "the mat sat on the cat", "auto");
+
+    MemoryStore::ConsolidationOptions opt;
+    opt.prune_after_days = -1;
+
+    // "KEEP ALL" means they only looked alike — nothing is touched.
+    auto kept = store.consolidate(
+        [](const std::vector<std::string>&) { return std::string("KEEP ALL"); }, opt);
+    CHECK(kept.clusters_seen == 1);
+    CHECK(kept.kept == 1);
+    CHECK(kept.merged == 0);
+    CHECK(store.count("funes") == 2);
+
+    // A merge call that throws (LLM down mid-run) must leave the cluster
+    // exactly as it was: no half-applied merge, no lost memory.
+    auto failed = store.consolidate(
+        [](const std::vector<std::string>&) -> std::string {
+            throw std::runtime_error("LLM unavailable");
+        }, opt);
+    CHECK(failed.merged == 0);
+    CHECK(store.count("funes") == 2);
+    CHECK(store.recall("funes", "the cat sat on the mat", 1).size() == 1);
+
+    // And the run after recovery still works — nothing was left claimed or
+    // locked by the failure.
+    auto ok = store.consolidate(
+        [](const std::vector<std::string>&) { return std::string("cats and mats, together"); }, opt);
+    CHECK(ok.merged == 2);
+    CHECK(store.count("funes") == 1);
+    return 0;
+}
+
+int test_consolidation_scoping() {
+    FakeEmbedder emb;
+    MemoryStore store(temp_db("scope"), &emb);
+
+    // Identical text under two agents is not a duplicate: the same sentence
+    // means different things in two agents' histories.
+    store.remember("funes", "the cat sat on the mat", "auto");
+    store.remember("operator", "the mat sat on the cat", "auto");
+
+    MemoryStore::ConsolidationOptions opt;
+    opt.prune_after_days = -1;
+    auto report = store.consolidate(
+        [](const std::vector<std::string>&) { return std::string("merged across agents"); }, opt);
+    CHECK(report.clusters_seen == 0);
+    CHECK(store.count() == 2);
+
+    // max_clusters caps the LLM calls per run; the next run continues.
+    store.remember("funes", "the mat sat on the cat", "auto");
+    store.remember("funes", "alpha beta gamma", "auto");
+    store.remember("funes", "gamma beta alpha", "auto");
+    opt.max_clusters = 1;
+    int calls = 0;
+    store.consolidate([&](const std::vector<std::string>&) {
+        ++calls;
+        return std::string("merged " + std::to_string(calls));
+    }, opt);
+    CHECK(calls == 1);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_keyword_only();
     rc |= test_semantic();
     rc |= test_turns();
     rc |= test_list_sessions();
+    rc |= test_recall_count();
+    rc |= test_prune_respects_source_age_and_recall();
+    rc |= test_merge_near_duplicates();
+    rc |= test_merge_keep_all_and_failure();
+    rc |= test_consolidation_scoping();
     if (rc == 0) std::cout << "test_memory: all tests passed\n";
     return rc;
 }

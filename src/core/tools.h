@@ -74,6 +74,7 @@ private:
 // ── built-in tool packs ───────────────────────────────────────────────────────
 void register_web_tools(ToolRegistry& reg);                        // web_search, web_fetch
 void register_memory_tools(ToolRegistry& reg, MemoryStore& store); // remember, recall
+void register_result_tools(ToolRegistry& reg, MemoryStore& store); // read_result
 void register_context_tools(ToolRegistry& reg, MemoryStore& store,
                             const AgentDefaults& defaults);        // compress_context
 void register_introspection_tools(ToolRegistry& reg);              // list_tools
