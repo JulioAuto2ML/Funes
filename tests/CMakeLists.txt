@@ -45,3 +45,7 @@ add_test(NAME llm_client_images COMMAND test_llm_client_images)
 add_executable(test_delegation test_delegation.cpp)
 target_link_libraries(test_delegation PRIVATE funes_core)
 add_test(NAME delegation COMMAND test_delegation)
+
+add_executable(test_completion_contract test_completion_contract.cpp)
+target_link_libraries(test_completion_contract PRIVATE funes_core)
+add_test(NAME completion_contract COMMAND test_completion_contract)

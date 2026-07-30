@@ -33,6 +33,11 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
             cfg.tools.push_back(t.as<std::string>());
     }
 
+    if (root["require_tools"] && root["require_tools"].IsSequence()) {
+        for (const auto& t : root["require_tools"])
+            cfg.require_tools.push_back(t.as<std::string>());
+    }
+
     if (root["mcp_servers"] && root["mcp_servers"].IsSequence()) {
         for (const auto& entry : root["mcp_servers"]) {
             McpServerConfig srv;

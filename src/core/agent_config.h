@@ -34,6 +34,13 @@ struct AgentConfig {
     std::string system_prompt;
     std::string tool_choice = "auto"; // "auto" | "required" | "none"
 
+    // Completion contract: tools that must have succeeded before a plain-text
+    // answer is accepted as this agent's final answer. Empty = no contract (a
+    // model may finish whenever it likes). Use it for agents whose real output
+    // is a side effect — a file written, a mail sent — so "described the work"
+    // can't pass for "did the work". See core/completion_contract.h.
+    std::vector<std::string> require_tools;
+
     // Overrides the server-wide FUNES_WORKSPACE_DIR for this agent's
     // read_file/write_file/execute_shell calls. Empty = inherit the default.
     std::string workspace_dir;

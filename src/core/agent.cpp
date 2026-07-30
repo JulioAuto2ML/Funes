@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "agent.h"
+#include "completion_contract.h"
 #include "text_utils.h"
 #include <algorithm>
 #include <cstdlib>
@@ -289,6 +290,28 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     std::string last_tool_result;
     std::string last_tool_name;
 
+    // Completion contract (see core/completion_contract.h): tools that must
+    // have succeeded before a text answer is final. Only successful calls
+    // count — an errored write_file leaves the obligation open, which is the
+    // whole point.
+    const funes::CompletionContract contract{cfg_.require_tools};
+    std::set<std::string> satisfied;
+    int nudges_used = 0;
+    // Set when a nudge was just injected: that one completion is forced to
+    // produce a tool call, so the model can't answer the nudge with more prose.
+    bool force_tool_call = false;
+
+    // Every "we're done here" exit below routes through this, including the
+    // loop-detector and max_steps bailouts: a run that stops with a required
+    // call outstanding is a failed run no matter which branch noticed first.
+    auto finish = [&](const std::string& text) -> std::string {
+        if (contract.active()) {
+            const std::vector<std::string> missing = contract.missing(satisfied);
+            if (!missing.empty()) return funes::contract_failure(missing, text);
+        }
+        return text;
+    };
+
     DeltaFn on_delta;
     if (emit)
         on_delta = [&emit](const std::string& text) {
@@ -297,6 +320,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
     for (int step = 0; step < cfg_.max_steps; ++step) {
         CompletionResponse resp;
+        if (force_tool_call) llm_.set_tool_choice("required");
         try {
             resp = llm_.complete(history, tools_schema_, on_delta);
         } catch (const std::exception& e) {
@@ -309,12 +333,49 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 if (emit && !resp.content.empty())
                     emit("delta", {{"text", resp.content}});
             } else {
+                llm_.set_tool_choice(cfg_.tool_choice);
                 throw;
             }
+        }
+        if (force_tool_call) {
+            llm_.set_tool_choice(cfg_.tool_choice);
+            force_tool_call = false;
         }
         if (resp.prompt_tokens > 0) prompt_tokens_out = resp.prompt_tokens;
 
         if (resp.tool_calls.empty()) {
+            // The model wants to stop. If it still owes tool calls, it doesn't
+            // get to — remind it and keep looping. This has to come before the
+            // empty-content retry below, which exists to *extract* a text
+            // answer and would otherwise cement a premature one.
+            if (contract.active()) {
+                const std::vector<std::string> missing = contract.missing(satisfied);
+                if (!missing.empty()) {
+                    if (nudges_used++ < contract.nudge_budget()) {
+                        if (!resp.content.empty()) {
+                            ChatMessage asst;
+                            asst.role    = "assistant";
+                            asst.content = resp.content;
+                            history.push_back(std::move(asst));
+                        }
+                        ChatMessage nudge;
+                        nudge.role    = "user";
+                        nudge.content = funes::contract_nudge(missing);
+                        history.push_back(std::move(nudge));
+                        if (emit)
+                            emit("contract_nudge", {{"missing", missing},
+                                                    {"attempt", nudges_used}});
+                        std::cerr << "[agent:" << cfg_.name << "] premature answer at step "
+                                  << step << "; still owes " << missing.size()
+                                  << " required call(s), nudging (" << nudges_used
+                                  << "/" << contract.nudge_budget() << ")\n";
+                        force_tool_call = true;
+                        continue;
+                    }
+                    return funes::contract_failure(missing, resp.content);
+                }
+            }
+
             // Some local models return an empty completion right after a tool
             // round trip. One follow-up call with tools disabled reliably
             // produces the text answer from the results already in history.
@@ -353,11 +414,11 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         for (const auto& tc : resp.tool_calls) {
             const std::string call_sig = tc.name + "|" + tc.arguments.dump();
             if (++sig_counts[call_sig] >= 3)
-                return "Done. " + last_tool_name + " completed: " + last_tool_result;
+                return finish("Done. " + last_tool_name + " completed: " + last_tool_result);
             if (++name_counts[tc.name] > max_same_tool)
-                return "Done. " + tc.name + " was called " + std::to_string(max_same_tool) +
+                return finish("Done. " + tc.name + " was called " + std::to_string(max_same_tool) +
                        "+ times with varying arguments and made no clear progress. " +
-                       "Last result: " + last_tool_result;
+                       "Last result: " + last_tool_result);
 
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
@@ -378,6 +439,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
             last_tool_name   = tc.name;
             last_tool_result = result.text;
+            if (!result.error) satisfied.insert(tc.name);
 
             ChatMessage tool_msg;
             tool_msg.role         = "tool";
@@ -391,6 +453,6 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         }
     }
 
-    return "[Reached max_steps=" + std::to_string(cfg_.max_steps) +
-           " without a final answer. Last tool result: " + last_tool_result + "]";
+    return finish("[Reached max_steps=" + std::to_string(cfg_.max_steps) +
+           " without a final answer. Last tool result: " + last_tool_result + "]");
 }

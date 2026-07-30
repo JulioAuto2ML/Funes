@@ -83,6 +83,42 @@ class Handler(BaseHTTPRequestHandler):
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
             return
 
+        # Completion-contract scenarios (AgentConfig::require_tools). Both
+        # reproduce the real failure this feature exists for: the model answers
+        # in prose at a step boundary instead of making the next tool call.
+        # "contract-comply" gives in once nudged; "contract-refuse" never does,
+        # so the run must end in an explicit failure rather than a false success.
+        if "contract-" in last_user or any(
+                "contract-" in m.get("content", "")
+                for m in messages if m.get("role") == "user"):
+            nudged = any("Emit the next tool call now" in m.get("content", "")
+                         for m in messages if m.get("role") == "user")
+            refusing = any("contract-refuse" in m.get("content", "")
+                           for m in messages if m.get("role") == "user")
+            if nudged and not refusing and not has_tool_result:
+                tool_call = {"id": "call_write", "type": "function",
+                             "function": {"name": "write_file",
+                                          "arguments": json.dumps({
+                                              "path": "contract_proof.txt",
+                                              "content": "written under protest"})}}
+                if stream:
+                    self._stream_tool_call(tool_call)
+                else:
+                    self._json(200, {"choices": [{"message": {
+                        "role": "assistant", "content": None,
+                        "tool_calls": [tool_call]}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+                return
+            if not has_tool_result:
+                text = "MOCK-PREMATURE-ANSWER: I have written the file. All done!"
+                if stream:
+                    self._stream_text(text)
+                else:
+                    self._json(200, {"choices": [{"message": {
+                        "role": "assistant", "content": text}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+                return
+
         text = "MOCK-REPLY"
         if has_tool_result:
             text += " with-tool-result"

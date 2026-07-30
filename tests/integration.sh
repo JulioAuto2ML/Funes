@@ -13,6 +13,9 @@ LLM_PORT=18080
 API_PORT=18484
 DB=$(mktemp -u /tmp/funes_it_XXXX.db)
 WORKSPACE=$(mktemp -d /tmp/funes_it_ws_XXXX)
+# Scratch agents dir: the real agents/ plus fixtures the tests need. Copied
+# rather than added to agents/ so test-only agents don't ship to production.
+AGENTS=$(mktemp -d /tmp/funes_it_agents_XXXX)
 
 FAILURES=0
 check() {  # check <name> <haystack> <needle>
@@ -36,9 +39,19 @@ cleanup() {
     [ -n "${FUNES_PID:-}" ] && kill "$FUNES_PID" 2>/dev/null
     [ -n "${MOCK_PID:-}" ]  && kill "$MOCK_PID" 2>/dev/null
     rm -f "$DB" "$DB-wal" "$DB-shm"
-    rm -rf "$WORKSPACE"
+    rm -rf "$WORKSPACE" "$AGENTS"
 }
 trap cleanup EXIT
+
+cp agents/*.yaml "$AGENTS/"
+cat > "$AGENTS/contract-tester.yaml" <<'YAML'
+name: contract-tester
+description: Test fixture — an agent that may not finish before write_file succeeds.
+tools: [write_file]
+require_tools: [write_file]
+max_steps: 6
+system_prompt: Write the file you are asked for.
+YAML
 
 echo "— starting mock LLM on :$LLM_PORT"
 python3 tests/mock_llm.py $LLM_PORT &
@@ -49,6 +62,7 @@ FUNES_LLM_URL="http://127.0.0.1:$LLM_PORT" \
 FUNES_EMBED_URL="http://127.0.0.1:$LLM_PORT" \
 FUNES_DB="$DB" \
 FUNES_WORKSPACE_DIR="$WORKSPACE" \
+FUNES_AGENTS_DIR="$AGENTS" \
 FUNES_HOST=127.0.0.1 \
 FUNES_PORT=$API_PORT \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
@@ -126,6 +140,36 @@ OUT=$(curl -s "$BASE/api/sessions")
 check "sessions list ok"                  "$OUT" '"ok":true'
 check "sessions list has delegate session" "$OUT" 'it-session-delegate'
 check "sessions list has preview"          "$OUT" '"preview":"please delegate-now"'
+
+echo "— completion contract (require_tools): premature answer gets nudged, not accepted"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"contract-comply please","session":"it-session-contract","agent":"contract-tester"}')
+check "nudge event emitted"      "$OUT" 'event: contract_nudge'
+check "nudge names missing tool" "$OUT" 'write_file'
+check "required call happened"   "$OUT" 'event: tool_result'
+check "run completed after nudge" "$OUT" 'with-tool-result'
+# The premature prose must not be what the caller ends up with.
+check_absent "premature answer not final" "$OUT" 'event: done.*MOCK-PREMATURE-ANSWER'
+if [ -f "$WORKSPACE/contract_proof.txt" ]; then
+    echo "  ok: contract forced the real side effect (file exists)"
+else
+    echo "  FAIL: contract forced the real side effect (file exists) — missing"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo "— completion contract: a model that never complies fails loudly"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"contract-refuse please","session":"it-session-contract-2","agent":"contract-tester"}')
+check "contract failure reported" "$OUT" 'FAILED'
+check "failure names the tool"    "$OUT" 'write_file'
+# The turn that gets stored (and that a delegating agent would read) has to be
+# the failure — not the model's "All done!". Asserted against history rather
+# than the SSE stream, since the stream also carries recalled memories whose
+# text quotes earlier successful runs.
+OUT=$(curl -s "$BASE/api/history?session=it-session-contract-2")
+check "stored answer is the failure"        "$OUT" 'FAILED'
+check "stored answer quotes claim as unverified" "$OUT" 'unverified claim'
+check_absent "no false success stored"      "$OUT" 'with-tool-result'
 
 echo "— chat validation"
 OUT=$(curl -s -X POST "$BASE/api/chat" -d '{"session":"it-session-1"}')

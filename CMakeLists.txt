@@ -73,6 +73,7 @@ add_library(funes_core STATIC
     src/core/llm_client.cpp
     src/core/agent_config.cpp
     src/core/context_compressor.cpp
+    src/core/completion_contract.cpp
     src/core/text_utils.cpp
     src/core/base64.cpp
     src/core/memory.cpp

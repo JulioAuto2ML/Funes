@@ -20,6 +20,7 @@ description: A test agent
 model: some-model
 tool_choice: required
 tools: [web_search, recall]
+require_tools: [write_file, execute_shell]
 max_steps: 3
 context_limit: 2048
 system_prompt: |
@@ -35,6 +36,7 @@ mcp_servers:
     CHECK(cfg.model == "some-model");
     CHECK(cfg.tool_choice == "required");
     CHECK(cfg.tools.size() == 2 && cfg.tools[0] == "web_search");
+    CHECK(cfg.require_tools.size() == 2 && cfg.require_tools[1] == "execute_shell");
     CHECK(cfg.max_steps == 3);
     CHECK(cfg.context_limit == 2048);
     CHECK(cfg.system_prompt.find("Prompt line.") != std::string::npos);
@@ -48,6 +50,7 @@ mcp_servers:
     CHECK(min.model == "default");
     CHECK(min.tool_choice == "auto");
     CHECK(min.tools.empty());
+    CHECK(min.require_tools.empty());   // no contract unless asked for
     CHECK(min.max_steps == 8);
 
     // Missing name → throws.
