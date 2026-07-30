@@ -11,6 +11,30 @@ context_limit: 32768
 # effect (a mail leaving the machine), so "described the work" must not be
 # able to pass for "did the work". See src/core/completion_contract.h.
 require_tools: [write_file, execute_shell]
+#
+# Deliberately NO answer_schema here, though this looks like the obvious
+# candidate for one. Measured on the 9B before deciding (2026-07-30):
+#
+#   - Schema nudges share nudges_used with the tool contract above, and the
+#     budget is required.size() + 2 = 4. The tool contract alone has already
+#     been seen consuming 3 of those 4 in one production run.
+#   - The model reaches a valid object in 6/6 probe runs, but needs a nudge in
+#     half of them — mostly because it returns an empty completion first, which
+#     under a schema costs a nudge instead of falling back to the last tool
+#     result.
+#   - Those compound in the same budget, and the overflow lands *after* both
+#     required calls have succeeded — i.e. after the mail is already sent. The
+#     run would then return "FAILED — did not produce a usable answer" for a
+#     newsletter that actually went out, and ai-newsletter would relay that to
+#     the user. That is a worse lie than the one the contract removed.
+#   - The benefit would be nil today: nothing parses this answer. ai-newsletter
+#     re-narrates it for a human. And a schema constrains shape, not truth —
+#     {"status": "sent"} is exactly as forgeable as "I sent it". What makes the
+#     send checkable is require_tools plus publish_newsletter.py's exit code,
+#     both already in place.
+#
+# Revisit if a machine consumer appears, and only after schema nudges get a
+# budget of their own instead of sharing the tool contract's.
 system_prompt: |
   You publish the day's AI Pulse newsletter from a list of already-researched
   news items given to you in the task. Your workspace is the X_posts folder —
