@@ -221,6 +221,25 @@ which needs a rebuild — see "Files, PDFs, images & shell" below).
 this for you: it interviews you, drafts the prompt, and calls `create_agent`
 to write and reload the YAML live.
 
+### Making an agent finish what it started
+
+A local model on a long multi-step task will often narrate the last tool
+result as if it were the deliverable and stop — reporting "sent!" without
+having called the thing that sends. The loop used to accept that, because
+any message without tool calls looked like a final answer. `require_tools`
+closes it:
+
+```yaml
+require_tools: [write_file, execute_shell]
+```
+
+Those tools must have *succeeded* before a text answer counts as final.
+Try to finish early and you get a nudge naming what's outstanding (with
+`tool_choice` forced to `required` for that turn, so it can't reply with
+more prose); refuse long enough and the run returns an explicit `FAILED —
+...` instead of a plausible-sounding lie. Worth setting on any agent whose
+real output is a side effect rather than its text.
+
 To give an agent tools from an external MCP server:
 
 ```yaml
