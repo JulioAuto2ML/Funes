@@ -8,6 +8,7 @@
 #include "result_store.h"
 #include "run_outcome.h"
 #include "text_utils.h"
+#include "tool_budget.h"
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
@@ -494,23 +495,44 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
         for (const auto& tc : resp.tool_calls) {
             const std::string call_sig = tc.name + "|" + tc.arguments.dump();
-            // Both bailouts used to open with "Done." and paste the last tool
-            // result. Neither was true: the loop detector fires precisely
-            // because the model never concluded anything.
-            if (++sig_counts[call_sig] >= 3) {
-                std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
-                          << " repeated with identical arguments\n";
-                return finish(funes::loop_failure(tc.name, 3));
-            }
-            if (++name_counts[tc.name] > max_same_tool) {
-                std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
-                          << " called " << max_same_tool << "+ times without progress\n";
-                return finish(funes::loop_failure(tc.name, max_same_tool));
+            const int sig_calls  = ++sig_counts[call_sig];
+            const int name_calls = ++name_counts[tc.name];
+
+            // A declared ceiling (core/tool_budget.h) outranks the loop
+            // detectors below. Both stop the same behaviour, but a refusal is
+            // recoverable — the model reads it and concludes from what it has
+            // — where the detectors end the run with no answer at all. So when
+            // the agent's author has said how many calls are reasonable, that
+            // answer wins; max_steps remains the backstop if the model spends
+            // the rest of its budget asking anyway.
+            const bool refused = funes::over_budget(cfg_.tool_limits, tc.name, name_calls);
+
+            if (!refused) {
+                // Neither of these used to say so: both opened with "Done." and
+                // pasted the last tool result, which is a claim of success that
+                // the detector firing already disproves.
+                if (sig_calls >= 3) {
+                    std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
+                              << " repeated with identical arguments\n";
+                    return finish(funes::loop_failure(tc.name, 3));
+                }
+                if (name_calls > max_same_tool) {
+                    std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
+                              << " called " << max_same_tool << "+ times without progress\n";
+                    return finish(funes::loop_failure(tc.name, max_same_tool));
+                }
             }
 
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
-            ToolResult result = dispatch_tool(tc.name, tc.arguments, ctx);
+            if (refused)
+                std::cerr << "[agent:" << cfg_.name << "] " << tc.name
+                          << " refused: budget of " << cfg_.tool_limits.at(tc.name)
+                          << " call(s) used up\n";
+
+            ToolResult result = refused
+                ? ToolResult{funes::budget_message(tc.name, cfg_.tool_limits.at(tc.name)), true}
+                : dispatch_tool(tc.name, tc.arguments, ctx);
 
             if (emit) {
                 // Truncate on bytes first (result.text may be arbitrarily

@@ -274,6 +274,26 @@ more prose); refuse long enough and the run returns an explicit `FAILED —
 ...` instead of a plausible-sounding lie. Worth setting on any agent whose
 real output is a side effect rather than its text.
 
+### Making an agent stop researching
+
+The mirror image. `require_tools` is a floor — these calls must happen;
+`tool_limits` is a ceiling — this call may not happen more than N times:
+
+```yaml
+tool_limits:
+  web_search: 6
+```
+
+A research agent will otherwise happily search forever: ours once issued 20
+distinct `web_search` calls in a single run without ever synthesizing, twice
+in the same pipeline, and the loop detector killed both runs after half an
+hour of GPU. Past the ceiling the call is *refused* rather than executed, and
+the model is told to conclude from what it already has — so the run still
+produces an answer. That's the difference from the loop detector, which stops
+the run without one and stays as the backstop.
+
+`0` forbids a tool for the run; a tool with no entry is unlimited.
+
 ### Making an agent answer in a shape you can use
 
 `require_tools` checks that the work happened; it says nothing about what comes

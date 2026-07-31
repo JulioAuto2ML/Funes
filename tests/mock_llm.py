@@ -180,6 +180,23 @@ class Handler(BaseHTTPRequestHandler):
         # answer it hands back must not read as content to its caller. The
         # parent is identified by the absence of the child's task text — the
         # sub-agent runs with "sub-gives-up" as its user message.
+        # Per-tool ceiling (core/tool_budget.h). A model that would search
+        # forever: it keeps asking for the same tool and must be refused, then
+        # conclude. Identical arguments on purpose — the refusal has to
+        # outrank the identical-args loop detector, or a budget below 3 could
+        # never fire and the run would die instead of concluding.
+        if mentions(messages, "budget-burn"):
+            refused = any("will not run" in (m.get("content") or "")
+                          for m in messages if m.get("role") == "tool")
+            if refused:
+                self._reply_text("MOCK-CONCLUDED from what I had", stream)
+            else:
+                self._reply_tool({"id": "call_budget", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "small.txt"})}},
+                                 stream)
+            return
+
         # The child runs as its own conversation, with the task as its only
         # user message — so it is keyed on the task text, not on the parent's.
         if mentions(messages, "sub-gives-up"):

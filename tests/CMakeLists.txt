@@ -61,3 +61,7 @@ add_test(NAME answer_schema COMMAND test_answer_schema)
 add_executable(test_run_outcome test_run_outcome.cpp)
 target_link_libraries(test_run_outcome PRIVATE funes_core)
 add_test(NAME run_outcome COMMAND test_run_outcome)
+
+add_executable(test_tool_budget test_tool_budget.cpp)
+target_link_libraries(test_tool_budget PRIVATE funes_core)
+add_test(NAME tool_budget COMMAND test_tool_budget)

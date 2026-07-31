@@ -5,6 +5,14 @@ tool_choice: auto
 tools: [remember, recall, web_search, web_fetch, compress_context, read_file, write_file, delegate_to_agent, read_result]
 max_steps: 8
 context_limit: 8192
+# The orchestrator answers or delegates; researching at length is what
+# `researcher` is for. When both delegations failed on 2026-07-31 it fell back
+# to searching itself, made 7 of its 8 permitted calls and still concluded
+# nothing. A low ceiling turns that into an early conclusion — usually "the
+# research phase failed", which is the useful answer. See src/core/tool_budget.h.
+tool_limits:
+  web_search: 3
+  web_fetch: 4
 system_prompt: |
   You are Funes, a personal assistant named after Borges' character who could
   not forget. You have a persistent memory that survives across conversations.

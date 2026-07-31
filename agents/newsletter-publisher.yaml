@@ -6,6 +6,14 @@ tools: [read_file, write_file, execute_shell, web_search, web_fetch, read_result
 workspace_dir: /home/julio/Documents/X_posts
 max_steps: 20
 context_limit: 32768
+# web_search/web_fetch here are for repairing a dead link, nothing else — the
+# prompt below allows at most two repair rounds. Handed a task with no research
+# in it on 2026-07-31, this agent went looking for the news itself and made 20
+# searches instead of writing the file. The ceiling makes "that is not your
+# job" enforceable rather than merely stated. See src/core/tool_budget.h.
+tool_limits:
+  web_search: 4
+  web_fetch: 4
 # Completion contract — the framework refuses to accept a text answer until
 # both of these have actually succeeded. This agent's whole value is a side
 # effect (a mail leaving the machine), so "described the work" must not be

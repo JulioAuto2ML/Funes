@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "json.hpp"
+#include "tool_budget.h"
 
 // Connection details for one external MCP server.
 struct McpServerConfig {
@@ -41,6 +42,13 @@ struct AgentConfig {
     // is a side effect — a file written, a mail sent — so "described the work"
     // can't pass for "did the work". See core/completion_contract.h.
     std::vector<std::string> require_tools;
+
+    // The other side of require_tools: how many times a tool may be called in
+    // one run. Empty = no ceilings. Past the ceiling the call is refused with
+    // a message telling the model to conclude, rather than the run being
+    // killed — for agents that would otherwise research forever. See
+    // core/tool_budget.h.
+    funes::ToolLimits tool_limits;
 
     // Answer schema: the JSON shape this agent's final answer must have. Empty
     // = no contract (any text is accepted, today's behavior). Declared in YAML

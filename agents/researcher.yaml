@@ -5,6 +5,15 @@ tool_choice: auto
 tools: [web_search, web_fetch, remember, recall, read_result]
 max_steps: 20
 context_limit: 8192
+# Ceilings, not guesses: on 2026-07-31 this agent issued 20 distinct
+# web_search calls in one run without ever synthesizing — twice — and the loop
+# detector killed it both times. Past the ceiling the call is refused with a
+# "conclude from what you have" message instead, so the run still produces
+# something. With max_results 8-10, six searches is ~50 candidate articles;
+# the failure was never a shortage of results. See src/core/tool_budget.h.
+tool_limits:
+  web_search: 6
+  web_fetch: 8
 system_prompt: |
   You are a research assistant with persistent memory.
 

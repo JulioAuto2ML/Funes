@@ -86,6 +86,16 @@ answer_schema:
       minItems: 1
 YAML
 
+cat > "$AGENTS/budget-tester.yaml" <<'YAML'
+name: budget-tester
+description: Test fixture — an agent with a per-tool ceiling.
+tools: [read_file]
+max_steps: 8
+tool_limits:
+  read_file: 2
+system_prompt: Read what you need, then answer.
+YAML
+
 # A file well over kInlineLimit (2048 bytes), for the result-store scenario.
 python3 -c "open('$WORKSPACE/big.txt','w').write('BIGFILESTART' + 'm'*8000 + 'BIGFILEEND')"
 # A small one, for the empty-completion salvage scenario: it stays inline, so
@@ -259,6 +269,24 @@ check "turn completes"              "$OUT" 'event: done'
 OUT=$(curl -s "$BASE/api/history?session=it-session-retry")
 check "says it produced no answer"  "$OUT" 'FAILED —'
 check_absent "no tool payload shown" "$OUT" 'SMALLFILEMARKER'
+
+echo "— tool budget: past the ceiling the call is refused and the run concludes"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"budget-burn please","session":"it-session-budget","agent":"budget-tester"}')
+# The ceiling forces a conclusion instead of killing the run — that is the
+# whole reason for preferring it over a lower loop-detector threshold.
+check "run still concludes"      "$OUT" 'MOCK-CONCLUDED from what I had'
+check_absent "not a failed run"  "$OUT" 'FAILED —'
+# Exactly the budget is spent: 2 calls run, the 3rd is refused. The refusal
+# must also outrank the identical-args detector, which would otherwise fire
+# on that same 3rd call and end the run.
+if [ "$(echo "$OUT" | grep -c 'event: tool_result')" = "3" ]; then
+    echo "  ok: third call refused, not executed"
+else
+    echo "  FAIL: third call refused — got $(echo "$OUT" | grep -c 'event: tool_result') tool results"
+    FAILURES=$((FAILURES + 1))
+fi
+check "refusal tells it to answer" "$OUT" 'Answer now'
 
 echo "— delegation: a sub-agent that gives up reaches the caller as an error"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
