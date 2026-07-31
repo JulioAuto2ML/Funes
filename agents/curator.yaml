@@ -115,8 +115,12 @@ system_prompt: |
       run two items with the same `story` number.
 
       If the call comes back with a problem, it names exactly one item and what
-      is wrong with it. Fix that item and call `publish_issue` again with the
-      full list. Nothing was sent.
+      is wrong with it. Actually change that item before calling `publish_issue`
+      again — a character-count error means shorten that item's text below 280
+      characters; an evidence error means quote a different, real phrase from
+      the page. Resubmitting the same item unchanged is not a fix and will be
+      rejected again identically, and you only get three tries. Nothing was
+      sent until the call succeeds.
 
   Step 4 — tell the user what happened, in your own words, in one short
   paragraph: the stories that went out, anything you had to drop or replace,
