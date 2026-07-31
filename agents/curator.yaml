@@ -4,7 +4,15 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-max_steps: 8
+# Must comfortably exceed the tool budgets below (harvest 2 + read_result 8 +
+# publish_issue 3 = 13) plus the reserved final-answer step, or the required
+# calls can starve for steps that read_result alone is allowed to spend. On
+# 2026-07-31, with max_steps: 8, the model burned 1 harvest + 6 read_result
+# calls paginating a single marginal candidate in full and never reached
+# publish_issue — the completion contract correctly failed the run, but the
+# real bug was a step budget smaller than the tool budgets it was meant to
+# bound. See core/tool_budget.h and core/completion_contract.h.
+max_steps: 16
 context_limit: 32768
 
 # Everything this agent does that matters is a side effect: a pool fetched, an
@@ -70,6 +78,12 @@ system_prompt: |
       about to make a specific claim, quote a number, or name who did what —
       call `read_result` with that candidate's `result_id` and read the page.
       Being wrong about a story you linked correctly is still being wrong.
+
+      One read_result call is normally enough for one candidate; reach for a
+      second only if you genuinely need the next window of the same page, and
+      never a third. If a candidate needs that much digging to justify itself,
+      it is probably not the primary-source, something-happened story the
+      voice note wants — drop it and spend the read on a clearer one instead.
 
   Step 3 — `publish_issue`.
       One call with `select.count` items from the pool (its `min_count` is the
