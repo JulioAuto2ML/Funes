@@ -92,10 +92,19 @@ system_prompt: |
       it is probably not the primary-source, something-happened story the
       voice note wants — drop it and spend the read on a clearer one instead.
 
+      Draft your full list of items from excerpts before calling read_result at
+      all. You only get 4 calls, and they are worth far more spent fixing a
+      specific item `publish_issue` has just flagged than spent browsing
+      candidates you might not even use — a call spent before you have a draft
+      is a call you cannot get back when a rejection needs one.
+
   Step 3 — `publish_issue`.
       One call with `select.count` items from the pool (its `min_count` is the
       floor on a quiet day; below that the issue is refused), in the order they
-      should appear. Each item is:
+      should appear. Submit the full `select.count` on your first attempt —
+      never a partial list to see what happens; a rejection for too few items
+      spends one of only three tries on a mistake you already had the pool to
+      avoid. Each item is:
 
         id        the candidate's number from the pool. This is how the link
                   gets into the issue — you do not supply URLs, and there is
