@@ -28,18 +28,28 @@ namespace fs = std::filesystem;
 
 // Resolve a data path: use `configured` if set, else try ./`relative` (cwd),
 // else <exe_dir>/../`relative` (binary lives in bin/ under the project root).
+//
+// Always returns an absolute path. A bare relative string used to come back
+// from the first branch, which was harmless for agents_dir/ui_dir/
+// generated_tools_dir — read by this same process, whose cwd never changes —
+// but broke publishing_dir: publish_issue embeds it into an argv for a
+// subprocess spawned with cwd = the workspace directory (X_posts, not this
+// process's cwd), so a relative "publishing" resolved against the wrong
+// directory and python3 could not find the script. Found on 2026-07-31 via a
+// live curator run that got all the way to `publish_issue.py exit 2: No such
+// file or directory`.
 static std::string resolve_dir(const std::string& configured, const std::string& relative) {
-    if (!configured.empty()) return configured;
-    if (fs::exists(relative)) return relative;
+    if (!configured.empty()) return fs::absolute(configured).string();
+    if (fs::exists(relative)) return fs::absolute(relative).string();
 
     char buf[4096];
     ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (n > 0) {
         buf[n] = '\0';
         fs::path candidate = fs::path(buf).parent_path().parent_path() / relative;
-        if (fs::exists(candidate)) return candidate.string();
+        if (fs::exists(candidate)) return fs::absolute(candidate).string();
     }
-    return relative;
+    return fs::absolute(relative).string();
 }
 
 // The LLM half of MemoryStore::consolidate: given a cluster of near-identical
