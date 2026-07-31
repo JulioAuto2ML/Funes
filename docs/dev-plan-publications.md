@@ -534,8 +534,26 @@ Each surfaced one distinct, fixable problem:
    mix-up and the right pool id directly, rather than the generic unknown-id
    message.
 
+A seventh live run, after the result_id fix above, failed for a new and
+deeper reason: candidate 5 (a CNBC article) extracts as ~1400 bytes of
+navigation menu ("Markets, Business, Investing, Tech...") before the real
+article text begins. The model's 1200-byte excerpt was therefore pure nav
+junk with nothing quotable; having already spent its `read_result` budget on
+other candidates, it copied the candidate's `title` field in as "evidence"
+instead, which `build_issue` correctly rejected. Root cause: `html_to_text`
+in `page_text.cpp` is a naive tag-stripper with no boilerplate removal —
+shared by both `web_fetch` and `harvest_candidates` — so a nav-heavy page's
+excerpt can be nearly all menu text. Not yet fixed; see "Still open" below.
+
 ### Still open
 
+- **Nav/boilerplate not stripped from extracted page text.** `html_to_text`
+  (`page_text.cpp`) already drops `<script>`/`<style>` content but not
+  `<nav>`/`<header>`/`<footer>`/`<aside>`, so a menu-heavy page can push the
+  real article past the excerpt window entirely. Candidate fix: treat those
+  four tags the same way `<script>`/`<style>` are treated. Affects both
+  `web_fetch` and `harvest_candidates`, so worth doing carefully with its own
+  test pass rather than as a quick nudge.
 - **Bot-blocked hosts.** The 401/403/429 SUSPECT set is recorded and never
   blocks, as it always has. A per-publication allowlist of hosts known to bounce
   HEAD requests would let "suspect" shrink toward meaning something.
