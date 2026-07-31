@@ -87,6 +87,75 @@ int test_title_key() {
     return 0;
 }
 
+// ── Query resolution ─────────────────────────────────────────────────────────
+// The bug this covers shipped in the tool's own JSON schema, not in this
+// function: `queries` was marked required, so a model could never actually
+// follow the description's "omit to use the configured queries" — every live
+// run on 2026-07-31 either sent `[]` (rejected here, before this fix) or
+// invented generic queries instead of the publication's own. Fixed on both
+// sides: the schema no longer requires it, and an empty array here is treated
+// the same as an absent key.
+
+int test_resolve_queries_omitted_key_uses_config() {
+    std::vector<std::string> out;
+    const std::string configured_are = resolve_queries(
+        nlohmann::json::object(), {"a", "b"}, "ai-pulse", out);
+    CHECK(configured_are.empty());
+    CHECK(out == std::vector<std::string>({"a", "b"}));
+    return 0;
+}
+
+int test_resolve_queries_empty_array_falls_back_to_config() {
+    // The case that broke every live run: a model reaching for `[]` to mean
+    // "I have none of my own" must get the configured queries, not an error.
+    std::vector<std::string> out;
+    const std::string problem = resolve_queries(
+        nlohmann::json{{"queries", nlohmann::json::array()}}, {"a", "b"}, "ai-pulse", out);
+    CHECK(problem.empty());
+    CHECK(out == std::vector<std::string>({"a", "b"}));
+    return 0;
+}
+
+int test_resolve_queries_own_queries_win() {
+    std::vector<std::string> out;
+    const std::string problem = resolve_queries(
+        nlohmann::json{{"queries", nlohmann::json::array({"x", "y", "z"})}},
+        {"a", "b"}, "ai-pulse", out);
+    CHECK(problem.empty());
+    CHECK(out == std::vector<std::string>({"x", "y", "z"}));
+    return 0;
+}
+
+int test_resolve_queries_no_queries_anywhere_is_an_error() {
+    // No config and nothing supplied has to fail loudly — there is nothing to
+    // search with, and silently returning zero queries would harvest nothing
+    // while looking like success.
+    std::vector<std::string> out;
+    const std::string problem = resolve_queries(nlohmann::json::object(), {}, "bare", out);
+    CHECK(!problem.empty());
+    CHECK(problem.find("bare") != std::string::npos);
+    return 0;
+}
+
+int test_resolve_queries_caps_at_six() {
+    std::vector<std::string> out;
+    resolve_queries(nlohmann::json::object(),
+                    {"1", "2", "3", "4", "5", "6", "7", "8"}, "ai-pulse", out);
+    CHECK(out.size() == 6);
+    return 0;
+}
+
+int test_resolve_queries_rejects_the_wrong_type() {
+    std::vector<std::string> out;
+    CHECK(!resolve_queries(nlohmann::json{{"queries", "not an array"}}, {"a"},
+                           "ai-pulse", out).empty());
+    CHECK(!resolve_queries(nlohmann::json{{"queries", nlohmann::json::array({""})}},
+                           {"a"}, "ai-pulse", out).empty());
+    CHECK(!resolve_queries(nlohmann::json{{"queries", nlohmann::json::array({1, 2})}},
+                           {"a"}, "ai-pulse", out).empty());
+    return 0;
+}
+
 // ── Dates ────────────────────────────────────────────────────────────────────
 
 int test_iso_date() {
@@ -458,6 +527,12 @@ int main() {
     rc |= test_canonical_url();
     rc |= test_host_of();
     rc |= test_title_key();
+    rc |= test_resolve_queries_omitted_key_uses_config();
+    rc |= test_resolve_queries_empty_array_falls_back_to_config();
+    rc |= test_resolve_queries_own_queries_win();
+    rc |= test_resolve_queries_no_queries_anywhere_is_an_error();
+    rc |= test_resolve_queries_caps_at_six();
+    rc |= test_resolve_queries_rejects_the_wrong_type();
     rc |= test_iso_date();
     rc |= test_days_between();
     rc |= test_shortlist_dedups_urls();

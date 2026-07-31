@@ -93,6 +93,22 @@ std::string iso_date(const std::string& raw);
 // callers check with iso_date first.
 int days_between(const std::string& from, const std::string& to);
 
+// ── Query resolution ─────────────────────────────────────────────────────────
+// A caller's own queries win when given; the publication's configured ones are
+// the fallback. On 2026-07-31 this fell over both ways at once: the tool's own
+// JSON schema marked `queries` required, so a model could never actually omit
+// it as the description instructed — and when it reached for `[]` to mean "I
+// have none of my own" (a reasonable reading of "optional"), that was rejected
+// as an error too, forcing it to invent generic queries of its own instead of
+// using the ones the publication was configured with.
+//
+// Empty return = `out` holds the resolved queries (capped at 6, never empty).
+// Otherwise the message is written to be read by a model.
+std::string resolve_queries(const nlohmann::json& args,
+                            const std::vector<std::string>& configured,
+                            const std::string& publication,
+                            std::vector<std::string>& out);
+
 // ── Shortlisting ─────────────────────────────────────────────────────────────
 
 struct Filter {

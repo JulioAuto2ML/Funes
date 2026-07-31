@@ -248,6 +248,37 @@ double title_similarity(const std::string& a, const std::string& b) {
            static_cast<double>(std::min(ta.size(), tb.size()));
 }
 
+// ── Query resolution ─────────────────────────────────────────────────────────
+
+std::string resolve_queries(const nlohmann::json& args,
+                            const std::vector<std::string>& configured,
+                            const std::string& publication,
+                            std::vector<std::string>& out) {
+    std::vector<std::string> queries = configured;
+
+    // An empty array means the same as omitting the key. A model reaching for
+    // `[]` to say "I have none of my own" must fall back to the config, not
+    // hit an error — that error is what forced every live run before this fix
+    // to invent generic queries instead of using the configured ones.
+    if (args.contains("queries") && !args["queries"].empty()) {
+        if (!args["queries"].is_array())
+            return "'queries' must be an array of strings.";
+        queries.clear();
+        for (const auto& q : args["queries"]) {
+            if (!q.is_string() || q.get<std::string>().empty())
+                return "Every entry in 'queries' must be a non-empty string.";
+            queries.push_back(q.get<std::string>());
+        }
+    }
+    if (queries.empty())
+        return "No queries: publication '" + publication + "' has none configured, "
+               "so pass 'queries' as an array of strings.";
+    if (queries.size() > 6) queries.resize(6);   // six queries is ~60 hits; the pool is 25
+
+    out = std::move(queries);
+    return {};
+}
+
 // ── Dates ────────────────────────────────────────────────────────────────────
 
 std::string iso_date(const std::string& raw) {
@@ -486,7 +517,15 @@ std::string today_local() {
 
 // Every other default is a Publication field (publication.h), so the config
 // file and the tool cannot disagree about what "default" means.
-constexpr size_t kExcerptBytes         = 600;
+//
+// kExcerptBytes was 600 until two live runs on 2026-07-31 showed a curator
+// agent reliably spending most of its read_result budget re-reading one
+// candidate's page across several offsets rather than moving on — the excerpt
+// alone wasn't enough for it to commit to an evidence quote. Raised to 1200 so
+// a candidate can usually be judged and quoted from the pool alone; per the
+// same math as before, 25 candidates at ~1200 chars is ~10K tokens, still well
+// under curator's 32768 context_limit.
+constexpr size_t kExcerptBytes         = 1200;
 constexpr size_t kMaxPageBytes         = 64 * 1024;
 
 ToolResult harvest_handler(MemoryStore& memory, const std::string& default_workspace,
@@ -509,21 +548,11 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
             return {"Publication '" + publication + "' is misconfigured: " + problem, true};
     }
 
-    std::vector<std::string> queries = pub.queries;
-    if (args.contains("queries")) {
-        if (!args["queries"].is_array() || args["queries"].empty())
-            return {"'queries' must be a non-empty array of strings.", true};
-        queries.clear();
-        for (const auto& q : args["queries"]) {
-            if (!q.is_string() || q.get<std::string>().empty())
-                return {"Every entry in 'queries' must be a non-empty string.", true};
-            queries.push_back(q.get<std::string>());
-        }
+    std::vector<std::string> queries;
+    {
+        const std::string problem = resolve_queries(args, pub.queries, publication, queries);
+        if (!problem.empty()) return {problem, true};
     }
-    if (queries.empty())
-        return {"No queries: publication '" + publication + "' has none configured, "
-                "so pass 'queries' as an array of strings.", true};
-    if (queries.size() > 6) queries.resize(6);   // six queries is ~60 hits; the pool is 25
 
     std::string date = args.value("date", "");
     if (!date.empty() && iso_date(date) != date)
@@ -706,7 +735,14 @@ void register_harvest_tool(ToolRegistry& reg, MemoryStore& memory,
                                                {"description", "Drop anything that ran in this "
                                                                "many recent issues (default 7)"}}}
             }},
-            {"required", json::array({"queries"})}
+            // Nothing is required: `publication` defaults to ai-pulse and
+            // `queries` should normally be omitted (see its description) so the
+            // publication's own queries are used. Marking `queries` required
+            // here — fixed 2026-07-31 — meant a model could never actually
+            // follow that instruction: the schema told it to pass one, so on
+            // every live run it either sent `[]` or invented generic queries of
+            // its own instead of using the configured ones.
+            {"required", json::array()}
         },
         [&memory, workspace_dir, publications_dir](const json& args, const ToolContext& ctx) {
             return funes::harvest::harvest_handler(memory, workspace_dir, publications_dir,

@@ -4,15 +4,16 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-# Must comfortably exceed the tool budgets below (harvest 2 + read_result 8 +
-# publish_issue 3 = 13) plus the reserved final-answer step, or the required
-# calls can starve for steps that read_result alone is allowed to spend. On
-# 2026-07-31, with max_steps: 8, the model burned 1 harvest + 6 read_result
-# calls paginating a single marginal candidate in full and never reached
-# publish_issue — the completion contract correctly failed the run, but the
-# real bug was a step budget smaller than the tool budgets it was meant to
-# bound. See core/tool_budget.h and core/completion_contract.h.
-max_steps: 16
+# Must comfortably exceed the tool budgets below (harvest 2 + read_result 4 +
+# publish_issue 3 = 9) plus the reserved final-answer step and room for a
+# retry or two, or the required calls can starve for steps that read_result
+# alone is allowed to spend. Two live runs on 2026-07-31 found this the hard
+# way: at max_steps: 8 the model burned its whole budget on 1 harvest + 6
+# read_result calls paginating one marginal candidate and never reached
+# publish_issue; at max_steps: 16 (read_result still budgeted at 8) it did the
+# same thing again, then made two legitimate repair attempts and still ran out.
+# See core/tool_budget.h and core/completion_contract.h.
+max_steps: 20
 context_limit: 32768
 
 # Everything this agent does that matters is a side effect: a pool fetched, an
@@ -23,11 +24,17 @@ require_tools: [harvest_candidates, publish_issue]
 # harvest twice at most (once normally; a second time only to widen a thin
 # pool), and publish three times — the first attempt plus two repairs, which is
 # what the old newsletter-publisher was allowed in prose and now cannot exceed.
-# read_result is generous because reading a candidate before writing about it is
-# the one kind of extra work worth paying for here.
+#
+# read_result was 8 until the same two live runs above: given that much room,
+# the model reliably spent nearly all of it re-reading one or two candidates
+# start to finish rather than moving on, hitting this ceiling exactly both
+# times without ever calling publish_issue. Cut to 4, paired with a larger
+# default excerpt (harvest.cpp's kExcerptBytes, 600 -> 1200) so a candidate can
+# usually be judged and quoted from the pool alone — read_result is for the
+# rare case that still isn't enough, not the default way of working.
 tool_limits:
   harvest_candidates: 2
-  read_result: 8
+  read_result: 4
   publish_issue: 3
 
 # Deliberately NO web_search and NO web_fetch. They are the last path by which
