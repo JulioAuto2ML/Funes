@@ -308,6 +308,14 @@ by then, that step is spent writing it up. It is a forced synthesis, not a
 salvage — the model writes the answer itself, and a step that still produces
 nothing fails as loudly as before.
 
+Withholding means the tool schema leaves the prompt entirely, not just that
+the request says not to use it. Both are worth knowing about if you are
+reading the wire: a model that can still see a tool it has been forbidden
+reaches for it anyway, and since the server emits no call, it writes one out
+as prose instead. Funes normally rescues those — local models often can't
+manage a native call — but a rescued call on a withheld turn hands back
+exactly the move that was being taken away, so there it is dropped instead.
+
 ### Making an agent answer in a shape you can use
 
 `require_tools` checks that the work happened; it says nothing about what comes

@@ -333,6 +333,33 @@ else
     FAILURES=$((FAILURES + 1))
 fi
 
+echo "— withheld tools: a call written as prose is not a way back in"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"xml-yielder please","session":"it-session-xml1","agent":"steps-tester"}')
+# Withholding has to reach the prompt, not just the tool_choice field: a model
+# that can still see the tool schema keeps reaching for it, and writes the call
+# as prose when the server won't emit one natively.
+check "answered once tools were gone" "$OUT" 'MOCK-YIELDED-ANSWER'
+check_absent "not a failed run"       "$OUT" 'FAILED —'
+
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"xml-hog please","session":"it-session-xml2","agent":"steps-tester"}')
+# And against a model that writes the XML regardless, recovery must not launder
+# it into a real call — that is what undid both the budget refusal and the
+# last-step reservation in production. Failing honestly is the right outcome
+# here; executing the withheld call is not.
+check "run fails honestly"             "$OUT" 'FAILED —'
+# The stripped blob must not come back as the answer either — markup served as
+# content is the other half of the same bug.
+HIST=$(curl -s "$BASE/api/history?session=it-session-xml2")
+check_absent "raw XML not stored as the answer" "$HIST" 'function=read_file'
+if [ "$(echo "$OUT" | grep -c 'event: tool_result')" -le "2" ]; then
+    echo "  ok: withheld call never executed"
+else
+    echo "  FAIL: withheld call ran — got $(echo "$OUT" | grep -c 'event: tool_result') tool results"
+    FAILURES=$((FAILURES + 1))
+fi
+
 echo "— delegation: a sub-agent that gives up reaches the caller as an error"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"delegate-boom please","session":"it-session-deleg-fail"}')

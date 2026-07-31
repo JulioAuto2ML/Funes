@@ -206,7 +206,9 @@ class Handler(BaseHTTPRequestHandler):
         # this mock never concludes voluntarily, and answers with text only
         # when tools have actually been withheld.
         if mentions(messages, "budget-stubborn"):
-            if req.get("tool_choice") == "none":
+            # Withholding shows up as an absent tool schema, not as a
+            # tool_choice field — a model is told by what it is shown.
+            if not req.get("tools"):
                 self._reply_text("MOCK-FORCED-CONCLUSION", stream)
             else:
                 self._reply_tool({"id": "call_stubborn", "type": "function",
@@ -222,13 +224,45 @@ class Handler(BaseHTTPRequestHandler):
         # mechanism above never fires — which is how researcher spent all 20 of
         # its steps on read_result and returned nothing on 2026-07-31.
         if mentions(messages, "step-hog"):
-            if req.get("tool_choice") == "none":
+            if not req.get("tools"):
                 self._reply_text("MOCK-LAST-STEP-ANSWER", stream)
             else:
                 self._reply_tool({"id": "call_hog", "type": "function",
                                   "function": {"name": "read_file",
                                                "arguments": json.dumps({"path": "small.txt"})}},
                                  stream)
+            return
+
+        # Withholding tools is defeated if the model can write a call as prose
+        # and have it recovered. A server asked for tool_choice "none" emits no
+        # native call, so the 9B wrote <function=web_search> into content
+        # instead and recover_tool_calls_from_content turned it back into a
+        # call — on 2026-07-31 that undid both the budget refusal and the
+        # last-step reservation, and researcher exhausted its steps anyway.
+        #
+        # This mock is the worst case: it emits the XML no matter what it is
+        # told. Withholding must survive a model that never cooperates, so the
+        # run has to end without executing that call.
+        if mentions(messages, "xml-hog"):
+            self._reply_text(
+                "<tool_call><function=read_file>"
+                "<parameter=path>small.txt</parameter>"
+                "</function></tool_call>", stream)
+            return
+
+        # The cooperative counterpart: it writes the XML only while tools are
+        # in the prompt, and answers once they aren't. Setting tool_choice is
+        # not enough on its own — a model that can still see the tool schema
+        # keeps reaching for it — so the withheld turn must send no tools at
+        # all, the way the empty-completion retry always has.
+        if mentions(messages, "xml-yielder"):
+            if not req.get("tools"):
+                self._reply_text("MOCK-YIELDED-ANSWER", stream)
+            else:
+                self._reply_text(
+                    "<tool_call><function=read_file>"
+                    "<parameter=path>small.txt</parameter>"
+                    "</function></tool_call>", stream)
             return
 
         # The child runs as its own conversation, with the task as its only

@@ -136,7 +136,10 @@ private:
     static json openai_tools_to_anthropic(const json& openai_tools);
 
     // Re-parse tool calls that some local models emit as plain text content.
-    static void recover_tool_calls_from_content(CompletionResponse& out);
+    // `tools_withheld` says the completion was asked for with no tools at all;
+    // a call written as prose is then discarded rather than recovered.
+    static void recover_tool_calls_from_content(CompletionResponse& out,
+                                                bool tools_withheld);
 };
 
 // Ask an OpenAI-compatible server which model it serves (GET /v1/models).

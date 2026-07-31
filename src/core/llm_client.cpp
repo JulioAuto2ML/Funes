@@ -346,7 +346,8 @@ static bool recover_xml_tool_calls(CompletionResponse& out) {
     return recovered;
 }
 
-void LLMClient::recover_tool_calls_from_content(CompletionResponse& out) {
+void LLMClient::recover_tool_calls_from_content(CompletionResponse& out,
+                                               bool tools_withheld) {
     if (!out.tool_calls.empty() || out.content.empty()) return;
 
     auto parse_tc = [&](const json& j) -> bool {
@@ -400,6 +401,18 @@ void LLMClient::recover_tool_calls_from_content(CompletionResponse& out) {
             out.content.clear();
         }
     }
+
+    // Recovery is a kindness to models that can't emit a native call — but
+    // when the caller withheld tools it becomes a loophole, handing back the
+    // one move the agent loop was trying to take away. The blob is still
+    // stripped from the content: it is not an answer either, and serving it as
+    // one is how raw markup reached the UI. So the turn ends with nothing,
+    // which the loop reports honestly.
+    if (tools_withheld && !out.tool_calls.empty()) {
+        out.tool_calls.clear();
+        std::cerr << "[llm_client] WARNING: discarded a tool call written as prose"
+                     " — tools were withheld for this completion\n";
+    }
 }
 
 // ── OpenAI path ───────────────────────────────────────────────────────────────
@@ -412,7 +425,14 @@ json LLMClient::build_openai_body(const std::vector<ChatMessage>& messages,
         {"temperature", temperature_},
         {"max_tokens",  max_tokens_}
     };
-    if (!tools_schema.empty()) {
+    // "none" withholds the schema outright rather than sending it alongside an
+    // instruction not to use it — the Anthropic path below has always done
+    // this. Leaving the tools in view doesn't work: the server emits no native
+    // call, so a model that still wants one writes it as prose instead, and on
+    // 2026-07-31 that prose was recovered into a real call and defeated both
+    // the budget refusal and the last-step reservation. A tool the model can't
+    // see is one it can't ask for.
+    if (!tools_schema.empty() && tool_choice_ != "none") {
         body["tools"]       = tools_schema;
         body["tool_choice"] = tool_choice_;
     }
@@ -484,7 +504,7 @@ CompletionResponse LLMClient::complete_openai(
         out.content = msg["content"].get<std::string>();
     }
 
-    recover_tool_calls_from_content(out);
+    recover_tool_calls_from_content(out, /*tools_withheld=*/tool_choice_ == "none");
     return out;
 }
 
@@ -568,7 +588,7 @@ CompletionResponse LLMClient::stream_openai(
     if (!out.tool_calls.empty())
         out.content.clear();
 
-    recover_tool_calls_from_content(out);
+    recover_tool_calls_from_content(out, /*tools_withheld=*/tool_choice_ == "none");
     return out;
 }
 
