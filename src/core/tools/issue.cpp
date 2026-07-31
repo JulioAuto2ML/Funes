@@ -178,9 +178,29 @@ std::string build_issue(const nlohmann::json& pool,
         const nlohmann::json* candidate = nullptr;
         for (const auto& c : pool["candidates"])
             if (c.value("id", 0) == sel.candidate_id) { candidate = &c; break; }
-        if (!candidate)
-            return where + "there is no candidate with that id in today's pool. "
-                           "Use only the ids the pool gave you";
+        if (!candidate) {
+            // A model that just called read_result naturally reaches for the
+            // same number here — but result_id (a global, ever-growing
+            // counter into the result store) and a candidate's own `id` (small,
+            // pool-local) are different things. Confusing them wasted an
+            // attempt live on 2026-07-31: id 514 (in fact a result_id) matched
+            // nothing, and the generic message alone didn't point at why. An
+            // exact match against the pool's own result_ids lets the message
+            // name the mistake and the fix in one line instead of two rounds.
+            for (const auto& c : pool["candidates"]) {
+                if (c.value("result_id", static_cast<int64_t>(0)) ==
+                    static_cast<int64_t>(sel.candidate_id)) {
+                    return where + "that is a result_id (from read_result), not a "
+                                  "candidate id. The candidate you read has pool id " +
+                                  std::to_string(c.value("id", 0)) + " — use that instead.";
+                }
+            }
+            return where + "there is no candidate with that id in today's pool "
+                           "(pool ids run 1 to " +
+                   std::to_string(pool["candidates"].size()) +
+                   "). Use only the small `id` field from the candidate list, "
+                   "never a result_id";
+        }
         const auto [taken, is_new] = used.emplace(sel.candidate_id, n);
         if (!is_new)
             return where + "that candidate is already item " +

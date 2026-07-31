@@ -137,6 +137,7 @@ static json pool_with_one_candidate() {
         {"date", "2026-07-31"},
         {"candidates", json::array({
             {{"id", 4},
+             {"result_id", 514},
              {"title", "Anthropic admits Claude hacked three firms | Reuters"},
              {"url", "https://reuters.com/tech/anthropic-claude"},
              {"source", "reuters.com"},
@@ -189,6 +190,21 @@ int test_build_issue_rejects_an_unknown_id() {
     CHECK(why.find("no candidate with that id") != std::string::npos);
     CHECK(why.find("99") != std::string::npos);
     CHECK(out.is_null());                       // nothing half-built escapes
+    return 0;
+}
+
+int test_build_issue_names_a_result_id_mixup() {
+    // The 2026-07-31 live failure: a model called read_result on candidate 4
+    // (result_id 514), then submitted 514 as the item's id. The generic
+    // "no candidate with that id" message left it guessing; this checks the
+    // message instead names the mix-up and the right pool id.
+    Selection s = good_selection();
+    s.candidate_id = 514;
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(), {s}, out);
+    CHECK(why.find("result_id") != std::string::npos);
+    CHECK(why.find("pool id 4") != std::string::npos);
+    CHECK(out.is_null());
     return 0;
 }
 
@@ -271,6 +287,7 @@ int main() {
     rc |= test_build_issue_takes_the_url_from_the_pool();
     rc |= test_build_issue_ignores_any_url_the_model_supplies();
     rc |= test_build_issue_rejects_an_unknown_id();
+    rc |= test_build_issue_names_a_result_id_mixup();
     rc |= test_build_issue_rejects_a_repeated_id();
     rc |= test_build_issue_rejects_bad_post_text();
     rc |= test_build_issue_rejects_unsupported_evidence();

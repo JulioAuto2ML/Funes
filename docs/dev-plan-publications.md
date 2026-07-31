@@ -497,6 +497,43 @@ The crontab itself is not changed by this repo. The lines to change are in
   this instant. An HTTP status is never retried: the server answered, and asking
   again will not change its mind.
 
+### Found live-testing the curator agent against the real 9B model
+
+Six end-to-end attempts against the local `Qwen3.5-9B-Q8_0.gguf` model, each
+against real Tavily/web data, sending only to julio's own test subscription.
+Each surfaced one distinct, fixable problem:
+
+1. **`max_steps: 8` was smaller than the tool budgets it had to fit around**
+   (harvest 2 + read_result 8 + publish_issue 3 = 13, plus the reserved answer
+   step). The model burned its whole budget on one harvest and six
+   `read_result` calls paginating a single marginal candidate, never reaching
+   `publish_issue`. Raised to 16, then 20.
+2. **The `queries` field was required by the JSON schema while the tool's own
+   description said to omit it** to use the publication's configured queries —
+   a contradiction the model could never resolve. Fixed in `harvest.cpp`:
+   `resolve_queries()` treats an absent key and an empty array the same way,
+   and `queries` was dropped from the schema's `required` array.
+3. **`resolve_dir()` returned a bare relative path**, harmless for
+   same-process reads but wrong once embedded in a subprocess argv spawned
+   with a different working directory — `publish_issue.py` couldn't be found.
+   Fixed by always returning an absolute path.
+4. **The model resubmitted an identical over-length item after a rejection.**
+   The loop detector correctly killed the run, but the prompt hadn't said what
+   "fix it" means per error type. Added explicit per-error repair instructions
+   and a warning that an unchanged resubmission burns one of only three tries.
+5. **The model under-selected and front-loaded `read_result`.** Its first
+   `publish_issue` attempt had 3 items against a floor of 8, and all four
+   `read_result` calls were already spent by then. Added prompt lines to draft
+   the full list from excerpts before calling `read_result` at all, and to
+   always submit the full configured count on the first attempt.
+6. **The model confused a `result_id` (from `read_result`) with a candidate's
+   pool-local `id`.** `build_issue` correctly rejected it, but the generic
+   "no candidate with that id" message didn't say why the number was wrong,
+   costing an attempt. Fixed in `issue.cpp`'s `build_issue`: an id that
+   exactly matches some candidate's `result_id` now gets a message naming the
+   mix-up and the right pool id directly, rather than the generic unknown-id
+   message.
+
 ### Still open
 
 - **Bot-blocked hosts.** The 401/403/429 SUSPECT set is recorded and never
