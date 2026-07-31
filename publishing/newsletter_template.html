@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Pulse — {{DATE}}</title>
+  <style>
+    /* ── Reset & Base ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #f4f4f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1a1a2e;
+      padding: 32px 16px;
+    }
+
+    /* ── Wrapper ── */
+    .wrapper {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      border-radius: 16px 16px 0 0;
+      padding: 40px 36px 32px;
+      text-align: center;
+    }
+    .header .label {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      color: #c8b6ff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+    .header h1 span {
+      color: #a78bfa;
+    }
+    .header .date {
+      margin-top: 10px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Body card ── */
+    .body-card {
+      background: #ffffff;
+      padding: 32px 36px;
+      border-left: 1px solid #e8e8f0;
+      border-right: 1px solid #e8e8f0;
+    }
+    .intro {
+      font-size: 15px;
+      color: #555572;
+      line-height: 1.6;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #f0f0f5;
+    }
+    .intro strong { color: #302b63; }
+
+    /* ── Post item ── */
+    .post-item {
+      display: flex;
+      gap: 16px;
+      padding: 20px 0;
+      border-bottom: 1px solid #f0f0f5;
+    }
+    .post-item:last-child { border-bottom: none; }
+
+    .post-number {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6d28d9, #a78bfa);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+
+    .post-body { flex: 1; }
+    .post-text {
+      font-size: 15px;
+      line-height: 1.65;
+      color: #1a1a2e;
+    }
+    .post-link {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #6d28d9;
+      text-decoration: none;
+      border: 1px solid #ddd6fe;
+      background: #faf5ff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      word-break: break-all;
+    }
+    .post-link:hover { background: #ede9fe; }
+
+    /* ── Footer ── */
+    .footer {
+      background: #1a1a2e;
+      border-radius: 0 0 16px 16px;
+      padding: 32px 36px;
+      text-align: center;
+    }
+    .footer .subscribe-box {
+      background: rgba(167,139,250,0.12);
+      border: 1px solid rgba(167,139,250,0.3);
+      border-radius: 12px;
+      padding: 24px 20px;
+      margin-bottom: 24px;
+    }
+    .footer .subscribe-box p {
+      color: #c8b6ff;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .footer .subscribe-box a {
+      display: inline-block;
+      background: linear-gradient(135deg, #6d28d9, #a78bfa);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      letter-spacing: 0.3px;
+    }
+    .footer .meta {
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      line-height: 1.7;
+    }
+    .footer .meta a { color: rgba(255,255,255,0.45); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="label">Daily Digest</div>
+      <h1>AI <span>Pulse</span></h1>
+      <div class="date">{{DATE}}</div>
+    </div>
+
+    <!-- Body -->
+    <div class="body-card">
+      <p class="intro">
+        Your daily briefing on <strong>AI, LLMs, AI Agents &amp; AGI</strong> —
+        10 hand-picked stories from the past 48 hours.
+      </p>
+
+      <!-- ── POSTS GO HERE ── -->
+      {{POSTS}}
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="subscribe-box">
+        <p>Enjoying <strong style="color:#fff;">AI Pulse</strong>? Forward this to a friend or subscribe to get it in your inbox every morning.</p>
+        <a href="mailto:julio.rodriguezmartino@gmail.com?subject=SUBSCRIBE%20TO%20AI%20NEWS">
+          ✉️ Subscribe to AI Pulse
+        </a>
+      </div>
+      <div class="meta">
+        Curated by Julio · <a href="mailto:julio.rodriguezmartino@gmail.com">julio.rodriguezmartino@gmail.com</a><br/>
+        You're receiving this because you subscribed to AI Pulse.
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

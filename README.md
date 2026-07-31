@@ -343,6 +343,46 @@ shouldn't pretend to. Supported keywords are `type`, `required`,
 `properties`, `items`, `enum`, `minItems`/`maxItems`; anything else in the
 schema is ignored rather than rejected.
 
+### Not asking the model for what a tool can supply
+
+The three features above make a model finish, stop and answer correctly. The
+cheapest way to stop it getting a step wrong is not to ask it, and the
+`curator` agent is what that looks like carried all the way.
+
+The daily newsletter used to be three agents and 46 steps, most of them a
+language model reading instructions about how to perform a deterministic task.
+One of those steps was retyping ten URLs it had read earlier, out of a
+transcript that had since been compressed and stored by reference. On
+2026-07-31 an item about an OpenAI breach shipped pointing at a Stripe checkout
+page — which returned 200, so the link checker passed it. That is arithmetic,
+not carelessness: ask for ten transcriptions a day and one comes out wrong every
+few weeks, forever.
+
+So `harvest_candidates` runs the searches, drops duplicates, stale items and
+anything that already ran this week, fetches every survivor (a failed fetch
+drops the candidate *there*, which is the link check moved before selection
+instead of after writing), and returns a numbered pool. The model picks by
+number. `publish_issue` resolves those numbers back to URLs it never showed the
+model a reason to retype, and renders, re-checks and sends in one call whose
+exit code is what makes "it was sent" a fact.
+
+The one thing a model cannot be relieved of is whether an item is worth running
+and whether the post is true. The second half of that is checkable, so it is
+checked: each item carries an `evidence` quote copied off the candidate's page,
+verified against the text the harvester actually fetched. A post about a breach
+cannot produce a supporting quote from a checkout page. A failed check names one
+item and sends nothing.
+
+Three agents and 46 steps became one agent and about four.
+
+The same split decides what is configuration. A publication is one YAML in
+`publications/` — queries, recency window, caps, artifacts, channels — plus a
+prose voice file, because voice is the one part a model has to read rather than
+obey. The agent never sees the config; it is handed a pool and a voice note by
+the tools, which is why a second publication needs no second agent. Every run
+leaves a record in `runs/<publication>/<date>.json`, and both the scheduler and
+the LinkedIn cron read it rather than believing anything the model said.
+
 To give an agent tools from an external MCP server:
 
 ```yaml
@@ -382,9 +422,13 @@ chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
 ## Tests
 
 ```bash
-cd build && ctest --output-on-failure   # unit tests (memory, tools, config)
+cd build && ctest --output-on-failure   # unit tests (memory, tools, config, publishing)
 bash tests/integration.sh               # end-to-end against a mock LLM, no network
 ```
+
+`ctest` runs `publishing/`'s Python suite too, via the same `--self-test` flag
+that runs it on the machine that sends the mail — one set of assertions rather
+than a CI copy and a deployed copy that drift.
 
 ---
 
@@ -400,9 +444,12 @@ Funes/
 │   │   │              # result store, base64, UTF-8-safety helpers
 │   │   └── tools/     # web_search/fetch, remember/recall, read_result, read/write_file
 │   │                  # (+ PDF extraction), execute_shell, compress_context,
-│   │                  # create_tool/create_agent, delegate_to_agent
+│   │                  # create_tool/create_agent, delegate_to_agent,
+│   │                  # harvest_candidates/publish_issue
 │   │                  # (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point
+├── publications/      # one YAML + one voice file per publication
+├── publishing/        # the scripts that render, send and post an issue (Python)
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test
 └── third-party/       # vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json)

@@ -72,6 +72,7 @@ target_link_libraries(mcp PUBLIC
 add_library(funes_core STATIC
     src/core/llm_client.cpp
     src/core/agent_config.cpp
+    src/core/publication.cpp
     src/core/context_compressor.cpp
     src/core/completion_contract.cpp
     src/core/answer_schema.cpp
@@ -86,6 +87,10 @@ add_library(funes_core STATIC
     src/core/tools/fs_guard.cpp
     src/core/tools/process_runner.cpp
     src/core/tools/pdf_extract.cpp
+    src/core/tools/tavily.cpp
+    src/core/tools/page_text.cpp
+    src/core/tools/harvest.cpp
+    src/core/tools/issue.cpp
     src/core/tools/web_search.cpp
     src/core/tools/web_fetch.cpp
     src/core/tools/memory_tools.cpp

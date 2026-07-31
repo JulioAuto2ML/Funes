@@ -62,6 +62,36 @@ add_executable(test_run_outcome test_run_outcome.cpp)
 target_link_libraries(test_run_outcome PRIVATE funes_core)
 add_test(NAME run_outcome COMMAND test_run_outcome)
 
+# Runs from the project root: one of its cases loads publications/ai-pulse.yaml,
+# the config the daily newsletter actually goes out on.
+add_executable(test_publication test_publication.cpp)
+target_link_libraries(test_publication PRIVATE funes_core)
+add_test(NAME publication COMMAND test_publication
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(test_issue test_issue.cpp)
+target_link_libraries(test_issue PRIVATE funes_core)
+add_test(NAME issue COMMAND test_issue)
+
+add_executable(test_harvest test_harvest.cpp)
+target_link_libraries(test_harvest PRIVATE funes_core)
+add_test(NAME harvest COMMAND test_harvest)
+
 add_executable(test_tool_budget test_tool_budget.cpp)
 target_link_libraries(test_tool_budget PRIVATE funes_core)
 add_test(NAME tool_budget COMMAND test_tool_budget)
+
+# ── publishing/ (Python) ──────────────────────────────────────────────────────
+# publish_newsletter.py is the component that decides whether mail goes out, so
+# its suite runs under the same `ctest` as everything else rather than behind a
+# flag someone has to remember. --self-test is the script's own entry point into
+# publishing/tests/, so there is one set of assertions rather than a CI copy and
+# a deployed copy that drift.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    add_test(NAME publishing
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_SOURCE_DIR}/publishing/publish_newsletter.py --self-test)
+else()
+    message(STATUS "python3 not found — skipping the publishing/ tests")
+endif()

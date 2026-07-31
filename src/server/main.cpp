@@ -11,7 +11,9 @@
 #include "api.h"
 #include "memory.h"
 #include "tools.h"
+#include "tools/harvest.h"
 #include "tools/http_tool_runtime.h"
+#include "tools/issue.h"
 #include "httplib.h"
 #include <chrono>
 #include <csignal>
@@ -93,6 +95,13 @@ int main() {
     const std::string ui_dir        = resolve_dir(funes::env("FUNES_UI_DIR"), "ui");
     const std::string generated_tools_dir = resolve_dir(
         funes::env("FUNES_GENERATED_TOOLS_DIR"), "src/core/tools/generated");
+    // The publishing scripts publish_issue runs. In the repo, deployed by the
+    // same `git pull` as the binary — see publishing/README.md.
+    const std::string publishing_dir = resolve_dir(funes::env("FUNES_PUBLISHING_DIR"),
+                                                   "publishing");
+    // One YAML per publication: queries, windows, caps, artifacts, channels.
+    const std::string publications_dir = resolve_dir(funes::env("FUNES_PUBLICATIONS_DIR"),
+                                                     "publications");
 
     std::string db_path = funes::env("FUNES_DB");
     if (db_path.empty()) {
@@ -145,6 +154,9 @@ int main() {
     register_introspection_tools(tools);
     register_file_tools(tools, workspace_dir);
     register_shell_tool(tools, workspace_dir);
+    register_harvest_tool(tools, memory, workspace_dir, publications_dir);
+    register_publish_issue_tool(tools, workspace_dir, publishing_dir,
+                                publications_dir);
     funes::tools::register_all_generated_tools(tools);
     register_tool_builder(tools, generated_tools_dir);
 

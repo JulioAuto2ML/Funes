@@ -1,0 +1,61 @@
+# AI Pulse — the daily AI/LLM/AGI newsletter.
+#
+# Everything in this file is a setting. Nothing in it is a judgement: the one
+# thing that needs a human's taste rather than a number lives in the voice file
+# below, as prose, because that is what it is.
+#
+# A second publication is a copy of this file and a voice file. No new agent,
+# no new prompt, no new script — see publications/README.md.
+
+id: ai-pulse
+title: "AI Pulse"
+# {date} is the long form ("Thursday, July 30, 2026"); {iso_date} is 2026-07-30.
+subject: "AI Pulse · {date}"
+
+# Appended to every LinkedIn post by publishing/post_tweet.py.
+cta: |-
+  📧 Enjoying this? Subscribe to my daily AI newsletter — email
+  julio.rodriguezmartino@gmail.com with subject: SUBSCRIBE TO AI NEWS
+
+voice:
+  prompt_file: voice/ai-pulse.md      # relative to this directory
+
+sources:
+  # Several angles rather than one broad query: the pool is only as wide as the
+  # questions asked of it, and one query's tenth result is worse than a second
+  # query's third.
+  queries:
+    - "artificial intelligence news"
+    - "AI model release"
+    - "AI regulation policy"
+    - "AI agents enterprise"
+  time_range: day
+  per_query: 10
+  max_candidates: 25
+  max_age_days: 2
+  # Don't run the same story twice in a week.
+  dedup_against_last_issues: 7
+  # Added to the global social-platform exclusions in tavily.cpp.
+  exclude_domains: []
+
+selection:
+  count: 10
+  # A quiet news day may run short rather than pad. Below this the issue is
+  # refused and the run record says so — see docs/dev-plan-publications.md §8.4.
+  min_count: 8
+  max_per_source: 2
+  # Two takes on one story is a choice of outlet; three is a thin issue.
+  max_per_story: 2
+
+artifacts:
+  - kind: posts_txt
+    path: "{workspace}/X_posts_{iso_date}.txt"
+  - kind: newsletter_html
+    path: "{workspace}/newsletter_{iso_date}.html"
+    template: newsletter_template.html
+
+channels:
+  - kind: email
+    recipients_file: subscribers.txt
+  # LinkedIn is not a channel here: it is cron-driven off the posts artifact,
+  # ten times a day, by publishing/post_tweet.py.
