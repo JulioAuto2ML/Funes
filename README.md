@@ -292,6 +292,11 @@ the model is told to conclude from what it already has — so the run still
 produces an answer. That's the difference from the loop detector, which stops
 the run without one and stays as the backstop.
 
+Being told to stop isn't enough on its own: a 9B ignored the refusal and
+re-issued the same call seven times in a row, burning a step each time until
+the run died with nothing. So the turn straight after a refusal is offered no
+tools at all, which leaves answering as the only move available.
+
 `0` forbids a tool for the run; a tool with no entry is unlimited.
 
 ### Making an agent answer in a shape you can use

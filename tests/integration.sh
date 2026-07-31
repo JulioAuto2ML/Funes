@@ -288,6 +288,25 @@ else
 fi
 check "refusal tells it to answer" "$OUT" 'Answer now'
 
+echo "— tool budget: a model that ignores the refusal is made to conclude anyway"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"budget-stubborn please","session":"it-session-budget2","agent":"budget-tester"}')
+# The refusal message alone is only a request, and a model is free to ignore
+# it — this one re-asks for the refused tool every time it is offered. The
+# turn after a refusal therefore withholds tools outright, so the only move
+# left is to answer. Without that, this run burns max_steps and returns
+# FAILED, which is exactly what the newsletter pipeline did.
+check "forced to conclude"       "$OUT" 'MOCK-FORCED-CONCLUSION'
+check_absent "not a failed run"  "$OUT" 'FAILED —'
+# Still exactly 3: two executed, one refused. Withholding tools must not cost
+# an extra round trip of refusals before it takes effect.
+if [ "$(echo "$OUT" | grep -c 'event: tool_result')" = "3" ]; then
+    echo "  ok: no further calls attempted after the refusal"
+else
+    echo "  FAIL: expected 3 tool results, got $(echo "$OUT" | grep -c 'event: tool_result')"
+    FAILURES=$((FAILURES + 1))
+fi
+
 echo "— delegation: a sub-agent that gives up reaches the caller as an error"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"delegate-boom please","session":"it-session-deleg-fail"}')

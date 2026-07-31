@@ -309,6 +309,13 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // Set when a nudge was just injected: that one completion is forced to
     // produce a tool call, so the model can't answer the nudge with more prose.
     bool force_tool_call = false;
+    // The mirror image, set when a call was refused over budget: that one
+    // completion is offered no tools at all, so the only move left is to
+    // answer. The refusal message asks the model to conclude, but asking is
+    // not enough — on 2026-07-31 the 9B re-issued the refused web_search seven
+    // times running, each refusal costing a step, until max_steps ended the
+    // run with nothing. See core/tool_budget.h.
+    bool force_no_tools = false;
 
     // Empty when the answer validates (or there is no schema); otherwise the
     // one violation to nudge on.
@@ -344,7 +351,12 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
     for (int step = 0; step < cfg_.max_steps; ++step) {
         CompletionResponse resp;
-        if (force_tool_call) llm_.set_tool_choice("required");
+        // A pending contract nudge outranks a pending refusal: require_tools
+        // is a floor, and a run that skips a required call is invalid however
+        // politely it concluded. The two only collide if an agent declares a
+        // tool as both required and capped, which is a config contradiction.
+        if (force_tool_call)      llm_.set_tool_choice("required");
+        else if (force_no_tools)  llm_.set_tool_choice("none");
         try {
             resp = llm_.complete(history, tools_schema_, on_delta);
         } catch (const std::exception& e) {
@@ -361,9 +373,10 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 throw;
             }
         }
-        if (force_tool_call) {
+        if (force_tool_call || force_no_tools) {
             llm_.set_tool_choice(cfg_.tool_choice);
             force_tool_call = false;
+            force_no_tools  = false;
         }
         if (resp.prompt_tokens > 0) prompt_tokens_out = resp.prompt_tokens;
 
@@ -525,10 +538,15 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
-            if (refused)
+            if (refused) {
                 std::cerr << "[agent:" << cfg_.name << "] " << tc.name
                           << " refused: budget of " << cfg_.tool_limits.at(tc.name)
                           << " call(s) used up\n";
+                // Withhold tools on the next completion. Set here rather than
+                // where the refusal is composed, so a batch of calls in one
+                // step needs only a single forced turn to settle.
+                force_no_tools = true;
+            }
 
             ToolResult result = refused
                 ? ToolResult{funes::budget_message(tc.name, cfg_.tool_limits.at(tc.name)), true}

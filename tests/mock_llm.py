@@ -197,6 +197,24 @@ class Handler(BaseHTTPRequestHandler):
                                  stream)
             return
 
+        # The same ceiling, against a model that ignores the refusal. The
+        # cooperative case above concludes the moment it is told to; the real
+        # 9B on 2026-07-31 did not — it re-issued the refused web_search seven
+        # times in a row until max_steps ended researcher with no answer, and
+        # the whole newsletter pipeline collapsed behind it. Asking is
+        # therefore not enough: the framework has to take the option away. So
+        # this mock never concludes voluntarily, and answers with text only
+        # when tools have actually been withheld.
+        if mentions(messages, "budget-stubborn"):
+            if req.get("tool_choice") == "none":
+                self._reply_text("MOCK-FORCED-CONCLUSION", stream)
+            else:
+                self._reply_tool({"id": "call_stubborn", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "small.txt"})}},
+                                 stream)
+            return
+
         # The child runs as its own conversation, with the task as its only
         # user message — so it is keyed on the task text, not on the parent's.
         if mentions(messages, "sub-gives-up"):

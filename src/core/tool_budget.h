@@ -16,8 +16,15 @@
 // So going over budget is deliberately *recoverable*: the call is refused with
 // an error the model can read, telling it to conclude from what it already
 // has. The run continues and usually produces something. Compare the loop
-// detector, which kills the run outright — that stays as the backstop for a
-// model that ignores the refusal.
+// detector, which kills the run outright — that stays as the backstop.
+//
+// The refusal alone is only a request, though, and a model is free to ignore
+// it: on 2026-07-31 the 9B re-issued the refused web_search seven times in a
+// row, each refusal costing a step, until max_steps ended `researcher` with no
+// answer and the whole newsletter pipeline collapsed behind it. So the agent
+// loop also withholds tools (tool_choice "none") on the completion right after
+// a refusal — see force_no_tools in agent.cpp. Being told to conclude and
+// having nothing else available are different things; only the second worked.
 
 #include <map>
 #include <string>
