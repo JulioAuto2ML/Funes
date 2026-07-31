@@ -215,6 +215,22 @@ class Handler(BaseHTTPRequestHandler):
                                  stream)
             return
 
+        # The same shape again, but what runs out is steps rather than a
+        # per-tool budget. This mock calls read_file forever if allowed to, so
+        # the run ends with an answer only if the framework withholds tools on
+        # the final step. An uncapped tool produces no refusal, so the budget
+        # mechanism above never fires — which is how researcher spent all 20 of
+        # its steps on read_result and returned nothing on 2026-07-31.
+        if mentions(messages, "step-hog"):
+            if req.get("tool_choice") == "none":
+                self._reply_text("MOCK-LAST-STEP-ANSWER", stream)
+            else:
+                self._reply_tool({"id": "call_hog", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "small.txt"})}},
+                                 stream)
+            return
+
         # The child runs as its own conversation, with the task as its only
         # user message — so it is keyed on the task text, not on the parent's.
         if mentions(messages, "sub-gives-up"):

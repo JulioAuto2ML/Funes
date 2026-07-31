@@ -351,12 +351,23 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
     for (int step = 0; step < cfg_.max_steps; ++step) {
         CompletionResponse resp;
-        // A pending contract nudge outranks a pending refusal: require_tools
-        // is a floor, and a run that skips a required call is invalid however
-        // politely it concluded. The two only collide if an agent declares a
-        // tool as both required and capped, which is a config contradiction.
-        if (force_tool_call)      llm_.set_tool_choice("required");
-        else if (force_no_tools)  llm_.set_tool_choice("none");
+        // The last step is spent answering, not calling. Otherwise a model
+        // that keeps finding one more thing to look up walks off the end of
+        // its budget with a full history and nothing said: researcher made 20
+        // read_result calls on 2026-07-31 and returned FAILED with no sources
+        // in it. tool_limits can't cover this — an uncapped tool is never
+        // refused — so the ceiling here is max_steps itself.
+        //
+        // This is a forced *synthesis*, not a salvage: the model still writes
+        // the answer from its own history, and if it produces nothing the run
+        // still fails honestly rather than relaying raw tool output.
+        const bool last_step = (step + 1 == cfg_.max_steps);
+        // A pending contract nudge outranks both: require_tools is a floor,
+        // and a run that skips a required call is invalid however politely it
+        // concluded. Better to spend the last step on the owed call and fail
+        // for want of an answer than to answer with the floor unmet.
+        if (force_tool_call)                  llm_.set_tool_choice("required");
+        else if (force_no_tools || last_step) llm_.set_tool_choice("none");
         try {
             resp = llm_.complete(history, tools_schema_, on_delta);
         } catch (const std::exception& e) {
@@ -373,7 +384,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 throw;
             }
         }
-        if (force_tool_call || force_no_tools) {
+        if (force_tool_call || force_no_tools || last_step) {
             llm_.set_tool_choice(cfg_.tool_choice);
             force_tool_call = false;
             force_no_tools  = false;

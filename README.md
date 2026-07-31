@@ -299,6 +299,15 @@ tools at all, which leaves answering as the only move available.
 
 `0` forbids a tool for the run; a tool with no entry is unlimited.
 
+The same trick covers the case a ceiling can't reach. An uncapped tool is
+never refused, so a model that keeps finding one more thing to look up walks
+off the end of `max_steps` with a full history and nothing said — ours spent
+all 20 steps on `read_result` and returned a failure with no sources in it.
+So the final step is always offered no tools: whatever the run has gathered
+by then, that step is spent writing it up. It is a forced synthesis, not a
+salvage — the model writes the answer itself, and a step that still produces
+nothing fails as loudly as before.
+
 ### Making an agent answer in a shape you can use
 
 `require_tools` checks that the work happened; it says nothing about what comes

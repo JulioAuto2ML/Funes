@@ -86,6 +86,14 @@ answer_schema:
       minItems: 1
 YAML
 
+cat > "$AGENTS/steps-tester.yaml" <<'YAML'
+name: steps-tester
+description: Test fixture — an agent whose model would rather call tools than answer.
+tools: [read_file]
+max_steps: 3
+system_prompt: Read what you need, then answer.
+YAML
+
 cat > "$AGENTS/budget-tester.yaml" <<'YAML'
 name: budget-tester
 description: Test fixture — an agent with a per-tool ceiling.
@@ -304,6 +312,24 @@ if [ "$(echo "$OUT" | grep -c 'event: tool_result')" = "3" ]; then
     echo "  ok: no further calls attempted after the refusal"
 else
     echo "  FAIL: expected 3 tool results, got $(echo "$OUT" | grep -c 'event: tool_result')"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo "— max_steps: the final step is reserved for an answer"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"step-hog please","session":"it-session-steps","agent":"steps-tester"}')
+# Running out of steps used to mean returning nothing, however much usable
+# material the history held — researcher spent all 20 of its steps calling
+# read_result and ended with FAILED and no sources. Nothing refuses an
+# uncapped tool, so the budget mechanism cannot help here; instead the last
+# step is offered no tools, which leaves synthesis as the only move.
+check "answered on the last step" "$OUT" 'MOCK-LAST-STEP-ANSWER'
+check_absent "not a failed run"   "$OUT" 'FAILED —'
+# 3 steps, and the last is the forced answer — so 2 calls, not 3.
+if [ "$(echo "$OUT" | grep -c 'event: tool_result')" = "2" ]; then
+    echo "  ok: last step spent answering, not calling"
+else
+    echo "  FAIL: expected 2 tool results, got $(echo "$OUT" | grep -c 'event: tool_result')"
     FAILURES=$((FAILURES + 1))
 fi
 
