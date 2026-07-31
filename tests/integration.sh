@@ -223,36 +223,54 @@ check "window has file content"    "$OUT" 'window=BIGFILESTART'
 OUT=$(curl -s "$BASE/api/history?session=it-session-results")
 check_absent "big payload absent from history" "$OUT" 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm'
 
-echo "— result store: a bailout answer carries content, not the preview envelope"
+echo "— loop bailout: gives up honestly, carrying no tool output at all"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"big-loop please","session":"it-session-salvage"}')
 check "large result still stored"  "$OUT" 'event: result_stored'
 OUT=$(curl -s "$BASE/api/history?session=it-session-salvage")
-# The user gets the file's own text, bounded — not the preview JSON that was
-# built for the model. Regression from 2.0; see agent.cpp last_tool_result.
-check "salvaged answer is readable"   "$OUT" 'BIGFILESTART'
+# A run that looped never concluded anything, so it says so. It used to open
+# with "Done." and paste the last tool result — which is how a raw web dump
+# reached a user as a finished newsletter.
+check "bailout is an explicit failure" "$OUT" 'FAILED —'
+check "names the looping tool"         "$OUT" 'read_file'
+check_absent "does not claim success"  "$OUT" 'Done\.'
+# Neither the preview envelope the model saw (the 2.0 regression) nor the
+# payload itself (the laundering vector) may appear in an answer.
 check_absent "no preview envelope shown" "$OUT" 'result_id'
 check_absent "no head/tail keys shown"   "$OUT" '\\"head\\":'
-# ...and bounded: the 8KB payload must not land in the answer either.
-if [ "$(echo "$OUT" | wc -c)" -lt 4096 ]; then
-    echo "  ok: salvaged answer is bounded"
+check_absent "no tool payload shown"     "$OUT" 'BIGFILESTART'
+if [ "$(echo "$OUT" | wc -c)" -lt 1024 ]; then
+    echo "  ok: bailout answer is small"
 else
-    echo "  FAIL: salvaged answer is bounded — got $(echo "$OUT" | wc -c) bytes"
+    echo "  FAIL: bailout answer is small — got $(echo "$OUT" | wc -c) bytes"
     FAILURES=$((FAILURES + 1))
 fi
 
-echo "— empty completion: a failing salvage retry still answers from the tool result"
+echo "— empty completion: a failing retry still completes the turn, saying it failed"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"retry-boom please","session":"it-session-retry"}')
-# The salvage retry is best-effort by definition — the tool result is already
-# in hand. If it throws, the run must fall back to that result, not hand the
-# user a transport error. See agent.cpp, empty-completion retry.
+# The retry is best-effort — its failure must not escape run_loop and abort the
+# turn (which lost the run entirely and stored nothing). But it also must not
+# be papered over with the tool result: no answer means no answer.
 check_absent "no error event"       "$OUT" 'event: error'
-check "salvaged answer delivered"   "$OUT" 'event: done'
+check "turn completes"              "$OUT" 'event: done'
 # Assert on the *stored* turn, not the stream: the stream also carries a
-# tool_result event with this same text, so it would pass even on a failed run.
+# tool_result event with the file's text, so a naive check would pass anyway.
 OUT=$(curl -s "$BASE/api/history?session=it-session-retry")
-check "answer is the tool result"   "$OUT" 'SMALLFILEMARKER'
+check "says it produced no answer"  "$OUT" 'FAILED —'
+check_absent "no tool payload shown" "$OUT" 'SMALLFILEMARKER'
+
+echo "— delegation: a sub-agent that gives up reaches the caller as an error"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"delegate-boom please","session":"it-session-deleg-fail"}')
+# The whole reported bug in one scenario: without this the sub-agent's failure
+# is an ordinary tool result, so the parent stores it, previews it and relays
+# it as content — which is how a raw web dump became a "newsletter".
+check "sub-agent failure surfaced"     "$OUT" 'FAILED —'
+check "parent saw a tool error"        "$OUT" 'MOCK-PARENT-SAW: error'
+# An errored result skips the result store, so it stays inline and visible
+# rather than becoming a preview envelope the parent has to dereference.
+check_absent "failure not stored as a result" "$OUT" 'event: result_stored'
 
 echo "— answer schema: a malformed answer gets nudged, then accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \

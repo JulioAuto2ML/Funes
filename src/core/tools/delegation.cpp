@@ -22,6 +22,7 @@
 
 #include "../agent.h"
 #include "../tools.h"
+#include "../run_outcome.h"
 #include <sstream>
 
 namespace {
@@ -71,7 +72,13 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
         // no images (this is a text task description, not the user's turn),
         // persist=false (see file header).
         std::string result = sub.run(task, ctx.session, nullptr, {}, /*persist=*/false);
-        return {result};
+        // A sub-agent that gave up returns a string like any other, so without
+        // this the caller stores it, previews it, and relays it as content —
+        // which is how a raw web_search dump once climbed two delegation hops
+        // and was served to the user as a finished newsletter. Marking it as a
+        // tool error also keeps it out of the result store, so it stays inline
+        // and visible instead of turning into a preview envelope.
+        return {result, funes::is_run_failure(result)};
     } catch (const std::exception& e) {
         return {std::string("Delegation to '") + agent_name + "' failed: " + e.what(), true};
     }

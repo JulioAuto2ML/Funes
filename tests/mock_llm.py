@@ -176,6 +176,31 @@ class Handler(BaseHTTPRequestHandler):
                              stream)
             return
 
+        # The reported failure, end to end: a sub-agent gives up, and the
+        # answer it hands back must not read as content to its caller. The
+        # parent is identified by the absence of the child's task text — the
+        # sub-agent runs with "sub-gives-up" as its user message.
+        # The child runs as its own conversation, with the task as its only
+        # user message — so it is keyed on the task text, not on the parent's.
+        if mentions(messages, "sub-gives-up"):
+            self._reply_text("", stream)              # the child: no answer
+            return
+
+        if mentions(messages, "delegate-boom"):
+            if not has_tool_result:
+                self._reply_tool({"id": "call_sub", "type": "function",
+                                  "function": {"name": "delegate_to_agent",
+                                               "arguments": json.dumps({
+                                                   "agent": "researcher",
+                                                   "task": "sub-gives-up"})}},
+                                 stream)
+            else:
+                self._reply_text("MOCK-PARENT-SAW: " + (
+                    "error" if any("FAILED" in (m.get("content") or "")
+                                   for m in messages if m.get("role") == "tool")
+                    else "content"), stream)
+            return
+
         # The empty-completion salvage retry (agent.cpp): when a model returns
         # no content right after a tool round trip, the loop makes one more
         # call with tools disabled to shake the answer out. Here that retry

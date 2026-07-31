@@ -75,6 +75,7 @@ add_library(funes_core STATIC
     src/core/context_compressor.cpp
     src/core/completion_contract.cpp
     src/core/answer_schema.cpp
+    src/core/run_outcome.cpp
     src/core/result_store.cpp
     src/core/text_utils.cpp
     src/core/base64.cpp

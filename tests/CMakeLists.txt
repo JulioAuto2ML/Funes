@@ -57,3 +57,7 @@ add_test(NAME result_store COMMAND test_result_store)
 add_executable(test_answer_schema test_answer_schema.cpp)
 target_link_libraries(test_answer_schema PRIVATE funes_core)
 add_test(NAME answer_schema COMMAND test_answer_schema)
+
+add_executable(test_run_outcome test_run_outcome.cpp)
+target_link_libraries(test_run_outcome PRIVATE funes_core)
+add_test(NAME run_outcome COMMAND test_run_outcome)

@@ -6,6 +6,7 @@
 #include "answer_schema.h"
 #include "completion_contract.h"
 #include "result_store.h"
+#include "run_outcome.h"
 #include "text_utils.h"
 #include <algorithm>
 #include <cstdlib>
@@ -289,7 +290,6 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // tool-heavy workflows, with a floor for very short budgets.
     std::map<std::string, int> name_counts;
     const int max_same_tool = std::max(cfg_.max_steps, 6);
-    std::string last_tool_result;
     std::string last_tool_name;
 
     // Completion contract (see core/completion_contract.h): tools that must
@@ -409,26 +409,33 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 try {
                     retry = llm_.complete(history, json::array(), on_delta);
                 } catch (const std::exception& e) {
-                    // Best-effort by definition: the tool results this call was
-                    // meant to narrate are already in history. Letting it throw
-                    // would turn a recoverable empty completion into an error
-                    // event and lose the whole run's work — so swallow it and
-                    // fall through to the same salvage an empty retry gets.
+                    // Best-effort by definition — this call only exists to
+                    // narrate results already in history. Letting it throw
+                    // would lose the run entirely; report it as a run with no
+                    // answer, which is what it is.
                     std::cerr << "[agent:" << cfg_.name << "] empty-completion retry failed ("
-                              << e.what() << "), salvaging from the last tool result\n";
+                              << e.what() << ")\n";
                 }
                 llm_.set_tool_choice(cfg_.tool_choice);
                 if (retry.prompt_tokens > 0) prompt_tokens_out = retry.prompt_tokens;
-                if (!retry.content.empty()) {
-                    answer = retry.content;
-                } else if (!has_schema) {
-                    // Echoing the last tool result is a best-effort salvage; it
-                    // can't be one under a schema, so that case falls through
-                    // to the validation below and fails honestly instead.
-                    return last_tool_result.empty()
-                        ? "(the model returned an empty answer)"
-                        : last_tool_result;
-                }
+                if (!retry.content.empty()) answer = retry.content;
+            }
+
+            // Still nothing — either the retry came back empty too, or this is
+            // step 0, where there is no tool round trip to retry against and
+            // an empty completion used to be returned verbatim as the answer.
+            //
+            // This used to fall back to the last tool result, which reads as
+            // content: a researcher's raw web_search dump once travelled up
+            // two delegation hops and was served as a finished newsletter. Say
+            // so instead — and say it loudly, because the silence here is what
+            // made that take a database dig to diagnose. Under a schema it
+            // falls through to the validation below, which fails on its own
+            // terms and reports what was wrong with the shape.
+            if (answer.empty() && !has_schema) {
+                std::cerr << "[agent:" << cfg_.name << "] no answer at step " << step
+                          << "; giving up without one\n";
+                return funes::empty_answer_failure(last_tool_name);
             }
 
             // The answer schema (core/answer_schema.h). Unlike a tool nudge
@@ -487,12 +494,19 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
 
         for (const auto& tc : resp.tool_calls) {
             const std::string call_sig = tc.name + "|" + tc.arguments.dump();
-            if (++sig_counts[call_sig] >= 3)
-                return finish("Done. " + last_tool_name + " completed: " + last_tool_result);
-            if (++name_counts[tc.name] > max_same_tool)
-                return finish("Done. " + tc.name + " was called " + std::to_string(max_same_tool) +
-                       "+ times with varying arguments and made no clear progress. " +
-                       "Last result: " + last_tool_result);
+            // Both bailouts used to open with "Done." and paste the last tool
+            // result. Neither was true: the loop detector fires precisely
+            // because the model never concluded anything.
+            if (++sig_counts[call_sig] >= 3) {
+                std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
+                          << " repeated with identical arguments\n";
+                return finish(funes::loop_failure(tc.name, 3));
+            }
+            if (++name_counts[tc.name] > max_same_tool) {
+                std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
+                          << " called " << max_same_tool << "+ times without progress\n";
+                return finish(funes::loop_failure(tc.name, max_same_tool));
+            }
 
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
@@ -533,19 +547,6 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                               << tc.name << ": " << e.what() << " — inlining\n";
                 }
             }
-            // Every use of last_tool_result below builds a *final answer* —
-            // the empty-completion salvage, the loop detector, the max_steps
-            // bailout. Those are read by a person, so this keeps the result's
-            // own text and not the preview envelope that goes to the model:
-            // handing a user `{"result_id":1,"head":…}` tells them nothing.
-            // Bounded, because the reason the full value left the transcript
-            // applies just as much to an answer bubble.
-            last_tool_result = result.text;
-            if (last_tool_result.size() > funes::kInlineLimit) {
-                funes::truncate_utf8_safe(last_tool_result, funes::kInlineLimit);
-                last_tool_result += "…";
-            }
-
             ChatMessage tool_msg;
             tool_msg.role         = "tool";
             tool_msg.content      = result.error
@@ -558,6 +559,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         }
     }
 
-    return finish("[Reached max_steps=" + std::to_string(cfg_.max_steps) +
-           " without a final answer. Last tool result: " + last_tool_result + "]");
+    std::cerr << "[agent:" << cfg_.name << "] exhausted max_steps=" << cfg_.max_steps
+              << " without a final answer\n";
+    return finish(funes::max_steps_failure(cfg_.max_steps, last_tool_name));
 }
