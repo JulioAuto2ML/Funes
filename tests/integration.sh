@@ -88,6 +88,9 @@ YAML
 
 # A file well over kInlineLimit (2048 bytes), for the result-store scenario.
 python3 -c "open('$WORKSPACE/big.txt','w').write('BIGFILESTART' + 'm'*8000 + 'BIGFILEEND')"
+# A small one, for the empty-completion salvage scenario: it stays inline, so
+# the salvaged answer is the file's own text and nothing else.
+printf 'SMALLFILEMARKER the small fixture\n' > "$WORKSPACE/small.txt"
 
 echo "— starting mock LLM on :$LLM_PORT"
 python3 tests/mock_llm.py $LLM_PORT &
@@ -237,6 +240,19 @@ else
     echo "  FAIL: salvaged answer is bounded — got $(echo "$OUT" | wc -c) bytes"
     FAILURES=$((FAILURES + 1))
 fi
+
+echo "— empty completion: a failing salvage retry still answers from the tool result"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"retry-boom please","session":"it-session-retry"}')
+# The salvage retry is best-effort by definition — the tool result is already
+# in hand. If it throws, the run must fall back to that result, not hand the
+# user a transport error. See agent.cpp, empty-completion retry.
+check_absent "no error event"       "$OUT" 'event: error'
+check "salvaged answer delivered"   "$OUT" 'event: done'
+# Assert on the *stored* turn, not the stream: the stream also carries a
+# tool_result event with this same text, so it would pass even on a failed run.
+OUT=$(curl -s "$BASE/api/history?session=it-session-retry")
+check "answer is the tool result"   "$OUT" 'SMALLFILEMARKER'
 
 echo "— answer schema: a malformed answer gets nudged, then accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \

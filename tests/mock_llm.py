@@ -176,6 +176,25 @@ class Handler(BaseHTTPRequestHandler):
                              stream)
             return
 
+        # The empty-completion salvage retry (agent.cpp): when a model returns
+        # no content right after a tool round trip, the loop makes one more
+        # call with tools disabled to shake the answer out. Here that retry
+        # itself fails. It is a *salvage* — the tool result is already in hand
+        # — so its failure must not become the user's answer.
+        if mentions(messages, "retry-boom"):
+            if not has_tool_result:
+                self._reply_tool({"id": "call_small", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "small.txt"})}},
+                                 stream)
+            elif "tools" not in req:
+                # No tools in the body ⇒ this is the salvage retry, not a
+                # normal step. build_openai_body omits the key entirely.
+                self._json(500, {"error": "salvage retry is down"})
+            else:
+                self._reply_text("", stream)
+            return
+
         # Answer schema (core/answer_schema.h). Same shape as the contract
         # scenarios above: "schema-comply" gets it right once told what was
         # wrong, "schema-refuse" never does and must fail loudly.

@@ -405,7 +405,18 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             std::string answer = resp.content;
             if (answer.empty() && step > 0) {
                 llm_.set_tool_choice("none");
-                CompletionResponse retry = llm_.complete(history, json::array(), on_delta);
+                CompletionResponse retry;
+                try {
+                    retry = llm_.complete(history, json::array(), on_delta);
+                } catch (const std::exception& e) {
+                    // Best-effort by definition: the tool results this call was
+                    // meant to narrate are already in history. Letting it throw
+                    // would turn a recoverable empty completion into an error
+                    // event and lose the whole run's work — so swallow it and
+                    // fall through to the same salvage an empty retry gets.
+                    std::cerr << "[agent:" << cfg_.name << "] empty-completion retry failed ("
+                              << e.what() << "), salvaging from the last tool result\n";
+                }
                 llm_.set_tool_choice(cfg_.tool_choice);
                 if (retry.prompt_tokens > 0) prompt_tokens_out = retry.prompt_tokens;
                 if (!retry.content.empty()) {
