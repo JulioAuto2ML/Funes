@@ -241,6 +241,21 @@ check "window has file content"    "$OUT" 'window=BIGFILESTART'
 OUT=$(curl -s "$BASE/api/history?session=it-session-results")
 check_absent "big payload absent from history" "$OUT" 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm'
 
+echo "— result store: dereferencing a stored result does not store it again"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"deref-full please","session":"it-session-deref"}')
+# A full window plus its trailing "N bytes remain" note lands just over the
+# inline limit, so the dereference used to be stored in turn and the model got
+# a new result_id instead of the text — forever. Exactly one store per run:
+# the original read_file, and nothing after it.
+check "window content reached the model" "$OUT" 'MOCK-DEREF-FULL got=BIGFILESTART'
+if [ "$(echo "$OUT" | grep -c 'event: result_stored')" = "1" ]; then
+    echo "  ok: only the original result was stored"
+else
+    echo "  FAIL: dereference re-stored — got $(echo "$OUT" | grep -c 'event: result_stored') stores"
+    FAILURES=$((FAILURES + 1))
+fi
+
 echo "— loop bailout: gives up honestly, carrying no tool output at all"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"big-loop please","session":"it-session-salvage"}')

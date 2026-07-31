@@ -28,8 +28,9 @@ ToolResult read_result_handler(MemoryStore& store, const json& args, const ToolC
     if (raw_offset < 0) return {"'offset' must not be negative", true};
     if (raw_limit <= 0) return {"'limit' must be positive", true};
 
-    // Clamped so this tool's own output can never cross the storage threshold
-    // and get stored in turn.
+    // Clamped to bound what one dereference costs in context. This does not
+    // keep the result under the storage threshold — result_window appends its
+    // note afterwards — so the exemption in result_store.h does that instead.
     const size_t limit = std::min<size_t>(static_cast<size_t>(raw_limit), funes::kInlineLimit);
 
     std::optional<std::string> text = store.get_result(ctx.session, id);
@@ -46,7 +47,7 @@ ToolResult read_result_handler(MemoryStore& store, const json& args, const ToolC
 
 void register_result_tools(ToolRegistry& reg, MemoryStore& store) {
     reg.add({
-        "read_result",
+        funes::kDereferenceTool,
         "Read part of a large tool result that was stored instead of being shown in full. "
         "When a tool returns a lot of data you get a preview containing a result_id, its "
         "size in bytes, and the start and end of the content; call this with that id to "

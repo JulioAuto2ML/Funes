@@ -610,7 +610,8 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // preview instead (see core/result_store.h). Errors are left alone:
             // they're short, and their text is what the model needs to recover.
             std::string tool_text = result.text;
-            if (!result.error && funes::exceeds_inline_limit(tool_text)) {
+            if (!result.error && !funes::exempt_from_store(tc.name)
+                && funes::exceeds_inline_limit(tool_text)) {
                 try {
                     const int64_t rid = memory_.store_result(ctx.session, cfg_.name,
                                                              tc.name, tool_text);

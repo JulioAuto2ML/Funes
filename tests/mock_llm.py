@@ -265,6 +265,47 @@ class Handler(BaseHTTPRequestHandler):
                     "</function></tool_call>", stream)
             return
 
+        # The same dereference, but asking for a full window rather than a
+        # 64-byte peek — which is what a real model does when it wants the
+        # content. result_window appends a "N bytes remain" note after the
+        # window, so a full one lands just over kInlineLimit and used to be
+        # stored in turn: reading a stored result produced another stored
+        # result, and the model got a fresh result_id instead of the text every
+        # time. That is what burned researcher's 20 steps on 2026-07-31.
+        if mentions(messages, "deref-full"):
+            stored_id, window = None, None
+            for m in messages:
+                if m.get("role") != "tool":
+                    continue
+                if m.get("name") == "read_result":
+                    window = m.get("content") or ""
+                    continue
+                try:
+                    payload = json.loads(m.get("content") or "")
+                except ValueError:
+                    continue
+                if isinstance(payload, dict) and "result_id" in payload:
+                    stored_id = payload["result_id"]
+
+            if stored_id is None and window is None:
+                self._reply_tool({"id": "call_read", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "big.txt"})}},
+                                 stream)
+            elif window is None:
+                self._reply_tool({"id": "call_deref", "type": "function",
+                                  "function": {"name": "read_result",
+                                               "arguments": json.dumps({"id": stored_id,
+                                                                        "offset": 0,
+                                                                        "limit": 2048})}},
+                                 stream)
+            else:
+                # Echo enough to prove the window itself came back, not another
+                # preview envelope pointing at yet another stored result.
+                self._reply_text("MOCK-DEREF-FULL got=%s" % window[:12].replace("\n", " "),
+                                 stream)
+            return
+
         # Withholding has to be announced, not just performed. This model does
         # what the 9B did on 2026-07-31: its transcript is full of tool calls,
         # so it keeps writing them as prose even on a turn that ships no tool
