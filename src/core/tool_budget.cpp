@@ -21,4 +21,13 @@ std::string budget_message(const std::string& tool, int limit) {
            "what you did find, rather than trying again.";
 }
 
+std::string withheld_notice() {
+    return "No tools are available for this turn. None will run, and a tool "
+           "call written out as text will be discarded rather than executed — "
+           "so writing one costs you the turn and produces nothing. Give the "
+           "final answer now, using only what is already in this conversation. "
+           "If what you have is thin, say what you found and what is missing; "
+           "that is still an answer, and it is the only kind available here.";
+}
+
 } // namespace funes

@@ -48,4 +48,12 @@ bool over_budget(const ToolLimits& limits, const std::string& tool,
 // a model that takes it for a transient error retries and burns its steps.
 std::string budget_message(const std::string& tool, int limit);
 
+// Injected as a user turn on any completion where tools are withheld — after a
+// refusal, and on the last step. Dropping the schema is necessary but not
+// sufficient: on 2026-07-31 `ai-newsletter` was handed a tool-free final turn
+// and wrote a <tool_call> blob anyway, twice, because its own transcript was
+// full of them and nothing said the situation had changed. Taking the option
+// away silently only works on a model that notices.
+std::string withheld_notice();
+
 } // namespace funes

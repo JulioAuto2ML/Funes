@@ -265,6 +265,20 @@ class Handler(BaseHTTPRequestHandler):
                     "</function></tool_call>", stream)
             return
 
+        # Withholding has to be announced, not just performed. This model does
+        # what the 9B did on 2026-07-31: its transcript is full of tool calls,
+        # so it keeps writing them as prose even on a turn that ships no tool
+        # schema at all. It only stops once the loop says so in words.
+        if mentions(messages, "needs-telling"):
+            if mentions(messages, "No tools are available for this turn"):
+                self._reply_text("MOCK-TOLD-SO-ANSWERED", stream)
+            else:
+                self._reply_text(
+                    "<tool_call><function=read_file>"
+                    "<parameter=path>small.txt</parameter>"
+                    "</function></tool_call>", stream)
+            return
+
         # The child runs as its own conversation, with the task as its only
         # user message — so it is keyed on the task text, not on the parent's.
         if mentions(messages, "sub-gives-up"):

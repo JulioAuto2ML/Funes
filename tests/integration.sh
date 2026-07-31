@@ -340,7 +340,11 @@ OUT=$(curl -s -N -X POST "$BASE/api/chat" \
 # that can still see the tool schema keeps reaching for it, and writes the call
 # as prose when the server won't emit one natively.
 check "answered once tools were gone" "$OUT" 'MOCK-YIELDED-ANSWER'
-check_absent "not a failed run"       "$OUT" 'FAILED —'
+# Against the stored answer, not the raw stream: the memories injected at the
+# top of a run quote earlier sessions, so a run that failed once poisons every
+# later FAILED check made against the SSE.
+check_absent "not a failed run" \
+    "$(curl -s "$BASE/api/history?session=it-session-xml1")" 'FAILED —'
 
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"xml-hog please","session":"it-session-xml2","agent":"steps-tester"}')
@@ -359,6 +363,15 @@ else
     echo "  FAIL: withheld call ran — got $(echo "$OUT" | grep -c 'event: tool_result') tool results"
     FAILURES=$((FAILURES + 1))
 fi
+
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"needs-telling please","session":"it-session-xml3","agent":"steps-tester"}')
+# Taking the option away silently only works on a model that notices. This one
+# imitates its own transcript and keeps writing calls as prose until the loop
+# states, in words, that the turn has no tools in it.
+check "told, and so answered" "$OUT" 'MOCK-TOLD-SO-ANSWERED'
+check_absent "not a failed run" \
+    "$(curl -s "$BASE/api/history?session=it-session-xml3")" 'FAILED —'
 
 echo "— delegation: a sub-agent that gives up reaches the caller as an error"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \

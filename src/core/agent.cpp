@@ -366,17 +366,36 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         // and a run that skips a required call is invalid however politely it
         // concluded. Better to spend the last step on the owed call and fail
         // for want of an answer than to answer with the floor unmet.
-        if (force_tool_call)                  llm_.set_tool_choice("required");
-        else if (force_no_tools || last_step) llm_.set_tool_choice("none");
+        const bool withhold = !force_tool_call && (force_no_tools || last_step);
+        if (force_tool_call) llm_.set_tool_choice("required");
+        else if (withhold)   llm_.set_tool_choice("none");
+
+        // Withholding is announced as well as performed. Dropping the schema
+        // decides what the server will accept; this decides what the model
+        // thinks it is doing, and a model imitating a transcript full of tool
+        // calls needs telling. The notice is appended for this completion only
+        // — it is scaffolding, not part of the conversation, and leaving it in
+        // history would have every later turn reading a claim about tools that
+        // stopped being true the moment the turn ended.
+        std::vector<ChatMessage> withheld_turn;
+        if (withhold) {
+            withheld_turn = history;
+            ChatMessage notice;
+            notice.role    = "user";
+            notice.content = funes::withheld_notice();
+            withheld_turn.push_back(std::move(notice));
+        }
+        const std::vector<ChatMessage>& msgs = withhold ? withheld_turn : history;
+
         try {
-            resp = llm_.complete(history, tools_schema_, on_delta);
+            resp = llm_.complete(msgs, tools_schema_, on_delta);
         } catch (const std::exception& e) {
             // Some OpenAI-compatible servers reject stream=true — retry once
             // without streaming before giving up.
             if (on_delta) {
                 std::cerr << "[agent:" << cfg_.name << "] streaming failed ("
                           << e.what() << "), retrying without stream\n";
-                resp = llm_.complete(history, tools_schema_);
+                resp = llm_.complete(msgs, tools_schema_);
                 if (emit && !resp.content.empty())
                     emit("delta", {{"text", resp.content}});
             } else {
@@ -384,7 +403,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 throw;
             }
         }
-        if (force_tool_call || force_no_tools || last_step) {
+        if (force_tool_call || withhold) {
             llm_.set_tool_choice(cfg_.tool_choice);
             force_tool_call = false;
             force_no_tools  = false;
@@ -427,12 +446,20 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // Some local models return an empty completion right after a tool
             // round trip. One follow-up call with tools disabled reliably
             // produces the text answer from the results already in history.
+            // It is a withheld turn like the ones above and gets the same
+            // notice — without it this retry drew another prose tool call out
+            // of the 9B, and a second empty answer with it.
             std::string answer = resp.content;
             if (answer.empty() && step > 0) {
                 llm_.set_tool_choice("none");
+                std::vector<ChatMessage> retry_msgs = history;
+                ChatMessage notice;
+                notice.role    = "user";
+                notice.content = funes::withheld_notice();
+                retry_msgs.push_back(std::move(notice));
                 CompletionResponse retry;
                 try {
-                    retry = llm_.complete(history, json::array(), on_delta);
+                    retry = llm_.complete(retry_msgs, json::array(), on_delta);
                 } catch (const std::exception& e) {
                     // Best-effort by definition — this call only exists to
                     // narrate results already in history. Letting it throw
