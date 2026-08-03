@@ -11,6 +11,7 @@ Behavior:
 """
 
 import json
+import re
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -74,6 +75,50 @@ class Handler(BaseHTTPRequestHandler):
                     "role": "assistant", "content": None,
                     "tool_calls": [tool_call]}}],
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+            return
+
+        # The cron tool's end-to-end flow (core/cron_runner.cpp, core/tools/
+        # cron_tool.cpp): operator schedules an agent-kind job, then runs it
+        # immediately with run_job_now — same two-step shape a real session
+        # would use to test a job definition before waiting on its schedule.
+        # The job id is read back out of schedule_job's own reply rather than
+        # assumed, the same way a model would have to.
+        if mentions(messages, "schedule-now"):
+            schedule_result, run_now_result = None, None
+            for m in messages:
+                if m.get("role") != "tool":
+                    continue
+                if m.get("name") == "schedule_job":
+                    schedule_result = m.get("content") or ""
+                elif m.get("name") == "run_job_now":
+                    run_now_result = m.get("content") or ""
+
+            if schedule_result is None:
+                tool_call = {"id": "call_schedule", "type": "function",
+                             "function": {"name": "schedule_job",
+                                          "arguments": json.dumps({
+                                              "name": "test-job",
+                                              "schedule": "* * * * *",
+                                              "kind": "agent",
+                                              "agent": "researcher",
+                                              "task": "cron-target-task"})}}
+                self._reply_tool(tool_call, stream)
+            elif run_now_result is None:
+                job_id_match = re.search(r"#(\d+)", schedule_result)
+                job_id = int(job_id_match.group(1)) if job_id_match else 0
+                tool_call = {"id": "call_run_now", "type": "function",
+                             "function": {"name": "run_job_now",
+                                          "arguments": json.dumps({"id": job_id})}}
+                self._reply_tool(tool_call, stream)
+            else:
+                self._reply_text("MOCK-CRON-DONE", stream)
+            return
+
+        # The cron job's own sub-run, kicked off by run_job_now above —
+        # answered distinctly from the generic MOCK-REPLY so the assertion
+        # on its session (core/cron_runner.cpp's "cron-<id>") is unambiguous.
+        if mentions(messages, "cron-target-task"):
+            self._reply_text("MOCK-CRON-CHILD-REPLY", stream)
             return
 
         if "delegate-now" in last_user and not has_tool_result:

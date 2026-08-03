@@ -9,8 +9,10 @@
 #include "funes_config.h"
 #include "agent.h"
 #include "api.h"
+#include "cron_runner.h"
 #include "memory.h"
 #include "tools.h"
+#include "tools/cron_tool.h"
 #include "tools/harvest.h"
 #include "tools/http_tool_runtime.h"
 #include "tools/issue.h"
@@ -192,6 +194,14 @@ int main() {
     register_delegation_tool(tools, memory, defaults,
         [&api](const std::string& name) { return api.find_agent(name); },
         [&api] { return api.agent_names(); });
+
+    // schedule_job/run_job_now need the same agent lookup as delegation, for
+    // kind="agent" jobs. See core/cron_runner.h for the poll loop and
+    // publishing/README.md for the crontab this is meant to eventually replace.
+    auto find_agent_for_cron = [&api](const std::string& name) { return api.find_agent(name); };
+    register_cron_tool(tools, memory, defaults, workspace_dir, find_agent_for_cron);
+    funes::cron::start_cron_runner(memory, tools, defaults, workspace_dir, find_agent_for_cron,
+                                   funes::env_int("FUNES_CRON_POLL_SECONDS", 30));
 
     // Embed any memories that are missing vectors (e.g. stored while the
     // embedding endpoint was down) without blocking startup.

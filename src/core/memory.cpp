@@ -170,6 +170,22 @@ void MemoryStore::migrate() {
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_tool_results_session ON tool_results(session);
+        CREATE TABLE IF NOT EXISTS cron_jobs (
+            id          INTEGER PRIMARY KEY,
+            name        TEXT NOT NULL,
+            kind        TEXT NOT NULL,
+            agent       TEXT NOT NULL DEFAULT '',
+            task        TEXT NOT NULL DEFAULT '',
+            command     TEXT NOT NULL DEFAULT '',
+            schedule    TEXT NOT NULL,
+            running     INTEGER NOT NULL DEFAULT 0,
+            created_at  INTEGER NOT NULL,
+            next_run_at INTEGER NOT NULL,
+            last_run_at INTEGER NOT NULL DEFAULT 0,
+            last_status TEXT NOT NULL DEFAULT '',
+            last_output TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_due ON cron_jobs(running, next_run_at);
     )sql");
 
     // Recall bookkeeping, added in 2.0 — consolidate() prunes on it, so it has
@@ -806,4 +822,112 @@ std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int limit) {
         out.push_back(std::move(summary));
     }
     return out;
+}
+
+// ── cron jobs ──────────────────────────────────────────────────────────────────
+
+namespace {
+
+MemoryStore::CronJob cron_job_from_row(Stmt& s) {
+    MemoryStore::CronJob job;
+    job.id          = s.col_int64(0);
+    job.name        = s.col_text(1);
+    job.kind        = s.col_text(2);
+    job.agent       = s.col_text(3);
+    job.task        = s.col_text(4);
+    job.command     = s.col_text(5);
+    job.schedule    = s.col_text(6);
+    job.running     = s.col_int64(7) != 0;
+    job.next_run_at = s.col_int64(8);
+    job.last_run_at = s.col_int64(9);
+    job.last_status = s.col_text(10);
+    job.last_output = s.col_text(11);
+    return job;
+}
+
+constexpr const char* kCronJobColumns =
+    "id, name, kind, agent, task, command, schedule, running, "
+    "next_run_at, last_run_at, last_status, last_output";
+
+} // namespace
+
+int64_t MemoryStore::create_cron_job(const CronJob& job) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, R"sql(
+        INSERT INTO cron_jobs(name, kind, agent, task, command, schedule,
+                              created_at, next_run_at)
+        VALUES (?,?,?,?,?,?,strftime('%s','now'),?)
+    )sql");
+    s.bind_text(1, job.name);
+    s.bind_text(2, job.kind);
+    s.bind_text(3, job.agent);
+    s.bind_text(4, job.task);
+    s.bind_text(5, job.command);
+    s.bind_text(6, job.schedule);
+    s.bind_int64(7, job.next_run_at);
+    s.step();
+    return sqlite3_last_insert_rowid(db_);
+}
+
+std::vector<MemoryStore::CronJob> MemoryStore::list_cron_jobs() {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +
+                " FROM cron_jobs ORDER BY id DESC").c_str());
+    std::vector<CronJob> out;
+    while (s.step()) out.push_back(cron_job_from_row(s));
+    return out;
+}
+
+bool MemoryStore::delete_cron_job(int64_t id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "DELETE FROM cron_jobs WHERE id = ?");
+    s.bind_int64(1, id);
+    s.step();
+    return sqlite3_changes(db_) > 0;
+}
+
+std::vector<MemoryStore::CronJob> MemoryStore::due_cron_jobs(int64_t now) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +
+                " FROM cron_jobs WHERE running = 0 "
+                "AND next_run_at <= ? ORDER BY next_run_at").c_str());
+    s.bind_int64(1, now);
+    std::vector<CronJob> out;
+    while (s.step()) out.push_back(cron_job_from_row(s));
+    return out;
+}
+
+std::optional<MemoryStore::CronJob> MemoryStore::get_cron_job(int64_t id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +
+                " FROM cron_jobs WHERE id = ?").c_str());
+    s.bind_int64(1, id);
+    if (!s.step()) return std::nullopt;
+    return cron_job_from_row(s);
+}
+
+void MemoryStore::mark_cron_job_running(int64_t id, bool running) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE cron_jobs SET running = ? WHERE id = ?");
+    s.bind_int64(1, running ? 1 : 0);
+    s.bind_int64(2, id);
+    s.step();
+}
+
+void MemoryStore::record_cron_job_run(int64_t id, bool ok, const std::string& output_preview,
+                                      int64_t next_run_at) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, R"sql(
+        UPDATE cron_jobs SET
+            last_run_at = strftime('%s','now'),
+            last_status = ?,
+            last_output = ?,
+            next_run_at = ?
+        WHERE id = ?
+    )sql");
+    s.bind_text(1, ok ? "ok" : "error");
+    s.bind_text(2, output_preview);
+    s.bind_int64(3, next_run_at);
+    s.bind_int64(4, id);
+    s.step();
 }

@@ -81,6 +81,14 @@ add_executable(test_tool_budget test_tool_budget.cpp)
 target_link_libraries(test_tool_budget PRIVATE funes_core)
 add_test(NAME tool_budget COMMAND test_tool_budget)
 
+add_executable(test_cron_schedule test_cron_schedule.cpp)
+target_link_libraries(test_cron_schedule PRIVATE funes_core)
+add_test(NAME cron_schedule COMMAND test_cron_schedule)
+
+add_executable(test_cron_tool test_cron_tool.cpp)
+target_link_libraries(test_cron_tool PRIVATE funes_core)
+add_test(NAME cron_tool COMMAND test_cron_tool)
+
 # ── publishing/ (Python) ──────────────────────────────────────────────────────
 # publish_newsletter.py is the component that decides whether mail goes out, so
 # its suite runs under the same `ctest` as everything else rather than behind a

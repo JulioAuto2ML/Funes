@@ -7,6 +7,7 @@
 //   vec_memories  — sqlite-vec virtual table with one embedding per memory
 //   turns         — conversation history per session (short-term memory)
 //   tool_results  — large tool outputs kept out of the transcript, by session
+//   cron_jobs     — scheduled recurring jobs (see core/cron_schedule.h)
 //   meta          — key/value store (embedding dimension, schema version)
 //
 // Degrades gracefully: with no embedding endpoint (or while it is down),
@@ -170,6 +171,46 @@ public:
 
     // Every session that has at least one turn, newest activity first.
     std::vector<SessionSummary> list_sessions(int limit = 50);
+
+    // ── Cron jobs (scheduled recurring work) ──────────────────────────────────
+    // See core/cron_schedule.h for the expression syntax and core/cron_runner.h
+    // for what actually executes a due job. This class only owns the table.
+
+    struct CronJob {
+        int64_t     id = 0;
+        std::string name;
+        std::string kind;      // "agent" | "shell"
+        std::string agent;     // kind=agent
+        std::string task;      // kind=agent
+        std::string command;   // kind=shell
+        std::string schedule;  // 5-field cron expression
+        bool        running = false;
+        int64_t     next_run_at = 0;  // unix time
+        int64_t     last_run_at = 0;  // 0 = never run
+        std::string last_status;      // "ok" | "error", empty if never run
+        std::string last_output;      // bounded preview of the last run
+    };
+
+    // Returns the new job's id.
+    int64_t create_cron_job(const CronJob& job);
+
+    // Newest first.
+    std::vector<CronJob> list_cron_jobs();
+
+    bool delete_cron_job(int64_t id);
+
+    // Not currently running, and due at or before `now`.
+    std::vector<CronJob> due_cron_jobs(int64_t now);
+
+    // Fetches one job by id regardless of running state — used by
+    // run_job_now, which runs a job out of band from the poll loop.
+    std::optional<CronJob> get_cron_job(int64_t id);
+
+    void mark_cron_job_running(int64_t id, bool running);
+
+    // Records the outcome of a run and advances next_run_at for the next tick.
+    void record_cron_job_run(int64_t id, bool ok, const std::string& output_preview,
+                             int64_t next_run_at);
 
 private:
     sqlite3*         db_ = nullptr;

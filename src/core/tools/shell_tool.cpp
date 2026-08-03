@@ -9,10 +9,10 @@
 // process group, and a capped output size. Only enable this for a Funes
 // instance you trust with full access to your account.
 
+#include "../funes_config.h"
 #include "../text_utils.h"
 #include "../tools.h"
 #include "process_runner.h"
-#include <cstdlib>
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -22,11 +22,6 @@ namespace {
 constexpr size_t MAX_OUTPUT_BYTES     = 16 * 1024;
 constexpr int    DEFAULT_TIMEOUT_SECS = 20;
 constexpr int    MAX_TIMEOUT_SECS     = 120;
-
-bool shell_enabled() {
-    const char* v = std::getenv("FUNES_ALLOW_SHELL");
-    return v && *v == '1';
-}
 
 ToolResult execute_shell_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
     // An agent's own `workspace_dir` (agents/*.yaml) overrides the server-wide
@@ -38,7 +33,7 @@ ToolResult execute_shell_handler(const fs::path& default_workspace, const json& 
         fs::create_directories(workspace, ec);
     }
 
-    if (!shell_enabled())
+    if (!funes::shell_allowed())
         return {"Shell execution is disabled. Set FUNES_ALLOW_SHELL=1 to enable it — "
                 "commands then run with the Funes process's own permissions inside " +
                 workspace.string() + ", with a timeout. Only turn this on if you trust "

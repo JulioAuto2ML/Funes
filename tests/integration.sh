@@ -198,6 +198,24 @@ check "sessions list ok"                  "$OUT" '"ok":true'
 check "sessions list has delegate session" "$OUT" 'it-session-delegate'
 check "sessions list has preview"          "$OUT" '"preview":"please delegate-now"'
 
+echo "— cron: operator schedules an agent job, then runs it immediately (run_job_now)"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"schedule-now","session":"it-session-cron","agent":"operator"}')
+check "schedule_job tool_call" "$OUT" 'schedule_job'
+check "run_job_now tool_call"  "$OUT" 'run_job_now'
+check "cron flow completed"    "$OUT" 'MOCK-CRON-DONE'
+
+JOB_ID=$(echo "$OUT" | grep -o 'Scheduled job #[0-9]*' | grep -o '[0-9]*' | head -1)
+
+OUT=$(curl -s "$BASE/api/sessions")
+check "cron job got its own session" "$OUT" "\"cron-$JOB_ID\""
+
+# persist=true (unlike delegate_to_agent's false, see core/cron_runner.cpp):
+# the job's task and answer show up in their own session, not the orchestrator's.
+OUT=$(curl -s "$BASE/api/history?session=cron-$JOB_ID")
+check "cron job session has its task"   "$OUT" 'cron-target-task'
+check "cron job session has its answer" "$OUT" 'MOCK-CRON-CHILD-REPLY'
+
 echo "— completion contract (require_tools): premature answer gets nudged, not accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"contract-comply please","session":"it-session-contract","agent":"contract-tester"}')

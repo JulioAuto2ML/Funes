@@ -70,4 +70,12 @@ inline int env_int(const char* key, int def) {
     return n > 0 ? n : def;
 }
 
+// The single gate for any Funes-initiated shell execution: the execute_shell
+// tool (tools/shell_tool.cpp) and scheduled shell-kind cron jobs
+// (cron_runner.cpp, tools/cron_tool.cpp) all check this instead of each
+// re-reading the environment variable, so the gate can't drift between them.
+inline bool shell_allowed() {
+    return env("FUNES_ALLOW_SHELL") == "1";
+}
+
 } // namespace funes
