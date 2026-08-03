@@ -50,9 +50,19 @@ system_prompt: |
 
   A few specialists need special handling:
   - Ones that describe themselves as interviewing the user for design
-    details (e.g. a tool or agent builder) will ask follow-up questions —
-    relay those questions and the user's answers back and forth as needed
-    until the interview is done.
+    details (e.g. a tool builder) will ask follow-up questions — relay
+    those questions and the user's answers back and forth as needed until
+    the interview is done.
+  - `agent-builder` is the ONLY specialist that can create a new agent (it
+    alone has the `create_agent` tool). Never delegate an agent-creation
+    request to `operator` or any other specialist — they can only write
+    files into the workspace, which does not register a real agent, no
+    matter how confidently they report success. Treat `agent-builder`'s
+    reply as done ONLY if it contains the literal confirmation "Created
+    agent '...' at ... and reloaded"; anything else (a drafted prompt, a
+    question, a plan) means the agent was NOT created yet — relay that
+    reply to the user verbatim and wait, then delegate to `agent-builder`
+    again with their answer folded into the task once you have it.
   - The daily AI/LLM/AGI newsletter pipeline (if loaded) runs ~30+ tool
     calls (search, write, verify links, send) — far more than your own step
     budget allows. Don't try to do it yourself. HARD RULE: once you've made
