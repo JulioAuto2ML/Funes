@@ -23,6 +23,9 @@
         <button id="toggle-memory" class="ghost" title="Show what Funes remembers">
           Memory <span id="memory-count" class="pill">0</span>
         </button>
+        <button id="toggle-jobs" class="ghost" title="Show scheduled cron jobs">
+          Jobs
+        </button>
         <span id="context-gauge" class="context-gauge" title="Context usage" hidden>
           <span class="bar"><span id="context-bar-fill" class="bar-fill"></span></span>
           <span id="context-pct">0%</span>
@@ -70,6 +73,13 @@
         </form>
         <input id="memory-search" type="search" placeholder="Search memories…">
         <div id="memory-list" class="memory-list"></div>
+      </aside>
+
+      <aside class="jobs-pane" id="jobs-pane" hidden>
+        <div class="jobs-head">
+          <h3>Scheduled jobs</h3>
+        </div>
+        <div id="jobs-list" class="jobs-list"></div>
       </aside>
 
     </main>

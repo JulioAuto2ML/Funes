@@ -355,6 +355,30 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {{"ok", true}, {"sessions", arr}});
     });
 
+    // ── cron jobs (read-only view for the UI; managed via the operator agent's
+    // schedule_job/cancel_job/run_job_now tools — see core/tools/cron_tool.cpp
+    // and core/cron_runner.h for what actually runs a due job) ────────────────
+    srv.Get("/api/jobs", [this](const httplib::Request&, httplib::Response& res) {
+        json arr = json::array();
+        for (const auto& j : memory_.list_cron_jobs()) {
+            arr.push_back({
+                {"id",          j.id},
+                {"name",        j.name},
+                {"kind",        j.kind},
+                {"agent",       j.agent},
+                {"task",        j.task},
+                {"command",     j.command},
+                {"schedule",    j.schedule},
+                {"running",     j.running},
+                {"next_run_at", j.next_run_at},
+                {"last_run_at", j.last_run_at},
+                {"last_status", j.last_status},
+                {"last_output", j.last_output}
+            });
+        }
+        json_reply(res, 200, {{"ok", true}, {"jobs", arr}});
+    });
+
     // ── upload (attach a file to the chat from the UI) ────────────────────────
     srv.Post("/api/upload", [this](const httplib::Request& req, httplib::Response& res) {
         if (!req.has_file("file"))

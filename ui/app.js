@@ -19,6 +19,9 @@ const els = {
   toggleMemory: $('toggle-memory'),
   memoryPane:   $('memory-pane'),
   memoryList:   $('memory-list'),
+  toggleJobs:   $('toggle-jobs'),
+  jobsPane:     $('jobs-pane'),
+  jobsList:     $('jobs-list'),
   memorySearch: $('memory-search'),
   memoryAdd:    $('memory-add'),
   memoryAddText:$('memory-add-text'),
@@ -253,6 +256,7 @@ async function sendMessage(displayText, fullText, images) {
     els.send.disabled = false;
     els.input.focus();
     refreshMemories();
+    refreshJobs();
     if (!els.chatsPane.hidden) refreshChats();
   }
 }
@@ -458,6 +462,92 @@ async function refreshMemories() {
   } catch (e) { /* server down — status dot will show it */ }
 }
 
+/* ── jobs pane ────────────────────────────────────────────────────────────── */
+
+// cron_jobs.next_run_at/last_run_at are unix seconds (see core/memory.h),
+// unlike the SQLite UTC strings formatRelativeTime handles above.
+function formatEpochRelative(epochSeconds) {
+  if (!epochSeconds) return 'never';
+  const mins = Math.round((epochSeconds * 1000 - Date.now()) / 60000);
+  if (Math.abs(mins) < 1) return 'now';
+  const ahead = mins > 0;
+  const n = Math.abs(mins);
+  let label;
+  if (n < 60) label = n + 'm';
+  else if (n < 24 * 60) label = Math.round(n / 60) + 'h';
+  else label = Math.round(n / (24 * 60)) + 'd';
+  return ahead ? 'in ' + label : label + ' ago';
+}
+
+async function refreshJobs() {
+  try {
+    const resp = await fetch('/api/jobs');
+    const data = await resp.json();
+    if (!data.ok) return;
+
+    els.jobsList.innerHTML = '';
+    if (data.jobs.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'jobs-empty';
+      empty.textContent = 'No scheduled jobs yet — ask the operator agent to schedule one.';
+      els.jobsList.appendChild(empty);
+      return;
+    }
+
+    for (const j of data.jobs) {
+      const item = document.createElement('div');
+      item.className = 'job-item';
+
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.append(j.name);
+      const kind = document.createElement('span');
+      kind.className = 'kind';
+      kind.textContent = j.kind;
+      title.appendChild(kind);
+      item.appendChild(title);
+
+      const target = document.createElement('div');
+      target.className = 'target';
+      target.textContent = j.kind === 'agent' ? '→ ' + j.agent + ': ' + j.task
+                                              : '→ ' + j.command;
+      item.appendChild(target);
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const schedule = document.createElement('span');
+      schedule.textContent = j.schedule;
+      meta.appendChild(schedule);
+      const next = document.createElement('span');
+      next.textContent = 'next ' + formatEpochRelative(j.next_run_at);
+      meta.appendChild(next);
+      const status = document.createElement('span');
+      status.className = 'status ' + (j.running ? 'running' : (j.last_status || ''));
+      status.textContent = j.running ? 'running now'
+                          : j.last_status ? j.last_status + ' ' + formatEpochRelative(j.last_run_at)
+                          : 'never run';
+      meta.appendChild(status);
+      item.appendChild(meta);
+
+      if (j.last_output) {
+        const result = document.createElement('div');
+        result.className = 'result';
+        const preview = document.createElement('div');
+        preview.className = 'preview';
+        preview.textContent = j.last_output;
+        const detail = document.createElement('div');
+        detail.className = 'detail';
+        detail.textContent = j.last_output;
+        result.append(preview, detail);
+        result.addEventListener('click', () => result.classList.toggle('open'));
+        item.appendChild(result);
+      }
+
+      els.jobsList.appendChild(item);
+    }
+  } catch (e) { /* server down — status dot will show it */ }
+}
+
 /* ── status ──────────────────────────────────────────────────────────────── */
 
 async function refreshStatus() {
@@ -611,6 +701,11 @@ els.toggleChats.addEventListener('click', () => {
   if (!els.chatsPane.hidden) refreshChats();
 });
 
+els.toggleJobs.addEventListener('click', () => {
+  els.jobsPane.hidden = !els.jobsPane.hidden;
+  if (!els.jobsPane.hidden) refreshJobs();
+});
+
 els.memorySearch.addEventListener('input', () => {
   clearTimeout(els.memorySearch._t);
   els.memorySearch._t = setTimeout(refreshMemories, 300);
@@ -637,6 +732,11 @@ els.memoryAdd.addEventListener('submit', async (e) => {
   await refreshStatus();
   await restoreHistory();
   refreshMemories();
+  refreshJobs();
   setInterval(refreshStatus, 15000);
+  // Jobs can fire on their own timer (core/cron_runner.h), with no chat turn
+  // to trigger a refresh the way schedule_job/cancel_job calls do — so this
+  // pane also polls unconditionally, same as refreshStatus above.
+  setInterval(refreshJobs, 15000);
   els.input.focus();
 })();

@@ -12,6 +12,9 @@
 //   DELETE /api/memories/<id>
 //   GET    /api/history             — ?session=&limit= (restore chat on reload)
 //   GET    /api/sessions            — ?limit= (conversation list: preview + last activity)
+//   GET    /api/jobs                — scheduled cron jobs, read-only (managed via the
+//                                       schedule_job/cancel_job/run_job_now tools — see
+//                                       core/tools/cron_tool.cpp)
 //   POST   /api/upload               — multipart 'file' → saved into the workspace,
 //                                       returns a text preview for the UI to embed
 //   GET    /*                       — static web UI
