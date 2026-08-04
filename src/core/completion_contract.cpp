@@ -30,20 +30,24 @@ static std::string join_tools(const std::vector<std::string>& tools) {
 }
 
 std::string contract_nudge(const std::vector<std::string>& missing) {
-    return "Stop. That was a text answer, but you have not called " +
+    // "have not succeeded", not "have not called" — a required tool can have
+    // been called and failed (satisfied.erase on error, agent.cpp), and
+    // telling the model it never called something it just watched fail reads
+    // as wrong to a model trying to recover from that failure.
+    return "Stop. That was a text answer, but " +
            join_tools(missing) +
-           " yet in this conversation, and the task is not complete without "
-           "them. Do not apologize, re-plan, or describe what you are about "
-           "to do. Emit the next tool call now — starting with " +
-           join_tools({missing.front()}) + ".";
+           " has not succeeded yet in this conversation, and the task is not "
+           "complete until it has. Do not apologize, re-plan, or describe "
+           "what you are about to do. Emit the next tool call now — "
+           "starting with " + join_tools({missing.front()}) + ".";
 }
 
 std::string contract_failure(const std::vector<std::string>& missing,
                              const std::string& model_answer) {
     std::string s = "FAILED — this run did not complete. The following required "
-                    "tool calls never happened: " + join_tools(missing) +
+                    "tool calls never succeeded: " + join_tools(missing) +
                     ". Any side effect they were responsible for (a file "
-                    "written, a message sent) did NOT occur.";
+                    "written, a message sent) is not confirmed to have happened.";
     if (!model_answer.empty())
         s += " The unverified claim made instead was: \"" + model_answer + "\"";
     return s;

@@ -386,6 +386,48 @@ class Handler(BaseHTTPRequestHandler):
                     else "content"), stream)
             return
 
+        # completion_contract regression (agent.cpp: satisfied.erase on a
+        # later failing call to a required tool). delegator-tester delegates
+        # twice: the first succeeds ("look something up" -> the generic
+        # MOCK-REPLY fallback below), the second fails ("sub-gives-up" -> the
+        # child answers empty, which becomes a FAILED — string). Without the
+        # erase, the first success would permanently satisfy
+        # require_tools=[delegate_to_agent], so the premature answer at n==2
+        # would be accepted as final instead of nudged into a third attempt.
+        if mentions(messages, "deleg-twice-then-boom"):
+            deleg_results = [m for m in messages if m.get("role") == "tool"
+                             and m.get("name") == "delegate_to_agent"]
+            n = len(deleg_results)
+            if n == 0:
+                self._reply_tool({"id": "call_d1", "type": "function",
+                                  "function": {"name": "delegate_to_agent",
+                                               "arguments": json.dumps({
+                                                   "agent": "researcher",
+                                                   "task": "look something up"})}},
+                                 stream)
+            elif n == 1:
+                self._reply_tool({"id": "call_d2", "type": "function",
+                                  "function": {"name": "delegate_to_agent",
+                                               "arguments": json.dumps({
+                                                   "agent": "researcher",
+                                                   "task": "sub-gives-up"})}},
+                                 stream)
+            elif n == 2:
+                nudged = any("has not succeeded yet" in (m.get("content") or "")
+                             for m in messages if m.get("role") == "user")
+                if nudged:
+                    self._reply_tool({"id": "call_d3", "type": "function",
+                                      "function": {"name": "delegate_to_agent",
+                                                   "arguments": json.dumps({
+                                                       "agent": "researcher",
+                                                       "task": "look something up"})}},
+                                     stream)
+                else:
+                    self._reply_text("MOCK-DELEGATOR-DONE (premature)", stream)
+            else:
+                self._reply_text("MOCK-DELEGATOR-DONE", stream)
+            return
+
         # The empty-completion salvage retry (agent.cpp): when a model returns
         # no content right after a tool round trip, the loop makes one more
         # call with tools disabled to shake the answer out. Here that retry

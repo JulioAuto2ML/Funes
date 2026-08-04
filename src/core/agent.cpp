@@ -604,7 +604,20 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             }
 
             last_tool_name   = tc.name;
+            // A later failing call undoes an earlier success for the SAME
+            // tool name — "satisfied" means the most recent call succeeded,
+            // not "succeeded at some point in this run". Without the erase,
+            // an agent that calls the same required tool twice for two
+            // different purposes (ai-newsletter's delegate_to_agent: once to
+            // research, once to publish) had its first success permanently
+            // satisfy the contract, so a real failure on the second call
+            // never blocked a premature text answer. On 2026-08-04 that let
+            // ai-newsletter narrate newsletter-publisher's genuine failure in
+            // its own prose instead of the framework forcing a retry or a
+            // hard FAILED — the cron job then recorded "ok" for a newsletter
+            // that never sent, because nothing downstream saw the marker.
             if (!result.error) satisfied.insert(tc.name);
+            else                satisfied.erase(tc.name);
 
             // Large results go to the store and the transcript carries a
             // preview instead (see core/result_store.h). Errors are left alone:

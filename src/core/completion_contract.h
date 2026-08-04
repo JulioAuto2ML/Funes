@@ -30,7 +30,15 @@ struct CompletionContract {
     bool active() const { return !required.empty(); }
 
     // `required` entries absent from `satisfied`, in declaration order.
-    // Duplicates in `required` are reported once.
+    // Duplicates in `required` are reported once. `satisfied` is built by
+    // agent.cpp's run_loop as "the MOST RECENT call to this tool name
+    // succeeded" — a later failure erases an earlier success (see the
+    // insert/erase pair around ToolResult.error there) — not "succeeded at
+    // least once ever". That distinction matters for an agent that calls the
+    // same required tool more than once for different purposes, e.g.
+    // ai-newsletter's delegate_to_agent (once to research, once to publish):
+    // without the erase, the first call's success would permanently satisfy
+    // the contract regardless of whether the second one failed.
     std::vector<std::string> missing(const std::set<std::string>& satisfied) const;
 
     // How many times the model may try to finish early before the run is failed.

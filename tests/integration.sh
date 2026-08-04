@@ -52,6 +52,14 @@ require_tools: [write_file]
 max_steps: 6
 system_prompt: Write the file you are asked for.
 YAML
+cat > "$AGENTS/delegator-tester.yaml" <<'YAML'
+name: delegator-tester
+description: Test fixture — require_tools=[delegate_to_agent] must track the MOST RECENT call, not any call that ever succeeded.
+tools: [delegate_to_agent]
+require_tools: [delegate_to_agent]
+max_steps: 8
+system_prompt: Delegate as instructed.
+YAML
 cat > "$AGENTS/schema-tester.yaml" <<'YAML'
 name: schema-tester
 description: Test fixture — an agent whose final answer must be a JSON object.
@@ -417,6 +425,32 @@ check "parent saw a tool error"        "$OUT" 'MOCK-PARENT-SAW: error'
 # An errored result skips the result store, so it stays inline and visible
 # rather than becoming a preview envelope the parent has to dereference.
 check_absent "failure not stored as a result" "$OUT" 'event: result_stored'
+
+echo "— completion contract: a later failed delegate_to_agent call must not"
+echo "  be excused by an earlier successful one (2026-08-04 newsletter bug)"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"deleg-twice-then-boom please","session":"it-session-deleg-contract","agent":"delegator-tester"}')
+# ai-newsletter delegates to researcher (succeeds), then to newsletter-publisher
+# (fails). Without satisfied.erase on the second call's error, the first
+# success permanently satisfies require_tools=[delegate_to_agent], so the
+# agent answers in prose the moment the second delegation fails — no nudge,
+# no third attempt, no FAILED marker for cron_runner's is_run_failure to see.
+check "contract nudge fired after the failed 2nd delegation" \
+      "$OUT" 'event: contract_nudge'
+DELEG_CALLS=$(echo "$OUT" | grep -c 'event: tool_call')
+if [ "$DELEG_CALLS" -eq 3 ]; then
+    echo "  ok: forced a 3rd delegate_to_agent call, not accepted at 2"
+else
+    echo "  FAIL: forced a 3rd delegate_to_agent call, not accepted at 2 — got $DELEG_CALLS tool_call event(s)"
+    FAILURES=$((FAILURES + 1))
+fi
+# The premature answer legitimately streams as a delta while it's being
+# generated (before the framework has decided whether to accept it) — same
+# as the contract-tester precedent above — so the real assertion is on the
+# final `done` event specifically, not on the stream as a whole.
+FINAL_ANSWER=$(echo "$OUT" | grep -A1 '^event: done' | tail -1)
+check "eventually answered for real"    "$FINAL_ANSWER" 'MOCK-DELEGATOR-DONE'
+check_absent "final answer is not the premature one" "$FINAL_ANSWER" 'premature'
 
 echo "— answer schema: a malformed answer gets nudged, then accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
