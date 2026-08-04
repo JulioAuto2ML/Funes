@@ -9,6 +9,7 @@
 
 #include "httplib.h"
 #include "tools.h"
+#include "tools/page_text.h"
 #include <cstdlib>
 #include <iostream>
 #include <thread>
@@ -116,10 +117,51 @@ int test_large_inline_script_does_not_crash() {
     return 0;
 }
 
+// A CNBC-style page hit this in production: a nav-heavy header pushed the
+// real article text past a candidate's excerpt window entirely, leaving
+// nothing quotable and forcing the model to fake "evidence" from the title.
+// html_to_text dropped <script>/<style> content but not <nav>/<header>/
+// <footer>/<aside> — this locks in that those four are dropped the same way.
+int test_boilerplate_landmarks_are_dropped() {
+    using funes::web::html_to_text;
+
+    std::string html =
+        "<html><body>"
+        "<header><nav><ul><li><a href='/markets'>Markets</a></li>"
+        "<li><a href='/business'>Business</a></li>"
+        "<li><a href='/tech'>Tech</a></li></ul></nav></header>"
+        "<article><h1>Real headline</h1>"
+        "<p>The actual article text goes here.</p></article>"
+        "<aside><div>Related: five other stories you might like</div></aside>"
+        "<footer><p>Copyright 2026. Contact us. Privacy policy.</p></footer>"
+        "</body></html>";
+
+    std::string text = html_to_text(html);
+    CHECK(text.find("Markets") == std::string::npos);
+    CHECK(text.find("Business") == std::string::npos);
+    CHECK(text.find("Related:") == std::string::npos);
+    CHECK(text.find("Copyright") == std::string::npos);
+    CHECK(text.find("Privacy policy") == std::string::npos);
+    CHECK(text.find("Real headline") != std::string::npos);
+    CHECK(text.find("The actual article text goes here.") != std::string::npos);
+
+    // Tag names that merely start with one of the dropped names (e.g. a
+    // hypothetical <navigation>) must not be mistaken for <nav> and eaten.
+    std::string not_a_landmark =
+        "<navigation>this is not a landmark tag</navigation>"
+        "<asideways>neither is this</asideways>";
+    std::string text2 = html_to_text(not_a_landmark);
+    CHECK(text2.find("this is not a landmark tag") != std::string::npos);
+    CHECK(text2.find("neither is this") != std::string::npos);
+
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_non_utf8_response_does_not_crash();
     rc |= test_large_inline_script_does_not_crash();
+    rc |= test_boilerplate_landmarks_are_dropped();
     if (rc == 0) std::cout << "test_web_fetch: all tests passed\n";
     return rc;
 }

@@ -71,6 +71,32 @@ std::string html_to_text(const std::string& html) {
             continue;
         }
 
+        // Boilerplate landmarks: a menu-heavy page (nav bars, site headers/
+        // footers, sidebars) can otherwise push the real article text past
+        // whatever excerpt window a caller keeps, leaving nothing quotable.
+        // Same drop-the-content treatment as <script>/<style> above.
+        {
+            static const char* kBoilerplateTags[] = {"nav", "header", "footer", "aside"};
+            const char* matched = nullptr;
+            for (const char* tag : kBoilerplateTags) {
+                size_t len = std::strlen(tag);
+                if (lower.compare(i + 1, len, tag) == 0) {
+                    char after = (i + 1 + len < lower.size()) ? lower[i + 1 + len] : '>';
+                    if (after == '>' || after == ' ' || after == '\t' || after == '\n' || after == '/') {
+                        matched = tag;
+                        break;
+                    }
+                }
+            }
+            if (matched) {
+                const std::string close = std::string("</") + matched + ">";
+                size_t close_pos = lower.find(close, i);
+                text += ' ';
+                i = (close_pos == std::string::npos) ? html.size() : close_pos + close.size();
+                continue;
+            }
+        }
+
         if (lower.compare(i, 3, "<br") == 0) {
             text += '\n';
             size_t gt = html.find('>', i);
