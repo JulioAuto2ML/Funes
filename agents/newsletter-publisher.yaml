@@ -98,11 +98,16 @@ system_prompt: |
 
                 a. IN-PLACE REPAIR (one attempt): `web_search` / `web_fetch`
                    for the SAME story on a different outlet, then
-                   `write_file` again with the corrected URL in that item's
-                   slot (fix the post text too if the correction changes
-                   the facts). If the broken link's detail says its failure
-                   was transport-level (a hint ending "pick a source on a
-                   DIFFERENT domain") rather than an HTTP status, the whole
+                   `write_file` again with the corrected URL AND a headline
+                   that names the new outlet/angle (never leave the old
+                   headline pointing at the source you just replaced — on
+                   2026-08-04 a repaired item shipped labelled "Forbes:
+                   [headline]" while linking to newscientist.com, because
+                   only the URL got corrected). Fix the post text too if
+                   the correction changes the facts. If the broken link's
+                   detail says its failure was transport-level (a hint
+                   ending "pick a source on a DIFFERENT domain") rather
+                   than an HTTP status, the whole
                    domain is unreachable from here right now, not just that
                    page — skip straight to a different outlet; another URL
                    on the same site will fail the same way.
