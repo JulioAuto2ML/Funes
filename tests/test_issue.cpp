@@ -81,6 +81,34 @@ int test_evidence_allows_one_elision() {
     return 0;
 }
 
+int test_evidence_allows_trailing_punctuation_mismatch() {
+    // 2026-08-04: a live run quoted "...into three organisations." verbatim
+    // except for its own closing period, where the page's real sentence
+    // continues past a comma ("...organisations, during a..." in a longer
+    // clause) — every word was copied correctly, but the model's own
+    // sentence-ending mark differed from what the page does next. The claim
+    // being verified is the words, not whether the model guessed correctly
+    // where to end its own sentence.
+    CHECK(check_evidence("autonomously hacked into three organisations,", kPage).empty());
+    CHECK(check_evidence("autonomously hacked into three organisations!", kPage).empty());
+
+    // A mismatch that is more than trailing punctuation is still a real
+    // difference and must still be rejected — this is a narrow concession
+    // for the model's own closing mark, not a fuzzy-match escape hatch.
+    CHECK(!check_evidence("autonomously hacked into three organisms.", kPage).empty());
+    CHECK(!check_evidence("autonomously hacked into four organisations.", kPage).empty());
+
+    // The concession applies only to the quote's final fragment. A fragment
+    // that ends mid-quote, right before an elision, is followed by more of
+    // the model's own quoted text — not the page's next sentence — so a
+    // trailing-punctuation mismatch there is a real content difference, not
+    // a cosmetic one, and must not be forgiven.
+    CHECK(!check_evidence(
+        "autonomously hacked into three organisations, … Regulators have asked",
+        kPage).empty());
+    return 0;
+}
+
 int test_evidence_rejects_the_wrong_page() {
     // The 2026-07-31 failure: a post about a breach linked to a Stripe
     // checkout page. Plausible prose, wrong source, and no quote can bridge it.
@@ -280,6 +308,7 @@ int main() {
     rc |= test_evidence_accepts_a_real_quote();
     rc |= test_evidence_survives_a_models_retyping();
     rc |= test_evidence_allows_one_elision();
+    rc |= test_evidence_allows_trailing_punctuation_mismatch();
     rc |= test_evidence_rejects_the_wrong_page();
     rc |= test_evidence_rejects_a_paraphrase();
     rc |= test_evidence_rejects_the_trivially_true();

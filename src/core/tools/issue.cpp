@@ -129,8 +129,31 @@ std::string check_evidence(const std::string& quote, const std::string& page_tex
 
     const std::string haystack = normalize_for_match(page_text);
     size_t from = 0;
-    for (const auto& fragment : fragments) {
-        const size_t at = haystack.find(fragment, from);
+    for (size_t i = 0; i < fragments.size(); ++i) {
+        std::string fragment = fragments[i];
+        size_t at = haystack.find(fragment, from);
+
+        // The quote's own closing punctuation is not part of the claim it's
+        // proving: a model that ends a truncated sentence with "." where the
+        // page's real text actually continues past a "," (or keeps going
+        // uninterrupted) has still copied every word correctly up to there.
+        // Only the last fragment gets this — one earlier in the quote is
+        // followed by more quoted text, not the model's own sentence-ending
+        // punctuation, so a mismatch there is a real content difference.
+        if (at == std::string::npos && i + 1 == fragments.size() && !fragment.empty()) {
+            static const std::string kSentenceEnders = ".,;:!?";
+            if (kSentenceEnders.find(fragment.back()) != std::string::npos) {
+                const std::string trimmed = fragment.substr(0, fragment.size() - 1);
+                if (!trimmed.empty()) {
+                    const size_t trimmed_at = haystack.find(trimmed, from);
+                    if (trimmed_at != std::string::npos) {
+                        at = trimmed_at;
+                        fragment = trimmed;
+                    }
+                }
+            }
+        }
+
         if (at == std::string::npos)
             return "this phrase does not appear on that page: \"" + fragment + "\"";
         from = at + fragment.size();
