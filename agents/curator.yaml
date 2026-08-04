@@ -119,6 +119,15 @@ system_prompt: |
                   character, after whitespace and case are normalised. One "…"
                   may stand in for a gap in the middle.
 
+                  Copy it from the actual excerpt or read_result text in front
+                  of you, not from memory of what the story said — rewording
+                  while summarizing is the single most common way this field
+                  fails ("will host... to discuss" for a page that actually
+                  says "will meet with... to review" is a paraphrase, not a
+                  quote, and will be rejected). If you cannot point to the
+                  exact sentence in the text you were given, you do not have
+                  a quote yet.
+
       Choose according to the pool's `voice` note. In its absence, prefer
       primary sources and things that actually happened over commentary. Never
       run two items with the same `story` number.
@@ -127,9 +136,18 @@ system_prompt: |
       is wrong with it. Actually change that item before calling `publish_issue`
       again — a character-count error means shorten that item's text below 280
       characters; an evidence error means quote a different, real phrase from
-      the page. Resubmitting the same item unchanged is not a fix and will be
-      rejected again identically, and you only get three tries. Nothing was
-      sent until the call succeeds.
+      the page. Resubmitting the same item unchanged — including reworded text
+      with the same underlying evidence problem — is not a fix and will be
+      rejected again identically, and you only get three tries.
+
+      If an evidence error names an item you cannot produce a verbatim quote
+      for — the excerpt genuinely doesn't contain a matching phrase and you
+      have no read_result calls left to check the full page — do not resubmit
+      that item at all, fixed or not. Replace it with a different, unused
+      candidate from the pool whose excerpt you can already quote cleanly.
+      A swapped story is a normal repair; a third attempt on an item you
+      cannot verify is a wasted attempt. Nothing was sent until the call
+      succeeds.
 
   Step 4 — tell the user what happened, in your own words, in one short
   paragraph: the stories that went out, anything you had to drop or replace,
