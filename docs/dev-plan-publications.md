@@ -17,6 +17,14 @@
 >
 > Two decisions were taken against the letter of §2.2 and §8 and are marked
 > **[decided]** in place below.
+>
+> **Status (2026-08-04): the one known blocker (nav-stripping) is fixed and
+> deployed; not yet switched on for real sends.** Four live runs against the
+> real 9B model, three real fixes landed and verified, all four still ended
+> `blocked` rather than `sent` — see "Fixed 2026-08-04, then four more live
+> runs" under §7 for what was fixed and what's still open. The production
+> schedule (`cron_jobs` row `id=1`) still points at the old `ai-newsletter`
+> pipeline; §6 has the cutover steps once a run goes clean.
 
 ## The premise
 
@@ -353,9 +361,23 @@ LinkedIn posts the link-verified URL instead of a re-parsed one.
 
 ## 6. Scheduling
 
-Funes has no scheduler; the newsletter run is started by hand, while the
-LinkedIn posts that consume its output are on cron. That asymmetry is why a
-failed newsletter can still leave cron posting yesterday's items.
+**Update, 2026-08-04: superseded by Funes's own in-process scheduler.**
+Everything below this paragraph describes the OS-crontab design as originally
+planned; it was never built that way. Funes grew `schedule_job`/`list_jobs`/
+`cancel_job`/`run_job_now` tools backed by a `cron_jobs` table in
+`~/.funes/memory.db` before this phase shipped, and the daily newsletter run
+(`id=1`, `name='Daily AI Newsletter'`) is one of those rows, not a crontab
+line. Cutting over to `curator` means pointing that row's `agent` and `task`
+fields at curator via `cancel_job` + `schedule_job` (same `name` and
+`schedule`), not touching `/etc/cron*` or the crontab lines in
+`publishing/README.md` referenced below — those remain correct only for the
+LinkedIn posting side (`post_tweet.py`), which is genuinely still OS cron.
+
+Original text, for the LinkedIn side and the run-record contract, which are
+still accurate: Funes has no scheduler; the newsletter run was started by
+hand, while the LinkedIn posts that consume its output are on cron. That
+asymmetry is why a failed newsletter can still leave cron posting yesterday's
+items.
 
 Simplest thing that works: a cron entry on yoda that POSTs to
 `/api/chat` with `agent: curator`, and a `post_tweet.py` that refuses to post
@@ -543,20 +565,76 @@ other candidates, it copied the candidate's `title` field in as "evidence"
 instead, which `build_issue` correctly rejected. Root cause: `html_to_text`
 in `page_text.cpp` is a naive tag-stripper with no boilerplate removal —
 shared by both `web_fetch` and `harvest_candidates` — so a nav-heavy page's
-excerpt can be nearly all menu text. Not yet fixed; see "Still open" below.
+excerpt can be nearly all menu text. Fixed 2026-08-04; see below.
+
+### Fixed 2026-08-04, then four more live runs against the real 9B model
+
+The nav-stripping fix landed first: `html_to_text` now drops `<nav>`/
+`<header>`/`<footer>`/`<aside>` content the same way it already dropped
+`<script>`/`<style>`, with test coverage in `tests/test_web_fetch.cpp`.
+Verified independently against the actual CNBC page from the seventh run:
+before the fix, ~1400 bytes of desktop nav (wrapped in a real `<header>`)
+preceded the article; after, real text starts ~130 bytes in, comfortably
+inside the excerpt window. (A residual: CNBC also ships a duplicate
+"mobile nav" menu as a plain, non-landmark `<div>` sibling — ~100 bytes of
+leftover menu text, cosmetic, not blocking.)
+
+Four live runs followed, all against real Tavily/web data, all correctly
+blocked by `check_evidence` rather than sending — the `require_tools` +
+`status: blocked` run-record contract held throughout. Each surfaced a
+distinct problem, in decreasing order of "prompt fix" vs. "model
+capability limit":
+
+1. **Resubmitting an identical rejected item.** Run 1's third
+   `publish_issue` attempt resent an unchanged paraphrased evidence quote,
+   burning its last try on a mistake already flagged. Fixed by adding an
+   explicit "replace the item with a different pool candidate, don't retry
+   one you can't verify" instruction to `agents/curator.yaml` — confirmed
+   fixed: no later run ever resubmitted an item unchanged.
+2. **An exact quote rejected over its own trailing punctuation.** Run 2
+   copied a real sentence correctly but closed it with "." where the page's
+   text actually continued past a ",". `check_evidence` (`issue.cpp`) now
+   retries the quote's *last* fragment with one trailing sentence-ending
+   mark stripped before the substring search — the same "concessions that
+   cost nothing" category as the existing case-fold/typographic-quote/
+   single-ellipsis rules (§8.2), added against three observed false rejects
+   rather than speculatively. Tested in `tests/test_issue.cpp`, including
+   that the concession does *not* apply to a non-final fragment (real
+   content difference there, not a cosmetic one).
+3. **Budget exhausted one attempt short.** Run 2 needed a 4th
+   `publish_issue` try that the 3-try budget didn't have. Raised to 4 in
+   `agents/curator.yaml`'s `tool_limits`.
+4. **Quoting from memory instead of the selected page.** Run 4's final
+   rejection looked like a false reject (the quote is a real, verbatim
+   sentence — from TheNextWeb's coverage of an EU AI Act story) but wasn't:
+   the candidate the model actually selected and read was the EU's own
+   `digital-strategy.ec.europa.eu` policy page, which doesn't carry that
+   sentence. The model paginated `read_result` four times (offsets 0/2048/
+   4096/6144) on that one page hunting for a match, instead of recognizing
+   it couldn't support the story and swapping to a different candidate —
+   both the "never a third read on one page" and "replace an unfixable
+   item" instructions already in the prompt, just not reliably followed
+   under budget pressure. **Not fixed** — this is a 9B-model grounding/
+   budget-discipline limit, not a bug; another prompt tweak is unlikely to
+   reliably close it. Every run tonight still ended with a correct `blocked`
+   status and zero bad sends, so the safety property held even without a
+   clean run. Next session: either accept occasional blocked days as normal
+   (the architecture is designed to make that visible, not silent) and
+   switch the schedule anyway, or hold off until a run goes clean.
 
 ### Still open
 
-- **Nav/boilerplate not stripped from extracted page text.** `html_to_text`
-  (`page_text.cpp`) already drops `<script>`/`<style>` content but not
-  `<nav>`/`<header>`/`<footer>`/`<aside>`, so a menu-heavy page can push the
-  real article past the excerpt window entirely. Candidate fix: treat those
-  four tags the same way `<script>`/`<style>` are treated. Affects both
-  `web_fetch` and `harvest_candidates`, so worth doing carefully with its own
-  test pass rather than as a quick nudge.
+- **Model reliability on strict verbatim quoting under a tool-call budget**
+  (see run 4 above) — the remaining blocker to a fully clean live run, and
+  arguably not closeable by prompt tuning alone.
 - **Bot-blocked hosts.** The 401/403/429 SUSPECT set is recorded and never
   blocks, as it always has. A per-publication allowlist of hosts known to bounce
   HEAD requests would let "suspect" shrink toward meaning something.
+- **`check_evidence` has no word-boundary check.** Found incidentally while
+  testing the trailing-punctuation fix: a quote missing a trailing letter
+  (e.g. "organisation" for a page that says "organisations") can pass
+  because substring search doesn't care what follows. Not exploited by
+  anything observed live; worth a look if evidence quality regresses.
 - **A scheduler inside Funes.** `run_publication.sh` is cron plus a run-record
   check. A real one wants a job table, retries and a UI, and is a bigger question
   than this document.
