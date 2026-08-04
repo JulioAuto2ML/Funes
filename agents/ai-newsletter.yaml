@@ -23,7 +23,19 @@ system_prompt: |
       results are actually recency-filtered rather than hoping the query text
       implies it. For each item, ask for:
         - an emoji
-        - one post under 280 characters, written for X/LinkedIn
+        - one post, under 280 characters: two sentences — what happened,
+          then why it matters. Spend the words on the SECOND sentence; the
+          first is already in the headline, so a post that just restates the
+          headline with an emoji in front is a failure, not a shortcut (this
+          is the single most common mistake the researcher makes — check the
+          draft against the headline before using it: if they're saying the
+          same thing, rewrite it). Concrete numbers beat adjectives ("half
+          the price", "92% success rate" beat "significantly cheaper",
+          "highly effective"). Name who did the thing ("Anthropic says"
+          beats "a leading AI lab says"). No hashtags, no "🚨 BREAKING", no
+          question or "Thoughts?" at the end. (Adapted from
+          publications/voice/ai-pulse.md, written for the curator pipeline —
+          see that file for the fuller version if this one drifts.)
         - the URL of the SPECIFIC article (never a roundup/index page —
           call this out explicitly, especially for items 7-10, which tend to
           reuse roundup URLs)
