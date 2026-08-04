@@ -234,6 +234,25 @@ class CheckLink(unittest.TestCase):
         self.assertEqual(status, "broken")
         self.assertEqual(seen, ["HEAD", "GET", "HEAD", "GET"])   # tried twice
 
+    def test_a_persistent_timeout_hints_at_a_domain_block(self):
+        # The repair loop only gets one signal to tell "page is gone" apart
+        # from "this host can't reach the domain at all" — without it, on
+        # 2026-08-04 it spent both repair attempts on two more forbes.com
+        # URLs for the same story that were never going to work either.
+        err = TimeoutError("timed out")
+        patcher, _ = self._stub({"HEAD": err, "GET": err})
+        with patcher:
+            _, detail = pn.check_link("https://x.test/")
+        self.assertIn("DIFFERENT domain", detail)
+
+    def test_an_http_404_does_not_hint_at_a_domain_block(self):
+        # The server answered on purpose here — the domain is fine, only the
+        # page is gone, so another URL on the same site is a reasonable fix.
+        patcher, _ = self._stub({"HEAD": _http_error(404)})
+        with patcher:
+            _, detail = pn.check_link("https://x.test/")
+        self.assertNotIn("DIFFERENT domain", detail)
+
     def test_an_http_status_is_never_retried(self):
         # The server answered. Asking again will not change its mind, and ten
         # pointless retries would double the length of every run.

@@ -209,6 +209,20 @@ def _attempt(url):
     return "broken", "no response to HEAD or GET", True
 
 
+# Appended to a broken link's detail when every attempt failed at the
+# transport level (never got as far as an HTTP status). The repair loop
+# (newsletter-publisher.yaml) otherwise has no way to tell "this article is
+# gone" from "this host can't reach this domain at all right now" — and on
+# 2026-08-04 it burned both of its repair attempts on two more forbes.com
+# URLs for the same story, because nothing said not to. A retried transport
+# failure is a statement about the *domain* from *this host*, not the page.
+DOMAIN_BLOCK_HINT = (" — transport-level failure after retry, not an HTTP "
+                      "status: likely this host is blocked or rate-limited by "
+                      "the domain, not that the page is gone. If repairing, "
+                      "pick a source on a DIFFERENT domain — another URL on "
+                      "the same site will probably fail the same way.")
+
+
 def check_link(url, retries=1):
     """Returns (status, detail). status is one of ok / suspect / broken.
 
@@ -222,9 +236,11 @@ def check_link(url, retries=1):
     for attempt in range(retries + 1):
         status, detail, transport_failure = _attempt(url)
         if not transport_failure or attempt == retries:
+            if status == "broken" and transport_failure:
+                detail += DOMAIN_BLOCK_HINT
             return status, detail
         time.sleep(RETRY_PAUSE)
-    return "broken", "no response to HEAD or GET"     # unreachable; keeps the contract
+    return "broken", "no response to HEAD or GET" + DOMAIN_BLOCK_HINT
 
 
 def check_all(posts):
