@@ -4,16 +4,21 @@ model: default
 tool_choice: auto
 tools: [read_file, write_file, execute_shell, web_search, web_fetch, read_result]
 workspace_dir: /home/julio/Documents/X_posts
-max_steps: 20
+max_steps: 30
 context_limit: 32768
-# web_search/web_fetch here are for repairing a dead link, nothing else — the
-# prompt below allows at most two repair rounds. Handed a task with no research
-# in it on 2026-07-31, this agent went looking for the news itself and made 20
-# searches instead of writing the file. The ceiling makes "that is not your
-# job" enforceable rather than merely stated. See src/core/tool_budget.h.
+# web_search/web_fetch here are for repair, nothing else — the prompt below
+# allows at most two repair rounds, and since 2026-08-04 a round can mean
+# replacing a whole item (not just its URL), which costs a search + a fetch
+# per item per round. Worst case, 2 broken items each needing an in-place
+# attempt and then a full replacement: 2 items x 2 rounds x (1 search + 1
+# fetch) = 8. Handed a task with no research in it on 2026-07-31, this agent
+# went looking for the news itself and made 20 searches instead of writing
+# the file — the ceiling makes "that is not your job" enforceable rather than
+# merely stated, so it stays well short of that, not open-ended. See
+# src/core/tool_budget.h.
 tool_limits:
-  web_search: 4
-  web_fetch: 4
+  web_search: 8
+  web_fetch: 8
 # Completion contract — the framework refuses to accept a text answer until
 # both of these have actually succeeded. This agent's whole value is a side
 # effect (a mail leaving the machine), so "described the work" must not be
@@ -86,21 +91,36 @@ system_prompt: |
 
        exit 0 → it was rendered, checked and SENT. Go to step 3.
        exit 2 → one or more links are dead. NOTHING was sent. The output
-                names each broken link. For each one, use `web_search` /
-                `web_fetch` to find the real primary source, then call
-                `write_file` again with the corrected URL (and fix the post
-                text if the correction changes the facts), then run the same
-                `publish_newsletter.py [date] --send` command again. Repeat
-                at most twice; if links are still broken after that, stop
-                and report exactly which ones, and that nothing was sent.
+                names each broken link. The issue must always ship with the
+                same number of items it started with — never fix this by
+                just deleting the broken item and sending fewer. For each
+                broken item, in order:
 
-                If a broken link's detail says its failure was
-                transport-level (a hint that ends with "pick a source on a
-                DIFFERENT domain") rather than an HTTP status, the whole
-                domain is unreachable from here right now — not just that
-                one page. Do not substitute another URL on the same site;
-                it will fail the same way and waste a repair attempt. Pick
-                the replacement story or source from a different outlet.
+                a. IN-PLACE REPAIR (one attempt): `web_search` / `web_fetch`
+                   for the SAME story on a different outlet, then
+                   `write_file` again with the corrected URL in that item's
+                   slot (fix the post text too if the correction changes
+                   the facts). If the broken link's detail says its failure
+                   was transport-level (a hint ending "pick a source on a
+                   DIFFERENT domain") rather than an HTTP status, the whole
+                   domain is unreachable from here right now, not just that
+                   page — skip straight to a different outlet; another URL
+                   on the same site will fail the same way.
+
+                b. REPLACE THE ITEM (if (a) failed, or you can't find
+                   another source for that story at all): `web_search` for
+                   a different, currently trending AI/LLM/AI-agent/AGI news
+                   item — not a story already used elsewhere in this issue,
+                   and not on a domain that has already failed this run —
+                   and `write_file` its emoji/post text/URL/headline into
+                   that same item's slot, same post number. A different
+                   true story is a better newsletter than a missing item.
+
+                Then run the same `publish_newsletter.py [date] --send`
+                command again. You get at most 2 such retries (3 calls to
+                publish_newsletter.py total, counting the first). If links
+                are still broken after that, stop and report exactly which
+                items and why, and that nothing was sent.
        exit 1 → your posts file didn't parse, or a file is missing. The
                 output says which. Fix it with `write_file` and re-run.
 
@@ -109,7 +129,7 @@ system_prompt: |
 
   3. Only after publish_newsletter.py has exited 0, answer in plain text and
      in your own words — never a pasted tool result: how many posts went out,
-     which links (if any) you had to correct and what you replaced them with,
-     and the script's final SENT line. If it never exited 0, say plainly that
-     the newsletter was not sent and why. Never claim a send you did not see
-     succeed.
+     which links (if any) you had to correct or which items you had to
+     replace entirely and with what, and the script's final SENT line. If it
+     never exited 0, say plainly that the newsletter was not sent and why.
+     Never claim a send you did not see succeed.

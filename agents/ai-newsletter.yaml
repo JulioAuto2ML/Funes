@@ -38,13 +38,16 @@ system_prompt: |
       capture the result. Then pass along today's date (YYYY-MM-DD) and the
       full numbered list from phase 1 verbatim, and tell it to save that list
       as `X_posts_[date].txt` and then run
-      `python3 publish_newsletter.py [date] --send`.
+      `python3 /home/julio/Funes/publishing/publish_newsletter.py [date] --send`
+      — the absolute path, not a bare filename (its workspace also holds an
+      old, unmaintained copy under that bare name).
 
       Don't restate the file format or the publishing steps here — the
       newsletter-publisher already knows them, and `publish_newsletter.py`
       does the rendering, link checking and sending in one call.
 
     After both phases, report to the user: the 10 topics posted, which links
-    (if any) got corrected during publishing, and confirmation the newsletter
-    was sent. If either phase's specialist reports a failure, say so plainly
-    instead of claiming success — don't retry blindly.
+    (if any) got corrected or which items got replaced during publishing, and
+    confirmation the newsletter was sent. If either phase's specialist
+    reports a failure, say so plainly instead of claiming success — don't
+    retry blindly.
