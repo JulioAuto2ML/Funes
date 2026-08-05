@@ -177,7 +177,7 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_MEMORY_RECALL_K` | `4` | Memories injected per answer |
 | `FUNES_MEMORY_TURNS` | `10` | Past turns loaded per answer |
 | `FUNES_AUTO_MEMORY` | `1` | Store each exchange as an `auto` memory |
-| `FUNES_MCP_SERVERS` | *(empty)* | Extra MCP servers, `;`-separated URLs |
+| `FUNES_MCP_SERVERS` | *(empty)* | Extra MCP servers for every agent, `;`-separated URLs (SSE only — stdio servers are per-agent, see below) |
 | `FUNES_ALLOW_LOCAL_FETCH` | `0` | Let `web_fetch` reach private/loopback hosts |
 | `FUNES_WORKSPACE_DIR` | `~/.funes/workspace` | Sandbox root for `read_file`/`write_file`/`execute_shell` and uploads |
 | `FUNES_ALLOW_SHELL` | `0` | Let `execute_shell` actually run commands (real code execution — see below) |
@@ -383,13 +383,33 @@ the tools, which is why a second publication needs no second agent. Every run
 leaves a record in `runs/<publication>/<date>.json`, and both the scheduler and
 the LinkedIn cron read it rather than believing anything the model said.
 
-To give an agent tools from an external MCP server:
+To give an agent tools from an external MCP server, over HTTP+SSE:
 
 ```yaml
 mcp_servers:
   - url: http://localhost:9000
     name: my-tools
 ```
+
+or over stdio — Funes spawns the command as a subprocess and speaks MCP over
+its stdin/stdout, which is the transport most published MCP servers actually
+use:
+
+```yaml
+mcp_servers:
+  - command: npx -y rss-reader-mcp
+    name: rss-reader-mcp
+    env:
+      SOME_API_KEY: value   # optional, passed to the subprocess's environment
+```
+
+`agents/rss-reader.yaml` wires this up end to end against a real third-party
+server ([rss-reader-mcp](https://www.npmjs.com/package/rss-reader-mcp),
+`fetch_feed_entries`/`fetch_article_content`) as a working example. Every MCP
+server, SSE or stdio, is reconnected fresh per agent instance (i.e. per
+request) — for a stdio server that means a new subprocess each time, so
+expect its startup cost (e.g. `npx`'s package resolution) on every call, not
+just the first.
 
 ---
 

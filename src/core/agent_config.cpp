@@ -99,11 +99,16 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
                 srv.url  = entry.as<std::string>();
                 srv.name = srv.url;
             } else {
-                if (entry["url"])  srv.url  = entry["url"].as<std::string>();
-                if (entry["name"]) srv.name = entry["name"].as<std::string>();
-                if (srv.name.empty()) srv.name = srv.url;
+                if (entry["url"])     srv.url     = entry["url"].as<std::string>();
+                if (entry["command"]) srv.command = entry["command"].as<std::string>();
+                if (entry["name"])    srv.name    = entry["name"].as<std::string>();
+                if (entry["env"] && entry["env"].IsMap()) {
+                    for (const auto& kv : entry["env"])
+                        srv.env[kv.first.as<std::string>()] = kv.second.as<std::string>();
+                }
+                if (srv.name.empty()) srv.name = srv.command.empty() ? srv.url : srv.command;
             }
-            if (!srv.url.empty())
+            if (!srv.url.empty() || !srv.command.empty())
                 cfg.mcp_servers.push_back(std::move(srv));
         }
     }

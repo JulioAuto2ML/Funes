@@ -5,6 +5,8 @@
 #include "agent.h"
 #include "answer_schema.h"
 #include "completion_contract.h"
+#include "mcp_sse_client.h"
+#include "mcp_stdio_client.h"
 #include "result_store.h"
 #include "run_outcome.h"
 #include "text_utils.h"
@@ -67,7 +69,8 @@ json FunesAgent::mcp_tool_to_openai(const mcp::tool& t) {
 }
 
 void FunesAgent::connect_mcp_servers() {
-    // Global servers (FUNES_MCP_SERVERS, semicolon-separated) + per-agent ones.
+    // Global servers (FUNES_MCP_SERVERS, semicolon-separated URLs) + per-agent
+    // ones (YAML, either url: for SSE or command: for stdio).
     std::vector<McpServerConfig> servers;
     std::set<std::string> seen;
 
@@ -80,23 +83,38 @@ void FunesAgent::connect_mcp_servers() {
             std::string url = s.substr(pos, end - pos);
             while (!url.empty() && std::isspace(static_cast<unsigned char>(url.front()))) url.erase(url.begin());
             while (!url.empty() && std::isspace(static_cast<unsigned char>(url.back())))  url.pop_back();
-            if (!url.empty() && seen.insert(url).second)
-                servers.push_back({url, url});
+            if (!url.empty() && seen.insert(url).second) {
+                McpServerConfig sc;
+                sc.url = url;
+                sc.name = url;
+                servers.push_back(std::move(sc));
+            }
             pos = end + 1;
         }
     }
-    for (const auto& srv : cfg_.mcp_servers)
-        if (seen.insert(srv.url).second)
+    for (const auto& srv : cfg_.mcp_servers) {
+        std::string key = srv.command.empty() ? srv.url : ("cmd:" + srv.command);
+        if (seen.insert(key).second)
             servers.push_back(srv);
+    }
 
     for (const auto& srv : servers) {
-        auto [host, port] = parse_host_port(srv.url);
-        auto client = std::make_unique<mcp::sse_client>(host, port);
-        client->set_timeout(120);
+        std::unique_ptr<mcp::client> client;
+        const bool stdio = !srv.command.empty();
+        const std::string label = !srv.name.empty() ? srv.name : (stdio ? srv.command : srv.url);
+
+        if (stdio) {
+            client = std::make_unique<mcp::stdio_client>(srv.command, srv.env);
+        } else {
+            auto [host, port] = parse_host_port(srv.url);
+            auto sse = std::make_unique<mcp::sse_client>(host, port);
+            sse->set_timeout(120);
+            client = std::move(sse);
+        }
 
         if (!client->initialize("funes-agent-" + cfg_.name, "1.0.0")) {
             std::cerr << "[agent:" << cfg_.name << "] WARNING: MCP server '"
-                      << srv.name << "' (" << srv.url << ") unreachable — skipping.\n";
+                      << label << "' unreachable — skipping.\n";
             continue;
         }
 

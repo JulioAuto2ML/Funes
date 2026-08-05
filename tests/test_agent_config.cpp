@@ -29,6 +29,10 @@ mcp_servers:
   - url: http://localhost:9000
     name: srv-a
   - http://localhost:9001
+  - command: npx -y rss-reader-mcp
+    name: rss
+    env:
+      FOO: bar
 )yaml");
 
     CHECK(cfg.name == "tester");
@@ -40,10 +44,14 @@ mcp_servers:
     CHECK(cfg.max_steps == 3);
     CHECK(cfg.context_limit == 2048);
     CHECK(cfg.system_prompt.find("Prompt line.") != std::string::npos);
-    CHECK(cfg.mcp_servers.size() == 2);
+    CHECK(cfg.mcp_servers.size() == 3);
     CHECK(cfg.mcp_servers[0].name == "srv-a");
     CHECK(cfg.mcp_servers[1].url == "http://localhost:9001");
     CHECK(cfg.mcp_servers[1].name == "http://localhost:9001");  // bare URL shorthand
+    CHECK(cfg.mcp_servers[2].command == "npx -y rss-reader-mcp");
+    CHECK(cfg.mcp_servers[2].name == "rss");
+    CHECK(cfg.mcp_servers[2].url.empty());
+    CHECK(cfg.mcp_servers[2].env.at("FOO") == "bar");
 
     // Defaults.
     AgentConfig min = AgentConfig::from_string("name: minimal");

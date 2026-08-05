@@ -10,10 +10,15 @@
 #include "json.hpp"
 #include "tool_budget.h"
 
-// Connection details for one external MCP server.
+// Connection details for one external MCP server. Exactly one of url/command
+// is expected to be set — url picks the (legacy) HTTP+SSE transport, command
+// spawns a subprocess and speaks MCP over its stdin/stdout (the transport
+// most published MCP servers actually use, e.g. "npx -y some-mcp-server").
 struct McpServerConfig {
-    std::string url;           // e.g. "http://localhost:9000"
-    std::string name;          // optional human label for logs; defaults to url
+    std::string url;           // e.g. "http://localhost:9000" — SSE transport
+    std::string command;       // e.g. "npx -y rss-reader-mcp" — stdio transport
+    std::string name;          // optional human label for logs; defaults to url/command
+    nlohmann::json env = nlohmann::json::object(); // extra env vars for a stdio server's process
 };
 
 struct AgentConfig {

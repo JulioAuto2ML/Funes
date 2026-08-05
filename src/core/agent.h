@@ -28,7 +28,7 @@
 #include "llm_client.h"
 #include "memory.h"
 #include "tools.h"
-#include "mcp_sse_client.h"
+#include "mcp_client.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -89,8 +89,8 @@ private:
     LLMClient     llm_;
     json          tools_schema_;   // native + MCP, filtered by allowlist
 
-    // External MCP servers (usually none). tool name → client index.
-    std::vector<std::unique_ptr<mcp::sse_client>> mcp_clients_;
+    // External MCP servers (usually none), SSE or stdio. tool name → client index.
+    std::vector<std::unique_ptr<mcp::client>>     mcp_clients_;
     std::unordered_map<std::string, std::size_t>  mcp_tool_index_;
 
     void connect_mcp_servers();
