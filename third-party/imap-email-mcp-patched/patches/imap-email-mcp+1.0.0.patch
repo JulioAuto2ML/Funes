@@ -1,0 +1,54 @@
+diff --git a/node_modules/imap-email-mcp/index.js b/node_modules/imap-email-mcp/index.js
+index 94e9410..20cb6b9 100755
+--- a/node_modules/imap-email-mcp/index.js
++++ b/node_modules/imap-email-mcp/index.js
+@@ -332,32 +332,29 @@ async function connectIMAP() {
+   return await imaps.connect(IMAP_CONFIG);
+ }
+ 
+-// Helper to find drafts folder (handles different provider conventions)
++// Helper to find drafts folder. The old version matched against a
++// hardcoded list of provider-specific names (e.g. '[Gmail]/Drafts', slash
++// separator) which misses accounts whose IMAP server reports '.' as the
++// hierarchy delimiter (e.g. '[Gmail].Drafts') -- append() then targeted a
++// mailbox that didn't exist. Walk the real box tree instead, using the same
++// traversal list_folders already uses, and match any node whose own name
++// contains "draft" (case-insensitive), wherever it actually lives.
+ async function findDraftsFolder(connection) {
+   const boxes = await connection.getBoxes();
+ 
+-  // Common drafts folder names across providers
+-  const draftNames = [
+-    'Drafts',
+-    'INBOX.Drafts',
+-    '[Gmail]/Drafts',
+-    '[Google Mail]/Drafts',
+-    'Draft',
+-    'INBOX/Drafts'
+-  ];
+-
+-  for (const name of draftNames) {
+-    if (boxes[name] || name.split('.').reduce((acc, part) => acc?.[part], boxes)) {
+-      return name;
++  function findFolder(obj, prefix = '') {
++    for (const [key, value] of Object.entries(obj)) {
++      const fullPath = prefix ? `${prefix}.${key}` : key;
++      if (/draft/i.test(key)) return fullPath;
++      if (value.children) {
++        const found = findFolder(value.children, fullPath);
++        if (found) return found;
++      }
+     }
++    return null;
+   }
+ 
+-  // Check for nested Drafts under INBOX
+-  if (boxes.INBOX && boxes.INBOX.children && boxes.INBOX.children.Drafts) {
+-    return 'INBOX.Drafts';
+-  }
+-
+-  return 'Drafts'; // Default fallback
++  return findFolder(boxes) || 'Drafts'; // fallback preserves old behavior
+ }
+ 
+ // Tool handlers
