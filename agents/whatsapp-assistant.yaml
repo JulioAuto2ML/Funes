@@ -17,7 +17,12 @@ mcp_servers:
   # and then kept alive as a systemd --user service, e.g. whatsapp-bridge.service)
   # that must already be running and paired (QR-scanned from the phone)
   # before this agent's tool calls will return anything.
-  - command: uv --directory third-party/whatsapp-mcp/whatsapp-mcp-server run main.py
+  # Absolute path to `uv`, not the bare command: Funes runs as a systemd
+  # --user service whose PATH is /usr/{local/,}{s,}bin only (no ~/.local/bin),
+  # so a bare `uv` would fail to spawn even though it resolves fine in an
+  # interactive shell. Same absolute path on both local dev and yoda (same
+  # $HOME layout, both installed via astral.sh/uv/install.sh).
+  - command: /home/julio/.local/bin/uv --directory third-party/whatsapp-mcp/whatsapp-mcp-server run main.py
     name: whatsapp-mcp
 system_prompt: |
   You manage the user's WhatsApp, using tools from an external MCP server
