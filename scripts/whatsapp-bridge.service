@@ -1,0 +1,29 @@
+# systemd --user unit for the WhatsApp bridge (third-party/whatsapp-mcp's
+# Go/whatsmeow process). This keeps the actual WhatsApp Web connection alive
+# continuously and writes incoming messages to its local SQLite store — it is
+# NOT spawned by Funes itself, unlike the Python MCP server side
+# (agents/whatsapp-assistant.yaml), which Funes launches fresh per request.
+#
+# Install (on yoda, after `go build -o whatsapp-bridge main.go` in
+# third-party/whatsapp-mcp/whatsapp-bridge/):
+#   cp scripts/whatsapp-bridge.service ~/.config/systemd/user/whatsapp-bridge.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now whatsapp-bridge
+#   journalctl --user -u whatsapp-bridge -f   # scan the QR code shown here
+#
+# Re-pairing is needed roughly every ~20 days (WhatsApp multi-device session
+# expiry) — same journalctl command will show a fresh QR when that happens.
+
+[Unit]
+Description=WhatsApp bridge (whatsmeow) for Funes's whatsapp-assistant agent
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge
+ExecStart=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

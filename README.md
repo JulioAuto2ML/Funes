@@ -445,6 +445,35 @@ install` in that directory once per host (local dev and yoda both) before
 this agent can connect — `patch-package` reapplies the patch automatically
 on every install, so it survives a clean `node_modules` wipe.
 
+`agents/whatsapp-assistant.yaml` is a third example, wired to
+[whatsapp-mcp](https://github.com/lharries/whatsapp-mcp) — a personal
+WhatsApp account connected the same way WhatsApp Web/Desktop links a device
+(scan a QR code with the phone once), via the unofficial `whatsmeow`
+protocol library. Unlike the other two, it's a two-process design vendored
+in full under `third-party/whatsapp-mcp/`:
+
+- **The Go bridge** (`whatsapp-bridge/`) holds the actual WhatsApp
+  connection and writes incoming messages to a local SQLite store. It is
+  **not** spawned by Funes — Funes only starts short-lived stdio
+  subprocesses per request, but this bridge has to stay connected
+  continuously to receive messages at all. Run it as its own systemd
+  `--user` service; see `scripts/whatsapp-bridge.service` for the unit file
+  and setup steps (including the one-time QR scan, and re-pairing roughly
+  every 20 days when the session expires).
+- **The Python MCP server** (`whatsapp-mcp-server/`) is the thin tool layer
+  Funes actually spawns per request (`uv --directory
+  third-party/whatsapp-mcp/whatsapp-mcp-server run main.py`) — it just reads
+  the bridge's SQLite DB and calls its local REST API.
+
+Locally patched: the bridge's REST API was hardcoded to port 8080, which
+collides with yoda's `llama-server` (`FUNES_LLM_URL`); both
+`whatsapp-bridge/main.go` and `whatsapp-mcp-server/whatsapp.py` were edited
+to use 8090 instead. The agent's `tools:` list deliberately excludes
+`send_file`, `send_audio_message`, and `download_media` — it can search,
+read, and send plain-text replies, nothing else. Because WhatsApp message
+content is untrusted input the model reads directly, the system prompt
+tells it explicitly not to treat message text as instructions.
+
 ---
 
 ## API
