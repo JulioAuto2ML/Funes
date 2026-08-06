@@ -10,16 +10,18 @@ Usage:
     from the publication config via publish_issue.py; on their own the defaults
     are the AI newsletter's, which is what this script was written for.
 
-The issue directory — holding newsletter_<date>.html, subscribers.txt and .env
-— is `--dir PATH`, else $FUNES_PUBLISH_DIR, else the current working directory.
-This script lives in the Funes repo and is deployed by `git pull`; the mailing
-list and the credentials stay on the host and are never in the repo.
+The issue directory — holding newsletter_<date>.html, subscribers.txt and
+optionally .env — is `--dir PATH`, else $FUNES_PUBLISH_DIR, else the current
+working directory. This script lives in the Funes repo and is deployed by
+`git pull`; the mailing list and the credentials stay on the host and are
+never in the repo.
 
-Requirements in <dir>/.env:
-    GMAIL_ADDRESS      — your Gmail address (e.g. you@gmail.com)
-    GMAIL_APP_PASSWORD — a Gmail App Password (NOT your regular password)
-                         Generate one at: https://myaccount.google.com/apppasswords
-                         (Requires 2FA to be enabled on your Google account)
+Credentials — GMAIL_ADDRESS and GMAIL_APP_PASSWORD — are read from the
+process environment first (Funes populates this from config/funes.local at
+startup, see core/funes_config.h), with <dir>/.env, if present, overriding
+that. A Gmail App Password is NOT your regular password — generate one at:
+https://myaccount.google.com/apppasswords (requires 2FA on your Google
+account).
 
 Subscribers are read from <dir>/subscribers.txt (one address per line; # = comment).
 """
@@ -163,14 +165,17 @@ def main():
 
     work_dir = issue_dir(explicit_dir)
 
-    # Load credentials
-    creds = load_env(work_dir / ".env")
+    # Load credentials — process environment first (Funes sets this from
+    # config/funes.local at startup), <dir>/.env overrides if present.
+    creds = {**os.environ, **load_env(work_dir / ".env")}
     gmail_address = creds.get("GMAIL_ADDRESS", "").strip()
     app_password  = creds.get("GMAIL_APP_PASSWORD", "").strip()
 
     if not gmail_address or not app_password:
         print(
-            f"ERROR: GMAIL_ADDRESS and GMAIL_APP_PASSWORD must be set in {work_dir / '.env'}\n"
+            f"ERROR: GMAIL_ADDRESS and GMAIL_APP_PASSWORD must be set, either "
+            f"in the environment (e.g. config/funes.local) or in "
+            f"{work_dir / '.env'}\n"
             "  Generate an App Password at: https://myaccount.google.com/apppasswords\n"
             "  (2FA must be enabled on your Google account)"
         )
