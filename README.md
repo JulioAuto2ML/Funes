@@ -411,6 +411,26 @@ request) — for a stdio server that means a new subprocess each time, so
 expect its startup cost (e.g. `npx`'s package resolution) on every call, not
 just the first.
 
+`agents/gmail-assistant.yaml` is a second example, wired to
+[imap-email-mcp](https://www.npmjs.com/package/imap-email-mcp) over IMAP/SMTP
+rather than the Gmail API — no OAuth app to register, it authenticates with a
+plain Gmail App Password. Its `tools:` list only allows the read/search/draft
+tools (`search_emails`, `list_emails`, `get_email`, `list_folders`,
+`list_drafts`, `get_draft`, `create_draft`, `update_draft`); the server also
+exposes `send_email` and `delete_email`, but leaving them out of `tools:` is
+enough to keep the agent from ever calling them — Funes filters the tool
+schema handed to the model down to that list (`agent.cpp`'s
+`tools_.openai_schema(cfg_.tools)`), so unlisted tools are invisible to it,
+not just discouraged. Note what's *not* in the yaml's `env:` block: only
+`IMAP_HOST` is set there, because it isn't secret. `IMAP_USER` and
+`IMAP_PASSWORD` are deliberately absent from the file — a stdio server's
+subprocess inherits Funes' own process environment (that's how
+`FUNES_MCP_SERVERS` reaches agents too), so the credentials just need to be
+exported wherever the Funes server runs, the same Gmail address and App
+Password already used by `publishing/send_newsletter.py`. Never put a real
+secret in an agent yaml's `env:` map — anything written there is committed
+to the repo in plain text.
+
 ---
 
 ## API
