@@ -1,0 +1,20 @@
+diff --git a/node_modules/imap/lib/Connection.js b/node_modules/imap/lib/Connection.js
+index 619862f..6e51dfd 100644
+--- a/node_modules/imap/lib/Connection.js
++++ b/node_modules/imap/lib/Connection.js
+@@ -118,6 +118,7 @@ Connection.prototype.connect = function() {
+   if (config.tls) {
+     tlsOptions = {};
+     tlsOptions.host = config.host;
++    tlsOptions.servername = config.host;
+     // Host name may be overridden the tlsOptions
+     for (var k in config.tlsOptions)
+       tlsOptions[k] = config.tlsOptions[k];
+@@ -1700,6 +1701,7 @@ Connection.prototype._starttls = function() {
+     var tlsOptions = {};
+ 
+     tlsOptions.host = this._config.host;
++    tlsOptions.servername = this._config.host;
+     // Host name may be overridden the tlsOptions
+     for (var k in this._config.tlsOptions)
+       tlsOptions[k] = this._config.tlsOptions[k];

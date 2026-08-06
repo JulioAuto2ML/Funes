@@ -425,11 +425,25 @@ not just discouraged. Note what's *not* in the yaml's `env:` block: only
 `IMAP_HOST` is set there, because it isn't secret. `IMAP_USER` and
 `IMAP_PASSWORD` are deliberately absent from the file — a stdio server's
 subprocess inherits Funes' own process environment (that's how
-`FUNES_MCP_SERVERS` reaches agents too), so the credentials just need to be
-exported wherever the Funes server runs, the same Gmail address and App
-Password already used by `publishing/send_newsletter.py`. Never put a real
-secret in an agent yaml's `env:` map — anything written there is committed
-to the repo in plain text.
+`FUNES_MCP_SERVERS` reaches agents too), so the credentials just need to live
+in `config/funes.local` (same Gmail address and App Password
+`publishing/send_newsletter.py` uses — see the Email section in
+`config/funes.conf`). Never put a real secret in an agent yaml's `env:` map —
+anything written there is committed to the repo in plain text.
+
+The `command:` doesn't run `npx -y imap-email-mcp` directly, though — it
+points at `third-party/imap-email-mcp-patched/node_modules/imap-email-mcp/index.js`,
+a pinned local install. The published package's `node-imap` dependency never
+sets the TLS SNI `servername` when connecting, and Gmail's IMAP frontend
+responds to a connection with no SNI by handing back a fallback certificate
+that's genuinely self-signed — every request would fail with `Error:
+self-signed certificate` otherwise. `third-party/imap-email-mcp-patched/`
+pins the exact version and carries a one-line patch (via
+[patch-package](https://www.npmjs.com/package/patch-package), see
+`patches/imap+0.8.19.patch`) that sets `servername` explicitly. Run `npm
+install` in that directory once per host (local dev and yoda both) before
+this agent can connect — `patch-package` reapplies the patch automatically
+on every install, so it survives a clean `node_modules` wipe.
 
 ---
 

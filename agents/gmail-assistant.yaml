@@ -6,7 +6,14 @@ tools: [search_emails, list_emails, get_email, list_folders, list_drafts, get_dr
 max_steps: 8
 context_limit: 8192
 mcp_servers:
-  - command: npx -y imap-email-mcp
+  # A pinned, locally patched copy — not `npx -y imap-email-mcp` — because the
+  # published package's node-imap dependency never sets the TLS SNI
+  # `servername`, which makes Gmail's IMAP frontend hand back a fallback
+  # (genuinely self-signed) cert instead of the real one. Patch lives in
+  # third-party/imap-email-mcp-patched/patches/, applied automatically by
+  # `npm install` there (see README). Run that install before this agent can
+  # connect.
+  - command: node third-party/imap-email-mcp-patched/node_modules/imap-email-mcp/index.js
     name: imap-email-mcp
     env:
       IMAP_HOST: imap.gmail.com

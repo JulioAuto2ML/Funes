@@ -4,6 +4,7 @@ bin/
 compile_commands.json
 __pycache__/
 *.pyc
+node_modules/
 
 # Local secrets and machine-local overrides
 config/funes.local
