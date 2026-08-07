@@ -10,6 +10,9 @@ third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
 # Local secrets and machine-local overrides
 config/funes.local
 
+# Documents contacts send whatsapp-autoresponder (see WHATSAPP_UPLOAD_DIR)
+data/whatsapp-uploads/
+
 # Runtime data
 *.db
 *.db-journal

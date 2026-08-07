@@ -529,9 +529,13 @@ message just arrives. `scripts/whatsapp_autoresponder.py` is a small
 standalone poller (stdlib-only, no new dependency) that watches the
 dedicated instance's SQLite store directly and, for messages from chats on
 `WHATSAPP_WHITELIST` only, asks a dedicated `whatsapp-autoresponder` agent
-for a reply and sends it back. Every other chat is silently ignored — see
-the WhatsApp section of
-`config/funes.conf` for how to find a chat's `jid` and set the whitelist.
+for a reply and sends it back. Every other chat is silently ignored.
+Manage the whitelist with `scripts/whatsapp_whitelist.py list/add/remove`
+(matches by contact name, so you don't have to hand-look-up a `jid`) rather
+than editing `config/funes.local` directly — see the WhatsApp section of
+`config/funes.conf` for the commands. It's a plain local CLI, not something
+exposed to any agent: changing who Funes will auto-reply to should stay a
+step only you can take.
 
 The autoresponder agent is deliberately more restricted than
 `whatsapp-assistant`: its only tools are `recall`/`remember` (memory), no
@@ -551,6 +555,26 @@ fully isolated memory (`recall`/`remember` are scoped by agent name — see
 away from opting out of that isolation for a specific agent, so a message
 sent over WhatsApp and one sent through the web UI draw on and add to the
 same facts, rather than the WhatsApp side starting from a blank slate.
+
+**Documents over WhatsApp.** A whitelisted contact can send a "document"
+attachment (PDF or plain text file — images/audio/video are still ignored,
+that would need OCR/vision or transcription, a separate feature) and Funes
+will read it. `whatsapp_autoresponder.py` downloads it via the bridge's
+`/api/download` (pre-checking the message's known `file_length` against
+`WHATSAPP_MAX_MEDIA_BYTES` before downloading, and re-checking the actual
+size after, so an oversized file is never handed to the model), copies it
+into `WHATSAPP_UPLOAD_DIR` under a per-chat subfolder, and tells the agent
+about it with a `[Document received: <path>]` marker in the message text.
+`whatsapp-autoresponder`'s only new tool for this is `read_file`, scoped via
+`workspace_dir: data/whatsapp-uploads` in its yaml — the same confinement
+`read_file` gives every other agent (see `src/core/tools/fs_guard.h`), so it
+can never reach anything outside that one folder. `read_file` already knows
+how to pull text out of a PDF (`src/core/tools/pdf_extract.cpp`, the same
+code path the web UI's drag-and-drop upload uses); anything else it can't
+read comes back as a plain error the model is told to relay honestly rather
+than bluff through. Uploads are deleted automatically once they're older
+than `WHATSAPP_UPLOAD_MAX_AGE_DAYS` (default 30) — see the WhatsApp section
+of `config/funes.conf`.
 
 ---
 
