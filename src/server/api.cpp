@@ -150,7 +150,7 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
-            {"version",  "2.0.0"},
+            {"version",  "3.0.0"},
             {"agents",   agent_count()},
             {"memories", memory_.count()},
             {"semantic_memory", memory_.semantic_available()},
