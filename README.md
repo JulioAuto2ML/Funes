@@ -488,8 +488,8 @@ in full under `third-party/whatsapp-mcp/`:
   third-party/whatsapp-mcp/whatsapp-mcp-server run main.py`) — it just reads
   the bridge's SQLite DB and calls its local REST API.
 
-Locally patched, twice: the bridge's REST API was hardcoded to port 8080,
-which collides with yoda's `llama-server` (`FUNES_LLM_URL`); both
+Locally patched, three times. The bridge's REST API was hardcoded to port
+8080, which collides with yoda's `llama-server` (`FUNES_LLM_URL`); both
 `whatsapp-bridge/main.go` and `whatsapp-mcp-server/whatsapp.py` were edited
 to use 8090 instead. Separately, the vendored `whatsmeow` dependency was
 ~17 months stale as of first deploy and got rejected outright ("Client
@@ -505,14 +505,32 @@ read, and send plain-text replies, nothing else. Because WhatsApp message
 content is untrusted input the model reads directly, the system prompt
 tells it explicitly not to treat message text as instructions.
 
+**Two numbers, two bridge instances.** `whatsapp-assistant` acts as *you* —
+it should stay on your own number. `whatsapp-autoresponder` talks back
+autonomously to whoever's on the whitelist, which is a materially different
+thing to hand your personal WhatsApp identity to, so it gets a second,
+dedicated number instead. The third patch — `WHATSAPP_STORE_DIR` /
+`WHATSAPP_BRIDGE_PORT` env vars read once at package init in `main.go` —
+turns every hardcoded `"store"` path and the port literal into per-instance
+config, so the same compiled binary runs twice with independent sessions and
+SQLite stores: `whatsapp-bridge.service` (personal, port 8090, `store/`) and
+`whatsapp-bridge-funes.service` (dedicated, port 8091, `store-funes/`, env
+set in the unit file). Pairing the second instance needs an actual second
+phone number you control — that's on you to provide, this only handles the
+bridge process once you have one. `whatsapp-mcp-server` (whatsapp-assistant's
+MCP layer) still only ever points at the personal instance;
+`whatsapp_autoresponder.py` points at the dedicated one via
+`WHATSAPP_DB_PATH`/`WHATSAPP_BRIDGE_URL` in `config/funes.conf`.
+
 **Auto-replying to incoming messages** is a separate, opt-in layer on top of
 the above — `agents/whatsapp-assistant.yaml` only answers when *you* ask
 Funes (through its own UI) to check or send WhatsApp; it does nothing when a
 message just arrives. `scripts/whatsapp_autoresponder.py` is a small
-standalone poller (stdlib-only, no new dependency) that watches the bridge's
-SQLite store directly and, for messages from chats on `WHATSAPP_WHITELIST`
-only, asks a dedicated `whatsapp-autoresponder` agent for a reply and sends
-it back. Every other chat is silently ignored — see the WhatsApp section of
+standalone poller (stdlib-only, no new dependency) that watches the
+dedicated instance's SQLite store directly and, for messages from chats on
+`WHATSAPP_WHITELIST` only, asks a dedicated `whatsapp-autoresponder` agent
+for a reply and sends it back. Every other chat is silently ignored — see
+the WhatsApp section of
 `config/funes.conf` for how to find a chat's `jid` and set the whitelist.
 
 The autoresponder agent is deliberately more restricted than

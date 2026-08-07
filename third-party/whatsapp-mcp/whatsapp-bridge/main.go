@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -30,6 +31,31 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 )
+
+// Funes-local patch: WHATSAPP_STORE_DIR/WHATSAPP_BRIDGE_PORT let the same
+// binary run as an independent instance — its own WhatsApp session, its own
+// SQLite store, its own REST port — so a second phone number can be paired
+// for a different agent without touching the first instance's data. Read
+// once at package init; every "store" literal and the port 8090 default
+// below were replaced with these.
+var storeDir = envOrDefault("WHATSAPP_STORE_DIR", "store")
+var bridgePort = envIntOrDefault("WHATSAPP_BRIDGE_PORT", 8090)
+
+func envOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func envIntOrDefault(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
+}
 
 // Message represents a chat message for our client
 type Message struct {
@@ -49,12 +75,12 @@ type MessageStore struct {
 // Initialize message store
 func NewMessageStore() (*MessageStore, error) {
 	// Create directory for database if it doesn't exist
-	if err := os.MkdirAll("store", 0755); err != nil {
+	if err := os.MkdirAll(storeDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create store directory: %v", err)
 	}
 
 	// Open SQLite database for messages
-	db, err := sql.Open("sqlite3", "file:store/messages.db?_foreign_keys=on")
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s/messages.db?_foreign_keys=on", storeDir))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open message database: %v", err)
 	}
@@ -562,7 +588,7 @@ func downloadMedia(client *whatsmeow.Client, messageStore *MessageStore, message
 	var err error
 
 	// First, check if we already have this file
-	chatDir := fmt.Sprintf("store/%s", strings.ReplaceAll(chatJID, ":", "_"))
+	chatDir := fmt.Sprintf("%s/%s", storeDir, strings.ReplaceAll(chatJID, ":", "_"))
 	localPath := ""
 
 	// Get media info from the database
@@ -795,12 +821,12 @@ func main() {
 	dbLog := waLog.Stdout("Database", "INFO", true)
 
 	// Create directory for database if it doesn't exist
-	if err := os.MkdirAll("store", 0755); err != nil {
+	if err := os.MkdirAll(storeDir, 0755); err != nil {
 		logger.Errorf("Failed to create store directory: %v", err)
 		return
 	}
 
-	container, err := sqlstore.New(context.Background(), "sqlite3", "file:store/whatsapp.db?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New(context.Background(), "sqlite3", fmt.Sprintf("file:%s/whatsapp.db?_foreign_keys=on", storeDir), dbLog)
 	if err != nil {
 		logger.Errorf("Failed to connect to database: %v", err)
 		return
@@ -905,11 +931,14 @@ func main() {
 
 	fmt.Println("\n✓ Connected to WhatsApp! Type 'help' for commands.")
 
-	// Start REST API server
-	// Funes-local patch: moved off 8080, which is yoda's llama-server port
-	// (see config/funes.conf FUNES_LLM_URL) — keep in sync with
-	// WHATSAPP_API_BASE_URL in whatsapp-mcp-server/whatsapp.py.
-	startRESTServer(client, messageStore, 8090)
+	// Start REST API server. Default 8090 is off 8080, which is yoda's
+	// llama-server port (see config/funes.conf FUNES_LLM_URL); a second
+	// instance overrides via WHATSAPP_BRIDGE_PORT — keep whichever port an
+	// instance actually uses in sync with the matching WHATSAPP_BRIDGE_URL
+	// wherever that instance's data is consumed (whatsapp-mcp-server's
+	// WHATSAPP_API_BASE_URL for whatsapp-assistant, or
+	// scripts/whatsapp_autoresponder.py's config for the autoresponder).
+	startRESTServer(client, messageStore, bridgePort)
 
 	// Create a channel to keep the main goroutine alive
 	exitChan := make(chan os.Signal, 1)

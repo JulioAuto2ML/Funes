@@ -1,0 +1,39 @@
+# systemd --user unit for a SECOND, independent instance of the same
+# whatsapp-bridge binary — a dedicated WhatsApp number paired only to
+# whatsapp-autoresponder, kept separate from your own number (which
+# whatsapp-bridge.service / whatsapp-assistant use). Same Go binary, same
+# WorkingDirectory; WHATSAPP_STORE_DIR and WHATSAPP_BRIDGE_PORT (added in the
+# Funes-local patch at the top of main.go) are what keep the two instances'
+# sessions and SQLite stores from colliding.
+#
+# Requires an actual second phone number you control, capable of receiving
+# the WhatsApp registration SMS/call — this unit only handles the bridge
+# process, not acquiring a number.
+#
+# Install (on yoda, after the same `go build -o whatsapp-bridge main.go` used
+# for whatsapp-bridge.service — one binary serves both instances):
+#   cp scripts/whatsapp-bridge-funes.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now whatsapp-bridge-funes
+#   journalctl --user -u whatsapp-bridge-funes -f   # scan with the DEDICATED number's WhatsApp app
+#
+# Then point the autoresponder at this instance — WHATSAPP_DB_PATH and
+# WHATSAPP_BRIDGE_URL in config/funes.conf (see the WhatsApp section).
+#
+# Re-pairing needed roughly every ~20 days, same as the personal instance.
+
+[Unit]
+Description=WhatsApp bridge (whatsmeow) for Funes's whatsapp-autoresponder agent — dedicated number
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge
+Environment=WHATSAPP_STORE_DIR=store-funes
+Environment=WHATSAPP_BRIDGE_PORT=8091
+ExecStart=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

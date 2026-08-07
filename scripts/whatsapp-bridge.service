@@ -13,9 +13,14 @@
 #
 # Re-pairing is needed roughly every ~20 days (WhatsApp multi-device session
 # expiry) — same journalctl command will show a fresh QR when that happens.
+#
+# This is the PERSONAL-number instance (default port 8090, store/) — the one
+# whatsapp-assistant uses so Funes can check/send from your own WhatsApp when
+# you ask it to. The autoresponder's dedicated bot number is a second,
+# independent instance of the same binary — see whatsapp-bridge-funes.service.
 
 [Unit]
-Description=WhatsApp bridge (whatsmeow) for Funes's whatsapp-assistant agent
+Description=WhatsApp bridge (whatsmeow) for Funes's whatsapp-assistant agent — personal number
 After=network.target
 
 [Service]
