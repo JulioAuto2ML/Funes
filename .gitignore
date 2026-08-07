@@ -5,6 +5,7 @@ compile_commands.json
 __pycache__/
 *.pyc
 node_modules/
+third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
 
 # Local secrets and machine-local overrides
 config/funes.local
