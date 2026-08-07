@@ -187,6 +187,19 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_CONSOLIDATE_PRUNE_DAYS` | `30` | Age at which never-recalled `auto` memories are pruned |
 | `FUNES_CONSOLIDATE_MAX_CLUSTERS` | `20` | Merge calls per run, so a backlog can't hog a local model |
 
+Consolidation (`docs/nooa-comparison.md` item 4, from NVIDIA's NOOA paper —
+arXiv 2607.20709) targets *bloat*: it merges near-duplicate memories and
+prunes stale never-recalled ones, but doesn't change how recall ranks what's
+left. `recall_semantic` separately weights by `Memory::source` — a
+deliberately taught `user`/`tool` fact outranks a passive `auto`
+conversation-log entry at the same raw cosine similarity (`consolidated`
+gets a smaller boost too), so one terse fact isn't crowded out of a small
+top-k window by several longer, merely-similar transcripts that never
+clustered close enough to merge. See `MemoryStore::source_weight` in
+`src/core/memory.cpp`. The paper's fuller design — activation-ranked
+injection, asynchronous reflection — is still just these two narrower
+pieces in Funes, not the whole curation layer it describes.
+
 ---
 
 ## Files, PDFs, images & shell

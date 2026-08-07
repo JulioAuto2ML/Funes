@@ -37,7 +37,13 @@ public:
         std::string text;
         std::string source;      // "user" | "auto" | "tool" | "consolidated"
         std::string created_at;  // UTC "YYYY-MM-DD HH:MM:SS"
-        double      score = 0.0; // cosine similarity when recalled semantically
+        // Ranking score when recalled semantically: cosine similarity times
+        // source_weight() (memory.cpp) — a deliberate "user"/"tool" fact or a
+        // "consolidated" one outranks an "auto" conversation-log entry at the
+        // same raw similarity, so a handful of near-duplicate auto memories
+        // can't crowd a single authoritative fact out of the top-k window.
+        // Not pure cosine similarity; that's why it can slightly exceed 1.0.
+        double      score = 0.0;
         int64_t     recall_count = 0;  // times this memory has been recalled
     };
 
@@ -229,4 +235,7 @@ private:
                                         const std::vector<float>& qvec, int k);
     std::vector<Memory> recall_keyword(const std::string& agent,
                                        const std::string& query, int k);
+    // Ranking boost by Memory::source — see the .cpp for rationale. Static
+    // since it needs no instance state.
+    static double source_weight(const std::string& source);
 };

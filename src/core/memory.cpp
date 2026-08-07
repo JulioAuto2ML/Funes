@@ -327,11 +327,25 @@ void MemoryStore::touch_recalled(const std::vector<Memory>& hits) {
     }
 }
 
+// A deliberate fact outranks a passive conversation log at the same raw
+// similarity — see the Memory::score doc comment. Multiplicative rather than
+// additive so it scales with how confident the raw similarity already is,
+// instead of being able to drag an unrelated memory into relevance on its own.
+double MemoryStore::source_weight(const std::string& source) {
+    if (source == "tool" || source == "user") return 1.15;  // deliberately taught
+    if (source == "consolidated")              return 1.08;  // survived a merge review
+    return 1.0;                                              // "auto" and anything else
+}
+
 std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
     const std::string& agent, const std::vector<float>& qvec, int k) {
     // KNN over all agents, then filter — vec0 MATCH cannot combine with
-    // arbitrary WHERE clauses. Over-fetch to survive the filter.
-    const int fetch_k = agent.empty() ? k : k * 8;
+    // arbitrary WHERE clauses. Over-fetch to survive the filter *and* to give
+    // source-weighted re-ranking below a real candidate pool to work with —
+    // stopping accumulation at exactly k, in raw-similarity order, would
+    // fetch the pool but never let a lower-similarity/higher-weight memory
+    // displace anything.
+    const int fetch_k = k * 8;
 
     Stmt s(db_, R"sql(
         SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance, m.recall_count
@@ -352,11 +366,15 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
         m.text       = s.col_text(2);
         m.source     = s.col_text(3);
         m.created_at   = s.col_text(4);
-        m.score        = 1.0 - s.col_double(5);  // cosine distance → similarity
-        m.recall_count = s.col_int64(6);
+        double similarity = 1.0 - s.col_double(5);  // cosine distance → similarity
+        m.score         = similarity * source_weight(m.source);
+        m.recall_count  = s.col_int64(6);
         out.push_back(std::move(m));
-        if (static_cast<int>(out.size()) >= k) break;
     }
+
+    std::stable_sort(out.begin(), out.end(),
+                      [](const Memory& a, const Memory& b) { return a.score > b.score; });
+    if (static_cast<int>(out.size()) > k) out.resize(k);
     return out;
 }
 

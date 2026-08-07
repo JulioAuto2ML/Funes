@@ -123,6 +123,33 @@ int test_semantic() {
     return 0;
 }
 
+// A "tool" (deliberately taught) memory should outrank an "auto" (passive
+// conversation log) one at equal raw cosine similarity — the NOOA-inspired
+// gap this closes: a handful of auto-logged near-duplicates crowding a
+// single authoritative fact out of a small top-k window. FakeEmbedder is a
+// bag-of-letters histogram, so two texts using the same words in a
+// different order embed identically — a reliable way to force an exact
+// similarity tie without relying on real embedding-model behavior.
+int test_source_weighted_ranking() {
+    FakeEmbedder emb;
+    MemoryStore store(temp_db("srcweight"), &emb);
+
+    int64_t id_auto = store.remember("funes", "the cat sat on the mat", "auto");
+    int64_t id_tool = store.remember("funes", "mat the cat on sat the", "tool");
+
+    auto r = store.recall("funes", "the cat sat on the mat", 2);
+    CHECK(r.size() == 2);
+    CHECK(r[0].id == id_tool);       // tool's weight breaks an exact raw tie
+    CHECK(r[1].id == id_auto);
+    CHECK(r[0].score > r[1].score);
+
+    // Raw similarities are equal by construction (same letters, different
+    // word order — see the comment above), so the score gap is exactly the
+    // ratio between MemoryStore::source_weight("tool") and ("auto"): 1.15.
+    CHECK(std::abs(r[0].score / r[1].score - 1.15) < 1e-6);
+    return 0;
+}
+
 int test_turns() {
     MemoryStore store(temp_db("turns"), nullptr);
 
@@ -366,6 +393,7 @@ int main() {
     int rc = 0;
     rc |= test_keyword_only();
     rc |= test_semantic();
+    rc |= test_source_weighted_ranking();
     rc |= test_turns();
     rc |= test_list_sessions();
     rc |= test_recall_count();
