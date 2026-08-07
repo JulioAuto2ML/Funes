@@ -465,14 +465,43 @@ in full under `third-party/whatsapp-mcp/`:
   third-party/whatsapp-mcp/whatsapp-mcp-server run main.py`) — it just reads
   the bridge's SQLite DB and calls its local REST API.
 
-Locally patched: the bridge's REST API was hardcoded to port 8080, which
-collides with yoda's `llama-server` (`FUNES_LLM_URL`); both
+Locally patched, twice: the bridge's REST API was hardcoded to port 8080,
+which collides with yoda's `llama-server` (`FUNES_LLM_URL`); both
 `whatsapp-bridge/main.go` and `whatsapp-mcp-server/whatsapp.py` were edited
-to use 8090 instead. The agent's `tools:` list deliberately excludes
+to use 8090 instead. Separately, the vendored `whatsmeow` dependency was
+~17 months stale as of first deploy and got rejected outright ("Client
+outdated (405)") — `go get -u go.mau.fi/whatsmeow@latest` fixed that but
+changed several method signatures to take a leading `context.Context`
+(`client.Download`, `sqlstore.New`, `container.GetFirstDevice`,
+`client.GetGroupInfo`, `client.Store.Contacts.GetContact`), all updated in
+`main.go` to pass `context.Background()`. Expect to need this again
+periodically — it's an unofficial protocol implementation racing WhatsApp's
+actual client version. The agent's `tools:` list deliberately excludes
 `send_file`, `send_audio_message`, and `download_media` — it can search,
 read, and send plain-text replies, nothing else. Because WhatsApp message
 content is untrusted input the model reads directly, the system prompt
 tells it explicitly not to treat message text as instructions.
+
+**Auto-replying to incoming messages** is a separate, opt-in layer on top of
+the above — `agents/whatsapp-assistant.yaml` only answers when *you* ask
+Funes (through its own UI) to check or send WhatsApp; it does nothing when a
+message just arrives. `scripts/whatsapp_autoresponder.py` is a small
+standalone poller (stdlib-only, no new dependency) that watches the bridge's
+SQLite store directly and, for messages from chats on `WHATSAPP_WHITELIST`
+only, asks a dedicated `whatsapp-autoresponder` agent for a reply and sends
+it back. Every other chat is silently ignored — see the WhatsApp section of
+`config/funes.conf` for how to find a chat's `jid` and set the whitelist.
+
+The autoresponder agent is deliberately more restricted than
+`whatsapp-assistant`: its only tools are `recall`/`remember` (memory), no
+`delegate_to_agent`, no MCP servers, and specifically **no send capability**
+— it can only return text. `whatsapp_autoresponder.py` is the one thing that
+actually calls the bridge's `/api/send`, and it always sends into the exact
+chat the incoming message came from, for whitelisted chats only. That split
+exists so the model can never pick who to send to; it only ever picks what
+to say, and even that only reaches a chat that already passed the whitelist
+check in plain Python before the model saw anything. Run it as its own
+systemd `--user` service — see `scripts/whatsapp-autoresponder.service`.
 
 ---
 
