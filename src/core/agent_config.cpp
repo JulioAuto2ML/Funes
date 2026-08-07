@@ -57,6 +57,7 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     cfg.system_prompt = root["system_prompt"] ? root["system_prompt"].as<std::string>() : "";
     cfg.tool_choice   = root["tool_choice"]   ? root["tool_choice"].as<std::string>()   : "auto";
     cfg.workspace_dir = root["workspace_dir"] ? root["workspace_dir"].as<std::string>() : "";
+    cfg.memory_scope  = root["memory_scope"]  ? root["memory_scope"].as<std::string>()  : cfg.name;
 
     if (root["context_limit"])
         cfg.context_limit = root["context_limit"].as<int>();

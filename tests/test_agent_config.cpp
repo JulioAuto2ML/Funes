@@ -33,6 +33,7 @@ mcp_servers:
     name: rss
     env:
       FOO: bar
+memory_scope: funes
 )yaml");
 
     CHECK(cfg.name == "tester");
@@ -52,6 +53,7 @@ mcp_servers:
     CHECK(cfg.mcp_servers[2].name == "rss");
     CHECK(cfg.mcp_servers[2].url.empty());
     CHECK(cfg.mcp_servers[2].env.at("FOO") == "bar");
+    CHECK(cfg.memory_scope == "funes");  // explicit override
 
     // Defaults.
     AgentConfig min = AgentConfig::from_string("name: minimal");
@@ -61,6 +63,7 @@ mcp_servers:
     CHECK(min.require_tools.empty());   // no contract unless asked for
     CHECK(min.answer_schema.is_null());  // ...nor an answer schema
     CHECK(min.max_steps == 8);
+    CHECK(min.memory_scope == "minimal");  // unset → own name, i.e. isolated by default
 
     // answer_schema: written as ordinary YAML, converted to JSON. The types
     // have to survive — a schema whose minItems is the string "1" enforces

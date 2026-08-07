@@ -25,6 +25,13 @@ struct AgentDefaults;
 struct AgentConfig;
 
 // Per-call context: which agent and chat session triggered the tool.
+//
+// Not a plain aggregate: the constructor defaults memory_scope to agent when
+// left unset, so every existing 2-/3-arg `ToolContext{agent, session, ...}`
+// call site (tests included) keeps today's behavior — its own isolated
+// memory — without having to be updated. Only a caller that explicitly
+// passes a 4th argument (FunesAgent::run, from AgentConfig::memory_scope)
+// gets the sharing behavior.
 struct ToolContext {
     std::string agent;
     std::string session;
@@ -32,6 +39,15 @@ struct ToolContext {
     // were registered with, e.g. a skill-specific agent scoped to one
     // folder. Empty = use the server-wide default.
     std::string workspace_dir;
+    // Which agent's memory pool recall/remember read and write — see
+    // AgentConfig::memory_scope.
+    std::string memory_scope;
+
+    ToolContext(std::string agent_, std::string session_,
+                std::string workspace_dir_ = "", std::string memory_scope_ = "")
+        : agent(std::move(agent_)), session(std::move(session_)),
+          workspace_dir(std::move(workspace_dir_)),
+          memory_scope(memory_scope_.empty() ? agent : std::move(memory_scope_)) {}
 };
 
 struct ToolResult {

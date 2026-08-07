@@ -100,10 +100,54 @@ int test_memory_tools() {
     return 0;
 }
 
+// AgentConfig::memory_scope (e.g. whatsapp-autoresponder sharing funes' pool)
+// works by having ToolContext's 4th constructor argument override which
+// agent's memory recall/remember hit — a different `agent` with the same
+// explicit memory_scope should see the same memories, not be isolated.
+int test_memory_scope_sharing() {
+    fs::path db = fs::temp_directory_path() / "funes_test_memscope.db";
+    fs::remove(db);
+    MemoryStore store(db.string(), nullptr);
+
+    ToolRegistry reg;
+    register_memory_tools(reg, store);
+
+    // whatsapp-autoresponder's ctx: agent="whatsapp-autoresponder", but
+    // memory_scope explicitly set to "funes" (as AgentConfig::memory_scope
+    // would resolve it for that agent's YAML).
+    ToolContext wa_ctx{"whatsapp-autoresponder", "s1", "", "funes"};
+    ToolContext funes_ctx{"funes", "s2"};  // memory_scope defaults to "funes"
+
+    auto r1 = reg.call("remember", {{"text", "User's name is Julio"}}, funes_ctx);
+    CHECK(!r1.error);
+
+    // whatsapp-autoresponder recalls it despite being a different `agent`.
+    auto r2 = reg.call("recall", {{"query", "name"}}, wa_ctx);
+    CHECK(!r2.error);
+    CHECK(r2.text.find("Julio") != std::string::npos);
+
+    // ...and remembering through whatsapp-autoresponder lands in the same
+    // pool funes itself can recall from.
+    auto r3 = reg.call("remember", {{"text", "User asked about the weather over WhatsApp"}}, wa_ctx);
+    CHECK(!r3.error);
+    auto r4 = reg.call("recall", {{"query", "weather"}}, funes_ctx);
+    CHECK(!r4.error);
+    CHECK(r4.text.find("weather") != std::string::npos);
+
+    // A genuinely isolated agent (no memory_scope override) still sees
+    // nothing from either — sharing is opt-in, not global.
+    ToolContext isolated{"researcher", "s3"};
+    auto r5 = reg.call("recall", {{"query", "Julio"}}, isolated);
+    CHECK(r5.text.find("No memories found") != std::string::npos);
+
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_registry();
     rc |= test_memory_tools();
+    rc |= test_memory_scope_sharing();
     if (rc == 0) std::cout << "test_tools: all tests passed\n";
     return rc;
 }

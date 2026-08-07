@@ -173,12 +173,12 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 std::string FunesAgent::run(const std::string& user_message, const std::string& session,
                             const EventFn& emit, const std::vector<ImageAttachment>& images,
                             bool persist) {
-    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir};
+    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope};
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
     if (defaults_.memory_recall_k > 0) {
-        auto memories = memory_.recall(cfg_.name, user_message, defaults_.memory_recall_k);
+        auto memories = memory_.recall(cfg_.memory_scope, user_message, defaults_.memory_recall_k);
         if (!memories.empty()) {
             json items = json::array();
             std::ostringstream oss;
@@ -271,7 +271,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
             std::string reply = final_text.substr(0, 300);
             if (final_text.size() > 300) reply += "…";
             try {
-                memory_.remember(cfg_.name,
+                memory_.remember(cfg_.memory_scope,
                                  "User said: \"" + user_message + "\" — I replied: \"" + reply + "\"",
                                  "auto");
             } catch (const std::exception& e) {

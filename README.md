@@ -503,6 +503,14 @@ to say, and even that only reaches a chat that already passed the whitelist
 check in plain Python before the model saw anything. Run it as its own
 systemd `--user` service — see `scripts/whatsapp-autoresponder.service`.
 
+It does, though, share `funes`'s own memory rather than starting a separate,
+empty pool — via `memory_scope: funes` in its yaml. Every agent normally has
+fully isolated memory (`recall`/`remember` are scoped by agent name — see
+`AgentConfig::memory_scope` in `src/core/agent_config.h`); this is one field
+away from opting out of that isolation for a specific agent, so a message
+sent over WhatsApp and one sent through the web UI draw on and add to the
+same facts, rather than the WhatsApp side starting from a blank slate.
+
 ---
 
 ## API

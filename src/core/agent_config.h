@@ -66,6 +66,15 @@ struct AgentConfig {
     // read_file/write_file/execute_shell calls. Empty = inherit the default.
     std::string workspace_dir;
 
+    // Which agent's memory pool recall()/remember() read and write for this
+    // agent — both the pre-injected recall in FunesAgent::run and the
+    // recall/remember tools. Defaults to this agent's own name (i.e. every
+    // agent has its own isolated memory, today's behavior); set it to
+    // another agent's name to share that pool instead, e.g. a second
+    // front end for the same assistant. Always resolved to a concrete name
+    // at load time — never empty after parsing.
+    std::string memory_scope;
+
     int context_limit = 8192;
     int max_steps     = 8;    // max tool-call rounds per turn
 

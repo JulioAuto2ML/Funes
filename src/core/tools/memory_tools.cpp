@@ -20,7 +20,7 @@ ToolResult remember_handler(MemoryStore& store, const json& args, const ToolCont
     if (text.size() > 2000)
         return {"Memory text too long (max 2000 chars) — store a summary instead", true};
 
-    int64_t id = store.remember(ctx.agent, text, "tool");
+    int64_t id = store.remember(ctx.memory_scope, text, "tool");
     return {"Remembered (memory #" + std::to_string(id) + ")."};
 }
 
@@ -37,7 +37,7 @@ ToolResult recall_handler(MemoryStore& store, const json& args, const ToolContex
         if (k > 20) k = 20;
     }
 
-    auto results = store.recall(ctx.agent, query, k);
+    auto results = store.recall(ctx.memory_scope, query, k);
     if (results.empty())
         return {"No memories found for: " + query};
 
