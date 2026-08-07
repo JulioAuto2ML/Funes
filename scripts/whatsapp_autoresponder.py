@@ -67,15 +67,22 @@ def log(msg):
     print(f"[whatsapp-autoresponder] {msg}", flush=True)
 
 
-def newest_existing_timestamp() -> str:
-    """The bridge's own max timestamp, in its own string format — used as
-    the first-run watermark so later string comparisons against that same
-    column are comparing like with like (not mixing in Python's local-time
-    formatting, which wouldn't match the DB's offset suffix)."""
+def newest_existing_state() -> dict:
+    """The bridge's own max timestamp (in its own string format, so later
+    string comparisons against that column compare like with like) plus the
+    ids already sitting at that timestamp — used as the first-run watermark
+    so we don't reply to the newest pre-existing message too (fetch_new_messages
+    only excludes ids already recorded at last_timestamp, so this has to be
+    seeded, not left empty, or the boundary message gets answered once)."""
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
     try:
-        row = conn.execute("SELECT MAX(timestamp) FROM messages").fetchone()
-        return row[0] if row and row[0] else ""
+        max_ts = conn.execute("SELECT MAX(timestamp) FROM messages").fetchone()[0]
+        if not max_ts:
+            return {"last_timestamp": "", "last_timestamp_ids": []}
+        ids = [r[0] for r in conn.execute(
+            "SELECT id FROM messages WHERE timestamp = ?", (max_ts,)
+        ).fetchall()]
+        return {"last_timestamp": max_ts, "last_timestamp_ids": ids}
     finally:
         conn.close()
 
@@ -87,8 +94,8 @@ def load_state():
         except (json.JSONDecodeError, OSError):
             pass
     # First run: start after the newest message already in the DB, so we
-    # don't reply to the entire backlog.
-    return {"last_timestamp": newest_existing_timestamp(), "last_timestamp_ids": []}
+    # don't reply to the entire backlog (or even just its last message).
+    return newest_existing_state()
 
 
 def save_state(state):
