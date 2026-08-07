@@ -332,8 +332,13 @@ void MemoryStore::touch_recalled(const std::vector<Memory>& hits) {
 // additive so it scales with how confident the raw similarity already is,
 // instead of being able to drag an unrelated memory into relevance on its own.
 double MemoryStore::source_weight(const std::string& source) {
-    if (source == "tool" || source == "user") return 1.15;  // deliberately taught
-    if (source == "consolidated")              return 1.08;  // survived a merge review
+    // 1.15 measured too weak live: a genuinely on-topic "auto" log (the
+    // query itself *is* about names, so a past exchange about names scores
+    // high on raw similarity, not just from clutter) still buried "El
+    // usuario se llama Julio." outside a top-4 window. 1.3 was the smallest
+    // bump that cleared the observed gap, checked against real scores.
+    if (source == "tool" || source == "user") return 1.3;   // deliberately taught
+    if (source == "consolidated")              return 1.15;  // survived a merge review
     return 1.0;                                              // "auto" and anything else
 }
 

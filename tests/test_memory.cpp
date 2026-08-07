@@ -145,8 +145,8 @@ int test_source_weighted_ranking() {
 
     // Raw similarities are equal by construction (same letters, different
     // word order — see the comment above), so the score gap is exactly the
-    // ratio between MemoryStore::source_weight("tool") and ("auto"): 1.15.
-    CHECK(std::abs(r[0].score / r[1].score - 1.15) < 1e-6);
+    // ratio between MemoryStore::source_weight("tool") and ("auto"): 1.3.
+    CHECK(std::abs(r[0].score / r[1].score - 1.3) < 1e-6);
     return 0;
 }
 

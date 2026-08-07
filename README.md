@@ -200,6 +200,16 @@ clustered close enough to merge. See `MemoryStore::source_weight` in
 injection, asynchronous reflection — is still just these two narrower
 pieces in Funes, not the whole curation layer it describes.
 
+The weight alone wasn't enough in practice: a query that's genuinely *about*
+a topic ("¿Cual es mi nombre?") makes past conversations on that same topic
+score high on raw similarity too, not just near-duplicate clutter — a modest
+boost can't outrank a real semantic match, only a spurious one. Measured
+against live scores, closing that gap took both a stronger weight (source
+config in `memory.cpp`, not env-configurable) and more injected candidates
+(`FUNES_MEMORY_RECALL_K`, raised from its code default of 4 to 6 in
+`config/funes.conf`) so a correct-but-terse fact has more room to be one of
+the ones that makes the cut, not just rank higher among four.
+
 ---
 
 ## Files, PDFs, images & shell
