@@ -17,6 +17,8 @@
 #include <fstream>
 #include <map>
 #include <set>
+#include <sstream>
+#include <unordered_set>
 
 namespace funes::issue {
 namespace {
@@ -94,71 +96,97 @@ std::string normalize_for_match(const std::string& s) {
     return folded;
 }
 
-std::string check_evidence(const std::string& quote, const std::string& page_text) {
-    std::string normalized = normalize_for_match(quote);
-    if (normalized.empty())
-        return "no evidence quote was given";
+// ── Stop words: common English words that carry no topical signal ────────────
+const std::unordered_set<std::string> kStopWords = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "is", "are", "was", "were", "be", "been", "has", "have", "had",
+    "will", "can", "its", "this", "that", "with", "from", "by", "not",
+    "also", "than", "more", "most", "into", "over", "just", "about",
+    "after", "before", "between", "through", "under", "such", "very",
+    "only", "even", "both", "each", "all", "any", "some", "new", "first",
+    "last", "other", "same", "which", "their", "them", "they", "what",
+    "when", "where", "how", "who", "would", "could", "should", "does",
+    "did", "being", "here", "there", "then", "now", "out", "own", "these",
+    "those", "said", "says", "one", "two", "may", "like", "well", "use",
+    "used", "using", "make", "made", "get", "got", "set", "way", "many"
+};
 
-    // Both elision spellings collapse to one marker before splitting.
-    for (const char* e : kEllipsis)
-        normalized = replace_all(normalized, e, "\x01");
+constexpr size_t kMinWordLen = 4;
 
-    std::vector<std::string> fragments;
-    size_t start = 0;
-    while (start <= normalized.size()) {
-        const size_t at = normalized.find('\x01', start);
-        const std::string part = trim(normalized.substr(
-            start, at == std::string::npos ? std::string::npos : at - start));
-        if (!part.empty()) fragments.push_back(part);
-        if (at == std::string::npos) break;
-        start = at + 1;
-    }
-
-    if (fragments.empty())
-        return "the evidence quote is only punctuation";
-    if (fragments.size() > 2)
-        return "the evidence quote has more than one … in it. One elision is "
-               "allowed; quote a single continuous phrase instead";
-
-    size_t total = 0;
-    for (const auto& f : fragments) total += f.size();
-    if (total < kMinEvidenceChars)
-        return "the evidence quote is too short to prove anything (" +
-               std::to_string(total) + " characters, need " +
-               std::to_string(kMinEvidenceChars) + "). Quote a whole clause";
-
-    const std::string haystack = normalize_for_match(page_text);
-    size_t from = 0;
-    for (size_t i = 0; i < fragments.size(); ++i) {
-        std::string fragment = fragments[i];
-        size_t at = haystack.find(fragment, from);
-
-        // The quote's own closing punctuation is not part of the claim it's
-        // proving: a model that ends a truncated sentence with "." where the
-        // page's real text actually continues past a "," (or keeps going
-        // uninterrupted) has still copied every word correctly up to there.
-        // Only the last fragment gets this — one earlier in the quote is
-        // followed by more quoted text, not the model's own sentence-ending
-        // punctuation, so a mismatch there is a real content difference.
-        if (at == std::string::npos && i + 1 == fragments.size() && !fragment.empty()) {
-            static const std::string kSentenceEnders = ".,;:!?";
-            if (kSentenceEnders.find(fragment.back()) != std::string::npos) {
-                const std::string trimmed = fragment.substr(0, fragment.size() - 1);
-                if (!trimmed.empty()) {
-                    const size_t trimmed_at = haystack.find(trimmed, from);
-                    if (trimmed_at != std::string::npos) {
-                        at = trimmed_at;
-                        fragment = trimmed;
-                    }
-                }
-            }
+std::set<std::string> content_words(const std::string& text) {
+    std::set<std::string> words;
+    std::string word;
+    for (unsigned char c : text) {
+        if (std::isalnum(c)) {
+            word += static_cast<char>(std::tolower(c));
+        } else if (!word.empty()) {
+            if (word.size() >= kMinWordLen && kStopWords.find(word) == kStopWords.end())
+                words.insert(word);
+            word.clear();
         }
-
-        if (at == std::string::npos)
-            return "this phrase does not appear on that page: \"" + fragment + "\"";
-        from = at + fragment.size();
     }
-    return {};
+    if (word.size() >= kMinWordLen && kStopWords.find(word) == kStopWords.end())
+        words.insert(word);
+    return words;
+}
+
+std::vector<std::string> split_sentences(const std::string& text) {
+    std::vector<std::string> sentences;
+    std::string current;
+    for (size_t i = 0; i < text.size(); ++i) {
+        current += text[i];
+        bool is_break = false;
+        if (text[i] == '.' || text[i] == '!' || text[i] == '?') {
+            if (i + 1 >= text.size() || std::isspace(static_cast<unsigned char>(text[i + 1])))
+                is_break = true;
+        }
+        if (text[i] == '\n' && i + 1 < text.size() && text[i + 1] == '\n')
+            is_break = true;
+        if (is_break) {
+            std::string s = trim(current);
+            if (s.size() >= 30) sentences.push_back(std::move(s));
+            current.clear();
+        }
+    }
+    std::string s = trim(current);
+    if (s.size() >= 30) sentences.push_back(std::move(s));
+    return sentences;
+}
+
+std::pair<std::string, std::string> extract_evidence(
+    const std::string& post_text, const std::string& page_text) {
+    if (page_text.empty())
+        return {"", "the candidate's page text is empty"};
+
+    const auto post_words = content_words(post_text);
+    if (post_words.empty())
+        return {"", "the post text has no content words to match against"};
+
+    auto sentences = split_sentences(page_text);
+    if (sentences.empty())
+        return {"", "the candidate's page has no extractable sentences"};
+
+    std::string best;
+    int best_score = 0;
+    for (const auto& sentence : sentences) {
+        const auto sent_words = content_words(sentence);
+        int overlap = 0;
+        for (const auto& w : post_words)
+            if (sent_words.count(w)) ++overlap;
+        if (overlap > best_score) {
+            best_score = overlap;
+            best = sentence;
+        }
+    }
+
+    if (best_score < kMinOverlap)
+        return {"", "the post does not appear to be about this page — the best "
+                    "sentence shares only " + std::to_string(best_score) +
+                    " content word(s) with the post (need " +
+                    std::to_string(kMinOverlap) + "). Pick a different candidate "
+                    "whose page actually covers what the post claims"};
+
+    return {best, ""};
 }
 
 std::string headline_from_title(const std::string& title, size_t max_chars) {
@@ -239,11 +267,10 @@ std::string build_issue(const nlohmann::json& pool,
         if (trim(sel.emoji).empty())
             return where + "no emoji was given";
 
-        const std::string problem = check_evidence(sel.evidence,
-                                                   candidate->value("text", ""));
+        const auto [evidence, problem] =
+            extract_evidence(sel.text, candidate->value("text", ""));
         if (!problem.empty())
-            return where + problem + ". Quote a phrase copied exactly from that "
-                   "candidate's excerpt, or from read_result on its result_id";
+            return where + problem;
 
         items.push_back({
             {"n",            n},
@@ -253,7 +280,7 @@ std::string build_issue(const nlohmann::json& pool,
             {"headline",     headline_from_title(candidate->value("title", ""))},
             {"source",       candidate->value("source", "")},
             {"published",    candidate->value("published", "")},
-            {"evidence",     trim(sel.evidence)},
+            {"evidence",     evidence},
             {"candidate_id", sel.candidate_id}
         });
     }
@@ -373,7 +400,6 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         sel.candidate_id = item["id"].get<int>();
         sel.emoji        = item.value("emoji", "");
         sel.text         = item.value("text", "");
-        sel.evidence     = item.value("evidence", "");
         selection.push_back(std::move(sel));
     }
 
@@ -467,12 +493,12 @@ void register_publish_issue_tool(ToolRegistry& reg,
     reg.add({
         "publish_issue",
         "Publish the day's issue from candidates you picked out of harvest_candidates. "
-        "Give one entry per item: the candidate's `id`, an emoji, the post text, and an "
-        "`evidence` quote copied verbatim from that candidate's page. "
+        "Give one entry per item: the candidate's `id`, an emoji, and the post text. "
         "You never supply a URL — each id is resolved against the pool, so the link that "
         "ships is the one that was fetched and checked. "
-        "Every evidence quote is verified against the page it claims to come from; if one "
-        "doesn't match, nothing is sent and you are told which item to fix. "
+        "Each post is automatically checked against its candidate's page text; if the post "
+        "doesn't match the page (too few content words in common), the item is rejected and "
+        "you are told to pick a different candidate. "
         "On success this has rendered the posts file and the newsletter, re-checked every "
         "link, and sent the mail.",
         {
@@ -491,14 +517,9 @@ void register_publish_issue_tool(ToolRegistry& reg,
                                        {"description", "One emoji to open the post with"}}},
                             {"text", {{"type", "string"},
                                       {"description", "The post, under 280 characters, "
-                                                      "written for X/LinkedIn"}}},
-                            {"evidence", {{"type", "string"},
-                                          {"description", "A phrase copied word for word "
-                                                          "from that candidate's page, "
-                                                          "supporting what the post claims. "
-                                                          "One … may stand in for a gap."}}}
+                                                      "written for X/LinkedIn"}}}
                         }},
-                        {"required", json::array({"id", "emoji", "text", "evidence"})}
+                        {"required", json::array({"id", "emoji", "text"})}
                     }}
                 }},
                 {"publication", {{"type", "string"},

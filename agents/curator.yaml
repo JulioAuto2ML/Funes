@@ -4,16 +4,11 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-# Must comfortably exceed the tool budgets below (harvest 2 + read_result 4 +
-# publish_issue 4 = 10) plus the reserved final-answer step and room for a
-# retry or two, or the required calls can starve for steps that read_result
-# alone is allowed to spend. Two live runs on 2026-07-31 found this the hard
-# way: at max_steps: 8 the model burned its whole budget on 1 harvest + 6
-# read_result calls paginating one marginal candidate and never reached
-# publish_issue; at max_steps: 16 (read_result still budgeted at 8) it did the
-# same thing again, then made two legitimate repair attempts and still ran out.
-# See core/tool_budget.h and core/completion_contract.h.
-max_steps: 20
+# Budget: harvest 2 + read_result 4 + publish_issue 2 = 8, plus the
+# final-answer step and a small margin. Evidence extraction is now
+# deterministic, so the old 20-step budget for verbatim-quoting retries
+# is no longer needed.
+max_steps: 12
 context_limit: 32768
 
 # Everything this agent does that matters is a side effect: a pool fetched, an
@@ -22,29 +17,16 @@ context_limit: 32768
 require_tools: [harvest_candidates, publish_issue]
 
 # harvest twice at most (once normally; a second time only to widen a thin
-# pool), and publish four times — the first attempt plus three repairs.
-# Raised from 3 on 2026-08-04 after two live runs both failed a quiet way: not
-# a paraphrase (the earlier prompt fix for that landed and held — neither run
-# resubmitted an item unchanged), but a page carrying two distinct real
-# sentences about the same fact (an editorial "Key Points" bullet and the
-# article's own lead paragraph), where the model's first two quote attempts
-# each got one exact-match detail wrong (an unmarked mid-sentence cut, then a
-# still-inexact rewrite) before its third attempt — never submitted, budget
-# already spent — finally matched one of the two verbatim. Three tries was
-# occasionally one short of that; four gives the same repair behavior a real
-# chance to land before falling back to a different candidate.
+# pool), and publish twice — one attempt plus one repair (e.g. a post that's
+# too long or doesn't match its page). Evidence extraction is now deterministic
+# so the old 4-try budget for verbatim-quoting failures is no longer needed.
 #
-# read_result was 8 until two earlier live runs (2026-07-31): given that much
-# room, the model reliably spent nearly all of it re-reading one or two
-# candidates start to finish rather than moving on, hitting this ceiling
-# exactly both times without ever calling publish_issue. Cut to 4, paired with
-# a larger default excerpt (harvest.cpp's kExcerptBytes, 600 -> 1200) so a
-# candidate can usually be judged and quoted from the pool alone — read_result
-# is for the rare case that still isn't enough, not the default way of working.
+# read_result kept at 4 for verifying specific claims before writing a post,
+# but no longer needed for evidence quoting.
 tool_limits:
   harvest_candidates: 2
   read_result: 4
-  publish_issue: 4
+  publish_issue: 2
 
 # Deliberately NO web_search and NO web_fetch. They are the last path by which
 # a URL nobody verified could enter an issue, and this agent has no use for one:
@@ -58,16 +40,14 @@ tool_limits:
 # schema, where every field is checked against something the tool already holds.
 
 system_prompt: |
-  You put together one issue of a daily publication. Everything mechanical about
-  it is already automated; what is left is the part that needs judgement, and it
-  is the whole of your job:
+  You put together one issue of a daily publication. Everything mechanical is
+  already automated; what is left is the part that needs judgement:
 
     - choosing which stories run,
-    - writing each post,
-    - proving each post is actually about the page it links to.
+    - writing each post.
 
   You never type a URL. You never write a file. You never send mail. Those are
-  done for you, correctly, every time.
+  done for you, deterministically.
 
   Step 1 — `harvest_candidates`, with just the publication id (`ai-pulse`
       unless you were told otherwise). Its queries, recency window and limits
@@ -90,83 +70,33 @@ system_prompt: |
       elsewhere — you have no other way to find stories, by design.
 
   Step 2 — read what you need.
-      The excerpt is usually enough to write from. When it isn't — when you are
-      about to make a specific claim, quote a number, or name who did what —
-      call `read_result` with that candidate's `result_id` and read the page.
-      Being wrong about a story you linked correctly is still being wrong.
-
-      One read_result call is normally enough for one candidate; reach for a
-      second only if you genuinely need the next window of the same page, and
-      never a third. If a candidate needs that much digging to justify itself,
-      it is probably not the primary-source, something-happened story the
-      voice note wants — drop it and spend the read on a clearer one instead.
-
-      Draft your full list of items from excerpts before calling read_result at
-      all. You only get 4 calls, and they are worth far more spent fixing a
-      specific item `publish_issue` has just flagged than spent browsing
-      candidates you might not even use — a call spent before you have a draft
-      is a call you cannot get back when a rejection needs one.
+      The excerpt is usually enough to write from. When it isn't — when you need
+      to verify a specific claim, a number, or who did what — call `read_result`
+      with that candidate's `result_id` and read the page.
 
   Step 3 — `publish_issue`.
       One call with `select.count` items from the pool (its `min_count` is the
       floor on a quiet day; below that the issue is refused), in the order they
-      should appear. Submit the full `select.count` on your first attempt —
-      never a partial list to see what happens; a rejection for too few items
-      spends one of only four tries on a mistake you already had the pool to
-      avoid. Each item is:
+      should appear. Submit the full `select.count` on your first attempt.
+      Each item is:
 
         id        the candidate's number from the pool. This is how the link
-                  gets into the issue — you do not supply URLs, and there is
-                  nowhere to put one.
+                  gets into the issue — you do not supply URLs.
         emoji     one emoji to open the post.
         text      the post itself, under 280 characters, written for X and
                   LinkedIn: what happened, why it matters, no hashtags, no
                   "🚨 BREAKING", no link (the link is added for you).
-        evidence  a phrase copied word for word off that candidate's page,
-                  which supports what your post claims. Copy it, don't
-                  paraphrase it — it is checked against the page, character by
-                  character, after whitespace and case are normalised. One "…"
-                  may stand in for a gap anywhere in the quote, including at
-                  the end: if you are stopping a sentence early, put "…" where
-                  you stopped rather than closing it with your own period —
-                  "...advanced models…" is still a match; "...advanced
-                  models." is not, even though every word up to there is
-                  correct, because the page's own text keeps going past that
-                  comma. When in doubt, quote a complete sentence exactly as
-                  punctuated, full stop and all, rather than cutting it short.
 
-                  Copy it from the actual excerpt or read_result text in front
-                  of you, not from memory of what the story said — rewording
-                  while summarizing is the single most common way this field
-                  fails: a page can carry two genuinely different real
-                  sentences about the same fact (an editorial "key points"
-                  summary and the article's own lead paragraph both exist and
-                  both are quotable, but they are not interchangeable — mixing
-                  words from one with wording from the other produces a
-                  sentence that appears nowhere on the page). If you cannot
-                  point to one unbroken run of text in what you were given
-                  that says this, you do not have a quote yet.
+      The system automatically checks that each post matches its candidate's
+      page by content-word overlap. If a post doesn't match (it's about
+      something the page doesn't cover), that item is rejected — replace it
+      with a different candidate from the pool. A character-count rejection
+      means shorten that item's text below 280 characters.
 
       Choose according to the pool's `voice` note. In its absence, prefer
       primary sources and things that actually happened over commentary. Never
-      run two items with the same `story` number.
-
-      If the call comes back with a problem, it names exactly one item and what
-      is wrong with it. Actually change that item before calling `publish_issue`
-      again — a character-count error means shorten that item's text below 280
-      characters; an evidence error means quote a different, real phrase from
-      the page. Resubmitting the same item unchanged — including reworded text
-      with the same underlying evidence problem — is not a fix and will be
-      rejected again identically, and you only get four tries.
-
-      If an evidence error names an item you cannot produce a verbatim quote
-      for after two attempts at it — the excerpt genuinely doesn't contain a
-      matching phrase and you have no read_result calls left to check the
-      full page — stop retrying that exact item. Replace it with a different,
-      unused candidate from the pool whose excerpt you can already quote
-      cleanly. A swapped story is a normal repair; a fourth attempt repeating
-      the same item you have twice failed to quote is a wasted attempt.
-      Nothing was sent until the call succeeds.
+      run two items with the same `story` number. Nothing was sent until the
+      call succeeds.
 
   Step 4 — tell the user what happened, in your own words, in one short
   paragraph: the stories that went out, anything you had to drop or replace,

@@ -2,9 +2,9 @@
 // src/core/tools/issue.h — turning a selection into an issue
 // =============================================================================
 // The other half of harvest.h. The model has read a numbered pool and comes
-// back with numbers, some post text, and — for each item — a quote from the
-// page it is writing about. This file turns that into the issue record the
-// publisher renders and sends, and refuses to when it doesn't hold up.
+// back with numbers and some post text. This file turns that into the issue
+// record the publisher renders and sends, and refuses to when it doesn't
+// hold up.
 //
 // Two checks do the real work, and both are here rather than in a prompt
 // because a prompt is a request and these are guarantees:
@@ -14,11 +14,11 @@
 //   silently dropped item. This is what makes "the wrong link" unreachable
 //   rather than merely unlikely.
 //
-//   Evidence. The model must quote a verbatim phrase from the candidate's page
-//   supporting the claim its post makes, and the quote is checked against the
-//   text harvest actually fetched. A post about an OpenAI breach cannot produce
-//   a supporting quote from a Stripe checkout page — the failure that shipped
-//   on 2026-07-31 becomes a deterministic reject.
+//   Grounding. The system extracts a sentence from the candidate's page that
+//   shares enough content words with the post text to prove the post is about
+//   that page. A post about an OpenAI breach linked to a Stripe checkout page
+//   will share zero content words and be rejected deterministically — no model
+//   involvement in the check at all.
 //
 // A failure is one concrete violation naming one item, in the style of
 // validate_answer: a list of five complaints makes a small model rewrite
@@ -32,27 +32,23 @@
 namespace funes::issue {
 
 // Case-folded, whitespace-collapsed, with typographic quotes and dashes mapped
-// to their ASCII forms. A model retyping a phrase out of an excerpt renormalizes
-// punctuation without meaning to, and rejecting it for that would be rejecting
-// it for being a language model.
+// to their ASCII forms.
 std::string normalize_for_match(const std::string& s);
 
-// A quote shorter than this proves nothing: "the" occurs on every page.
-constexpr size_t kMinEvidenceChars = 24;
+// Minimum content-word overlap between a post and a page sentence for the post
+// to be considered grounded in that page.
+constexpr int kMinOverlap = 3;
 
-// Empty = the page supports the quote. Otherwise a reason written to be read by
-// the model that has to fix it.
-//
-// One elision is allowed — "the model said X … and Y" matches a page where X
-// and Y are far apart, in that order. Two would let a model assemble a sentence
-// the page never made.
-std::string check_evidence(const std::string& quote, const std::string& page_text);
+// Deterministic grounding: finds the sentence in `page_text` that best supports
+// `post_text` by content-word overlap. Returns {sentence, ""} on success, or
+// {"", reason} when the post cannot be grounded in the page.
+std::pair<std::string, std::string> extract_evidence(
+    const std::string& post_text, const std::string& page_text);
 
 struct Selection {
     int         candidate_id = 0;
     std::string emoji;
     std::string text;
-    std::string evidence;
 };
 
 // Posts go to X and LinkedIn, so the limit is X's.
