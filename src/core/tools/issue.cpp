@@ -130,6 +130,8 @@ std::set<std::string> content_words(const std::string& text) {
     return words;
 }
 
+constexpr size_t kMinSentenceChars = 40;
+
 std::vector<std::string> split_sentences(const std::string& text) {
     std::vector<std::string> sentences;
     std::string current;
@@ -140,16 +142,20 @@ std::vector<std::string> split_sentences(const std::string& text) {
             if (i + 1 >= text.size() || std::isspace(static_cast<unsigned char>(text[i + 1])))
                 is_break = true;
         }
-        if (text[i] == '\n' && i + 1 < text.size() && text[i + 1] == '\n')
+        // Every newline is a structural break in extracted web text — it marks
+        // a different HTML element. Without this, nav items ("Ireland\nScotland
+        // \nWales\n...") get concatenated into one blob that scores well because
+        // real article text is buried at the end of it.
+        if (text[i] == '\n')
             is_break = true;
         if (is_break) {
             std::string s = trim(current);
-            if (s.size() >= 30) sentences.push_back(std::move(s));
+            if (s.size() >= kMinSentenceChars) sentences.push_back(std::move(s));
             current.clear();
         }
     }
     std::string s = trim(current);
-    if (s.size() >= 30) sentences.push_back(std::move(s));
+    if (s.size() >= kMinSentenceChars) sentences.push_back(std::move(s));
     return sentences;
 }
 

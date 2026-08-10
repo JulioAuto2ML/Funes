@@ -96,6 +96,30 @@ int test_extract_evidence_picks_best_sentence() {
     return 0;
 }
 
+int test_extract_evidence_ignores_nav_boilerplate() {
+    // Nav items separated by \n get split into individual short fragments
+    // that are filtered out, so the article sentence wins.
+    const char* page_with_nav =
+        "Add The New York Post on Google\n"
+        "Ireland Politics\n"
+        "Scotland\n"
+        "Scotland Politics\n"
+        "Wales\n"
+        "Tech\n"
+        "Business\n"
+        "Meta released a new artificial intelligence model called Muse Glimmer "
+        "that is small enough to run on consumer laptops and desktop computers.";
+    auto [evidence, err] = extract_evidence(
+        "Meta launches Muse Glimmer, a new open-weight AI model small enough "
+        "to run on a Mac or PC.",
+        page_with_nav);
+    CHECK(err.empty());
+    CHECK(evidence.find("Meta released") != std::string::npos);
+    CHECK(evidence.find("Ireland") == std::string::npos);
+    CHECK(evidence.find("Add The New York") == std::string::npos);
+    return 0;
+}
+
 int test_extract_evidence_needs_minimum_overlap() {
     // Post shares only 1-2 content words with the page — not enough to be grounded.
     auto [evidence, err] = extract_evidence(
@@ -267,6 +291,7 @@ int main() {
     rc |= test_extract_evidence_rejects_wrong_page();
     rc |= test_extract_evidence_handles_empty_inputs();
     rc |= test_extract_evidence_picks_best_sentence();
+    rc |= test_extract_evidence_ignores_nav_boilerplate();
     rc |= test_extract_evidence_needs_minimum_overlap();
     rc |= test_headline_from_title();
     rc |= test_build_issue_takes_the_url_from_the_pool();
