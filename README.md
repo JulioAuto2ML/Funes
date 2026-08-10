@@ -556,6 +556,18 @@ away from opting out of that isolation for a specific agent, so a message
 sent over WhatsApp and one sent through the web UI draw on and add to the
 same facts, rather than the WhatsApp side starting from a blank slate.
 
+**Starting a fresh conversation.** A contact can send `/new` to reset their
+thread. This is handled entirely in `whatsapp_autoresponder.py` — the model
+never sees it — and, like the web UI's own "New Chat" button (`ui/app.js`),
+it rotates to a new session rather than deleting the old one's history
+(`sanitize_session`'s `generation` suffix, tracked per `chat_jid` in the
+poller's own state file). Note this only resets *conversation* history —
+`recall`/`remember` long-term memory is shared with `funes` (see above) and
+is unaffected either way. There's currently no way to actually delete a
+session's history — through WhatsApp or the web UI — only start a new one;
+the storage layer has the pieces (`MemoryStore::prune_turns`) but nothing
+exposes them yet.
+
 **Documents and photos over WhatsApp.** A whitelisted contact can send a
 "document" attachment (PDF or plain text file) or a photo ("image"
 attachment) and Funes will read it — audio/video are still ignored, that

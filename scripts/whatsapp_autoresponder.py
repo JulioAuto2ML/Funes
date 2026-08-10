@@ -22,6 +22,13 @@ only, see workspace_dir in its yaml) can read them — PDFs and plain text via
 text extraction, images via the vision-capable backend if one is configured.
 Files older than WHATSAPP_UPLOAD_MAX_AGE_DAYS are deleted automatically.
 Audio and video attachments are still ignored.
+
+A contact can send RESET_COMMAND ("/new") to start a fresh conversation.
+This rotates that chat_jid to a new session (see sanitize_session) rather
+than deleting the old one's history — the same "start a new session, leave
+the old one intact" behavior the web UI's own "New Chat" button has, just
+triggered over WhatsApp. Handled here directly, in plain Python, without
+ever going through Funes/the LLM.
 """
 import json
 import os
@@ -118,9 +125,28 @@ def save_state(state):
     STATE_PATH.write_text(json.dumps(state))
 
 
-def sanitize_session(chat_jid: str) -> str:
-    session = "whatsapp_" + re.sub(r"[^A-Za-z0-9_-]", "_", chat_jid)
+RESET_COMMAND = "/new"
+
+
+def sanitize_session(chat_jid: str, generation: int = 0) -> str:
+    """Session name for a chat, optionally a later "generation" after a
+    RESET_COMMAND — matches the web UI's own "New Chat" behavior (a fresh
+    session id, the previous one left intact rather than deleted) so a
+    contact can start over without wiping anything.
+    """
+    base = "whatsapp_" + re.sub(r"[^A-Za-z0-9_-]", "_", chat_jid)
+    session = base if generation <= 0 else f"{base}_g{generation}"
     return session[:64]
+
+
+def session_generation(state: dict, chat_jid: str) -> int:
+    return state.get("session_generations", {}).get(chat_jid, 0)
+
+
+def bump_session_generation(state: dict, chat_jid: str) -> int:
+    generations = state.setdefault("session_generations", {})
+    generations[chat_jid] = generations.get(chat_jid, 0) + 1
+    return generations[chat_jid]
 
 
 def sanitize_path_component(name: str, max_len: int, keep_dots: bool) -> str:
@@ -319,6 +345,20 @@ def main():
                 continue
 
             message_text = (content or "").strip()
+
+            # Handled directly, never forwarded to Funes: this is a
+            # mechanical session-rotation, not something needing model
+            # judgment (see the project's deterministic-over-agentic rule).
+            if not media_type and message_text.lower() == RESET_COMMAND:
+                bump_session_generation(state, chat_jid)
+                save_state(state)
+                log(f"Reset session for {chat_jid} (new generation "
+                    f"{session_generation(state, chat_jid)}).")
+                send_reply(chat_jid, "Starting a fresh conversation — I won't recall this "
+                                      "thread's earlier messages, but everything else I "
+                                      "remember about you is still there.")
+                continue
+
             if media_type in ("document", "image"):
                 message_text = handle_incoming_media(
                     msg_id, chat_jid, media_type, filename, file_length, message_text)
@@ -329,7 +369,8 @@ def main():
                 continue
 
             log(f"New message from {sender} in {chat_jid}: {message_text[:80]!r}")
-            reply = ask_funes(sanitize_session(chat_jid), message_text)
+            session = sanitize_session(chat_jid, session_generation(state, chat_jid))
+            reply = ask_funes(session, message_text)
             if reply is None or not reply.strip():
                 log("No reply generated, skipping send.")
                 continue
