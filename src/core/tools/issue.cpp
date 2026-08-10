@@ -10,6 +10,7 @@
 #include "harvest.h"
 #include "process_runner.h"
 #include <algorithm>
+#include <iostream>
 #include <cctype>
 #include <chrono>
 #include <ctime>
@@ -416,8 +417,7 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
     std::vector<Selection> selection;
     for (const auto& item : args["items"]) {
         if (!item.is_object())
-            return {"Every entry in 'items' must be an object with id, emoji, text "
-                    "and evidence.", true};
+            return {"Every entry in 'items' must be an object with id, emoji, and text.", true};
         Selection sel;
         if (!item.contains("id") || !item["id"].is_number_integer())
             return {"Every item needs an integer 'id' from the candidate pool.", true};
@@ -442,9 +442,10 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
     nlohmann::json issue;
     const std::string problem = build_issue(pool, selection, issue);
     if (!problem.empty()) {
+        std::cerr << "[publish_issue] rejected: " << problem << "\n";
         write_blocked_record(run_path, publication, date, problem);
-        return {"Not published — " + problem + ".\nNothing was sent. Fix that one "
-                "item and call publish_issue again with the full list.", true};
+        return {"Not published — " + problem + ".\nNothing was sent. Fix the "
+                "items listed above and call publish_issue again with the full list.", true};
     }
 
     if (configured) {
