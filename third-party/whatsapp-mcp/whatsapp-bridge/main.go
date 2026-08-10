@@ -897,6 +897,12 @@ func main() {
 			if evt.Event == "code" {
 				fmt.Println("\nScan this QR code with your WhatsApp app:")
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+				// Terminal QR art needs a wide enough terminal or it wraps and
+				// becomes unscannable. Also print the raw payload so it can be
+				// rendered as a proper image (e.g. Python's qrcode) instead —
+				// short-lived (~20s) but still a live pairing credential, so
+				// don't paste it anywhere public.
+				fmt.Println("Raw QR payload (valid ~20s):", evt.Code)
 			} else if evt.Event == "success" {
 				connected <- true
 				break
