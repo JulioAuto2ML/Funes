@@ -14,13 +14,14 @@ script is the only thing that ever calls the bridge's /api/send, and only for
 chat_jids already on WHATSAPP_WHITELIST, always replying into the exact chat
 the incoming message came from. The LLM never chooses a recipient.
 
-Documents (WhatsApp "document" attachments — PDFs, plain text files, etc.)
-sent by a whitelisted contact are downloaded via the bridge's /api/download
-and copied into WHATSAPP_UPLOAD_DIR, where the whatsapp-autoresponder agent's
-`read_file` tool (scoped to that directory only, see workspace_dir in its
-yaml) can read them. Files older than WHATSAPP_UPLOAD_MAX_AGE_DAYS are
-deleted automatically. Other attachment types (images, audio, video) are
-still ignored, same as before.
+Documents ("document" attachments — PDFs, plain text files, etc.) and photos
+("image" attachments) sent by a whitelisted contact are downloaded via the
+bridge's /api/download and copied into WHATSAPP_UPLOAD_DIR, where the
+whatsapp-autoresponder agent's `read_file` tool (scoped to that directory
+only, see workspace_dir in its yaml) can read them — PDFs and plain text via
+text extraction, images via the vision-capable backend if one is configured.
+Files older than WHATSAPP_UPLOAD_MAX_AGE_DAYS are deleted automatically.
+Audio and video attachments are still ignored.
 """
 import json
 import os
@@ -146,22 +147,25 @@ def download_media(message_id: str, chat_jid: str) -> dict:
         return {"success": False, "message": str(e)}
 
 
-def handle_incoming_document(msg_id: str, chat_jid: str, filename: str,
-                              file_length: int, caption: str) -> str:
-    """Download a WhatsApp "document" attachment and copy it into
-    UPLOAD_DIR, returning the text to hand to Funes (a `[Document
-    received: <path>]` marker the agent's read_file tool can act on, plus
-    the original caption if any). On any failure, returns a note describing
-    what went wrong instead, so the reply can explain rather than go silent.
+def handle_incoming_media(msg_id: str, chat_jid: str, media_type: str, filename: str,
+                           file_length: int, caption: str) -> str:
+    """Download a WhatsApp "document" or "image" attachment and copy it into
+    UPLOAD_DIR, returning the text to hand to Funes (a `[Document received:
+    <path>]` / `[Photo received: <path>]` marker the agent's read_file tool
+    can act on, plus the original caption if any). On any failure, returns a
+    note describing what went wrong instead, so the reply can explain rather
+    than go silent.
     """
+    label = "document" if media_type == "document" else "photo"
+
     if file_length and file_length > MAX_MEDIA_BYTES:
-        note = (f"[The user sent a document ({file_length} bytes), but it exceeds "
+        note = (f"[The user sent a {label} ({file_length} bytes), but it exceeds "
                  f"the {MAX_MEDIA_BYTES}-byte limit, so it was not downloaded.]")
         return f"{note} {caption}".strip()
 
     result = download_media(msg_id, chat_jid)
     if not result.get("success"):
-        note = (f"[The user sent a document but it could not be downloaded: "
+        note = (f"[The user sent a {label} but it could not be downloaded: "
                  f"{result.get('message', 'unknown error')}]")
         return f"{note} {caption}".strip()
 
@@ -169,13 +173,13 @@ def handle_incoming_document(msg_id: str, chat_jid: str, filename: str,
     try:
         actual_size = src.stat().st_size
     except OSError as e:
-        note = f"[The user sent a document but it could not be read after download: {e}]"
+        note = f"[The user sent a {label} but it could not be read after download: {e}]"
         return f"{note} {caption}".strip()
 
     if actual_size > MAX_MEDIA_BYTES:
-        log(f"Downloaded document {src} is {actual_size} bytes, over the "
+        log(f"Downloaded {label} {src} is {actual_size} bytes, over the "
             f"{MAX_MEDIA_BYTES}-byte cap; discarding.")
-        note = (f"[The user sent a document that turned out to be {actual_size} "
+        note = (f"[The user sent a {label} that turned out to be {actual_size} "
                  f"bytes, over the {MAX_MEDIA_BYTES}-byte limit, so it was discarded.]")
         return f"{note} {caption}".strip()
 
@@ -188,10 +192,10 @@ def handle_incoming_document(msg_id: str, chat_jid: str, filename: str,
     try:
         shutil.copy2(src, dest)
     except OSError as e:
-        note = f"[The user sent a document but it could not be saved for reading: {e}]"
+        note = f"[The user sent a {label} but it could not be saved for reading: {e}]"
         return f"{note} {caption}".strip()
 
-    note = f"[Document received: {dest.relative_to(UPLOAD_DIR)}]"
+    note = f"[{label.capitalize()} received: {dest.relative_to(UPLOAD_DIR)}]"
     return f"{note} {caption}".strip()
 
 
@@ -315,9 +319,9 @@ def main():
                 continue
 
             message_text = (content or "").strip()
-            if media_type == "document":
-                message_text = handle_incoming_document(
-                    msg_id, chat_jid, filename, file_length, message_text)
+            if media_type in ("document", "image"):
+                message_text = handle_incoming_media(
+                    msg_id, chat_jid, media_type, filename, file_length, message_text)
             elif not message_text:
                 continue  # other media types or empty message, nothing to reply to
 

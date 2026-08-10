@@ -4,6 +4,7 @@
 // Both are confined to one workspace directory (see fs_guard.h) — the model
 // can only ever touch files under there, never the rest of the filesystem.
 
+#include "../base64.h"
 #include "../text_utils.h"
 #include "../tools.h"
 #include "fs_guard.h"
@@ -18,6 +19,7 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr size_t MAX_READ_BYTES        = 64 * 1024;
+constexpr size_t MAX_IMAGE_BYTES       = 6 * 1024 * 1024;  // matches the ~6 MB raw budget api.cpp allows per image
 constexpr size_t MAX_WRITE_BYTES       = 256 * 1024;
 constexpr int    PDF_EXTRACT_TIMEOUT_S = 15;
 
@@ -82,6 +84,18 @@ ToolResult read_file_handler(const fs::path& default_workspace, const json& args
     ss << f.rdbuf();
     std::string content = ss.str();
 
+    const std::string image_mime = funes::detect_image_mime(content);
+    if (!image_mime.empty()) {
+        if (content.size() > MAX_IMAGE_BYTES)
+            return {"'" + resolved->string() + "' is too large to read as an image (" +
+                    std::to_string(content.size()) + " bytes, max " +
+                    std::to_string(MAX_IMAGE_BYTES) + ")", true};
+        ToolResult out;
+        out.text = "Attached image below — read it visually.";
+        out.images.push_back({image_mime, funes::base64_encode(content)});
+        return out;
+    }
+
     const bool was_truncated = content.size() > MAX_READ_BYTES;
     if (was_truncated) funes::truncate_utf8_safe(content, MAX_READ_BYTES);
 
@@ -136,7 +150,10 @@ void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
         workspace.string() + "; some agents are scoped to a different folder — the "
         "error message on a failed path will show which one applies). The path is "
         "relative to that workspace and can't escape it. .pdf files have their text "
-        "extracted automatically; other binary files are rejected. Output capped at 64 KB.",
+        "extracted automatically (or rendered as images if they have no text layer). "
+        "PNG/JPEG/GIF/WebP images are handed back for you to read visually (needs a "
+        "vision-capable backend, max 6 MB). Other binary files are rejected. Text "
+        "output capped at 64 KB.",
         {
             {"type", "object"},
             {"properties", {

@@ -556,24 +556,31 @@ away from opting out of that isolation for a specific agent, so a message
 sent over WhatsApp and one sent through the web UI draw on and add to the
 same facts, rather than the WhatsApp side starting from a blank slate.
 
-**Documents over WhatsApp.** A whitelisted contact can send a "document"
-attachment (PDF or plain text file — images/audio/video are still ignored,
-that would need OCR/vision or transcription, a separate feature) and Funes
-will read it. `whatsapp_autoresponder.py` downloads it via the bridge's
-`/api/download` (pre-checking the message's known `file_length` against
-`WHATSAPP_MAX_MEDIA_BYTES` before downloading, and re-checking the actual
-size after, so an oversized file is never handed to the model), copies it
-into `WHATSAPP_UPLOAD_DIR` under a per-chat subfolder, and tells the agent
-about it with a `[Document received: <path>]` marker in the message text.
+**Documents and photos over WhatsApp.** A whitelisted contact can send a
+"document" attachment (PDF or plain text file) or a photo ("image"
+attachment) and Funes will read it — audio/video are still ignored, that
+would need transcription, a separate feature. `whatsapp_autoresponder.py`
+downloads it via the bridge's `/api/download` (pre-checking the message's
+known `file_length` against `WHATSAPP_MAX_MEDIA_BYTES` before downloading,
+and re-checking the actual size after, so an oversized file is never handed
+to the model), copies it into `WHATSAPP_UPLOAD_DIR` under a per-chat
+subfolder, and tells the agent about it with a `[Document received: <path>]`
+or `[Photo received: <path>]` marker in the message text.
 `whatsapp-autoresponder`'s only new tool for this is `read_file`, scoped via
 `workspace_dir: data/whatsapp-uploads` in its yaml — the same confinement
 `read_file` gives every other agent (see `src/core/tools/fs_guard.h`), so it
 can never reach anything outside that one folder. `read_file` already knows
 how to pull text out of a PDF (`src/core/tools/pdf_extract.cpp`, the same
-code path the web UI's drag-and-drop upload uses); anything else it can't
-read comes back as a plain error the model is told to relay honestly rather
-than bluff through. Uploads are deleted automatically once they're older
-than `WHATSAPP_UPLOAD_MAX_AGE_DAYS` (default 30) — see the WhatsApp section
+code path the web UI's drag-and-drop upload uses) and to hand a PNG/JPEG/
+GIF/WebP image back as multimodal content (`funes::detect_image_mime`,
+`src/core/tools/file_tools.cpp`) for a vision-capable backend to read —
+Funes' own deployment uses a Qwen model with an `--mmproj` file loaded for
+this (see `FUNES_LLM_URL`/the llama-server setup); without a vision-capable
+backend, images are silently ignored by the model the same way they'd be by
+a text-only one. Anything read_file still can't handle (spreadsheets, Word
+docs) comes back as a plain error the model is told to relay honestly
+rather than bluff through. Uploads are deleted automatically once they're
+older than `WHATSAPP_UPLOAD_MAX_AGE_DAYS` (default 30) — see the WhatsApp section
 of `config/funes.conf`.
 
 ---

@@ -23,6 +23,10 @@ bool looks_like_text(const std::string& data);
 // so the cut doesn't land in the middle of a multi-byte UTF-8 sequence.
 void truncate_utf8_safe(std::string& s, size_t max_bytes);
 
+// Sniffs magic bytes rather than trusting a filename — returns the mime type
+// for a recognized image format, or "" if `data` isn't one.
+std::string detect_image_mime(const std::string& data);
+
 // json::dump() throws on invalid UTF-8 by default (json::type_error.316).
 // Most values built from the model's own output are already guaranteed
 // valid (they came from a successful json::parse upstream), but anything

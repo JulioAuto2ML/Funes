@@ -37,26 +37,6 @@ bool valid_session(const std::string& s) {
     return std::regex_match(s, re);
 }
 
-// Sniffs magic bytes rather than trusting the filename — returns the mime
-// type for a recognized image format, or "" if `content` isn't one.
-std::string detect_image_mime(const std::string& content) {
-    auto starts_with = [&](size_t offset, std::initializer_list<unsigned char> bytes) {
-        if (content.size() < offset + bytes.size()) return false;
-        size_t i = offset;
-        for (unsigned char b : bytes)
-            if (static_cast<unsigned char>(content[i++]) != b) return false;
-        return true;
-    };
-
-    if (starts_with(0, {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A})) return "image/png";
-    if (starts_with(0, {0xFF, 0xD8, 0xFF}))                           return "image/jpeg";
-    if (starts_with(0, {'G', 'I', 'F', '8', '7', 'a'})
-        || starts_with(0, {'G', 'I', 'F', '8', '9', 'a'}))            return "image/gif";
-    if (starts_with(0, {'R', 'I', 'F', 'F'}) && starts_with(8, {'W', 'E', 'B', 'P'}))
-        return "image/webp";
-    return "";
-}
-
 void json_reply(httplib::Response& res, int status, const json& body) {
     res.status = status;
     res.set_header("Cache-Control", "no-store");
@@ -404,7 +384,7 @@ void FunesApi::mount(httplib::Server& srv) {
         out << file.content;
         out.close();
 
-        const std::string image_mime = detect_image_mime(file.content);
+        const std::string image_mime = funes::detect_image_mime(file.content);
         if (!image_mime.empty()) {
             return json_reply(res, 200, {
                 {"ok", true},

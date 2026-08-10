@@ -59,4 +59,22 @@ void truncate_utf8_safe(std::string& s, size_t max_bytes) {
     if (expected_len == 0 || have_len < expected_len) s.resize(seq_start);
 }
 
+std::string detect_image_mime(const std::string& data) {
+    auto starts_with = [&](size_t offset, std::initializer_list<unsigned char> bytes) {
+        if (data.size() < offset + bytes.size()) return false;
+        size_t i = offset;
+        for (unsigned char b : bytes)
+            if (static_cast<unsigned char>(data[i++]) != b) return false;
+        return true;
+    };
+
+    if (starts_with(0, {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A})) return "image/png";
+    if (starts_with(0, {0xFF, 0xD8, 0xFF}))                           return "image/jpeg";
+    if (starts_with(0, {'G', 'I', 'F', '8', '7', 'a'})
+        || starts_with(0, {'G', 'I', 'F', '8', '9', 'a'}))            return "image/gif";
+    if (starts_with(0, {'R', 'I', 'F', 'F'}) && starts_with(8, {'W', 'E', 'B', 'P'}))
+        return "image/webp";
+    return "";
+}
+
 } // namespace funes

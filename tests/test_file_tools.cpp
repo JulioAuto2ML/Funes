@@ -93,14 +93,25 @@ int test_read_write_file() {
     auto r5 = reg.call("read_file", {{"path", "does/not/exist.txt"}}, ctx);
     CHECK(r5.error);
 
-    // Binary content is rejected by read_file, not dumped as garbage.
+    // Binary content that isn't a recognized image format is rejected, not
+    // dumped as garbage.
     {
-        std::ofstream bin(ws / "image.bin", std::ios::binary);
-        bin.write("\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01", 12);
+        std::ofstream bin(ws / "unknown.bin", std::ios::binary);
+        bin.write("\x00\x01\x02\x03NOTANIMAGE\x00\x01", 15);
     }
-    auto r6 = reg.call("read_file", {{"path", "image.bin"}}, ctx);
+    auto r6 = reg.call("read_file", {{"path", "unknown.bin"}}, ctx);
     CHECK(r6.error);
     CHECK(r6.text.find("binary") != std::string::npos);
+
+    // A recognized image format is handed back as an image, not rejected.
+    {
+        std::ofstream img(ws / "photo.jpg", std::ios::binary);
+        img.write("\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01", 12);
+    }
+    auto r7 = reg.call("read_file", {{"path", "photo.jpg"}}, ctx);
+    CHECK(!r7.error);
+    CHECK(r7.images.size() == 1);
+    CHECK(r7.images[0].mime_type == "image/jpeg");
 
     // Content over the write cap is refused.
     auto w5 = reg.call("write_file", {{"path", "big.txt"}, {"content", std::string(300000, 'x')}}, ctx);
