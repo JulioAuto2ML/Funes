@@ -53,7 +53,14 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
 
     try {
         FunesAgent sub(target, tools, memory, defaults);
-        std::string out = sub.run(job.task, "cron-" + std::to_string(job.id),
+        // Each run gets its own session so tool budgets don't carry over
+        // from a previous run of the same job.
+        const auto now = std::chrono::system_clock::now();
+        const auto epoch = std::chrono::duration_cast<std::chrono::seconds>(
+            now.time_since_epoch()).count();
+        const std::string session = "cron-" + std::to_string(job.id) +
+                                    "-" + std::to_string(epoch);
+        std::string out = sub.run(job.task, session,
                                   nullptr, {}, /*persist=*/true);
         const bool ok = !funes::is_run_failure(out);
         bound_preview(out);
