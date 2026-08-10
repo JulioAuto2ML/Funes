@@ -4,11 +4,11 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-# Budget: harvest 2 + read_result 4 + publish_issue 2 = 8, plus the
-# final-answer step and a small margin. Evidence extraction is now
-# deterministic, so the old 20-step budget for verbatim-quoting retries
-# is no longer needed.
-max_steps: 12
+# Budget: harvest 2 + read_result 4 + publish_issue 3 = 9, plus the
+# final-answer step and margin for nudges. Evidence extraction is
+# deterministic, but the 9B model sometimes needs 2 repair rounds when
+# multiple items fail grounding (all violations are reported at once).
+max_steps: 16
 context_limit: 32768
 
 # Everything this agent does that matters is a side effect: a pool fetched, an
@@ -17,16 +17,13 @@ context_limit: 32768
 require_tools: [harvest_candidates, publish_issue]
 
 # harvest twice at most (once normally; a second time only to widen a thin
-# pool), and publish twice — one attempt plus one repair (e.g. a post that's
-# too long or doesn't match its page). Evidence extraction is now deterministic
-# so the old 4-try budget for verbatim-quoting failures is no longer needed.
-#
-# read_result kept at 4 for verifying specific claims before writing a post,
-# but no longer needed for evidence quoting.
+# pool), and publish three times — one attempt plus two repair rounds. All
+# violations are reported at once so one repair usually suffices, but the 9B
+# model occasionally needs a second.
 tool_limits:
   harvest_candidates: 2
   read_result: 4
-  publish_issue: 2
+  publish_issue: 3
 
 # Deliberately NO web_search and NO web_fetch. They are the last path by which
 # a URL nobody verified could enter an issue, and this agent has no use for one:

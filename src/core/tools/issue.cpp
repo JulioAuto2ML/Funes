@@ -225,6 +225,7 @@ std::string build_issue(const nlohmann::json& pool,
 
     std::map<int, int> used;               // candidate id → the item that took it
     nlohmann::json items = nlohmann::json::array();
+    std::vector<std::string> errors;
     int n = 0;
 
     for (const auto& sel : selection) {
@@ -236,47 +237,54 @@ std::string build_issue(const nlohmann::json& pool,
         for (const auto& c : pool["candidates"])
             if (c.value("id", 0) == sel.candidate_id) { candidate = &c; break; }
         if (!candidate) {
-            // A model that just called read_result naturally reaches for the
-            // same number here — but result_id (a global, ever-growing
-            // counter into the result store) and a candidate's own `id` (small,
-            // pool-local) are different things. Confusing them wasted an
-            // attempt live on 2026-07-31: id 514 (in fact a result_id) matched
-            // nothing, and the generic message alone didn't point at why. An
-            // exact match against the pool's own result_ids lets the message
-            // name the mistake and the fix in one line instead of two rounds.
+            bool found_as_result_id = false;
             for (const auto& c : pool["candidates"]) {
                 if (c.value("result_id", static_cast<int64_t>(0)) ==
                     static_cast<int64_t>(sel.candidate_id)) {
-                    return where + "that is a result_id (from read_result), not a "
+                    errors.push_back(where + "that is a result_id (from read_result), not a "
                                   "candidate id. The candidate you read has pool id " +
-                                  std::to_string(c.value("id", 0)) + " — use that instead.";
+                                  std::to_string(c.value("id", 0)) + " — use that instead.");
+                    found_as_result_id = true;
+                    break;
                 }
             }
-            return where + "there is no candidate with that id in today's pool "
-                           "(pool ids run 1 to " +
-                   std::to_string(pool["candidates"].size()) +
-                   "). Use only the small `id` field from the candidate list, "
-                   "never a result_id";
+            if (!found_as_result_id)
+                errors.push_back(where + "there is no candidate with that id in today's pool "
+                               "(pool ids run 1 to " +
+                       std::to_string(pool["candidates"].size()) +
+                       "). Use only the small `id` field from the candidate list, "
+                       "never a result_id");
+            continue;
         }
         const auto [taken, is_new] = used.emplace(sel.candidate_id, n);
-        if (!is_new)
-            return where + "that candidate is already item " +
+        if (!is_new) {
+            errors.push_back(where + "that candidate is already item " +
                    std::to_string(taken->second) +
-                   " — every item must be a different story";
+                   " — every item must be a different story");
+            continue;
+        }
 
-        if (trim(sel.text).empty())
-            return where + "the post text is empty";
+        if (trim(sel.text).empty()) {
+            errors.push_back(where + "the post text is empty");
+            continue;
+        }
         const size_t length = utf8_length(sel.text);
-        if (length > kMaxPostChars)
-            return where + "the post text is " + std::to_string(length) +
-                   " characters; the limit is " + std::to_string(kMaxPostChars);
-        if (trim(sel.emoji).empty())
-            return where + "no emoji was given";
+        if (length > kMaxPostChars) {
+            errors.push_back(where + "the post text is " + std::to_string(length) +
+                   " characters; the limit is " + std::to_string(kMaxPostChars));
+            continue;
+        }
+        if (trim(sel.emoji).empty()) {
+            errors.push_back(where + "no emoji was given");
+            continue;
+        }
 
         const auto [evidence, problem] =
             extract_evidence(sel.text, candidate->value("text", ""));
-        if (!problem.empty())
-            return where + problem;
+        if (!problem.empty()) {
+            errors.push_back(where + problem);
+            continue;
+        }
 
         items.push_back({
             {"n",            n},
@@ -289,6 +297,16 @@ std::string build_issue(const nlohmann::json& pool,
             {"evidence",     evidence},
             {"candidate_id", sel.candidate_id}
         });
+    }
+
+    if (!errors.empty()) {
+        out = nlohmann::json();
+        std::string combined;
+        for (size_t i = 0; i < errors.size(); ++i) {
+            if (i > 0) combined += "\n";
+            combined += errors[i];
+        }
+        return combined;
     }
 
     out = {

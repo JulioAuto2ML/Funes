@@ -266,14 +266,30 @@ int test_build_issue_rejects_ungrounded_post() {
     return 0;
 }
 
-int test_build_issue_reports_one_violation_at_a_time() {
+int test_build_issue_reports_only_bad_items() {
     Selection bad_second = good_selection();
     bad_second.candidate_id = 99;
     json out;
     const std::string why = build_issue(pool_with_one_candidate(),
                                         {good_selection(), bad_second}, out);
-    CHECK(why.rfind("item 2", 0) == 0);
+    CHECK(why.find("item 2") != std::string::npos);
     CHECK(why.find("item 1") == std::string::npos);
+    return 0;
+}
+
+int test_build_issue_reports_all_violations() {
+    Selection empty_text = good_selection();
+    empty_text.text = "   ";
+    Selection bad_id = good_selection();
+    bad_id.candidate_id = 99;
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(),
+                                        {empty_text, bad_id}, out);
+    CHECK(why.find("item 1") != std::string::npos);
+    CHECK(why.find("item 2") != std::string::npos);
+    CHECK(why.find("post text is empty") != std::string::npos);
+    CHECK(why.find("no candidate with that id") != std::string::npos);
+    CHECK(out.is_null());
     return 0;
 }
 
@@ -301,7 +317,8 @@ int main() {
     rc |= test_build_issue_rejects_a_repeated_id();
     rc |= test_build_issue_rejects_bad_post_text();
     rc |= test_build_issue_rejects_ungrounded_post();
-    rc |= test_build_issue_reports_one_violation_at_a_time();
+    rc |= test_build_issue_reports_only_bad_items();
+    rc |= test_build_issue_reports_all_violations();
     rc |= test_build_issue_rejects_an_empty_selection();
     if (rc == 0) std::cout << "test_issue: all tests passed\n";
     return rc;
