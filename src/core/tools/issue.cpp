@@ -280,11 +280,44 @@ std::string build_issue(const nlohmann::json& pool,
             continue;
         }
 
-        const auto [evidence, problem] =
-            extract_evidence(sel.text, candidate->value("text", ""));
+        auto extraction = extract_evidence(sel.text, candidate->value("text", ""));
+        std::string evidence = extraction.first;
+        std::string problem = extraction.second;
+
         if (!problem.empty()) {
-            errors.push_back(where + problem);
-            continue;
+            // The declared candidate's page doesn't support this text. Before
+            // rejecting, check whether some OTHER unused candidate in the
+            // pool does — a model that wrote an accurate post but named the
+            // wrong id for it is a content-matching mistake, not a writing
+            // one, and exactly as fixable in code as a broken link is (see
+            // publish_issue.py's repair_and_check, the same idea one stage
+            // later for a link that dies between here and send time). Not
+            // restricted to the same `story`: the id is simply wrong, not
+            // usefully "close."
+            const nlohmann::json* substitute = nullptr;
+            std::string substitute_evidence;
+            for (const auto& c : pool["candidates"]) {
+                const int cid = c.value("id", 0);
+                if (cid == sel.candidate_id || used.count(cid)) continue;
+                auto alt = extract_evidence(sel.text, c.value("text", ""));
+                if (alt.second.empty()) {
+                    substitute = &c;
+                    substitute_evidence = alt.first;
+                    break;
+                }
+            }
+            if (!substitute) {
+                errors.push_back(where + problem);
+                continue;
+            }
+            std::cerr << "[publish_issue] item " << n << ": candidate "
+                      << sel.candidate_id << " didn't support the text; "
+                      << "substituted candidate " << substitute->value("id", 0)
+                      << " instead\n";
+            used.erase(sel.candidate_id);
+            used.emplace(substitute->value("id", 0), n);
+            candidate = substitute;
+            evidence = substitute_evidence;
         }
 
         items.push_back({
@@ -296,7 +329,7 @@ std::string build_issue(const nlohmann::json& pool,
             {"source",       candidate->value("source", "")},
             {"published",    candidate->value("published", "")},
             {"evidence",     evidence},
-            {"candidate_id", sel.candidate_id}
+            {"candidate_id", candidate->value("id", 0)}
         });
     }
 

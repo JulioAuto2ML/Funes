@@ -30,8 +30,13 @@ sources:
     - "AI regulation policy"
     - "AI agents enterprise"
   time_range: day
-  per_query: 10
-  max_candidates: 25
+  # Raised from 10/25 on 2026-08-11: build_issue's content-word substitution
+  # (issue.cpp) — swapping in whichever pool candidate a post's text actually
+  # matches, when the model names the wrong id for an otherwise-accurate
+  # post — only has candidates to work with if the pool is wider than
+  # `select.count`. Caps are 20/40 (harvest.cpp); this stays well under both.
+  per_query: 12
+  max_candidates: 30
   max_age_days: 2
   # Don't run the same story twice in a week.
   dedup_against_last_issues: 7

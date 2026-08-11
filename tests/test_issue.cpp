@@ -175,6 +175,29 @@ static Selection good_selection() {
     return s;
 }
 
+static const char* kUnrelatedPage =
+    "OpenAI announced a new pricing tier for its enterprise API customers on "
+    "Tuesday, cutting per-token costs by roughly thirty percent for high-volume "
+    "users. The change takes effect next month and applies to existing contracts.";
+
+// A second candidate whose page has nothing to do with good_selection()'s
+// text, for testing the wrong-id-but-right-page substitution: id 7 is what a
+// model might mistakenly declare while still writing accurately about id 4's
+// actual story.
+static json pool_with_two_candidates() {
+    json p = pool_with_one_candidate();
+    p["candidates"].push_back({
+        {"id", 7},
+        {"result_id", 515},
+        {"title", "OpenAI cuts enterprise API pricing | PYMNTS"},
+        {"url", "https://pymnts.com/openai-price-cuts"},
+        {"source", "pymnts.com"},
+        {"published", "2026-07-31"},
+        {"text", kUnrelatedPage}
+    });
+    return p;
+}
+
 int test_build_issue_takes_the_url_from_the_pool() {
     json out;
     CHECK(build_issue(pool_with_one_candidate(), {good_selection()}, out).empty());
@@ -266,6 +289,53 @@ int test_build_issue_rejects_ungrounded_post() {
     return 0;
 }
 
+// 2026-08-11: several live-run rejections were a model writing an accurate
+// post but naming the wrong pool id for it — a content-matching mistake, not
+// a writing one. build_issue now searches the rest of the pool for whichever
+// unused candidate's page actually supports the text before giving up.
+int test_build_issue_substitutes_a_candidate_that_actually_matches() {
+    Selection s = good_selection();       // text is about the Claude hack (id 4's page)
+    s.candidate_id = 7;                   // but declares OpenAI-pricing's id instead
+    json out;
+    const std::string why = build_issue(pool_with_two_candidates(), {s}, out);
+    CHECK(why.empty());
+    const auto& item = out["items"][0];
+    CHECK(item["candidate_id"] == 4);
+    CHECK(item["url"] == "https://reuters.com/tech/anthropic-claude");
+    CHECK(item["source"] == "reuters.com");
+    CHECK(!item["evidence"].get<std::string>().empty());
+    return 0;
+}
+
+int test_build_issue_substitution_does_not_reuse_an_already_placed_candidate() {
+    // Item 1 legitimately takes id 4. Item 2 declares the wrong id (7) for
+    // text that only id 4's page actually supports — but 4 is spoken for, so
+    // there is nothing left to substitute and item 2 must still be rejected,
+    // not silently collide with item 1.
+    Selection first = good_selection();               // id 4, correct
+    Selection second = good_selection();
+    second.candidate_id = 7;
+    json out;
+    const std::string why = build_issue(pool_with_two_candidates(), {first, second}, out);
+    CHECK(why.find("item 2") != std::string::npos);
+    CHECK(why.find("does not appear to be about this page") != std::string::npos);
+    CHECK(out.is_null());
+    return 0;
+}
+
+int test_build_issue_gives_up_when_no_candidate_matches_at_all() {
+    // Wrong id, and nothing else in the pool matches the text either — a
+    // real rejection, not a mismatch the pool happens to be able to fix.
+    Selection s = good_selection();
+    s.candidate_id = 7;
+    s.text = "A completely unrelated claim about neither story in this pool.";
+    json out;
+    const std::string why = build_issue(pool_with_two_candidates(), {s}, out);
+    CHECK(why.find("does not appear to be about this page") != std::string::npos);
+    CHECK(out.is_null());
+    return 0;
+}
+
 int test_build_issue_reports_only_bad_items() {
     Selection bad_second = good_selection();
     bad_second.candidate_id = 99;
@@ -317,6 +387,9 @@ int main() {
     rc |= test_build_issue_rejects_a_repeated_id();
     rc |= test_build_issue_rejects_bad_post_text();
     rc |= test_build_issue_rejects_ungrounded_post();
+    rc |= test_build_issue_substitutes_a_candidate_that_actually_matches();
+    rc |= test_build_issue_substitution_does_not_reuse_an_already_placed_candidate();
+    rc |= test_build_issue_gives_up_when_no_candidate_matches_at_all();
     rc |= test_build_issue_reports_only_bad_items();
     rc |= test_build_issue_reports_all_violations();
     rc |= test_build_issue_rejects_an_empty_selection();
