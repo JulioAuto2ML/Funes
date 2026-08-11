@@ -300,24 +300,24 @@ class LinkRepair(unittest.TestCase):
         # word gate build_issue used at selection time applies again here,
         # or a repair could silently attach a post to the wrong page.
         code, out, record, posts = self._publish(self.POOL_WITH_UNRELATED_ALTERNATE)
-        self.assertEqual(code, 0)                    # 1 of 2 items still ships
+        self.assertEqual(code, 2)
+        self.assertEqual(record["status"], "blocked")
         self.assertEqual(record["selected"], 1)
         self.assertNotIn("repaired", record)
         self.assertEqual(len(record["dropped"]), 1)
-        self.assertNotIn(self.ALTERNATE_URL, posts)
+        self.assertIn("Nothing was sent", out)
+        self.assertIsNone(posts)
 
-    def test_a_broken_link_with_no_alternate_is_dropped_and_the_rest_still_sends(self):
+    def test_a_broken_link_with_no_alternate_rejects_the_whole_issue(self):
         code, out, record, posts = self._publish(self.POOL_WITH_NO_ALTERNATE)
-        self.assertEqual(code, 0)
-        self.assertEqual(record["status"], "sent")
+        self.assertEqual(code, 2)
+        self.assertEqual(record["status"], "blocked")
         self.assertEqual(record["selected"], 1)
         self.assertEqual(len(record["dropped"]), 1)
         self.assertNotIn("repaired", record)
-        # Renumbered: the sole survivor is #1, not #2 — post_tweet.py indexes
-        # a fixed daily schedule by position, and a gap would post nothing
-        # for one slot and the wrong item for every slot after it.
-        self.assertIn("1. 📉 OpenAI cuts prices on select models.", posts)
-        self.assertNotIn("Anthropic", posts)
+        self.assertIn("Nothing was sent", out)
+        self.assertIn("Replace these", out)
+        self.assertIsNone(posts)
 
     def test_dropping_below_min_items_still_blocks(self):
         issue = dict(ISSUE, min_items=2)
@@ -325,7 +325,7 @@ class LinkRepair(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(record["status"], "blocked")
         self.assertEqual(len(record["dropped"]), 1)
-        self.assertIn("need", record["reason"].lower())
+        self.assertIn("broken link", record["reason"].lower())
         self.assertIn("Nothing was sent", out)
 
 

@@ -404,11 +404,23 @@ def publish(target_date, publication, work_dir, send, dry_run=False):
         for item, detail in suspect:
             print(f"  #{item['n']} {detail} {item['url']}")
 
+    if dropped:
+        why = (f"{len(dropped)} item(s) had broken links with no same-story "
+               f"alternate in the pool")
+        print(f"\n{why}. Nothing was sent.")
+        for d in dropped:
+            print(f"  #{d['n']} {d['url']} — {d['reason']}")
+        print(f"\nReplace these with different candidates from the pool "
+              f"and resubmit all {len(original_items)} items.")
+        record["reason"] = why
+        record["duration_s"] = round(time.time() - started, 1)
+        write_run_record(work_dir, publication, record)
+        return 2
+
     min_items = issue.get("min_items", 1)
     if len(items) < min_items:
-        why = (f"{len(dropped)} broken link(s) had no usable replacement; "
-                f"{len(items)} item(s) remain, this publication needs at least "
-                f"{min_items}")
+        why = (f"{len(items)} item(s) remain, this publication needs at least "
+               f"{min_items}")
         print(f"\n{why}. Nothing was sent.")
         record["reason"] = why
         record["duration_s"] = round(time.time() - started, 1)

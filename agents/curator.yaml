@@ -1,5 +1,5 @@
 name: curator
-description: Picks the day's items out of a harvested candidate pool, writes the posts, and publishes the issue — for any publication in publications/, not just the AI newsletter. Replaces the ai-newsletter → researcher → newsletter-publisher chain.
+description: Picks the day's items out of a harvested candidate pool, writes the posts, and publishes the issue — for any publication in publications/, not just the AI newsletter.
 model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
@@ -94,7 +94,11 @@ system_prompt: |
       page by content-word overlap. If a post doesn't match (it's about
       something the page doesn't cover), that item is rejected — replace it
       with a different candidate from the pool. A character-count rejection
-      means shorten that item's text below 280 characters.
+      means shorten that item's text below 280 characters. If a link breaks
+      at send time and can't be auto-repaired from the pool, the item is
+      rejected — replace it with a different candidate (a different story,
+      since the old story's links are dead), write a new post for it, and
+      resubmit the full list with all `select.count` items.
 
       Every violation is reported in one rejection, not one at a time — fix
       every flagged item before calling `publish_issue` again, not just the
