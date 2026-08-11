@@ -4,9 +4,9 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-# Budget: harvest 2 + read_result 4 + publish_issue 3 = 9, plus the
+# Budget: harvest 2 + read_result 4 + publish_issue 4 = 10, plus the
 # final-answer step and margin for nudges. Evidence extraction is
-# deterministic, but the 9B model sometimes needs 2 repair rounds when
+# deterministic, but the model sometimes needs several repair rounds when
 # multiple items fail grounding (all violations are reported at once).
 max_steps: 16
 context_limit: 32768
@@ -17,13 +17,17 @@ context_limit: 32768
 require_tools: [harvest_candidates, publish_issue]
 
 # harvest twice at most (once normally; a second time only to widen a thin
-# pool), and publish three times — one attempt plus two repair rounds. All
-# violations are reported at once so one repair usually suffices, but the 9B
-# model occasionally needs a second.
+# pool), and publish four times — one attempt plus three repair rounds.
+# Raised from 3 on 2026-08-11: a live run fixed one flagged item per round
+# (genuinely different candidates each time, not a resubmission — see the
+# "resubmitting unchanged" warning below) but needed a 4th round to finish
+# swapping out the last bad candidate, and ran out of budget one short. All
+# violations are reported at once so one repair usually suffices, but not
+# always.
 tool_limits:
   harvest_candidates: 2
   read_result: 4
-  publish_issue: 3
+  publish_issue: 4
 
 # Deliberately NO web_search and NO web_fetch. They are the last path by which
 # a URL nobody verified could enter an issue, and this agent has no use for one:
