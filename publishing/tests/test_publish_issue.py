@@ -42,16 +42,33 @@ ISSUE = {
 }
 
 
+def _link_map(broken=(), suspect=()):
+    """A check_link stand-in whose answer depends on which URL is asked —
+    real repair tests need item 1's original link to fail while a
+    replacement candidate's link succeeds, which a single fixed return
+    value (what Fixture.run uses) can't express."""
+    def check(url):
+        if url in broken:
+            return "broken", "HTTP 404"
+        if url in suspect:
+            return "suspect", "HTTP 403"
+        return "ok", "200"
+    return check
+
+
 class Fixture:
     """A workspace with one issue in it, plus the template."""
 
-    def __init__(self, tmp, issue=None):
+    def __init__(self, tmp, issue=None, pool=None):
         self.dir = Path(tmp)
         (self.dir / pn.TEMPLATE_NAME).write_text("<p>{{DATE}}</p>\n  {{POSTS}}\n")
         issue = ISSUE if issue is None else issue
         path = self.dir / "issues" / issue["publication"] / f"{issue['date']}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(issue), encoding="utf-8")
+        if pool is not None:
+            pool_path = self.dir / f"harvest_{issue['publication']}_{issue['date']}.json"
+            pool_path.write_text(json.dumps(pool), encoding="utf-8")
 
     def run(self, send=False, dry_run=False, link=("ok", "200"), sender=None):
         with mock.patch.object(pi, "check_link", return_value=link):
@@ -140,7 +157,10 @@ class RunRecords(unittest.TestCase):
             f.run(send=True, dry_run=True)
             self.assertEqual(f.record()["status"], "dry-run")
 
-    def test_broken_links_block_the_send_and_are_recorded(self):
+    def test_broken_links_with_no_pool_to_repair_from_block_the_send(self):
+        # No harvest_*.json in the fixture, so there is nothing to repair
+        # from — every broken item is dropped, and with 0 of 2 items left
+        # (default min_items 1 still isn't met), the issue is blocked.
         with TemporaryDirectory() as tmp:
             f = Fixture(tmp)
             with mock.patch.object(pi, "check_link", return_value=("broken", "HTTP 404")):
@@ -153,7 +173,7 @@ class RunRecords(unittest.TestCase):
         self.assertIn("Nothing was sent", out.getvalue())
         self.assertEqual(record["status"], "blocked")
         self.assertEqual(record["links"]["broken"], 2)
-        self.assertEqual(len(record["rejected"]), 2)
+        self.assertEqual(len(record["dropped"]), 2)
 
     def test_suspect_links_are_recorded_but_do_not_block(self):
         with TemporaryDirectory() as tmp:
@@ -186,6 +206,127 @@ class RunRecords(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(record["status"], "blocked")
         self.assertIn("no issue at", record["reason"])
+
+
+class LinkRepair(unittest.TestCase):
+    """A broken link at send time used to come back to curator as a tool
+    rejection, asking a model to notice and swap the item — unreliably. This
+    is the deterministic replacement (2026-08-11): a broken link is repaired
+    from an already-harvested same-story candidate, or the item is dropped,
+    entirely in code."""
+
+    ANTHROPIC_URL = ISSUE["items"][0]["url"]
+    OPENAI_URL = ISSUE["items"][1]["url"]
+    ALTERNATE_URL = "https://apnews.com/anthropic-claude-hack"
+
+    POOL_WITH_ALTERNATE = {
+        "publication": "ai-pulse", "date": "2026-07-30",
+        "candidates": [
+            {"id": 4, "story": 1, "title": "Anthropic hack - Reuters",
+             "url": ANTHROPIC_URL, "source": "reuters.com",
+             "published": "2026-07-29", "result_id": 100, "text": "irrelevant here"},
+            {"id": 15, "story": 1, "title": "Anthropic Claude hack coverage - AP News",
+             "url": ALTERNATE_URL, "source": "apnews.com", "published": "2026-07-29",
+             "result_id": 101,
+             "text": "Anthropic confirmed Thursday that its Claude model had hacked "
+                     "into three separate organisations during a security review."},
+            {"id": 9, "story": 2, "title": "OpenAI price cuts - PYMNTS",
+             "url": OPENAI_URL, "source": "pymnts.com",
+             "published": "2026-07-29", "result_id": 102, "text": "irrelevant here"},
+        ],
+    }
+
+    # Same shape, but the story-1 alternate's page is about something else —
+    # the content-word gate must still refuse it even though the story
+    # number matches.
+    POOL_WITH_UNRELATED_ALTERNATE = {
+        "publication": "ai-pulse", "date": "2026-07-30",
+        "candidates": [
+            {"id": 4, "story": 1, "title": "Anthropic hack - Reuters",
+             "url": ANTHROPIC_URL, "source": "reuters.com",
+             "published": "2026-07-29", "result_id": 100, "text": "irrelevant here"},
+            {"id": 15, "story": 1, "title": "Unrelated coverage",
+             "url": ALTERNATE_URL, "source": "apnews.com", "published": "2026-07-29",
+             "result_id": 101,
+             "text": "This paragraph is about something else entirely and does not "
+                     "overlap with the post's claim in any meaningful way today."},
+            {"id": 9, "story": 2, "title": "OpenAI price cuts - PYMNTS",
+             "url": OPENAI_URL, "source": "pymnts.com",
+             "published": "2026-07-29", "result_id": 102, "text": "irrelevant here"},
+        ],
+    }
+
+    POOL_WITH_NO_ALTERNATE = {
+        "publication": "ai-pulse", "date": "2026-07-30",
+        "candidates": [
+            {"id": 4, "story": 1, "title": "Anthropic hack - Reuters",
+             "url": ANTHROPIC_URL, "source": "reuters.com",
+             "published": "2026-07-29", "result_id": 100, "text": "irrelevant here"},
+            {"id": 9, "story": 2, "title": "OpenAI price cuts - PYMNTS",
+             "url": OPENAI_URL, "source": "pymnts.com",
+             "published": "2026-07-29", "result_id": 102, "text": "irrelevant here"},
+        ],
+    }
+
+    def _publish(self, pool, issue=None, broken=None):
+        broken = broken if broken is not None else {self.ANTHROPIC_URL}
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp, issue=issue, pool=pool)
+            with mock.patch.object(pi, "check_link", side_effect=_link_map(broken)):
+                with mock.patch.object(pi.subprocess, "run") as proc:
+                    proc.return_value = mock.Mock(
+                        returncode=0, stdout="  ✓ Sent to a@b.com\n", stderr="")
+                    with redirect_stdout(io.StringIO()) as out:
+                        code = pi.publish(DAY, "ai-pulse", f.dir, send=True)
+            posts_path = f.dir / "X_posts_2026-07-30.txt"
+            posts = posts_path.read_text(encoding="utf-8") if posts_path.exists() else None
+            return code, out.getvalue(), f.record(), posts
+
+    def test_a_broken_link_is_repaired_from_a_same_story_candidate(self):
+        code, out, record, posts = self._publish(self.POOL_WITH_ALTERNATE)
+        self.assertEqual(code, 0)
+        self.assertEqual(record["status"], "sent")
+        self.assertEqual(record["selected"], 2)
+        self.assertEqual(record["links"], {"ok": 2, "suspect": 0, "broken": 0})
+        self.assertNotIn("dropped", record)
+        self.assertEqual(len(record["repaired"]), 1)
+        self.assertEqual(record["repaired"][0]["new_url"], self.ALTERNATE_URL)
+        self.assertIn(self.ALTERNATE_URL, posts)
+        self.assertNotIn(self.ANTHROPIC_URL, posts)
+        self.assertIn("REPAIRED", out)
+
+    def test_a_same_story_alternate_that_does_not_support_the_post_is_refused(self):
+        # The story number matching is not enough on its own — the content-
+        # word gate build_issue used at selection time applies again here,
+        # or a repair could silently attach a post to the wrong page.
+        code, out, record, posts = self._publish(self.POOL_WITH_UNRELATED_ALTERNATE)
+        self.assertEqual(code, 0)                    # 1 of 2 items still ships
+        self.assertEqual(record["selected"], 1)
+        self.assertNotIn("repaired", record)
+        self.assertEqual(len(record["dropped"]), 1)
+        self.assertNotIn(self.ALTERNATE_URL, posts)
+
+    def test_a_broken_link_with_no_alternate_is_dropped_and_the_rest_still_sends(self):
+        code, out, record, posts = self._publish(self.POOL_WITH_NO_ALTERNATE)
+        self.assertEqual(code, 0)
+        self.assertEqual(record["status"], "sent")
+        self.assertEqual(record["selected"], 1)
+        self.assertEqual(len(record["dropped"]), 1)
+        self.assertNotIn("repaired", record)
+        # Renumbered: the sole survivor is #1, not #2 — post_tweet.py indexes
+        # a fixed daily schedule by position, and a gap would post nothing
+        # for one slot and the wrong item for every slot after it.
+        self.assertIn("1. 📉 OpenAI cuts prices on select models.", posts)
+        self.assertNotIn("Anthropic", posts)
+
+    def test_dropping_below_min_items_still_blocks(self):
+        issue = dict(ISSUE, min_items=2)
+        code, out, record, _ = self._publish(self.POOL_WITH_NO_ALTERNATE, issue=issue)
+        self.assertEqual(code, 2)
+        self.assertEqual(record["status"], "blocked")
+        self.assertEqual(len(record["dropped"]), 1)
+        self.assertIn("need", record["reason"].lower())
+        self.assertIn("Nothing was sent", out)
 
 
 class PublicationConfig(unittest.TestCase):

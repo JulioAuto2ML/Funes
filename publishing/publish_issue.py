@@ -52,6 +52,200 @@ from publish_newsletter import (
     template_path,
 )
 
+# ── Deterministic link repair ────────────────────────────────────────────────
+# A broken link at send time (2026-08-11: a washingtonpost.com timeout) used to
+# come back to curator as a tool rejection, asking a language model to notice
+# and swap the item — which it wasn't reliably doing, and which is exactly the
+# kind of mechanical step the deterministic-over-agentic principle says should
+# be code instead. Repairing it here means the model is never involved: a
+# broken item is either swapped for an already-harvested candidate covering
+# the same story, or dropped, before the model ever sees the outcome.
+
+# Mirrors src/core/tools/issue.cpp's content_words/split_sentences/
+# kMinOverlap — the same "does this post actually match this page" gate
+# build_issue used at selection time, applied again to whatever page a
+# repair is about to substitute in. Not required to match byte-for-byte
+# (this is a second, independent safety gate on an automatic repair, not
+# the primary check), but keep the thresholds in sync if either changes.
+_STOP_WORDS = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "is", "are", "was", "were", "be", "been", "has", "have", "had",
+    "will", "can", "its", "this", "that", "with", "from", "by", "not",
+    "also", "than", "more", "most", "into", "over", "just", "about",
+    "after", "before", "between", "through", "under", "such", "very",
+    "only", "even", "both", "each", "all", "any", "some", "new", "first",
+    "last", "other", "same", "which", "their", "them", "they", "what",
+    "when", "where", "how", "who", "would", "could", "should", "does",
+    "did", "being", "here", "there", "then", "now", "out", "own", "these",
+    "those", "said", "says", "one", "two", "may", "like", "well", "use",
+    "used", "using", "make", "made", "get", "got", "set", "way", "many",
+}
+_MIN_WORD_LEN = 4
+_MIN_SENTENCE_CHARS = 40
+_MIN_OVERLAP = 3
+
+
+def _content_words(text):
+    words = set()
+    word = ""
+    for ch in text:
+        if ch.isalnum():
+            word += ch.lower()
+            continue
+        if len(word) >= _MIN_WORD_LEN and word not in _STOP_WORDS:
+            words.add(word)
+        word = ""
+    if len(word) >= _MIN_WORD_LEN and word not in _STOP_WORDS:
+        words.add(word)
+    return words
+
+
+def _split_sentences(text):
+    # Every newline is a structural break in extracted web text (it marks a
+    # different HTML element) — without this, nav items concatenate into one
+    # blob that can score well because real article text is buried in it.
+    sentences = []
+    current = ""
+    for i, ch in enumerate(text):
+        current += ch
+        is_break = ch == "\n"
+        if ch in ".!?" and (i + 1 >= len(text) or text[i + 1].isspace()):
+            is_break = True
+        if is_break:
+            s = current.strip()
+            if len(s) >= _MIN_SENTENCE_CHARS:
+                sentences.append(s)
+            current = ""
+    s = current.strip()
+    if len(s) >= _MIN_SENTENCE_CHARS:
+        sentences.append(s)
+    return sentences
+
+
+def best_overlap(post_text, page_text):
+    """The most content words any single sentence of page_text shares with
+    post_text. 0 if page_text is empty or post_text has no content words."""
+    post_words = _content_words(post_text)
+    if not post_words or not page_text:
+        return 0
+    best = 0
+    for sentence in _split_sentences(page_text):
+        overlap = len(post_words & _content_words(sentence))
+        if overlap > best:
+            best = overlap
+    return best
+
+
+def load_pool(work_dir, publication, target_date):
+    """The full harvested candidate pool (every candidate fetched, not just
+    the ones selected) — the same file src/core/tools/harvest.cpp writes and
+    src/core/tools/issue.cpp's publish_issue reads. None if it's missing or
+    unreadable, which a repair pass treats as "no alternates available"
+    rather than an error: the issue itself is still valid without it."""
+    path = work_dir / f"harvest_{publication}_{target_date.isoformat()}.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _headline(title, max_chars=60):
+    """Same intent as issue.cpp's headline_from_title, simplified: Python
+    strings are already character-addressable, so no manual UTF-8 safety is
+    needed. Only used for a repaired item's headline — the original item's
+    headline already went through the real one in build_issue."""
+    clean = title.strip()
+    for sep in (" | ", " - ", " – ", " — "):
+        at = clean.find(sep)
+        if at >= 20:
+            clean = clean[:at]
+            break
+    if len(clean) <= max_chars:
+        return clean
+    cut = clean[:max_chars]
+    space = cut.rfind(" ")
+    if space > max_chars // 2:
+        cut = cut[:space]
+    return cut.strip() + "…"
+
+
+def find_replacement(item, candidates_by_id, used_ids):
+    """A different, not-yet-used pool candidate covering the same story as
+    item's original candidate, whose link resolves and whose page still
+    supports the post's own text. Returns (candidate, status, detail) or
+    None if no such candidate exists."""
+    original = candidates_by_id.get(item.get("candidate_id"))
+    if original is None or original.get("story") is None:
+        return None
+    story = original["story"]
+    for cid, candidate in candidates_by_id.items():
+        if cid in used_ids or cid == item.get("candidate_id"):
+            continue
+        if candidate.get("story") != story:
+            continue
+        if best_overlap(item["text"], candidate.get("text", "")) < _MIN_OVERLAP:
+            continue
+        status, detail = check_link(candidate.get("url", ""))
+        if status == "broken":
+            continue
+        return candidate, status, detail
+    return None
+
+
+def repair_and_check(items, pool):
+    """Re-checks every item's link. A broken one is repaired in place from a
+    same-story pool alternate if one resolves and still supports the post's
+    text; otherwise the item is dropped rather than blocking the whole issue
+    over one story. Items are renumbered afterward so post_tweet.py's fixed
+    n-indexes stay contiguous.
+
+    Returns (kept_items, results, repaired, dropped) — results is
+    [(item, status, detail)] for every surviving item, matching what
+    check_all used to return; repaired/dropped are for the run record.
+    """
+    used_ids = {item.get("candidate_id") for item in items}
+    candidates_by_id = {c.get("id"): c for c in pool.get("candidates", [])} if pool else {}
+
+    kept, results, repaired, dropped = [], [], [], []
+    print("Checking links:")
+    for item in items:
+        status, detail = check_link(item["url"])
+        print(f"  {status.upper():8} {detail:24} #{item['n']} {item['url']}", flush=True)
+
+        if status != "broken":
+            results.append((item, status, detail))
+            kept.append(item)
+            continue
+
+        found = find_replacement(item, candidates_by_id, used_ids)
+        if found is None:
+            print(f"  DROPPED  #{item['n']} — no usable alternate for this story",
+                  flush=True)
+            dropped.append({"n": item["n"], "url": item["url"], "reason": detail})
+            continue
+
+        candidate, new_status, new_detail = found
+        old_url = item["url"]
+        item = dict(item)
+        item["url"] = candidate.get("url", "")
+        item["source"] = candidate.get("source", item.get("source", ""))
+        item["published"] = candidate.get("published", item.get("published", ""))
+        item["headline"] = _headline(candidate.get("title", ""))
+        item["candidate_id"] = candidate.get("id")
+        used_ids.add(candidate.get("id"))
+        print(f"  REPAIRED #{item['n']} {old_url} -> {item['url']} "
+              f"(same story, candidate {candidate.get('id')})", flush=True)
+        repaired.append({"n": item["n"], "old_url": old_url, "new_url": item["url"]})
+        kept.append(item)
+        results.append((item, new_status, new_detail))
+
+    for n, item in enumerate(kept, 1):
+        item["n"] = n
+
+    return kept, results, repaired, dropped
+
 
 def load_issue(work_dir, publication, target_date):
     path = work_dir / "issues" / publication / f"{target_date.isoformat()}.json"
@@ -161,18 +355,6 @@ def email_channel(issue):
     return None
 
 
-def check_all(items):
-    """Re-checks every link. The harvest may be an hour old, and this is the
-    last gate before the mail leaves."""
-    results = []
-    print("Checking links:")
-    for item in items:
-        status, detail = check_link(item["url"])
-        results.append((item, status, detail))
-        print(f"  {status.upper():8} {detail:24} #{item['n']} {item['url']}", flush=True)
-    return results
-
-
 def write_run_record(work_dir, publication, record):
     path = work_dir / "runs" / publication / f"{record['date']}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -193,26 +375,26 @@ def publish(target_date, publication, work_dir, send, dry_run=False):
         write_run_record(work_dir, publication, record)
         return 1
 
-    items = issue["items"]
+    original_items = issue["items"]
     record["harvested"] = issue.get("harvested", 0)
-    record["selected"] = len(items)
     print(f"Issue {issue.get('title', publication)} {target_date.isoformat()}: "
-          f"{len(items)} item(s) selected from {record['harvested']} harvested")
+          f"{len(original_items)} item(s) selected from {record['harvested']} harvested")
 
-    try:
-        written = render_artifacts(issue, work_dir, target_date)
-    except (ValueError, FileNotFoundError, OSError) as e:
-        print(f"ERROR: {e}")
-        record["reason"] = str(e)
-        write_run_record(work_dir, publication, record)
-        return 1
-    record["artifacts"] = [kind for kind, _ in written]
+    # Link-checking (and any repair it triggers) happens before rendering, not
+    # after: a repaired item's new URL/headline has to reach the artifacts,
+    # not just the run record.
+    pool = load_pool(work_dir, publication, target_date)
+    items, results, repaired, dropped = repair_and_check(original_items, pool)
+    issue["items"] = items
+    record["selected"] = len(items)
+    if repaired:
+        record["repaired"] = repaired
+    if dropped:
+        record["dropped"] = dropped
 
-    results = check_all(items)
-    broken = [(i, d) for i, s, d in results if s == "broken"]
     suspect = [(i, d) for i, s, d in results if s == "suspect"]
-    record["links"] = {"ok": len(results) - len(broken) - len(suspect),
-                       "suspect": len(suspect), "broken": len(broken)}
+    record["links"] = {"ok": len(results) - len(suspect), "suspect": len(suspect),
+                       "broken": len(dropped)}
 
     if suspect:
         # Bot-blocked, not dead. Recorded, never blocking: news sites return
@@ -222,18 +404,27 @@ def publish(target_date, publication, work_dir, send, dry_run=False):
         for item, detail in suspect:
             print(f"  #{item['n']} {detail} {item['url']}")
 
-    if broken:
-        print(f"\nBROKEN: {len(broken)} link(s) do not resolve. Nothing was sent.")
-        for item, detail in broken:
-            print(f"  #{item['n']} {detail} {item['url']}")
-        record["reason"] = f"{len(broken)} broken link(s)"
-        record["rejected"] = [{"n": i["n"], "url": i["url"], "reason": d}
-                              for i, d in broken]
+    min_items = issue.get("min_items", 1)
+    if len(items) < min_items:
+        why = (f"{len(dropped)} broken link(s) had no usable replacement; "
+                f"{len(items)} item(s) remain, this publication needs at least "
+                f"{min_items}")
+        print(f"\n{why}. Nothing was sent.")
+        record["reason"] = why
         record["duration_s"] = round(time.time() - started, 1)
         write_run_record(work_dir, publication, record)
         return 2
 
-    print(f"\nAll {len(items)} link(s) resolve.")
+    print(f"\nAll {len(items)} link(s) resolve" + (" (after repair)." if repaired else "."))
+
+    try:
+        written = render_artifacts(issue, work_dir, target_date)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        print(f"ERROR: {e}")
+        record["reason"] = str(e)
+        write_run_record(work_dir, publication, record)
+        return 1
+    record["artifacts"] = [kind for kind, _ in written]
 
     if not send:
         print("Render + check only (no --send). Nothing was sent.")

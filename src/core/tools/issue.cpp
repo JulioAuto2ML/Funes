@@ -448,6 +448,13 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
                 "items listed above and call publish_issue again with the full list.", true};
     }
 
+    // publish_issue.py's own link re-check can drop an item whose link has
+    // gone bad since harvest (swapping in a same-story pool alternate, or
+    // dropping it outright) — it needs this floor to know whether the
+    // survivors still make a publishable issue, the same way this handler
+    // just did above.
+    issue["min_items"] = min_items;
+
     if (configured) {
         // The scripts read their settings out of the issue rather than parsing
         // the config themselves: one YAML dialect, in one language, in one
