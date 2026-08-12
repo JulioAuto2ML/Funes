@@ -37,6 +37,14 @@ FunesAgent::FunesAgent(const AgentConfig& cfg, ToolRegistry& tools,
     llm_.set_max_tokens(cfg_.context_limit / 4);
     llm_.set_tool_choice(cfg_.tool_choice);
 
+    if (!defaults.vision_url.empty()) {
+        vision_llm_ = std::make_unique<LLMClient>(
+            defaults.vision_url, defaults.llm_api_key,
+            "default", defaults.llm_provider);
+        vision_llm_->set_max_tokens(cfg_.context_limit / 4);
+        vision_llm_->set_tool_choice(cfg_.tool_choice);
+    }
+
     tools_schema_ = tools_.openai_schema(cfg_.tools);
     connect_mcp_servers();
 }
@@ -268,9 +276,13 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
         history.push_back(std::move(m));
     }
 
-    // 4. The tool loop.
+    // 4. The tool loop. If images are attached and a vision endpoint is
+    //    configured, the first completion goes through it — the vision model
+    //    understands the image, then subsequent steps (tool calls, reasoning)
+    //    continue on the main model which is better at multi-step reasoning.
+    const bool use_vision = vision_llm_ && !images.empty();
     int prompt_tokens = 0;
-    std::string final_text = run_loop(history, ctx, emit, prompt_tokens);
+    std::string final_text = run_loop(history, ctx, emit, prompt_tokens, use_vision);
 
     // 5. Persist the exchange: session history always; long-term memory when
     //    auto-memory is on (source "auto" so the UI can distinguish it).
@@ -310,7 +322,8 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
 
 std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                                  const ToolContext& ctx, const EventFn& emit,
-                                 int& prompt_tokens_out) {
+                                 int& prompt_tokens_out,
+                                 bool use_vision_first) {
     // Exact-signature loop detection: the same (tool, args) called 3+ times
     // means a tight loop — return early with the last result. Same tool with
     // different args is legitimate.
@@ -399,8 +412,15 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         // concluded. Better to spend the last step on the owed call and fail
         // for want of an answer than to answer with the floor unmet.
         const bool withhold = !force_tool_call && (force_no_tools || last_step);
-        if (force_tool_call) llm_.set_tool_choice("required");
-        else if (withhold)   llm_.set_tool_choice("none");
+
+        // Vision routing: step 0 with images goes to the vision model,
+        // which understands the image; subsequent steps (tool calls,
+        // reasoning) stay on the main model.
+        LLMClient& active_llm = (step == 0 && use_vision_first)
+            ? *vision_llm_ : llm_;
+
+        if (force_tool_call) active_llm.set_tool_choice("required");
+        else if (withhold)   active_llm.set_tool_choice("none");
 
         // Withholding is announced as well as performed. Dropping the schema
         // decides what the server will accept; this decides what the model
@@ -420,23 +440,23 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         const std::vector<ChatMessage>& msgs = withhold ? withheld_turn : history;
 
         try {
-            resp = llm_.complete(msgs, tools_schema_, on_delta);
+            resp = active_llm.complete(msgs, tools_schema_, on_delta);
         } catch (const std::exception& e) {
             // Some OpenAI-compatible servers reject stream=true — retry once
             // without streaming before giving up.
             if (on_delta) {
                 std::cerr << "[agent:" << cfg_.name << "] streaming failed ("
                           << e.what() << "), retrying without stream\n";
-                resp = llm_.complete(msgs, tools_schema_);
+                resp = active_llm.complete(msgs, tools_schema_);
                 if (emit && !resp.content.empty())
                     emit("delta", {{"text", resp.content}});
             } else {
-                llm_.set_tool_choice(cfg_.tool_choice);
+                active_llm.set_tool_choice(cfg_.tool_choice);
                 throw;
             }
         }
         if (force_tool_call || withhold) {
-            llm_.set_tool_choice(cfg_.tool_choice);
+            active_llm.set_tool_choice(cfg_.tool_choice);
             force_tool_call = false;
             force_no_tools  = false;
         }

@@ -96,6 +96,7 @@ int main() {
     defaults.llm_api_key     = funes::env("FUNES_LLM_KEY");
     defaults.llm_provider    = funes::env("FUNES_LLM_PROVIDER", "openai");
     defaults.llm_model       = funes::env("FUNES_LLM_MODEL", "default");
+    defaults.vision_url      = funes::env("FUNES_VISION_URL");
     defaults.memory_turns    = funes::env_int("FUNES_MEMORY_TURNS", 10);
     defaults.memory_recall_k = funes::env_int("FUNES_MEMORY_RECALL_K", 4);
     defaults.auto_memory     = funes::env("FUNES_AUTO_MEMORY", "1") != "0";
@@ -265,6 +266,8 @@ int main() {
               << "  UI:        http://" << host << ":" << port << "\n"
               << "  LLM:       " << defaults.llm_url << " (" << defaults.llm_provider
               << ", model: " << defaults.llm_model << ")\n"
+              << (defaults.vision_url.empty() ? ""
+                  : "  Vision:    " + defaults.vision_url + "\n")
               << "  Memory:    " << db_path << " (" << memory.count() << " memories, "
               << (embedder ? "semantic" : "keyword-only") << ")\n"
               << "  Agents:    " << api.agent_count() << " from " << agents_dir << "\n"

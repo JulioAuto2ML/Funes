@@ -42,6 +42,7 @@ struct AgentDefaults {
     std::string llm_api_key;
     std::string llm_provider = "openai";
     std::string llm_model;              // used when agent model is "default"
+    std::string vision_url;             // if set, image-bearing turns use this endpoint
     int         memory_turns = 10;      // past turns loaded per run
     int         memory_recall_k = 4;    // memories injected per run
     bool        auto_memory  = true;    // store each exchange as a memory
@@ -87,6 +88,7 @@ private:
     MemoryStore&  memory_;
     AgentDefaults defaults_;
     LLMClient     llm_;
+    std::unique_ptr<LLMClient> vision_llm_;  // set when FUNES_VISION_URL is configured
     json          tools_schema_;   // native + MCP, filtered by allowlist
 
     // External MCP servers (usually none), SSE or stdio. tool name → client index.
@@ -101,5 +103,6 @@ private:
                              const ToolContext& ctx);
 
     std::string run_loop(std::vector<ChatMessage>& history, const ToolContext& ctx,
-                         const EventFn& emit, int& prompt_tokens_out);
+                         const EventFn& emit, int& prompt_tokens_out,
+                         bool use_vision_first = false);
 };
