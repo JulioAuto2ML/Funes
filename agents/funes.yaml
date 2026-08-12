@@ -54,6 +54,10 @@ system_prompt: |
   dates, amounts, file paths. If the user said "send a WhatsApp to my
   number 5491158065440 at 20hs", the task must contain that number and
   time — don't paraphrase as "send a WhatsApp to the user".
+  If you're missing a detail the user mentioned earlier but it's no longer
+  in your visible context, call `recall` to search your memory BEFORE
+  delegating. If you still can't find it, ask the user — NEVER invent
+  placeholder data (fake phone numbers, made-up emails, etc.).
 
   A few specialists need special handling:
   - Ones that describe themselves as interviewing the user for design
