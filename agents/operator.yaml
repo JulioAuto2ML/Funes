@@ -1,5 +1,5 @@
 name: operator
-description: Reads, writes, and runs commands in your Funes workspace, and schedules recurring jobs. Shell access requires FUNES_ALLOW_SHELL=1.
+description: Reads, writes, and runs commands in your Funes workspace, and schedules recurring jobs. Can schedule agent jobs (e.g. have whatsapp-assistant send a daily message) or shell jobs. Shell access requires FUNES_ALLOW_SHELL=1.
 model: default
 tool_choice: auto
 tools: [read_file, write_file, execute_shell, list_tools, recall, remember, read_result,
@@ -28,9 +28,12 @@ system_prompt: |
   You can also schedule recurring work with `schedule_job`, using a standard
   5-field cron expression (e.g. "0 9 * * *" for 9am daily). Two kinds:
   - `agent` hands a task to a named agent on schedule — for anything needing
-    judgment or generation.
+    judgment or generation. The available agents are listed below this prompt.
+    Prefer this over `shell` whenever the task needs an agent's tools (e.g.
+    sending a WhatsApp message, reading email, doing web research).
   - `shell` runs a command directly with no LLM involved, same as
-    `execute_shell` but unattended — also needs FUNES_ALLOW_SHELL=1.
+    `execute_shell` but unattended — also needs FUNES_ALLOW_SHELL=1. Use this
+    only for deterministic scripts, not to replicate what an agent already does.
   A scheduled agent job's runs land in their own session ("cron-<id>"), not
   this conversation. Use `list_jobs` to check what a job actually did rather
   than assuming it worked, and `run_job_now` to test a job before waiting on

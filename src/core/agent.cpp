@@ -225,14 +225,28 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     std::vector<ChatMessage> history;
     {
         std::string sys = cfg_.system_prompt;
-        if (defaults_.agent_roster &&
-            (cfg_.tools.empty() ||
-             std::find(cfg_.tools.begin(), cfg_.tools.end(), "delegate_to_agent") != cfg_.tools.end())) {
-            std::string roster = defaults_.agent_roster(cfg_.name);
-            if (!roster.empty()) {
-                sys += "\n\n## Available specialist agents (delegate_to_agent)\n" + roster
-                     + "Delegate to whichever of these fits the task; this list reflects "
-                       "whatever agents are currently loaded.";
+        if (defaults_.agent_roster) {
+            const bool has_delegate =
+                cfg_.tools.empty() ||
+                std::find(cfg_.tools.begin(), cfg_.tools.end(), "delegate_to_agent") != cfg_.tools.end();
+            const bool has_schedule =
+                std::find(cfg_.tools.begin(), cfg_.tools.end(), "schedule_job") != cfg_.tools.end();
+            if (has_delegate || has_schedule) {
+                std::string roster = defaults_.agent_roster(cfg_.name);
+                if (!roster.empty()) {
+                    if (has_delegate) {
+                        sys += "\n\n## Available specialist agents (delegate_to_agent)\n" + roster
+                             + "Delegate to whichever of these fits the task; this list reflects "
+                               "whatever agents are currently loaded.";
+                    }
+                    if (has_schedule) {
+                        sys += "\n\n## Available agents for schedule_job(kind=\"agent\")\n" + roster
+                             + "When scheduling a recurring task that needs one of these agents' "
+                               "capabilities, use schedule_job with kind=\"agent\" and that "
+                               "agent's name — don't write shell scripts to replicate what an "
+                               "agent already does.";
+                    }
+                }
             }
         }
         if (!summary.empty()) {
