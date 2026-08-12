@@ -60,7 +60,15 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
             now.time_since_epoch()).count();
         const std::string session = "cron-" + std::to_string(job.id) +
                                     "-" + std::to_string(epoch);
-        std::string out = sub.run(job.task, session,
+        // The agent has no way to know it's running unattended unless we
+        // tell it. Without this preamble a cautious prompt ("when in
+        // doubt, confirm first") deadlocks because there is nobody to
+        // confirm with.
+        const std::string task =
+            "[You are running as a scheduled job — there is no interactive "
+            "user. Execute the task directly; do not ask for confirmation.]\n\n"
+            + job.task;
+        std::string out = sub.run(task, session,
                                   nullptr, {}, /*persist=*/true);
         const bool ok = !funes::is_run_failure(out);
         bound_preview(out);
