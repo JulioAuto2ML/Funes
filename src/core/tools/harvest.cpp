@@ -526,6 +526,7 @@ std::string today_local() {
 // same math as before, 25 candidates at ~1200 chars is ~10K tokens, still well
 // under curator's 32768 context_limit.
 constexpr size_t kExcerptBytes         = 1200;
+constexpr size_t kMinPageBytes         = 2000;
 constexpr size_t kMaxPageBytes         = 64 * 1024;
 
 ToolResult harvest_handler(MemoryStore& memory, const std::string& default_workspace,
@@ -626,6 +627,11 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
         }
         if (page.text.size() > kMaxPageBytes)
             funes::truncate_utf8_safe(page.text, kMaxPageBytes);
+        if (page.text.size() < kMinPageBytes) {
+            rejected.push_back({c.url, "page text too short (" +
+                                std::to_string(page.text.size()) + " bytes)"});
+            continue;
+        }
         c.text = std::move(page.text);
         kept.push_back(std::move(c));
     }

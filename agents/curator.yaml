@@ -4,11 +4,13 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-# Budget: harvest 2 + read_result 4 + publish_issue 4 = 10, plus the
-# final-answer step and margin for nudges. Evidence extraction is
-# deterministic, but the model sometimes needs several repair rounds when
-# multiple items fail grounding (all violations are reported at once).
-max_steps: 16
+# Budget: harvest 2 + read_result 8 + publish_issue 4 = 14, plus the
+# final-answer step and margin for nudges. read_result is 8 (not 4) because
+# the model needs reads both before the first publish_issue (to understand
+# candidates) and after a grounding rejection (to read alternative candidates'
+# pages before rewriting). The 2026-08-12 failure burned all 4 reads upfront,
+# leaving zero for recovery — the model resubmitted blind guesses 4 times.
+max_steps: 24
 context_limit: 32768
 
 # Everything this agent does that matters is a side effect: a pool fetched, an
@@ -26,7 +28,7 @@ require_tools: [harvest_candidates, publish_issue]
 # always.
 tool_limits:
   harvest_candidates: 2
-  read_result: 4
+  read_result: 8
   publish_issue: 4
 
 # Deliberately NO web_search and NO web_fetch. They are the last path by which
