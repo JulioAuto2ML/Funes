@@ -273,7 +273,7 @@ int main() {
               << "  Agents:    " << api.agent_count() << " from " << agents_dir << "\n"
               << "  Workspace: " << workspace_dir << " (shell "
               << (funes::env("FUNES_ALLOW_SHELL", "0") == "1" ? "enabled" : "disabled") << ")\n"
-              << "\n";
+              << "\n" << std::flush;
 
     signal(SIGPIPE, SIG_IGN);  // dropped SSE clients must not kill the process
 
