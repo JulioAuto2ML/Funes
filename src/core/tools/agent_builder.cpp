@@ -28,6 +28,7 @@ std::string emit_agent_yaml(const std::string& name, const std::string& descript
                             const std::vector<std::string>& tools, int max_steps,
                             int context_limit, const std::string& system_prompt,
                             const std::string& workspace_dir,
+                            const std::string& delegation_notes,
                             const std::vector<std::string>& mcp_servers) {
     YAML::Emitter out;
     out << YAML::BeginMap;
@@ -38,6 +39,8 @@ std::string emit_agent_yaml(const std::string& name, const std::string& descript
     out << YAML::Key << "tools" << YAML::Value << YAML::Flow << tools;
     if (!workspace_dir.empty())
         out << YAML::Key << "workspace_dir" << YAML::Value << workspace_dir;
+    if (!delegation_notes.empty())
+        out << YAML::Key << "delegation_notes" << YAML::Value << delegation_notes;
     if (!mcp_servers.empty())
         out << YAML::Key << "mcp_servers" << YAML::Value << YAML::Flow << mcp_servers;
     out << YAML::Key << "max_steps"     << YAML::Value << max_steps;
@@ -99,7 +102,8 @@ ToolResult create_agent_handler(const ToolRegistry& reg, const std::string& agen
         return {"An agent named '" + name + "' already exists at " + path.string() +
                 " — pass overwrite=true to replace it.", true};
 
-    const std::string workspace_dir = args.value("workspace_dir", std::string());
+    const std::string workspace_dir    = args.value("workspace_dir", std::string());
+    const std::string delegation_notes = args.value("delegation_notes", std::string());
 
     std::vector<std::string> mcp_servers;
     if (args.contains("mcp_servers")) {
@@ -117,7 +121,7 @@ ToolResult create_agent_handler(const ToolRegistry& reg, const std::string& agen
 
     const std::string yaml_text = emit_agent_yaml(name, description, model, tool_choice,
                                                   tools, max_steps, context_limit, system_prompt,
-                                                  workspace_dir, mcp_servers);
+                                                  workspace_dir, delegation_notes, mcp_servers);
     std::ofstream f(path, std::ios::trunc);
     if (!f)
         return {"Could not write " + path.string(), true};
@@ -157,7 +161,8 @@ void register_agent_builder(ToolRegistry& reg, const std::string& agents_dir,
                 {"tool_choice",   {{"type", "string"}, {"description", "auto|required|none, default auto"}}},
                 {"max_steps",     {{"type", "integer"}, {"description", "Max tool-call rounds per turn, default 8"}}},
                 {"context_limit", {{"type", "integer"}, {"description", "Context window size, default 8192"}}},
-                {"workspace_dir", {{"type", "string"}, {"description", "Overrides the default workspace directory for this agent's read_file/write_file/execute_shell (omit to inherit the server default)"}}},
+                {"workspace_dir",    {{"type", "string"}, {"description", "Overrides the default workspace directory for this agent's read_file/write_file/execute_shell (omit to inherit the server default)"}}},
+                {"delegation_notes", {{"type", "string"}, {"description", "Short note shown to the orchestrator alongside this agent's description in the roster — use for delegation-specific instructions the caller needs (omit if none)"}}},
                 {"mcp_servers",   {{"type", "array"}, {"items", {{"type", "string"}}},
                                    {"description", "Extra MCP server URLs this agent connects to, on top of native tools (omit if none)"}}},
                 {"overwrite",     {{"type", "boolean"}, {"description", "Replace an existing agent of the same name"}}}

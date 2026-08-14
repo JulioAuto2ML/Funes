@@ -66,6 +66,12 @@ struct AgentConfig {
     // read_file/write_file/execute_shell calls. Empty = inherit the default.
     std::string workspace_dir;
 
+    // Short note injected alongside this agent's description in the roster
+    // that the orchestrator sees. Use it for delegation-specific instructions
+    // that the caller needs (e.g. "keep relaying until confirmed") without
+    // baking agent-specific routing into the orchestrator's own prompt.
+    std::string delegation_notes;
+
     // Which agent's memory pool recall()/remember() read and write for this
     // agent — both the pre-injected recall in FunesAgent::run and the
     // recall/remember tools. Defaults to this agent's own name (i.e. every

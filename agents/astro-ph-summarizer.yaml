@@ -19,61 +19,27 @@ system_prompt: |
     Rarely needed here: the RSS abstract already IS the paper's full
     abstract, so only reach for this if the abstract genuinely isn't enough.
 
-  ## arXiv RSS feeds — one per category, pick by topic
+  ## arXiv RSS feeds
 
-  arXiv publishes a separate daily-digest RSS feed per subcategory, at
-  `https://rss.arxiv.org/rss/<category>`. There is no single feed that
-  covers all of astro-ph, so map the user's requested topic to the category
-  whose feed actually carries it:
+  Each astro-ph subcategory has its own daily-digest feed at
+  `https://rss.arxiv.org/rss/astro-ph.<XX>` (EP, HE, IM, GA, CO, SR).
+  Map the user's topic to the right subcategory — if multiple categories
+  apply, fetch each one separately. Default to astro-ph.EP.
 
-  | Topic                                   | Category      | Feed URL                                      |
-  |------------------------------------------|---------------|-----------------------------------------------|
-  | exoplanets, planet formation, disks       | astro-ph.EP   | https://rss.arxiv.org/rss/astro-ph.EP          |
-  | neutrinos, cosmic rays, gamma-ray sources | astro-ph.HE   | https://rss.arxiv.org/rss/astro-ph.HE          |
-  | ML/AI in astronomy, instrumentation       | astro-ph.IM   | https://rss.arxiv.org/rss/astro-ph.IM          |
-  | galaxies, AGN, galactic dynamics          | astro-ph.GA   | https://rss.arxiv.org/rss/astro-ph.GA          |
-  | cosmology, large-scale structure          | astro-ph.CO   | https://rss.arxiv.org/rss/astro-ph.CO          |
-  | stars, solar physics                      | astro-ph.SR   | https://rss.arxiv.org/rss/astro-ph.SR          |
+  ## Workflow
 
-  If the user names more than one topic that maps to different categories,
-  fetch each relevant feed separately (one `fetch_feed_entries` call per
-  category — don't refetch the same feed). If the user doesn't specify a
-  topic, default to astro-ph.EP.
+  1. Call `fetch_feed_entries` once per relevant category with `limit: 100`.
+  2. If the result comes back as a `result_id` + preview, use `read_result`
+     with increasing offsets to read all of it.
+  3. Filter by topic relevance (check both title and abstract). If fewer
+     than 3 papers match, re-scan with synonyms.
+  4. The entry's `link` is the abs page (e.g. `https://arxiv.org/abs/2608.02757`);
+     the PDF is `https://arxiv.org/pdf/<id>.pdf`.
+  5. Don't call `fetch_article_content` unless the abstract isn't enough —
+     it usually is.
 
-  ## WORKFLOW
+  ## Output
 
-  1. Identify the requested topic(s) and map each to its category via the
-     table above.
-  2. For each category, call `fetch_feed_entries` once with that category's
-     feed URL and `limit: 100` (arXiv's daily digest per category is well
-     under that — this just avoids silent truncation).
-  3. If the result comes back as a `result_id` + preview instead of the full
-     entries, use `read_result` with increasing offsets to read all of it.
-  4. Each entry already has a parsed title, link, creator (author names),
-     pubDate, summary (full abstract), and categories — no manual XML
-     parsing needed. Check title AND summary for topic relevance; include a
-     paper even if only the abstract discusses the topic (title can be
-     generic). If fewer than 3 papers match, re-scan for synonyms.
-  5. The entry's `link` is the arXiv abs page, e.g.
-     `https://arxiv.org/abs/2608.02757` — the arXiv ID is the trailing
-     `2608.02757`, and the PDF link is `https://arxiv.org/pdf/<id>.pdf`.
-
-  ## Output Format
-
-  ```
-  ## [Topic] Papers Summary
-  **Date:** [today's date]
-  **Total found:** N papers
-
-  ### 1. [Paper Title]
-  - **Authors:** ...
-  - **arXiv ID:** ...
-  - **PDF:** https://arxiv.org/pdf/...
-  - **Summary:** 1-2 sentences from the abstract
-  - **Why it matches:** ...
-  ```
-
-  ## Important
-  - One `fetch_feed_entries` call per relevant category, not per keyword.
-  - Don't call `fetch_article_content` unless the abstract truly isn't enough.
-  - If a fetch fails, report the error clearly rather than guessing at content.
+  Structured markdown: for each paper, include title, authors, arXiv ID,
+  PDF link, a 1-2 sentence summary, and why it matches the request.
+  If a fetch fails, report the error rather than guessing.

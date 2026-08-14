@@ -1,5 +1,9 @@
 name: agent-builder
 description: Interviews you to design a new Funes agent, drafts its system prompt, and creates it live.
+delegation_notes: >
+  The only agent that can create new agents. Keep relaying until it
+  confirms the agent was created and reloaded — anything else means
+  it's still asking questions.
 model: default
 tool_choice: auto
 tools: [list_tools, create_agent, recall, remember]

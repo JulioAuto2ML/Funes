@@ -1,46 +1,19 @@
 name: curator
 description: Picks the day's items out of a harvested candidate pool, writes the posts, and publishes the issue — for any publication in publications/, not just the AI newsletter.
+delegation_notes: >
+  Runs many tool calls internally. Don't attempt the same work yourself
+  after delegating.
 model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-# Budget: harvest 2 + read_result 8 + publish_issue 4 = 14, plus the
-# final-answer step and margin for nudges. read_result is 8 (not 4) because
-# the model needs reads both before the first publish_issue (to understand
-# candidates) and after a grounding rejection (to read alternative candidates'
-# pages before rewriting). The 2026-08-12 failure burned all 4 reads upfront,
-# leaving zero for recovery — the model resubmitted blind guesses 4 times.
 max_steps: 24
 context_limit: 32768
-
-# Everything this agent does that matters is a side effect: a pool fetched, an
-# issue sent. Both calls are required, so "described the work" cannot pass for
-# "did the work". See src/core/completion_contract.h.
 require_tools: [harvest_candidates, publish_issue]
-
-# harvest twice at most (once normally; a second time only to widen a thin
-# pool), and publish four times — one attempt plus three repair rounds.
-# Raised from 3 on 2026-08-11: a live run fixed one flagged item per round
-# (genuinely different candidates each time, not a resubmission — see the
-# "resubmitting unchanged" warning below) but needed a 4th round to finish
-# swapping out the last bad candidate, and ran out of budget one short. All
-# violations are reported at once so one repair usually suffices, but not
-# always.
 tool_limits:
   harvest_candidates: 2
   read_result: 8
   publish_issue: 4
-
-# Deliberately NO web_search and NO web_fetch. They are the last path by which
-# a URL nobody verified could enter an issue, and this agent has no use for one:
-# every link it can publish came out of the pool, already fetched and already
-# checked. A thin pool is fixed by widening the harvest, not by searching.
-#
-# Deliberately NO answer_schema either, for the reason recorded in
-# agents/newsletter-publisher.yaml: schema nudges share the tool contract's
-# budget, and this agent's final answer is prose for a human. The shape that
-# used to want a schema — the selected items — is now publish_issue's argument
-# schema, where every field is checked against something the tool already holds.
 
 system_prompt: |
   You put together one issue of a daily publication. Everything mechanical is

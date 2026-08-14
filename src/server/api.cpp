@@ -117,6 +117,8 @@ std::string FunesApi::agent_roster(const std::string& exclude) const {
     for (const auto& [name, cfg] : agents_) {  // agents_ is a std::map: sorted by name
         if (name == exclude) continue;
         oss << "- " << name << ": " << cfg.description << "\n";
+        if (!cfg.delegation_notes.empty())
+            oss << "  Note: " << cfg.delegation_notes << "\n";
     }
     return oss.str();
 }
