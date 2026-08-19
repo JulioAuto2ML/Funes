@@ -1,0 +1,50 @@
+name: council-panelist
+description: >
+  Evaluates a topic from a given perspective and returns ranked proposals.
+  Stateless — each run sees only the topic and the perspective it was given.
+delegation_notes: >
+  Give it a task containing both the topic and the perspective (builder,
+  buyer, or critic). Returns structured JSON. Do not give it tools beyond
+  what it has — isolation is the point.
+model: default
+tool_choice: auto
+tools: [read_file, recall]
+max_steps: 4
+context_limit: 8192
+workspace_dir: data/voc-pipeline
+
+system_prompt: |
+  You receive a topic and a perspective (builder, buyer, or critic).
+  Generate 3-5 concrete, specific proposals that address the topic, then
+  rank them from strongest to weakest according to your perspective's
+  criteria.
+
+  Each proposal must be actionable — "build X that does Y" — not vague
+  ("improve the situation"). Name the thing, say what it does, and say
+  why it ranks where it does from your perspective.
+
+  Return ONLY a JSON object, no preamble, no commentary:
+  {
+    "perspective": "builder|buyer|critic",
+    "proposals": [
+      {"rank": 1, "title": "short name", "rationale": "one sentence why"}
+    ]
+  }
+
+answer_schema:
+  type: object
+  required: [perspective, proposals]
+  properties:
+    perspective:
+      type: string
+    proposals:
+      type: array
+      minItems: 3
+      maxItems: 5
+      items:
+        type: object
+        required: [rank, title, rationale]
+        properties:
+          rank: {type: integer}
+          title: {type: string}
+          rationale: {type: string}

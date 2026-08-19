@@ -27,7 +27,7 @@
 
 namespace {
 
-constexpr int kMaxDelegationDepth = 2;
+constexpr int kMaxDelegationDepth = 3;
 thread_local int g_delegation_depth = 0;
 
 ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,

@@ -95,6 +95,37 @@ answer_schema:
     CHECK(typed.system_prompt.find("sources") != std::string::npos);
     CHECK(typed.system_prompt.find("JSON") != std::string::npos);
 
+    // Env-var expansion in LLM credential fields.
+    setenv("TEST_FUNES_API_KEY", "sk-test-123", 1);
+    setenv("TEST_FUNES_URL", "https://api.example.com", 1);
+    AgentConfig env_cfg = AgentConfig::from_string(R"yaml(
+name: env-test
+llm_api_key: ${TEST_FUNES_API_KEY}
+llm_url: ${TEST_FUNES_URL}
+llm_provider: ${TEST_FUNES_MISSING_VAR}
+)yaml");
+    CHECK(env_cfg.llm_api_key == "sk-test-123");
+    CHECK(env_cfg.llm_url == "https://api.example.com");
+    CHECK(env_cfg.llm_provider.empty());  // unset var → empty string
+    unsetenv("TEST_FUNES_API_KEY");
+    unsetenv("TEST_FUNES_URL");
+
+    // Env-var expansion with surrounding text.
+    setenv("TEST_FUNES_HOST", "yoda", 1);
+    AgentConfig env_mixed = AgentConfig::from_string(R"yaml(
+name: env-mixed
+llm_url: http://${TEST_FUNES_HOST}:8080/v1
+)yaml");
+    CHECK(env_mixed.llm_url == "http://yoda:8080/v1");
+    unsetenv("TEST_FUNES_HOST");
+
+    // Literal ${...} without a closing brace is kept as-is.
+    AgentConfig env_broken = AgentConfig::from_string(R"yaml(
+name: env-broken
+llm_api_key: "${unclosed"
+)yaml");
+    CHECK(env_broken.llm_api_key == "${unclosed");
+
     // Missing name → throws.
     bool threw = false;
     try { AgentConfig::from_string("description: nameless"); }

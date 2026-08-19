@@ -7,7 +7,30 @@
 #include "agent_config.h"
 #include "answer_schema.h"
 #include <yaml-cpp/yaml.h>
+#include <cstdlib>
 #include <stdexcept>
+
+// Expand ${VAR} references in a string from the process environment.
+// Unset variables expand to the empty string — a missing key is not an error
+// here; the agent simply inherits the global default for that field.
+static std::string expand_env(const std::string& s) {
+    std::string out;
+    size_t i = 0;
+    while (i < s.size()) {
+        if (i + 1 < s.size() && s[i] == '$' && s[i + 1] == '{') {
+            size_t close = s.find('}', i + 2);
+            if (close != std::string::npos) {
+                std::string var = s.substr(i + 2, close - i - 2);
+                const char* val = std::getenv(var.c_str());
+                if (val) out += val;
+                i = close + 1;
+                continue;
+            }
+        }
+        out += s[i++];
+    }
+    return out;
+}
 
 // YAML and JSON are the same data model here, so `answer_schema:` is written
 // as ordinary YAML and converted rather than embedded as a JSON string.
@@ -51,9 +74,9 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     cfg.name          = root["name"].as<std::string>();
     cfg.description   = root["description"]   ? root["description"].as<std::string>()   : "";
     cfg.model         = root["model"]         ? root["model"].as<std::string>()         : "default";
-    cfg.llm_url       = root["llm_url"]       ? root["llm_url"].as<std::string>()       : "";
-    cfg.llm_api_key   = root["llm_api_key"]   ? root["llm_api_key"].as<std::string>()   : "";
-    cfg.llm_provider  = root["llm_provider"]  ? root["llm_provider"].as<std::string>()  : "";
+    cfg.llm_url       = root["llm_url"]       ? expand_env(root["llm_url"].as<std::string>())       : "";
+    cfg.llm_api_key   = root["llm_api_key"]   ? expand_env(root["llm_api_key"].as<std::string>())   : "";
+    cfg.llm_provider  = root["llm_provider"]  ? expand_env(root["llm_provider"].as<std::string>())  : "";
     cfg.system_prompt = root["system_prompt"] ? root["system_prompt"].as<std::string>() : "";
     cfg.tool_choice   = root["tool_choice"]   ? root["tool_choice"].as<std::string>()   : "auto";
     cfg.workspace_dir    = root["workspace_dir"]    ? root["workspace_dir"].as<std::string>()    : "";
