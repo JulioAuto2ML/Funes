@@ -14,11 +14,11 @@ model: default
 tool_choice: auto
 tools: [web_search, web_fetch, read_result, remember, recall,
         write_file, read_file, delegate_to_agent]
-max_steps: 16
+max_steps: 20
 context_limit: 8192
 tool_limits:
-  web_search: 4
-  web_fetch: 6
+  web_search: 6
+  web_fetch: 8
   delegate_to_agent: 1
 workspace_dir: data/voc-pipeline
 memory_scope: voc-researcher
