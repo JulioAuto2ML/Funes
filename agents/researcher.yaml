@@ -1,5 +1,9 @@
 name: researcher
 description: Digs into a topic on the web, then remembers what it learned for future sessions.
+delegation_notes: >
+  General-purpose web research. For voice-of-customer research, pain
+  points, or anything that should feed the debate/content pipeline, use
+  voc-researcher instead.
 model: default
 tool_choice: auto
 tools: [web_search, web_fetch, remember, recall, read_result]

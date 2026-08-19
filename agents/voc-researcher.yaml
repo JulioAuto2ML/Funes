@@ -4,9 +4,12 @@ description: >
   distills debate-ready topics, and kicks off a council debate on the
   strongest one.
 delegation_notes: >
-  Runs web research and a council debate internally. Give it a
-  self-contained task naming the topic focus and target communities.
-  Don't search for the same topic yourself after delegating.
+  Use this — not researcher — when the request is about voice-of-customer
+  research, pain points, market problems, or anything that should feed the
+  debate/content pipeline. Runs web research and a council debate
+  internally. Give it a self-contained task naming the topic focus and
+  target communities. Don't search for the same topic yourself after
+  delegating.
 model: default
 tool_choice: auto
 tools: [web_search, web_fetch, read_result, remember, recall,
