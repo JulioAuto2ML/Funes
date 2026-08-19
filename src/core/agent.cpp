@@ -354,13 +354,13 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // Set when a nudge was just injected: that one completion is forced to
     // produce a tool call, so the model can't answer the nudge with more prose.
     bool force_tool_call = false;
-    // The mirror image, set when a call was refused over budget: that one
-    // completion is offered no tools at all, so the only move left is to
-    // answer. The refusal message asks the model to conclude, but asking is
-    // not enough — on 2026-07-31 the 9B re-issued the refused web_search seven
-    // times running, each refusal costing a step, until max_steps ended the
-    // run with nothing. See core/tool_budget.h.
-    bool force_no_tools = false;
+    // Tools whose budget is used up. Removed from the schema entirely so
+    // the model can't see or call them, but other tools stay available.
+    // Replaces the old force_no_tools flag which nuked ALL tools on any
+    // single refusal — that prevented the model from transitioning to the
+    // next phase of a multi-tool pipeline (e.g. voc-researcher burning its
+    // web_search budget, then needing web_fetch + delegate_to_agent).
+    std::set<std::string> exhausted_tools;
 
     // Empty when the answer validates (or there is no schema); otherwise the
     // one violation to nudge on.
@@ -411,13 +411,26 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         // and a run that skips a required call is invalid however politely it
         // concluded. Better to spend the last step on the owed call and fail
         // for want of an answer than to answer with the floor unmet.
-        const bool withhold = !force_tool_call && (force_no_tools || last_step);
+        const bool withhold = !force_tool_call && last_step;
 
         // Vision routing: step 0 with images goes to the vision model,
         // which understands the image; subsequent steps (tool calls,
         // reasoning) stay on the main model.
         LLMClient& active_llm = (step == 0 && use_vision_first)
             ? *vision_llm_ : llm_;
+
+        // Build the active schema: start from the full set, then drop any
+        // tools whose budget is used up. The model physically can't call a
+        // tool it can't see — no XML-style workaround survives this.
+        json active_schema = tools_schema_;
+        if (!exhausted_tools.empty()) {
+            active_schema = json::array();
+            for (const auto& entry : tools_schema_) {
+                const std::string& n = entry["function"]["name"].get_ref<const std::string&>();
+                if (exhausted_tools.count(n) == 0)
+                    active_schema.push_back(entry);
+            }
+        }
 
         if (force_tool_call) active_llm.set_tool_choice("required");
         else if (withhold)   active_llm.set_tool_choice("none");
@@ -440,14 +453,14 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         const std::vector<ChatMessage>& msgs = withhold ? withheld_turn : history;
 
         try {
-            resp = active_llm.complete(msgs, tools_schema_, on_delta);
+            resp = active_llm.complete(msgs, active_schema, on_delta);
         } catch (const std::exception& e) {
             // Some OpenAI-compatible servers reject stream=true — retry once
             // without streaming before giving up.
             if (on_delta) {
                 std::cerr << "[agent:" << cfg_.name << "] streaming failed ("
                           << e.what() << "), retrying without stream\n";
-                resp = active_llm.complete(msgs, tools_schema_);
+                resp = active_llm.complete(msgs, active_schema);
                 if (emit && !resp.content.empty())
                     emit("delta", {{"text", resp.content}});
             } else {
@@ -458,7 +471,6 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         if (force_tool_call || withhold) {
             active_llm.set_tool_choice(cfg_.tool_choice);
             force_tool_call = false;
-            force_no_tools  = false;
         }
         if (resp.prompt_tokens > 0) prompt_tokens_out = resp.prompt_tokens;
 
@@ -631,11 +643,8 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             if (refused) {
                 std::cerr << "[agent:" << cfg_.name << "] " << tc.name
                           << " refused: budget of " << cfg_.tool_limits.at(tc.name)
-                          << " call(s) used up\n";
-                // Withhold tools on the next completion. Set here rather than
-                // where the refusal is composed, so a batch of calls in one
-                // step needs only a single forced turn to settle.
-                force_no_tools = true;
+                          << " call(s) used up — removing from schema\n";
+                exhausted_tools.insert(tc.name);
             }
 
             ToolResult result = refused
