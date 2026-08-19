@@ -41,6 +41,7 @@ const urlSession = new URLSearchParams(location.search).get('session');
 const state = {
   session: urlSession || localStorage.getItem('funes.session') || newSessionId(),
   busy:    false,
+  abortCtrl: null,
   // Text: {kind:'text', filename, content, isText, truncated}
   // Image: {kind:'image', filename, mimeType, data (base64)}
   attachments: [],
@@ -130,7 +131,11 @@ function addChip(cls, icon, label, detail) {
 
 async function sendMessage(displayText, fullText, images) {
   state.busy = true;
-  els.send.disabled = true;
+  state.abortCtrl = new AbortController();
+  els.send.disabled = false;
+  els.send.textContent = '■';
+  els.send.classList.add('stop');
+  els.send.title = 'Stop';
   addMessage('user', displayText,
     images.map(img => ({ mimeType: img.mime_type, data: img.data })));
 
@@ -142,6 +147,7 @@ async function sendMessage(displayText, fullText, images) {
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: state.abortCtrl.signal,
       body: JSON.stringify({
         message: fullText,
         images:  images,
@@ -249,11 +255,19 @@ async function sendMessage(displayText, fullText, images) {
       }
     }
   } catch (e) {
-    bubble.innerHTML = renderMarkdown('⚠️ ' + e.message);
+    if (e.name === 'AbortError') {
+      if (!streamed) bubble.innerHTML = renderMarkdown('*(stopped)*');
+    } else {
+      bubble.innerHTML = renderMarkdown('⚠️ ' + e.message);
+    }
   } finally {
     bubble.classList.remove('thinking');
     state.busy = false;
+    state.abortCtrl = null;
     els.send.disabled = false;
+    els.send.textContent = '↑';
+    els.send.classList.remove('stop');
+    els.send.title = 'Send';
     els.input.focus();
     refreshMemories();
     refreshJobs();
@@ -648,8 +662,12 @@ async function switchToSession(session) {
 
 els.composer.addEventListener('submit', (e) => {
   e.preventDefault();
+  if (state.busy) {
+    if (state.abortCtrl) state.abortCtrl.abort();
+    return;
+  }
   const text = els.input.value.trim();
-  if ((!text && state.attachments.length === 0) || state.busy) return;
+  if (!text && state.attachments.length === 0) return;
 
   const displayText = buildDisplayText(text, state.attachments);
   const fullText = buildFullText(text, state.attachments);

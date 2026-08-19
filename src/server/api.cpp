@@ -220,12 +220,14 @@ void FunesApi::mount(httplib::Server& srv) {
         res.set_header("Cache-Control", "no-store");
         res.set_chunked_content_provider("text/event-stream",
             [job](size_t /*offset*/, httplib::DataSink& sink) {
-                bool client_gone = false;
-                auto emit = [&sink, &client_gone](const std::string& type, const json& data) {
-                    if (client_gone) return;
-                    if (!sse_write(sink, type, data)) client_gone = true;
+                std::atomic<bool> cancelled{false};
+                auto emit = [&sink, &cancelled](const std::string& type, const json& data) {
+                    if (cancelled.load(std::memory_order_relaxed)) return;
+                    if (!sse_write(sink, type, data))
+                        cancelled.store(true, std::memory_order_relaxed);
                 };
 
+                funes::cancel_flag() = &cancelled;
                 try {
                     FunesAgent agent(job->cfg, job->api->tools_, job->api->memory_,
                                      job->api->defaults_);
@@ -234,6 +236,7 @@ void FunesApi::mount(httplib::Server& srv) {
                 } catch (const std::exception& e) {
                     emit("error", {{"message", e.what()}});
                 }
+                funes::cancel_flag() = nullptr;
 
                 sink.done();
                 return true;

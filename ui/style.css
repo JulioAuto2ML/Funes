@@ -313,6 +313,10 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   transition: opacity .15s;
 }
 #send:disabled { opacity: 0.4; cursor: default; }
+#send.stop {
+  background: var(--error);
+  font-size: 14px;
+}
 
 #attach-btn {
   width: 40px;

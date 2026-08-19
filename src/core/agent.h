@@ -29,6 +29,7 @@
 #include "memory.h"
 #include "tools.h"
 #include "mcp_client.h"
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
@@ -106,3 +107,7 @@ private:
                          const EventFn& emit, int& prompt_tokens_out,
                          bool use_vision_first = false);
 };
+
+namespace funes {
+std::atomic<bool>*& cancel_flag();
+}

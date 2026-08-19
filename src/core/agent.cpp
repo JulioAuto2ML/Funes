@@ -19,6 +19,13 @@
 #include <set>
 #include <sstream>
 
+namespace funes {
+std::atomic<bool>*& cancel_flag() {
+    thread_local std::atomic<bool>* ptr = nullptr;
+    return ptr;
+}
+}
+
 // ── construction ──────────────────────────────────────────────────────────────
 
 FunesAgent::FunesAgent(const AgentConfig& cfg, ToolRegistry& tools,
@@ -395,6 +402,12 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         };
 
     for (int step = 0; step < cfg_.max_steps; ++step) {
+        if (auto* cf = funes::cancel_flag();
+            cf && cf->load(std::memory_order_relaxed)) {
+            std::cerr << "[agent:" << cfg_.name << "] cancelled at step " << step << "\n";
+            return "(stopped by user)";
+        }
+
         CompletionResponse resp;
         // The last step is spent answering, not calling. Otherwise a model
         // that keeps finding one more thing to look up walks off the end of
