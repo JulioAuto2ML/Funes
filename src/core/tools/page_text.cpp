@@ -152,9 +152,23 @@ std::string html_to_text(const std::string& html) {
     return out;
 }
 
+std::string rewrite_reddit(const std::string& url) {
+    static const char* kNew[] = {"://www.reddit.com", "://reddit.com"};
+    for (const char* prefix : kNew) {
+        size_t pos = url.find(prefix);
+        if (pos != std::string::npos) {
+            std::string rewritten = url.substr(0, pos) + "://old.reddit.com"
+                                  + url.substr(pos + std::strlen(prefix));
+            return rewritten;
+        }
+    }
+    return url;
+}
+
 Page fetch_readable(const std::string& url) {
+    const std::string effective_url = rewrite_reddit(url);
     ParsedUrl parsed;
-    if (!funes::net::parse_http_url(url, parsed))
+    if (!funes::net::parse_http_url(effective_url, parsed))
         return {"", "Invalid URL (only http:// and https:// are supported): " + url};
 
     if (funes::net::is_private_host(parsed.host) && !funes::net::local_fetch_allowed())
@@ -178,9 +192,9 @@ Page fetch_readable(const std::string& url) {
     }
 
     if (!res)
-        return {"", "Fetch failed: connection error for " + url};
+        return {"", "Fetch failed: connection error for " + effective_url};
     if (res->status != 200)
-        return {"", "Fetch failed: HTTP " + std::to_string(res->status) + " for " + url};
+        return {"", "Fetch failed: HTTP " + std::to_string(res->status) + " for " + effective_url};
 
     const std::string content_type = res->get_header_value("Content-Type");
     std::string text;
@@ -191,17 +205,14 @@ Page fetch_readable(const std::string& url) {
                || content_type.find("xml") != std::string::npos) {
         text = res->body;
     } else {
-        return {"", "Unsupported content type '" + content_type + "' for " + url};
+        return {"", "Unsupported content type '" + content_type + "' for " + effective_url};
     }
 
-    // A page served with a non-UTF-8 charset (or a text/* response that's
-    // actually binary) would otherwise flow into the chat history and crash
-    // JSON serialization the first time it's dumped.
     if (!funes::looks_like_text(text))
-        return {"", "Fetched " + url + " but its content isn't valid UTF-8 text "
+        return {"", "Fetched " + effective_url + " but its content isn't valid UTF-8 text "
                     "(wrong charset or not actually text) — can't return it."};
     if (text.empty())
-        return {"", "Fetched " + url + " but extracted no text content."};
+        return {"", "Fetched " + effective_url + " but extracted no text content."};
 
     return {std::move(text), ""};
 }

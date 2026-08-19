@@ -30,4 +30,8 @@ struct Page {
 // a bad fetch needs to be able to tell "nothing there" from "nothing said".
 Page fetch_readable(const std::string& url);
 
+// Rewrites www.reddit.com / reddit.com URLs to old.reddit.com (server-rendered
+// HTML instead of a React SPA shell). Other URLs pass through unchanged.
+std::string rewrite_reddit(const std::string& url);
+
 } // namespace funes::web

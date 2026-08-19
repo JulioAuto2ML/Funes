@@ -157,11 +157,35 @@ int test_boilerplate_landmarks_are_dropped() {
     return 0;
 }
 
+int test_reddit_url_rewrite() {
+    using funes::web::rewrite_reddit;
+
+    CHECK(rewrite_reddit("https://www.reddit.com/r/LocalLLaMA/comments/abc123/thread_title")
+        == "https://old.reddit.com/r/LocalLLaMA/comments/abc123/thread_title");
+
+    CHECK(rewrite_reddit("https://reddit.com/r/selfhosted/comments/xyz")
+        == "https://old.reddit.com/r/selfhosted/comments/xyz");
+
+    CHECK(rewrite_reddit("http://www.reddit.com/r/privacy")
+        == "http://old.reddit.com/r/privacy");
+
+    // Already old.reddit.com — no change.
+    CHECK(rewrite_reddit("https://old.reddit.com/r/LocalLLaMA")
+        == "https://old.reddit.com/r/LocalLLaMA");
+
+    // Not Reddit at all — no change.
+    CHECK(rewrite_reddit("https://news.ycombinator.com/item?id=123")
+        == "https://news.ycombinator.com/item?id=123");
+
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_non_utf8_response_does_not_crash();
     rc |= test_large_inline_script_does_not_crash();
     rc |= test_boilerplate_landmarks_are_dropped();
+    rc |= test_reddit_url_rewrite();
     if (rc == 0) std::cout << "test_web_fetch: all tests passed\n";
     return rc;
 }
