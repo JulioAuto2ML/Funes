@@ -658,6 +658,73 @@ check "member forbidden from researcher" "$CODE" '403'
 OUT=$(curl -s "$BASE/api/agents")
 check "admin still sees researcher" "$OUT" '"researcher"'
 
+echo "— two users chatting at once"
+# The multi-user premise rests on this and nothing had ever exercised it: no
+# two accounts had chatted simultaneously. Both users are deliberately pointed
+# at the SAME session name, which is the sharp case — sessions are keyed per
+# user, so a partition key that leaked would show up here as one account
+# reading the other's turns. Serially this is already covered; concurrently
+# the writes interleave inside SQLite.
+FUNES_DB="$DB" "$FUNES_BIN" perms itmember --reset > /dev/null 2>&1
+SHARED_SESSION="race-session"
+# Three pairs, six in-flight requests. httplib's thread pool floor is 8, so
+# this fits on the smallest machine — an SSE response holds its thread for the
+# whole stream, and a request that queues would look like successful
+# concurrency while proving none.
+CONC=3
+CONC_DIR=$(mktemp -d /tmp/funes_it_conc_XXXX)
+
+CONC_PIDS=""
+CONC_START=$(date +%s%N)
+for i in $(seq 1 $CONC); do
+    curl -s -N -X POST "$BASE/api/chat" \
+        -d "{\"message\":\"ADMINMARK-$i concurrent-probe\",\"session\":\"$SHARED_SESSION\"}" \
+        > "$CONC_DIR/admin-$i.txt" 2>&1 &
+    CONC_PIDS="$CONC_PIDS $!"
+    mcurl -s -N -X POST "$BASE/api/chat" \
+        -d "{\"message\":\"MEMBERMARK-$i concurrent-probe\",\"session\":\"$SHARED_SESSION\"}" \
+        > "$CONC_DIR/member-$i.txt" 2>&1 &
+    CONC_PIDS="$CONC_PIDS $!"
+done
+# Only these PIDs. A bare `wait` also waits on the mock LLM and the funes
+# server, which are background jobs of this same shell and never exit.
+# shellcheck disable=SC2086
+wait $CONC_PIDS
+CONC_MS=$(( ($(date +%s%N) - CONC_START) / 1000000 ))
+
+# 1. Every request has to have completed. A locked database or a crashed
+#    worker shows up as a missing `done`, not as a wrong answer.
+DONE_COUNT=$(grep -l 'event: done' "$CONC_DIR"/*.txt 2>/dev/null | wc -l)
+check "all concurrent chats completed" "$DONE_COUNT" "^$((CONC * 2))$"
+LOCKED=$(cat "$CONC_DIR"/*.txt | grep -ci 'database is locked\|event: error' || true)
+check "no lock or error events" "$LOCKED" '^0$'
+
+# 2. Each account's history for the shared session holds its own turns and
+#    only its own.
+AHIST=$(curl -s "$BASE/api/history?session=$SHARED_SESSION&limit=50")
+MHIST=$(mcurl -s "$BASE/api/history?session=$SHARED_SESSION&limit=50")
+AMARKS=$(echo "$AHIST" | grep -o 'ADMINMARK-[0-9]' | sort -u | wc -l)
+MMARKS=$(echo "$MHIST" | grep -o 'MEMBERMARK-[0-9]' | sort -u | wc -l)
+check        "admin kept all its turns"      "$AMARKS" "^$CONC$"
+check        "member kept all its turns"     "$MMARKS" "^$CONC$"
+check_absent "admin history has no member turns"  "$AHIST" 'MEMBERMARK'
+check_absent "member history has no admin turns"  "$MHIST" 'ADMINMARK'
+
+# 3. ...and they really did overlap. Each completion stalls 0.4s in the mock,
+#    so six served one at a time cannot finish in under 2.4s. Anything near
+#    that means the requests queued and the isolation above was proven for
+#    sequential traffic only — which the suite already covered.
+SERIAL_FLOOR_MS=$((CONC * 2 * 400))
+echo "  (batch took ${CONC_MS}ms; serial would need >= ${SERIAL_FLOOR_MS}ms)"
+if [ "$CONC_MS" -lt "$SERIAL_FLOOR_MS" ]; then
+    echo "  ok: requests overlapped rather than queueing"
+else
+    echo "  FAIL: requests did not overlap — ${CONC_MS}ms >= ${SERIAL_FLOOR_MS}ms serial floor"
+    FAILURES=$((FAILURES + 1))
+fi
+
+rm -rf "$CONC_DIR"
+
 rm -f "$MEMBER_JAR"
 
 echo

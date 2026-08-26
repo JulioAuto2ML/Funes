@@ -11,9 +11,10 @@ Behavior:
 """
 
 import json
+import time
 import re
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 # A scenario keyword anywhere in the user side of the conversation, not just in
@@ -22,6 +23,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 def mentions(messages, keyword):
     return any(keyword in (m.get("content") or "")
                for m in messages if m.get("role") == "user")
+
+
+CONCURRENCY_PROBE_DELAY_S = 0.4
 
 
 def offered(req):
@@ -64,6 +68,12 @@ class Handler(BaseHTTPRequestHandler):
 
         messages = req.get("messages", [])
         stream = req.get("stream", False)
+
+        # A deliberate stall, so a caller can prove requests actually overlap.
+        # Without it a serialising server passes a concurrency test exactly as
+        # a parallel one does: everything still succeeds, just one at a time.
+        if mentions(messages, "concurrent-probe"):
+            time.sleep(CONCURRENCY_PROBE_DELAY_S)
         last_user = next((m["content"] for m in reversed(messages)
                           if m.get("role") == "user"), "")
         has_tool_result = any(m.get("role") == "tool" for m in messages)
@@ -548,4 +558,10 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 18080
-    HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    # Threading, not the plain HTTPServer: a single-threaded mock serialises
+    # every completion, so two users chatting at once would queue instead of
+    # overlapping and a concurrency test against it would prove nothing. The
+    # real backend serves parallel slots, so this is also the more faithful
+    # shape. Safe because this handler keeps no state between requests —
+    # every scenario is decided from the messages in the request itself.
+    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
