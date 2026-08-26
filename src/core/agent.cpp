@@ -206,17 +206,21 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     // primary control — a tool the model cannot see is one it mostly won't
     // reach for — and dispatch_tool re-checks for the case where it writes
     // the call out as prose anyway and llm_client rescues it.
+    std::vector<std::string> withheld;
     if (!perms.is_admin()) {
         json permitted = json::array();
         for (const auto& entry : tools_schema_) {
             const std::string name = entry.value("function", json::object())
                                           .value("name", std::string());
             if (name.empty() || perms.allows_tool(name)) permitted.push_back(entry);
+            else withheld.push_back(name);
         }
-        if (permitted.size() != tools_schema_.size())
+        if (!withheld.empty()) {
             std::cerr << "[agent:" << cfg_.name << "] user " << user_id << ": "
-                      << (tools_schema_.size() - permitted.size())
-                      << " tool(s) withheld by permissions\n";
+                      << withheld.size() << " tool(s) withheld by permissions:";
+            for (const auto& n : withheld) std::cerr << " " << n;
+            std::cerr << "\n";
+        }
         tools_schema_ = std::move(permitted);
     }
 
@@ -299,6 +303,24 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                     }
                 }
             }
+        }
+        // Why a tool is missing, not just that it is. A withheld tool is
+        // simply absent from the schema, so the model explains the gap from
+        // whatever its own prompt says — and every prompt written before
+        // per-user permissions existed blames the server switch. A member
+        // denied execute_shell was told to set FUNES_ALLOW_SHELL, which was
+        // already set and would not have helped: the advice sends the person
+        // to fix the one thing that is not broken.
+        if (!withheld.empty()) {
+            sys += "\n\n## Tools this account may not use\n";
+            for (size_t i = 0; i < withheld.size(); ++i)
+                sys += (i ? ", " : "") + withheld[i];
+            sys += "\n\nThese are withheld by this user's account permissions, not by a "
+                   "server setting. If a task needs one, say plainly that this account is "
+                   "not permitted to use it and that an administrator can grant it. Never "
+                   "blame a configuration or environment variable, and never suggest "
+                   "changing one — that would send the user to fix something that is not "
+                   "the cause.";
         }
         if (!summary.empty()) {
             sys += "\n\n## Summary of earlier conversation\n" + summary;

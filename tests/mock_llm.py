@@ -256,9 +256,16 @@ class Handler(BaseHTTPRequestHandler):
         # both; whether execute_shell survives is the permission's doing.
         if mentions(messages, "perm-probe"):
             names = offered(req)
+            # The system prompt must also *say* which tools were withheld, or
+            # the model explains their absence with whatever its own prompt
+            # blames — for operator, an env var that was already set.
+            sys_text = " ".join(m.get("content") or "" for m in messages
+                                if m.get("role") == "system")
+            told = "+TOLD" if "Tools this account may not use" in sys_text else "+UNTOLD"
             self._reply_text(
                 ("MOCK-SAW-SHELL" if "execute_shell" in names else "MOCK-NO-SHELL")
-                + ("+READFILE" if "read_file" in names else "+NOREADFILE"),
+                + ("+READFILE" if "read_file" in names else "+NOREADFILE")
+                + told,
                 stream)
             return
 

@@ -618,28 +618,28 @@ echo "— per-user permissions over HTTP (phase 4)"
 # An admin bypasses permissions entirely and must still see both.
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"perm-probe","session":"perm-admin","agent":"perm-tester"}')
-check "admin is offered execute_shell" "$OUT" 'MOCK-SAW-SHELL+READFILE'
+check "admin is offered execute_shell" "$OUT" 'MOCK-SAW-SHELL+READFILE+UNTOLD'
 
 # The default for a new member, with no permissions written at all: ordinary
 # tools allowed, privileged ones denied. This is the case that needs no admin
 # to have configured anything, so it is the one most likely to be relied on.
 OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"perm-probe","session":"perm-member","agent":"perm-tester"}')
-check "member is denied execute_shell" "$OUT" 'MOCK-NO-SHELL+READFILE'
+check "member is denied execute_shell" "$OUT" 'MOCK-NO-SHELL+READFILE+TOLD'
 
 # Granting it explicitly overrides the privileged-by-default denial. Also the
 # only coverage `funes perms` argument parsing has.
 FUNES_DB="$DB" "$FUNES_BIN" perms itmember --allow execute_shell > /dev/null 2>&1
 OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"perm-probe","session":"perm-member-2","agent":"perm-tester"}')
-check "granted member is offered execute_shell" "$OUT" 'MOCK-SAW-SHELL+READFILE'
+check "granted member is offered execute_shell" "$OUT" 'MOCK-SAW-SHELL+READFILE+UNTOLD'
 
 # ...and denying an ordinary tool works in the other direction, proving the
 # entry is the final word rather than a one-way widening.
 FUNES_DB="$DB" "$FUNES_BIN" perms itmember --deny read_file > /dev/null 2>&1
 OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"perm-probe","session":"perm-member-3","agent":"perm-tester"}')
-check "denied member loses read_file" "$OUT" 'MOCK-SAW-SHELL+NOREADFILE'
+check "denied member loses read_file" "$OUT" 'MOCK-SAW-SHELL+NOREADFILE+TOLD'
 
 echo "— per-user agent allowlist"
 OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itmember --agents funes,perm-tester 2>&1)

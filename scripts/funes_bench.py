@@ -362,6 +362,14 @@ CASES: list[Case] = [
                 message="How much free disk space do you have on this machine right now?",
                 new_session=True,
                 expect_any_of=[["delegate_to_agent"]],
+                # Delegating is not the same as answering. Without this, an
+                # account that cannot run shell still passes -- it delegates,
+                # the sub-agent has no execute_shell, and the honest "I can't"
+                # scores identically to a real measurement. A capacity unit is
+                # the cheapest proof a number was actually obtained, and a
+                # failure here is the correct, informative result for a member
+                # who is denied the tool.
+                answer_contains_any=["GB", "MB", "TB", "GiB", "MiB"],
             )
         ],
     ),
@@ -512,20 +520,65 @@ def build_summary(report: dict) -> dict:
     }
 
 
+def case_signature(case: dict) -> tuple:
+    """What a case actually did, for spotting two runs that scored the same
+    without behaving the same."""
+    tools = tuple(t["name"] for turn in case.get("turns", [])
+                  for t in turn.get("tool_calls", []))
+    return (bool(case.get("passed")), bool(case.get("skipped")), tools)
+
+
 def compare(paths: list[str]) -> None:
-    rows = []
+    reports = []
     for p in paths:
         with open(p) as f:
-            r = json.load(f)
-        s = r["summary"]
-        rate = f"{s['passed']}/{s['graded']}"
-        model = r.get("status", {}).get("llm", {}).get("model", "?")
-        rows.append((r.get("tag") or model, rate, s["avg_first_event_s"], s["avg_total_s"], p))
+            reports.append((p, json.load(f)))
 
-    print(f"\n{'TAG/MODEL':<24} {'PASS':<8} {'AVG FIRST-EVENT':<18} {'AVG TOTAL':<12} FILE")
-    print("-" * 100)
-    for tag, rate, first, total, p in rows:
-        print(f"{tag:<24} {rate:<8} {first:<18} {total:<12} {p}")
+    rows = []
+    for p, r in reports:
+        s = r["summary"]
+        acct = r.get("account", {})
+        who = f"{acct.get('username','?')}/{acct.get('role','?')}" if acct else "?"
+        model = r.get("status", {}).get("llm", {}).get("model", "?")
+        rows.append((r.get("tag") or model, who, f"{s['passed']}/{s['graded']}",
+                     s["avg_first_event_s"], s["avg_total_s"], p))
+
+    print(f"\n{'TAG/MODEL':<20} {'ACCOUNT':<16} {'PASS':<7} "
+          f"{'AVG FIRST-EVENT':<17} {'AVG TOTAL':<11} FILE")
+    print("-" * 110)
+    for tag, who, rate, first, total, p in rows:
+        print(f"{tag:<20} {who:<16} {rate:<7} {first:<17} {total:<11} {p}")
+
+    if len(reports) < 2:
+        return
+
+    # An equal score is not the same behaviour. A case whose tool calls differ
+    # between two runs is the interesting one even when both passed — a member
+    # denied execute_shell still "passes" a case that only asserts a delegation
+    # happened, so the pass column alone hides exactly the effect that running
+    # two configurations was meant to measure.
+    by_id: dict[str, list] = {}
+    for p, r in reports:
+        for c in r["cases"]:
+            by_id.setdefault(c["id"], []).append((r.get("tag") or p, c))
+
+    diverged = [(cid, entries) for cid, entries in by_id.items()
+                if len(entries) == len(reports)
+                and len({case_signature(c) for _, c in entries}) > 1]
+    if not diverged:
+        print("\nNo behavioural differences between these runs.")
+        return
+
+    print(f"\nDIVERGED — same suite, different behaviour ({len(diverged)} case(s)):")
+    for cid, entries in diverged:
+        print(f"\n  {cid}")
+        for tag, c in entries:
+            verdict = "SKIP" if c.get("skipped") else ("PASS" if c.get("passed") else "FAIL")
+            tools = [t["name"] for turn in c.get("turns", [])
+                     for t in turn.get("tool_calls", [])]
+            answer = (c.get("turns") or [{}])[-1].get("final_text", "").replace("\n", " ")
+            print(f"    {tag:<18} {verdict:<5} tools={tools or '[]'}")
+            print(f"    {'':<18} {answer[:120]}")
 
 
 # ── main ─────────────────────────────────────────────────────────────────
