@@ -160,6 +160,32 @@ CLI refuses is deleting the last admin: first-run bootstrap only reopens when
 there are *no* users at all, so an install with no admin can't be recovered
 through any interface.
 
+### What each person can do
+
+Two roles. An **admin** can use every agent and every tool and manage
+accounts; a **member** is scoped by an optional allowlist:
+
+```bash
+./bin/funes perms marta                              # what can she actually do?
+./bin/funes perms marta --agents funes,researcher    # only these two
+./bin/funes perms marta --deny web_fetch             # revoke one tool
+./bin/funes perms marta --allow execute_shell        # grant a privileged one
+./bin/funes perms marta --agents any --reset         # back to defaults
+```
+
+A member with nothing configured already has sensible limits: everything
+ordinary is allowed, and the three tools that aren't — `execute_shell`,
+`create_agent`, `create_tool` — are denied until you say otherwise. Shell
+access is real code execution with the server's own rights; the other two
+write into the install itself and outlive the conversation that asked for
+them.
+
+Permissions only ever *restrict*. They're intersected with what the agent was
+given, so granting someone `execute_shell` does not hand it to them through an
+agent that never had it. And the agent allowlist covers delegation, not just
+which agent you can open — otherwise it would be decorative, since `funes` is
+reachable by everyone and would happily pass the task along on your behalf.
+
 What stays shared: the LLM backend, the agent definitions in `agents/`, and
 the credentials in `funes.local` (one Gmail account, one Tavily key, one
 WhatsApp bridge). Per-user credential vaults are SaaS territory and this is a

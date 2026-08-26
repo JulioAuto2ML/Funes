@@ -3,11 +3,11 @@
 Users and permissions for households and small teams.
 
 > **Status (2026-08-26, branch `feat/v4-users-permissions`).**
-> Phases 1–3 are implemented, tested and committed. Phase 5's login and
+> Phases 1–4 are implemented, tested and committed. Phase 5's login and
 > first-run screens were pulled forward to sit with phase 1, because phase 1
 > on its own left every route behind authentication with no way to
-> authenticate from the browser. Phase 4 (permissions) is the remaining
-> functional work; phase 5's deferred admin panel is still deferred.
+> authenticate from the browser. All that remains of phase 5 is the admin
+> panel, which this plan already defers in favour of the CLI.
 >
 > Corrections made while building, kept here so the plan doesn't mislead
 > anyone reading it later:
@@ -194,6 +194,25 @@ Not a full RBAC system — two roles plus per-user tool toggles.
 - Tool allowlist: intersected with the agent's own tool list at runtime
 - Default permissions for new members: chat + web search + files, no
   shell/agent-creation
+
+> **As built.** The two fields treat "absent" differently, and it matters.
+> `agents` absent or empty means *every* agent — spelling "no access" as
+> `agents: []` would be a trap. A `tools` entry is final; a tool with no entry
+> falls back to whether it is privileged, which makes the default above the
+> behaviour of an empty object rather than something an admin has to write out
+> per account.
+>
+> Enforcement is at four points, not one: the roster listing, the chat
+> endpoint, the tool schema handed to the model, and tool dispatch. The last
+> is not redundant — withholding a tool from the schema does not stop a local
+> model writing the call out as prose, which `llm_client` rescues into a real
+> call. `delegate_to_agent` checks the agent allowlist too, since `funes` is
+> reachable by everyone and would otherwise pass the task along on the user's
+> behalf.
+>
+> Managed with `funes perms <user>`. Cron jobs resolve their owner's
+> permissions when they fire rather than when they were scheduled, so a
+> revocation reaches jobs that already exist.
 
 ### Phase 5: UI
 

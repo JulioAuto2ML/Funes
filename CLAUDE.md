@@ -213,6 +213,20 @@ autoresponder sends `FUNES_SERVICE_TOKEN` plus the sender's jid, and Funes
 maps the jid to a user. The token says the caller is trusted; the jid says
 who for. Neither alone authenticates anything.
 
+### Permissions
+
+`src/core/permissions.cpp` — two roles plus an optional per-user allowlist in
+`users.permissions`. `agents` absent/empty means all; a `tools` entry is
+final, and a tool with no entry falls back to whether it is privileged
+(`execute_shell`, `create_agent`, `create_tool` denied by default). Enforced
+in four places, and all four are load-bearing: `/api/agents` filters,
+`/api/chat` 403s, `FunesAgent::run` narrows the tool schema, and
+`dispatch_tool` re-checks — because a model that can't *see* a tool will
+sometimes write the call as prose, which `llm_client` rescues into a real
+call. `delegate_to_agent` checks the agent allowlist too, or the restriction
+is theatre. Permissions only restrict: `filter_tools` intersects with the
+agent's own list and expands an empty agent list first.
+
 ### Workspaces
 
 `FUNES_WORKSPACE_DIR/<user_id>/` per account. `fs_guard::workspace_for` is
