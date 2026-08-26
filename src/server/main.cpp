@@ -307,9 +307,23 @@ int main(int argc, char** argv) {
         }
         return funes::Permissions::parse(u->permissions, u->is_admin());
     };
-    funes::cron::start_cron_runner(memory, tools, defaults, workspace_dir, find_agent_for_cron,
-                                   find_permissions_for_cron,
-                                   funes::env_int("FUNES_CRON_POLL_SECONDS", 30));
+    // A second install that opens a copy of the first's database inherits its
+    // scheduled jobs and will fire them too — two newsletters, two WhatsApp
+    // reminders to a real person. The jobs are data, so nothing about copying
+    // a database says "but do not run these", and a parallel install is
+    // exactly the situation where the copy is the point. Hence an explicit
+    // switch, defaulting on so a normal install is unaffected.
+    if (funes::env("FUNES_CRON_ENABLED", "1") == "1") {
+        funes::cron::start_cron_runner(memory, tools, defaults, workspace_dir,
+                                       find_agent_for_cron, find_permissions_for_cron,
+                                       funes::env_int("FUNES_CRON_POLL_SECONDS", 30));
+    } else {
+        // Loud, not silent: a job that never fires is otherwise indis-
+        // tinguishable from a job that fires and fails quietly.
+        std::cerr << "[cron] disabled by FUNES_CRON_ENABLED=0 — "
+                  << memory.list_cron_jobs(-1).size()
+                  << " scheduled job(s) in this database will NOT run\n";
+    }
 
     // Embed any memories that are missing vectors (e.g. stored while the
     // embedding endpoint was down) without blocking startup.

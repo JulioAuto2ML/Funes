@@ -55,6 +55,12 @@ Environment=FUNES_ALLOW_SHELL=0
 # No service token: the WhatsApp autoresponder is not run against this
 # install (one bridge store, two pollers, both answering). Absent means
 # service authentication is off, not open.
+# The migrated database carries 3.x's scheduled jobs, and jobs are just rows:
+# nothing about copying a database says "do not run these". Without this the
+# newsletter publishes twice and the daily WhatsApp reminder reaches a real
+# person twice. The rows stay (so this install can take over if 3.x is ever
+# retired); the runner does not start.
+Environment=FUNES_CRON_ENABLED=0
 
 Restart=on-failure
 RestartSec=5
