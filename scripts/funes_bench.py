@@ -15,12 +15,27 @@ rank on an academic leaderboard".
 
 Stdlib only, no external dependencies (matches the rest of scripts/).
 
+Funes 4.0 requires authentication on every route this script uses, so a run
+needs an account. Without one it cannot reach /api/chat at all and fails with
+an explicit message rather than scoring the model as broken.
+
+Note the account matters to the *result*, not just to access: 4.0 narrows the
+tool schema an agent sees according to that user's permissions, so an admin and
+a restricted member score differently against the same model. Bench the account
+you actually care about, and read the `account` field in the saved report.
+
 Usage:
     # smoke test against a local instance, default agent
-    python3 funes_bench.py
+    FUNES_BENCH_PASSWORD=... python3 funes_bench.py --user julio
+
+    # or let it prompt (nothing sensitive in argv or shell history)
+    python3 funes_bench.py --user julio
+
+    # as a service, the way the WhatsApp autoresponder connects
+    FUNES_SERVICE_TOKEN=... python3 funes_bench.py --jid 5491100000000@s.whatsapp.net
 
     # tag the run so reports are comparable across models later
-    python3 funes_bench.py --tag qwen3-8b-q4 --out results/
+    python3 funes_bench.py --user julio --tag qwen3-8b-q4 --out results/
 
     # just list what would run
     python3 funes_bench.py --list
@@ -38,8 +53,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import getpass
 import glob
+import http.cookiejar
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -76,6 +94,96 @@ from typing import Optional
 FAILURE_MARKER = "FAILED --"
 
 
+# ── authenticated client ─────────────────────────────────────────────────
+# Funes 4.0 refuses every /api/ route except login, bootstrap and auth/status.
+# Without a credential the bench 401s on all of it and every case fails, which
+# looks exactly like a model that cannot call tools -- hence the explicit
+# AuthError below rather than letting the 401 surface as a per-case failure.
+
+class AuthError(RuntimeError):
+    pass
+
+
+class Client:
+    """Base URL plus whatever credential the run was given.
+
+    Two ways in, matching the server's two: a session cookie from /api/login
+    (what a browser does) or a service token paired with a jid (what the
+    WhatsApp autoresponder does). The cookie path is the default because it
+    needs no server-side configuration.
+    """
+
+    def __init__(self, base_url: str, service_token: str = "", jid: str = ""):
+        self.base_url = base_url.rstrip("/")
+        self.jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar))
+        self.headers: dict[str, str] = {}
+        if service_token:
+            # The token proves the caller is trusted; the jid says who for.
+            # The server authenticates nobody if either is missing.
+            self.headers["X-Funes-Service-Token"] = service_token
+            self.headers["X-Funes-User-Jid"] = jid
+
+    def open(self, path: str, data: Optional[bytes] = None, timeout: float = 10.0):
+        headers = dict(self.headers)
+        if data is not None:
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(
+            self.base_url + path, data=data, headers=headers,
+            method="POST" if data is not None else "GET")
+        return self.opener.open(req, timeout=timeout)
+
+    def get_json(self, path: str, timeout: float = 10.0) -> dict:
+        with self.open(path, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def login(self, username: str, password: str) -> dict:
+        body = json.dumps({"username": username, "password": password}).encode("utf-8")
+        try:
+            with self.open("/api/login", data=body) as resp:
+                return json.loads(resp.read().decode("utf-8")).get("user", {})
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise AuthError(f"login refused for '{username}': "
+                                "wrong username or password") from e
+            raise AuthError(f"login failed with HTTP {e.code}") from e
+
+
+def authenticate(client: Client, username: str, password_env: str) -> dict:
+    """Resolve a credential and prove it works, before any case runs."""
+    status = client.get_json("/api/auth/status")
+
+    if status.get("needs_bootstrap"):
+        raise AuthError(
+            "this instance has no accounts yet. Create the first admin in the "
+            "web UI, or with:\n"
+            "    FUNES_DB=<db> ./bin/funes useradd <name> --admin")
+
+    # A service token authenticates on every request; there is nothing to log
+    # into. Confirm the header actually resolves to a user before running.
+    if client.headers:
+        if not status.get("authenticated"):
+            raise AuthError(
+                "the service token did not authenticate. Check it matches the "
+                "server's FUNES_SERVICE_TOKEN and that --jid is mapped "
+                "(funes jid-map <jid> <username>).")
+        return status.get("user", {})
+
+    if not username:
+        raise AuthError(
+            "this instance requires authentication. Pass --user <name> "
+            "(with the password in $FUNES_BENCH_PASSWORD, or you will be "
+            "prompted), or --service-token with --jid.")
+
+    password = os.environ.get(password_env, "")
+    if not password:
+        # Never a command-line flag: an argv password is visible in ps output
+        # and lands in shell history.
+        password = getpass.getpass(f"Password for {username}: ")
+    return client.login(username, password)
+
+
 # ── SSE client ───────────────────────────────────────────────────────────
 
 @dataclass
@@ -90,19 +198,13 @@ class ChatResult:
     timed_out: bool = False
 
 
-def chat(base_url: str, agent: str, session: str, message: str, timeout: float) -> ChatResult:
+def chat(client: Client, agent: str, session: str, message: str, timeout: float) -> ChatResult:
     """POST one message to /api/chat and consume the SSE stream to completion."""
     body = json.dumps({"message": message, "session": session, "agent": agent}).encode("utf-8")
-    req = urllib.request.Request(
-        base_url.rstrip("/") + "/api/chat",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     result = ChatResult()
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with client.open("/api/chat", data=body, timeout=timeout) as resp:
             event_type: Optional[str] = None
             for raw_line in resp:
                 line = raw_line.decode("utf-8", errors="replace").rstrip("\n").rstrip("\r")
@@ -129,6 +231,11 @@ def chat(base_url: str, agent: str, session: str, message: str, timeout: float) 
                     event_type = None
                 elif line == "":
                     event_type = None
+    except urllib.error.HTTPError as e:
+        # A 401 here means the session died mid-run (server restarted, token
+        # revoked). Say so, rather than scoring it as a model failure.
+        result.error = ("authentication lost mid-run (HTTP 401)"
+                        if e.code == 401 else f"HTTP {e.code} from /api/chat")
     except urllib.error.URLError as e:
         result.error = f"connection error: {e}"
     except TimeoutError:
@@ -136,11 +243,6 @@ def chat(base_url: str, agent: str, session: str, message: str, timeout: float) 
         result.error = f"timed out after {timeout}s"
     result.total_s = time.monotonic() - start
     return result
-
-
-def get_json(base_url: str, path: str, timeout: float = 10.0) -> dict:
-    with urllib.request.urlopen(base_url.rstrip("/") + path, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
 
 
 # ── test case schema ─────────────────────────────────────────────────────
@@ -329,7 +431,7 @@ def new_session() -> str:
     return "bench-" + uuid.uuid4().hex[:20]
 
 
-def run_case(base_url: str, case: Case, timeout: float, loaded_agents: set[str]) -> dict:
+def run_case(client: Client, case: Case, timeout: float, loaded_agents: set[str]) -> dict:
     if case.requires_agent and case.requires_agent not in loaded_agents:
         return {
             "id": case.id, "description": case.description,
@@ -343,7 +445,7 @@ def run_case(base_url: str, case: Case, timeout: float, loaded_agents: set[str])
     for i, turn in enumerate(case.turns):
         if turn.new_session:
             session = new_session()
-        result = chat(base_url, case.agent, session, turn.message, timeout)
+        result = chat(client, case.agent, session, turn.message, timeout)
         passed, reasons = eval_turn(turn, result)
         if not turn.manual_review:
             case_passed = case_passed and passed
@@ -431,6 +533,14 @@ def compare(paths: list[str]) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--url", default="http://localhost:8484", help="Funes base URL")
+    ap.add_argument("--user", default=os.environ.get("FUNES_BENCH_USER", ""),
+                    help="account to log in as (default: $FUNES_BENCH_USER). "
+                         "The password comes from $FUNES_BENCH_PASSWORD, or is prompted for")
+    ap.add_argument("--service-token", default=os.environ.get("FUNES_SERVICE_TOKEN", ""),
+                    help="authenticate as a service instead of a user "
+                         "(default: $FUNES_SERVICE_TOKEN); requires --jid")
+    ap.add_argument("--jid", default="", help="chat jid the service token acts for, "
+                                              "as mapped by `funes jid-map`")
     ap.add_argument("--agent", default=None, help="override agent for every case (default: per-case, usually 'funes')")
     ap.add_argument("--case", action="append", default=None, help="run only this case id (repeatable)")
     ap.add_argument("--skip-web", action="store_true", help="skip cases tagged 'web' (no search/fetch backend configured)")
@@ -456,9 +566,24 @@ def main() -> int:
             print(f"{c.id:<28} {c.description}")
         return 0
 
+    if args.service_token and not args.jid:
+        print("--service-token needs --jid: a token alone authenticates nobody.",
+              file=sys.stderr)
+        return 2
+
+    client = Client(args.url, args.service_token, args.jid)
     try:
-        status = get_json(args.url, "/api/status")
-        agents_resp = get_json(args.url, "/api/agents")
+        whoami = authenticate(client, args.user, "FUNES_BENCH_PASSWORD")
+    except AuthError as e:
+        print(f"Authentication failed: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Could not reach Funes at {args.url}: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        status = client.get_json("/api/status")
+        agents_resp = client.get_json("/api/agents")
     except Exception as e:
         print(f"Could not reach Funes at {args.url}: {e}", file=sys.stderr)
         return 1
@@ -480,7 +605,14 @@ def main() -> int:
         for c in selected:
             c.agent = args.agent
 
+    # The account is part of the result, not a detail: 4.0 narrows the tool
+    # schema by permissions, so the same model scores differently for an admin
+    # and for a restricted member. A report that doesn't say who ran it cannot
+    # be compared against another.
+    account = whoami.get("username", "?")
+    role = whoami.get("role", "?")
     print(f"Running {len(selected)} case(s) against {args.url} "
+          f"as {account} ({role}) "
           f"(model: {status.get('llm', {}).get('model', '?')})...")
 
     report = {
@@ -488,12 +620,13 @@ def main() -> int:
         "url": args.url,
         "tag": args.tag,
         "status": status,
+        "account": {"username": account, "role": role},
         "loaded_agents": sorted(loaded_agents),
         "cases": [],
     }
     for case in selected:
         print(f"  - {case.id}...", end=" ", flush=True)
-        result = run_case(args.url, case, args.timeout, loaded_agents)
+        result = run_case(client, case, args.timeout, loaded_agents)
         report["cases"].append(result)
         if result["skipped"]:
             print("SKIP")
@@ -504,7 +637,6 @@ def main() -> int:
     print_report(report)
 
     if args.out:
-        import os
         os.makedirs(args.out, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         tag_part = (args.tag or status.get("llm", {}).get("model", "model")).replace("/", "_")
