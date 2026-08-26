@@ -17,6 +17,7 @@
 #include <vector>
 #include "json.hpp"
 #include "llm_client.h"
+#include "permissions.h"
 
 using json = nlohmann::json;
 
@@ -49,14 +50,21 @@ struct ToolContext {
     // delegate_to_agent — all set it explicitly from the authenticated
     // request, and there is a test asserting delegation carries it across.
     int64_t user_id = 1;
+    // What the caller is allowed to do. Checked at dispatch as well as when
+    // the tool schema is built, because a model that can't see a tool will
+    // sometimes still write the call out as prose, and llm_client rescues
+    // those. Defaults to unrestricted so the many positional ToolContexts in
+    // tests keep working; every path that serves a real request sets it.
+    funes::Permissions permissions = funes::Permissions::unrestricted();
 
     ToolContext(std::string agent_, std::string session_,
                 std::string workspace_dir_ = "", std::string memory_scope_ = "",
-                int64_t user_id_ = 1)
+                int64_t user_id_ = 1,
+                funes::Permissions permissions_ = funes::Permissions::unrestricted())
         : agent(std::move(agent_)), session(std::move(session_)),
           workspace_dir(std::move(workspace_dir_)),
           memory_scope(memory_scope_.empty() ? agent : std::move(memory_scope_)),
-          user_id(user_id_) {}
+          user_id(user_id_), permissions(std::move(permissions_)) {}
 };
 
 struct ToolResult {

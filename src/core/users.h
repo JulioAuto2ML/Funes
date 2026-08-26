@@ -75,6 +75,11 @@ public:
 
     bool set_password(int64_t user_id, const std::string& password);
 
+    // Stores the permissions blob verbatim (see permissions.h for the shape).
+    // Validated by the caller — this class does not parse it, so a future
+    // field needs no change here.
+    bool set_permissions(int64_t user_id, const std::string& permissions_json);
+
     // Also drops the user's tokens and jid mappings, so deleting an account
     // can't leave a live credential pointing at a missing row.
     bool delete_user(int64_t id);

@@ -124,8 +124,11 @@ ToolResult run_job_now_handler(MemoryStore& memory, ToolRegistry& tools,
     if (!memory.get_cron_job(ctx.user_id, id))
         return {"No job with id " + std::to_string(id), true};
 
-    auto [ok, output] = funes::cron::run_cron_job_now(memory, tools, defaults, workspace_dir,
-                                                       find_agent, id);
+    // The job's owner is the caller (checked above), so the caller's own
+    // permissions are the right ones to run it under.
+    auto [ok, output] = funes::cron::run_cron_job_now(
+        memory, tools, defaults, workspace_dir, find_agent,
+        [&ctx](int64_t) { return ctx.permissions; }, id);
     return {(ok ? "Job #" + std::to_string(id) + " ran successfully:\n" + output
                 : "Job #" + std::to_string(id) + " failed:\n" + output),
             !ok};

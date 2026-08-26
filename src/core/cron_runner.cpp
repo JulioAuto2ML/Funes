@@ -46,7 +46,8 @@ void bound_preview(std::string& s) {
 std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
                                            ToolRegistry& tools, MemoryStore& memory,
                                            const AgentDefaults& defaults,
-                                           const FindAgentFn& find_agent) {
+                                           const FindAgentFn& find_agent,
+                                           const FindPermissionsFn& find_permissions) {
     AgentConfig target = find_agent(job.agent);
     if (target.name.empty())
         return {false, "Unknown agent '" + job.agent + "'"};
@@ -73,7 +74,17 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
         // this the agent's remember() calls would be attributed to whichever
         // user_id happened to be the default, and the person who scheduled
         // the job would never see what it learned.
-        std::string out = sub.run(task, session, job.user_id,
+        // Resolved now rather than remembered from when the job was created,
+        // so revoking someone's access also stops their already-scheduled
+        // jobs from using it.
+        const funes::Permissions perms = find_permissions
+            ? find_permissions(job.user_id)
+            : funes::Permissions::unrestricted();
+        if (!perms.allows_agent(target.name))
+            return {false, "FAILED — the job's owner is no longer permitted to use the "
+                           "agent '" + target.name + "'"};
+
+        std::string out = sub.run(task, session, job.user_id, perms,
                                   nullptr, {}, /*persist=*/true);
         const bool ok = !funes::is_run_failure(out);
         bound_preview(out);
@@ -106,12 +117,14 @@ std::pair<bool, std::string> execute_and_record(const MemoryStore::CronJob& job,
                                                 ToolRegistry& tools, MemoryStore& memory,
                                                 const AgentDefaults& defaults,
                                                 const std::string& workspace_dir,
-                                                const FindAgentFn& find_agent) {
+                                                const FindAgentFn& find_agent,
+                                                const FindPermissionsFn& find_permissions) {
     bool ok = false;
     std::string output;
     try {
         if (job.kind == "agent")
-            std::tie(ok, output) = run_agent_job(job, tools, memory, defaults, find_agent);
+            std::tie(ok, output) = run_agent_job(job, tools, memory, defaults,
+                                                 find_agent, find_permissions);
         else
             std::tie(ok, output) = run_shell_job(job, workspace_dir);
     } catch (const std::exception& e) {
@@ -139,8 +152,10 @@ std::pair<bool, std::string> execute_and_record(const MemoryStore::CronJob& job,
 
 void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
                        const AgentDefaults& defaults, const std::string& workspace_dir,
-                       FindAgentFn find_agent, int poll_seconds) {
-    std::thread([&memory, &tools, defaults, workspace_dir, find_agent, poll_seconds] {
+                       FindAgentFn find_agent, FindPermissionsFn find_permissions,
+                       int poll_seconds) {
+    std::thread([&memory, &tools, defaults, workspace_dir, find_agent,
+                 find_permissions, poll_seconds] {
         for (;;) {
             std::this_thread::sleep_for(std::chrono::seconds(poll_seconds));
             try {
@@ -149,8 +164,10 @@ void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
                     // the job's own thread even starts — so the next tick
                     // (however soon) never sees it as due twice.
                     memory.mark_cron_job_running(job.id, true);
-                    std::thread([&memory, &tools, defaults, workspace_dir, find_agent, job] {
-                        execute_and_record(job, tools, memory, defaults, workspace_dir, find_agent);
+                    std::thread([&memory, &tools, defaults, workspace_dir, find_agent,
+                                 find_permissions, job] {
+                        execute_and_record(job, tools, memory, defaults, workspace_dir,
+                                           find_agent, find_permissions);
                     }).detach();
                 }
             } catch (const std::exception& e) {
@@ -163,7 +180,9 @@ void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
 std::pair<bool, std::string> run_cron_job_now(MemoryStore& memory, ToolRegistry& tools,
                                               const AgentDefaults& defaults,
                                               const std::string& workspace_dir,
-                                              const FindAgentFn& find_agent, int64_t job_id) {
+                                              const FindAgentFn& find_agent,
+                                              const FindPermissionsFn& find_permissions,
+                                              int64_t job_id) {
     // -1 = any owner. The caller (run_job_now in cron_tool.cpp) has already
     // checked that this job belongs to the user asking for it; the runner
     // itself serves every user and must be able to load any job.
@@ -171,7 +190,8 @@ std::pair<bool, std::string> run_cron_job_now(MemoryStore& memory, ToolRegistry&
     if (!job) return {false, "No job with id " + std::to_string(job_id)};
 
     memory.mark_cron_job_running(job_id, true);
-    return execute_and_record(*job, tools, memory, defaults, workspace_dir, find_agent);
+    return execute_and_record(*job, tools, memory, defaults, workspace_dir,
+                              find_agent, find_permissions);
 }
 
 } // namespace funes::cron

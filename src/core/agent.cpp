@@ -160,6 +160,17 @@ void FunesAgent::connect_mcp_servers() {
 
 ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
                                      const ToolContext& ctx) {
+    // Second check, after the schema filter in run(). Withholding a tool from
+    // the schema stops the model seeing it; it does not stop the model
+    // writing the call out as prose, which llm_client will rescue into a real
+    // call. This is where that becomes a refusal instead of an execution.
+    if (!ctx.permissions.allows_tool(name)) {
+        std::cerr << "[agent:" << ctx.agent << "] user " << ctx.user_id
+                  << " denied tool '" << name << "' by permissions\n";
+        return {"You do not have permission to use the tool '" + name +
+                "'. Continue without it.", /*error=*/true};
+    }
+
     if (tools_.has(name))
         return tools_.call(name, args, ctx);
 
@@ -186,13 +197,34 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 // ── run ───────────────────────────────────────────────────────────────────────
 
 std::string FunesAgent::run(const std::string& user_message, const std::string& session,
-                            int64_t user_id,
+                            int64_t user_id, const funes::Permissions& perms,
                             const EventFn& emit, const std::vector<ImageAttachment>& images,
                             bool persist) {
+    // Narrow the schema to what this user may actually call. Built in the
+    // constructor from the agent's own allowlist; intersected here, because
+    // the caller isn't known until the run. Withholding the schema is the
+    // primary control — a tool the model cannot see is one it mostly won't
+    // reach for — and dispatch_tool re-checks for the case where it writes
+    // the call out as prose anyway and llm_client rescues it.
+    if (!perms.is_admin()) {
+        json permitted = json::array();
+        for (const auto& entry : tools_schema_) {
+            const std::string name = entry.value("function", json::object())
+                                          .value("name", std::string());
+            if (name.empty() || perms.allows_tool(name)) permitted.push_back(entry);
+        }
+        if (permitted.size() != tools_schema_.size())
+            std::cerr << "[agent:" << cfg_.name << "] user " << user_id << ": "
+                      << (tools_schema_.size() - permitted.size())
+                      << " tool(s) withheld by permissions\n";
+        tools_schema_ = std::move(permitted);
+    }
+
     // Every store call below goes through this context's user_id, and so does
     // every tool the loop dispatches — including delegate_to_agent, which
     // hands it to the sub-agent's own run().
-    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope, user_id};
+    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope,
+                    user_id, perms};
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;

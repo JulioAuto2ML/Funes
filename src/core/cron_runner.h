@@ -17,6 +17,7 @@
 #include "agent_config.h"
 #include "memory.h"
 #include "tools.h"
+#include "permissions.h"
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -30,13 +31,20 @@ namespace funes::cron {
 
 using FindAgentFn = std::function<AgentConfig(const std::string&)>;
 
+// Resolves a job owner's permissions at fire time, not at schedule time: an
+// admin revoking someone's shell access should take effect on their existing
+// jobs too. Left unset (or returning unrestricted) in contexts with no user
+// table, e.g. tests.
+using FindPermissionsFn = std::function<funes::Permissions(int64_t user_id)>;
+
 // Starts the poll loop on a detached background thread and returns
 // immediately. `memory`, `tools`, and `find_agent`'s captured state must
 // outlive the process — true for everything main() constructs before
 // calling this.
 void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
                        const AgentDefaults& defaults, const std::string& workspace_dir,
-                       FindAgentFn find_agent, int poll_seconds);
+                       FindAgentFn find_agent, FindPermissionsFn find_permissions,
+                       int poll_seconds);
 
 // Runs one job immediately, out of band from the poll loop, and records the
 // outcome exactly as a scheduled firing would — for the run_job_now tool
@@ -48,6 +56,8 @@ void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
 std::pair<bool, std::string> run_cron_job_now(MemoryStore& memory, ToolRegistry& tools,
                                               const AgentDefaults& defaults,
                                               const std::string& workspace_dir,
-                                              const FindAgentFn& find_agent, int64_t job_id);
+                                              const FindAgentFn& find_agent,
+                                              const FindPermissionsFn& find_permissions,
+                                              int64_t job_id);
 
 } // namespace funes::cron

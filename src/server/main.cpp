@@ -11,6 +11,7 @@
 #include "api.h"
 #include "cron_runner.h"
 #include "memory.h"
+#include "permissions.h"
 #include "tools.h"
 #include "tools/cron_tool.h"
 #include "tools/harvest.h"
@@ -293,7 +294,21 @@ int main(int argc, char** argv) {
     // publishing/README.md for the crontab this is meant to eventually replace.
     auto find_agent_for_cron = [&api](const std::string& name) { return api.find_agent(name); };
     register_cron_tool(tools, memory, defaults, workspace_dir, find_agent_for_cron);
+    // Resolved per firing, not captured at schedule time, so revoking an
+    // account's access also stops its already-scheduled jobs. A job whose
+    // owner has since been deleted resolves to no permissions at all rather
+    // than to unrestricted.
+    auto find_permissions_for_cron = [&users](int64_t user_id) {
+        auto u = users.find_by_id(user_id);
+        if (!u) {
+            std::cerr << "[cron] job owner " << user_id
+                      << " no longer exists; running with no permissions\n";
+            return funes::Permissions::parse("{}", /*is_admin=*/false);
+        }
+        return funes::Permissions::parse(u->permissions, u->is_admin());
+    };
     funes::cron::start_cron_runner(memory, tools, defaults, workspace_dir, find_agent_for_cron,
+                                   find_permissions_for_cron,
                                    funes::env_int("FUNES_CRON_POLL_SECONDS", 30));
 
     // Embed any memories that are missing vectors (e.g. stored while the

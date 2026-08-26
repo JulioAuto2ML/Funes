@@ -115,3 +115,7 @@ endif()
 add_executable(test_user_isolation test_user_isolation.cpp)
 target_link_libraries(test_user_isolation PRIVATE funes_core)
 add_test(NAME user_isolation COMMAND test_user_isolation)
+
+add_executable(test_permissions test_permissions.cpp)
+target_link_libraries(test_permissions PRIVATE funes_core)
+add_test(NAME permissions COMMAND test_permissions)

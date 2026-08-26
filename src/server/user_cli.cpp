@@ -3,7 +3,9 @@
 // =============================================================================
 
 #include "user_cli.h"
+#include "../core/permissions.h"
 #include "../core/users.h"
+#include "json.hpp"
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -65,8 +67,106 @@ void usage() {
         "  funes userdel <username>\n"
         "  funes userlist\n"
         "  funes passwd  <username>\n"
+        "  funes perms   <username> [--show] [--agents a,b|any]\n"
+        "                           [--allow tool,...] [--deny tool,...] [--reset]\n"
         "  funes jid-map <chat_jid> <username>\n"
         "  funes jid-unmap <chat_jid>\n";
+}
+
+std::vector<std::string> split_csv(const std::string& in) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (char c : in) {
+        if (c == ',') { if (!cur.empty()) out.push_back(cur); cur.clear(); }
+        else if (!std::isspace(static_cast<unsigned char>(c))) cur += c;
+    }
+    if (!cur.empty()) out.push_back(cur);
+    return out;
+}
+
+// Prints what the account can actually do, resolved through Permissions
+// rather than echoing the stored JSON — the defaults are the part people get
+// wrong, and they are invisible in the raw blob.
+int show_permissions(const UserStore::User& user) {
+    const auto perms = funes::Permissions::parse(user.permissions, user.is_admin());
+    std::cout << user.username << " (" << user.role << ")\n";
+    if (user.is_admin()) {
+        std::cout << "  admin — every agent and every tool\n";
+        return 0;
+    }
+    std::cout << "  raw: " << (user.permissions.empty() ? "{}" : user.permissions) << "\n";
+    std::cout << "  agents: ";
+    nlohmann::json doc;
+    try { doc = nlohmann::json::parse(user.permissions); } catch (...) { doc = nlohmann::json::object(); }
+    if (!doc.is_object() || !doc.contains("agents") || !doc["agents"].is_array()
+        || doc["agents"].empty()) {
+        std::cout << "all\n";
+    } else {
+        for (size_t i = 0; i < doc["agents"].size(); ++i)
+            std::cout << (i ? ", " : "") << doc["agents"][i].get<std::string>();
+        std::cout << "\n";
+    }
+    std::cout << "  privileged tools:\n";
+    for (const char* t : {"execute_shell", "create_agent", "create_tool"})
+        std::cout << "    " << t << ": " << (perms.allows_tool(t) ? "allowed" : "denied") << "\n";
+    if (doc.is_object() && doc.contains("tools") && doc["tools"].is_object()) {
+        std::cout << "  explicit tool entries:\n";
+        for (const auto& [name, allowed] : doc["tools"].items())
+            std::cout << "    " << name << ": "
+                      << (allowed.is_boolean() && allowed.get<bool>() ? "allowed" : "denied")
+                      << "\n";
+    }
+    return 0;
+}
+
+int cmd_perms(UserStore& users, const std::vector<std::string>& args) {
+    if (args.empty()) { usage(); return 2; }
+    auto user = users.find_by_username(args[0]);
+    if (!user) {
+        std::cerr << "No such user: " << args[0] << "\n";
+        return 1;
+    }
+    if (args.size() == 1) return show_permissions(*user);
+
+    nlohmann::json doc;
+    try { doc = nlohmann::json::parse(user->permissions); } catch (...) {}
+    if (!doc.is_object()) doc = nlohmann::json::object();
+
+    bool changed = false;
+    for (size_t i = 1; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if (a == "--show") return show_permissions(*user);
+        if (a == "--reset") { doc = nlohmann::json::object(); changed = true; continue; }
+        if (i + 1 >= args.size()) { std::cerr << "Missing value for " << a << "\n"; return 2; }
+        const std::string value = args[++i];
+
+        if (a == "--agents") {
+            // "any" is the way to spell "no restriction" without having to
+            // know that an empty list means the same thing.
+            if (value == "any") doc.erase("agents");
+            else doc["agents"] = split_csv(value);
+            changed = true;
+        } else if (a == "--allow" || a == "--deny") {
+            const bool allow = (a == "--allow");
+            for (const auto& t : split_csv(value)) doc["tools"][t] = allow;
+            changed = true;
+        } else {
+            std::cerr << "Unknown option: " << a << "\n";
+            usage();
+            return 2;
+        }
+    }
+
+    if (!changed) return show_permissions(*user);
+    if (user->is_admin())
+        std::cout << "Note: " << user->username
+                  << " is an admin, so these entries are stored but not enforced.\n";
+    if (!users.set_permissions(user->id, doc.dump())) {
+        std::cerr << "Could not update permissions.\n";
+        return 1;
+    }
+    auto updated = users.find_by_username(args[0]);
+    return updated ? show_permissions(*updated) : 0;
 }
 
 int cmd_useradd(UserStore& users, const std::vector<std::string>& args) {
@@ -195,7 +295,7 @@ int cmd_jid_unmap(UserStore& users, const std::vector<std::string>& args) {
 }
 
 const char* const COMMANDS[] = {
-    "useradd", "userdel", "userlist", "passwd", "jid-map", "jid-unmap"
+    "useradd", "userdel", "userlist", "passwd", "perms", "jid-map", "jid-unmap"
 };
 
 } // namespace
@@ -218,6 +318,7 @@ int run_user_cli(int argc, char** argv, const std::string& db_path) {
         if (cmd == "userdel")   return cmd_userdel(users, args);
         if (cmd == "userlist")  return cmd_userlist(users);
         if (cmd == "passwd")    return cmd_passwd(users, args);
+        if (cmd == "perms")     return cmd_perms(users, args);
         if (cmd == "jid-map")   return cmd_jid_map(users, args);
         if (cmd == "jid-unmap") return cmd_jid_unmap(users, args);
     } catch (const std::exception& e) {

@@ -65,6 +65,17 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
         return {oss.str(), true};
     }
 
+    // An agent allowlist has to cover delegation as well as /api/chat, or it
+    // isn't a restriction at all: `funes` is reachable by everyone, and it
+    // would happily hand the task to the specialist on the user's behalf.
+    if (!ctx.permissions.allows_agent(target.name)) {
+        std::cerr << "[delegate] REFUSED: user " << ctx.user_id
+                  << " not permitted to use agent '" << target.name << "'\n";
+        return {"You do not have access to the agent '" + target.name +
+                "'. Answer with what you can do yourself, or tell the user "
+                "this needs an account with access to it.", true};
+    }
+
     if (g_delegation_depth >= kMaxDelegationDepth) {
         std::cerr << "[delegate] REFUSED: depth limit (" << kMaxDelegationDepth << ")\n";
         return {"Delegation depth limit reached — refusing to delegate further from '" +
@@ -84,8 +95,8 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
         // The specialist runs as the delegating user: it shares the caller's
         // session, so its recall/remember and any result it stores have to
         // land in the same pool the caller will read them back from.
-        std::string result = sub.run(task, ctx.session, ctx.user_id, nullptr, {},
-                                     /*persist=*/false);
+        std::string result = sub.run(task, ctx.session, ctx.user_id, ctx.permissions,
+                                     nullptr, {}, /*persist=*/false);
         const bool failed = funes::is_run_failure(result);
         std::cerr << "[delegate] " << ctx.agent << " → " << agent_name
                   << (failed ? " FAILED: " : " OK: ")

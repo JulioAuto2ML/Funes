@@ -83,6 +83,7 @@ add_library(funes_core STATIC
     src/core/base64.cpp
     src/core/memory.cpp
     src/core/password.cpp
+    src/core/permissions.cpp
     src/core/users.cpp
     src/core/cron_schedule.cpp
     src/core/cron_runner.cpp

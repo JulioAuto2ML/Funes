@@ -74,6 +74,12 @@ public:
     // doesn't show up as a separate turn in the visible conversation. The
     // specialist's own recall/remember tool calls are unaffected either way.
     //
+    // `perms` is what that user may do: it narrows the tool schema this run
+    // offers the model, and is re-checked at dispatch. It only ever
+    // restricts — the result is intersected with the agent's own tool list,
+    // so granting a user a tool cannot give it to them through an agent that
+    // was never given it.
+    //
     // `user_id` is whose memories, history and stored results this run reads
     // and writes. Required rather than defaulted: every caller genuinely
     // knows who it is acting for — the API from the authenticated request,
@@ -85,6 +91,7 @@ public:
     // unrecoverable LLM errors.
     std::string run(const std::string& user_message, const std::string& session,
                     int64_t user_id,
+                    const funes::Permissions& perms,
                     const EventFn& emit = nullptr,
                     const std::vector<ImageAttachment>& images = {},
                     bool persist = true);

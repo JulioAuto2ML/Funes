@@ -193,6 +193,15 @@ bool UserStore::set_password(int64_t user_id, const std::string& password) {
     return sqlite3_changes(db_) > 0;
 }
 
+bool UserStore::set_permissions(int64_t user_id, const std::string& permissions_json) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE users SET permissions = ? WHERE id = ?");
+    s.bind_text(1, permissions_json);
+    s.bind_int64(2, user_id);
+    s.step();
+    return sqlite3_changes(db_) > 0;
+}
+
 bool UserStore::delete_user(int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
     // auth_tokens and jid_users cascade (see migrate()).

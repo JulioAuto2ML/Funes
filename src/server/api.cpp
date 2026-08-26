@@ -5,6 +5,7 @@
 #include "api.h"
 #include "../core/base64.h"
 #include "../core/password.h"
+#include "../core/permissions.h"
 #include "../core/text_utils.h"
 #include "../core/tools/fs_guard.h"
 #include "../core/tools/pdf_extract.h"
@@ -358,10 +359,12 @@ void FunesApi::mount(httplib::Server& srv) {
         auto user = require_auth(req, res);
         if (!user) return;
 
+        const auto perms = funes::Permissions::parse(user->permissions, user->is_admin());
         json arr = json::array();
         {
             std::lock_guard<std::mutex> lock(agents_mu_);
             for (const auto& [name, cfg] : agents_) {
+                if (!perms.allows_agent(name)) continue;
                 arr.push_back({
                     {"name",        name},
                     {"description", cfg.description},
@@ -425,6 +428,14 @@ void FunesApi::mount(httplib::Server& srv) {
         if (cfg.name.empty())
             return json_error(res, 404, "Unknown agent: " + agent_name);
 
+        const auto perms = funes::Permissions::parse(user->permissions, user->is_admin());
+        if (!perms.allows_agent(cfg.name)) {
+            std::cerr << "[auth] " << user->username << " denied agent '"
+                      << cfg.name << "' by permissions\n";
+            return json_error(res, 403, "You do not have access to the agent '" +
+                              cfg.name + "'");
+        }
+
         // Shared state for the provider lambda (it must be copyable).
         struct ChatJob {
             AgentConfig   cfg;
@@ -432,9 +443,11 @@ void FunesApi::mount(httplib::Server& srv) {
             std::vector<ImageAttachment> images;
             FunesApi*     api;
             int64_t       user_id;
+            funes::Permissions perms;
         };
         auto job = std::make_shared<ChatJob>(
-            ChatJob{std::move(cfg), message, session, std::move(images), this, user->id});
+            ChatJob{std::move(cfg), message, session, std::move(images), this,
+                    user->id, perms});
 
         res.set_header("Cache-Control", "no-store");
         res.set_chunked_content_provider("text/event-stream",
@@ -450,8 +463,9 @@ void FunesApi::mount(httplib::Server& srv) {
                 try {
                     FunesAgent agent(job->cfg, job->api->tools_, job->api->memory_,
                                      job->api->defaults_);
-                    std::string answer = agent.run(job->message, job->session, job->user_id,
-                                                  emit, job->images);
+                    std::string answer = agent.run(job->message, job->session,
+                                                   job->user_id, job->perms,
+                                                   emit, job->images);
                     emit("done", {{"text", answer}});
                 } catch (const std::exception& e) {
                     emit("error", {{"message", e.what()}});

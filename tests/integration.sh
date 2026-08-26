@@ -40,6 +40,7 @@ cleanup() {
     [ -n "${MOCK_PID:-}" ]  && kill "$MOCK_PID" 2>/dev/null
     rm -f "$DB" "$DB-wal" "$DB-shm"
     rm -rf "$WORKSPACE" "$AGENTS"
+    rm -f "${COOKIE_JAR:-}"
 }
 trap cleanup EXIT
 
@@ -130,15 +131,34 @@ FUNES_WORKSPACE_DIR="$WORKSPACE" \
 FUNES_AGENTS_DIR="$AGENTS" \
 FUNES_HOST=127.0.0.1 \
 FUNES_PORT=$API_PORT \
+FUNES_VISION_URL= \
+FUNES_SERVICE_TOKEN= \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
 FUNES_PID=$!
 
+# Readiness is checked against a *public* route: /api/status needs a session,
+# and there is no account yet on a scratch database.
 for i in $(seq 1 50); do
-    curl -sf "http://127.0.0.1:$API_PORT/api/status" > /dev/null 2>&1 && break
+    curl -sf "http://127.0.0.1:$API_PORT/api/auth/status" > /dev/null 2>&1 && break
     sleep 0.2
 done
 
 BASE="http://127.0.0.1:$API_PORT"
+
+# ── authenticate once, for every request below ───────────────────────────────
+# Funes 4.0 requires a session on everything except the four public auth
+# routes. Rather than thread a cookie through ~90 call sites, the admin is
+# bootstrapped here and `curl` is shadowed by a function that always sends the
+# jar. `command curl` reaches the real binary, so this does not recurse.
+COOKIE_JAR=$(mktemp -u /tmp/funes_it_cookies_XXXX.txt)
+BOOTSTRAP=$(command curl -s -c "$COOKIE_JAR" -X POST "$BASE/api/auth/bootstrap" \
+    -d '{"username":"itadmin","password":"integration-test-pw","display_name":"IT"}')
+case "$BOOTSTRAP" in
+    *'"ok":true'*) ;;
+    *) echo "FATAL: could not bootstrap the admin account: $BOOTSTRAP"; exit 1 ;;
+esac
+
+curl() { command curl -b "$COOKIE_JAR" "$@"; }
 
 echo "— status"
 OUT=$(curl -s "$BASE/api/status")
@@ -216,11 +236,15 @@ check "cron flow completed"    "$OUT" 'MOCK-CRON-DONE'
 JOB_ID=$(echo "$OUT" | grep -o 'Scheduled job #[0-9]*' | grep -o '[0-9]*' | head -1)
 
 OUT=$(curl -s "$BASE/api/sessions")
-check "cron job got its own session" "$OUT" "\"cron-$JOB_ID\""
+# Each firing gets its own session, "cron-<id>-<epoch>", so tool budgets don't
+# carry over between runs — match the prefix, then recover the full name for
+# the history lookups below.
+check "cron job got its own session" "$OUT" "\"cron-$JOB_ID-"
+CRON_SESSION=$(echo "$OUT" | grep -o "cron-$JOB_ID-[0-9]*" | head -1)
 
 # persist=true (unlike delegate_to_agent's false, see core/cron_runner.cpp):
 # the job's task and answer show up in their own session, not the orchestrator's.
-OUT=$(curl -s "$BASE/api/history?session=cron-$JOB_ID")
+OUT=$(curl -s "$BASE/api/history?session=$CRON_SESSION")
 check "cron job session has its task"   "$OUT" 'cron-target-task'
 check "cron job session has its answer" "$OUT" 'MOCK-CRON-CHILD-REPLY'
 
@@ -233,7 +257,9 @@ check "required call happened"   "$OUT" 'event: tool_result'
 check "run completed after nudge" "$OUT" 'with-tool-result'
 # The premature prose must not be what the caller ends up with.
 check_absent "premature answer not final" "$OUT" 'event: done.*MOCK-PREMATURE-ANSWER'
-if [ -f "$WORKSPACE/contract_proof.txt" ]; then
+# 4.0: tools write inside the calling account's workspace,
+# <root>/<user_id>/ — the bootstrapped admin is user 1.
+if [ -f "$WORKSPACE/1/contract_proof.txt" ]; then
     echo "  ok: contract forced the real side effect (file exists)"
 else
     echo "  FAIL: contract forced the real side effect (file exists) — missing"
