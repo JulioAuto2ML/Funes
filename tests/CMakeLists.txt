@@ -38,6 +38,14 @@ add_executable(test_base64 test_base64.cpp)
 target_link_libraries(test_base64 PRIVATE funes_core)
 add_test(NAME base64 COMMAND test_base64)
 
+add_executable(test_password test_password.cpp)
+target_link_libraries(test_password PRIVATE funes_core)
+add_test(NAME password COMMAND test_password)
+
+add_executable(test_users test_users.cpp)
+target_link_libraries(test_users PRIVATE funes_core)
+add_test(NAME users COMMAND test_users)
+
 add_executable(test_llm_client_images test_llm_client_images.cpp)
 target_link_libraries(test_llm_client_images PRIVATE funes_core)
 add_test(NAME llm_client_images COMMAND test_llm_client_images)

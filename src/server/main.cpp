@@ -16,6 +16,8 @@
 #include "tools/harvest.h"
 #include "tools/http_tool_runtime.h"
 #include "tools/issue.h"
+#include "user_cli.h"
+#include "users.h"
 #include "httplib.h"
 #include <chrono>
 #include <csignal>
@@ -87,7 +89,7 @@ static std::string merge_memories(LLMClient& llm, const std::vector<std::string>
     return out;
 }
 
-int main() {
+int main(int argc, char** argv) {
     funes::load_config();
 
     // ── configuration ─────────────────────────────────────────────────────────
@@ -124,6 +126,13 @@ int main() {
         db_path = home + "/.funes/memory.db";
     }
 
+    // Account management (`funes useradd` …) runs against the same database
+    // and exits without starting the server. Dispatched here, after the config
+    // and the database path are known but before anything opens a socket or
+    // queries the LLM — a CLI invocation must not need a reachable model.
+    if (funes::is_user_cli_command(argc, argv))
+        return funes::run_user_cli(argc, argv, db_path);
+
     // read_file/write_file/execute_shell are confined to this directory.
     std::string workspace_dir = funes::env("FUNES_WORKSPACE_DIR");
     if (workspace_dir.empty()) {
@@ -158,6 +167,18 @@ int main() {
 
     // ── core services ─────────────────────────────────────────────────────────
     MemoryStore memory(db_path, embedder.get());
+    UserStore   users(db_path);
+
+    // A service token lets a non-browser caller (the WhatsApp autoresponder)
+    // authenticate; it must still name a mapped jid to act as somebody. Unset
+    // means service authentication is off entirely rather than open.
+    const std::string service_token = funes::env("FUNES_SERVICE_TOKEN");
+    if (service_token.empty())
+        std::cerr << "[funes] FUNES_SERVICE_TOKEN not set — service callers "
+                     "(WhatsApp autoresponder) cannot authenticate\n";
+    else if (service_token.size() < 32)
+        std::cerr << "[funes] warning: FUNES_SERVICE_TOKEN is shorter than 32 "
+                     "characters; generate one with `openssl rand -hex 32`\n";
 
     ToolRegistry tools;
     register_web_tools(tools);
@@ -173,7 +194,16 @@ int main() {
     funes::tools::register_all_generated_tools(tools);
     register_tool_builder(tools, generated_tools_dir);
 
-    FunesApi api(tools, memory, defaults, agents_dir, ui_dir, default_agent, workspace_dir);
+    FunesApi api(tools, memory, users, defaults, agents_dir, ui_dir, default_agent,
+                 workspace_dir, service_token);
+
+    // Not a fatal condition — the UI's first-run screen calls
+    // /api/auth/bootstrap to create this account — but it is worth saying out
+    // loud, because until it happens every other endpoint answers 401 and
+    // that looks like a broken deployment rather than an unfinished one.
+    if (users.count() == 0)
+        std::cerr << "[funes] no accounts yet — open the web UI to create the first "
+                     "admin, or run: funes useradd <name> --admin\n";
 
     // Agents with the delegate_to_agent tool get their roster of other
     // agents (name + description) injected into their system prompt at

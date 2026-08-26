@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 3.0.0 LANGUAGES C CXX)
+project(Funes VERSION 4.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -82,6 +82,8 @@ add_library(funes_core STATIC
     src/core/text_utils.cpp
     src/core/base64.cpp
     src/core/memory.cpp
+    src/core/password.cpp
+    src/core/users.cpp
     src/core/cron_schedule.cpp
     src/core/cron_runner.cpp
     src/core/tools.cpp
@@ -126,6 +128,7 @@ file(GLOB FUNES_GENERATED_TOOLS CONFIGURE_DEPENDS src/core/tools/generated/*.cpp
 add_executable(funes
     src/server/main.cpp
     src/server/api.cpp
+    src/server/user_cli.cpp
     src/core/tools/http_tool_runtime.cpp
     ${FUNES_GENERATED_TOOLS}
 )

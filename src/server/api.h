@@ -3,6 +3,11 @@
 // =============================================================================
 //
 // Routes (all JSON unless noted):
+//   POST   /api/login               — {username, password} → sets session cookie  [public]
+//   POST   /api/logout              — revokes the token and clears the cookie
+//   GET    /api/auth/status         — {needs_bootstrap, authenticated, user?}     [public]
+//   POST   /api/auth/bootstrap      — {username, password, display_name?} → first admin,
+//                                       refused once any user exists              [public]
 //   GET    /api/status              — health, model info, memory stats
 //   GET    /api/agents              — available agents
 //   POST   /api/agents/reload       — re-read agents/*.yaml
@@ -19,6 +24,19 @@
 //                                       returns a text preview for the UI to embed
 //   GET    /*                       — static web UI
 //
+// Every route above except the four marked [public] requires authentication.
+// That is enforced twice on purpose (see api.cpp): a pre-routing gate refuses
+// any unauthenticated /api/ path so a route added later is protected by
+// default, and each handler additionally resolves the caller to scope what it
+// returns. The gate is the security boundary; the per-handler lookup is what
+// makes the answer correct.
+//
+// Two ways to authenticate:
+//   - session cookie  — the web UI, set by /api/login
+//   - service token   — X-Funes-Service-Token, for the WhatsApp autoresponder,
+//                       which pairs it with X-Funes-User-Jid naming the sender
+//                       (see FUNES_SERVICE_TOKEN in config/funes.conf)
+//
 // The chat SSE stream emits:
 //   event: memories | delta | tool_call | tool_result | done | error
 // =============================================================================
@@ -27,22 +45,25 @@
 #include "agent.h"
 #include "memory.h"
 #include "tools.h"
+#include "users.h"
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
-namespace httplib { class Server; }
+namespace httplib { class Server; class Request; class Response; }
 
 class FunesApi {
 public:
-    FunesApi(ToolRegistry& tools, MemoryStore& memory,
+    FunesApi(ToolRegistry& tools, MemoryStore& memory, UserStore& users,
              const AgentDefaults& defaults,
              const std::string& agents_dir,
              const std::string& ui_dir,
              const std::string& default_agent,
-             const std::string& workspace_dir);
+             const std::string& workspace_dir,
+             const std::string& service_token);
 
     // Register all routes on the given server.
     void mount(httplib::Server& srv);
@@ -76,12 +97,30 @@ public:
 private:
     ToolRegistry& tools_;
     MemoryStore&  memory_;
+    UserStore&    users_;
     AgentDefaults defaults_;
     std::string   agents_dir_;
     std::string   ui_dir_;
     std::string   default_agent_;
     std::string   workspace_dir_;
+    std::string   service_token_;  // empty = service authentication disabled
 
     std::map<std::string, AgentConfig> agents_;
     mutable std::mutex agents_mu_;
+
+    // ── authentication ────────────────────────────────────────────────────────
+
+    // Resolve the caller from a session cookie or a service token. Returns
+    // nothing if the request carries no valid credential. Never writes to the
+    // response — callers decide what an anonymous request means.
+    std::optional<UserStore::User> authenticate(const httplib::Request& req);
+
+    // authenticate(), but writes 401 and returns nothing when there is no
+    // valid credential. The `if (!user) return;` guard at the top of a handler.
+    std::optional<UserStore::User> require_auth(const httplib::Request& req,
+                                                httplib::Response& res);
+
+    // True for the handful of paths reachable without credentials. Anything
+    // else under /api/ is refused by the pre-routing gate.
+    static bool is_public_path(const std::string& path);
 };

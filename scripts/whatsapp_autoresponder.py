@@ -73,6 +73,10 @@ DB_PATH = CFG.get(
 FUNES_API_URL = CFG.get("FUNES_API_URL", "http://localhost:8484")
 BRIDGE_API_URL = CFG.get("WHATSAPP_BRIDGE_URL", "http://localhost:8090")
 AGENT_NAME = CFG.get("WHATSAPP_AUTORESPONDER_AGENT", "whatsapp-autoresponder")
+# Shared secret that lets this script authenticate to Funes 4.0's API. Empty
+# means the calls go out unauthenticated, which only works against a pre-4.0
+# server — 4.0 answers 401 and ask_funes() logs what to fix.
+SERVICE_TOKEN = CFG.get("FUNES_SERVICE_TOKEN", "")
 POLL_SECONDS = float(CFG.get("WHATSAPP_POLL_SECONDS", "5"))
 CHAT_TIMEOUT = float(CFG.get("WHATSAPP_CHAT_TIMEOUT_SECONDS", "120"))
 WHITELIST = {
@@ -277,11 +281,21 @@ def fetch_new_messages(state):
     return fresh
 
 
-def ask_funes(session: str, message: str) -> str | None:
+def ask_funes(session: str, message: str, chat_jid: str) -> str | None:
     payload = json.dumps({"agent": AGENT_NAME, "session": session, "message": message}).encode()
+    headers = {"Content-Type": "application/json"}
+    # Funes 4.0 authenticates every /api/ call. This script is a service, not a
+    # browser: the token says the caller is trusted, and the jid says who the
+    # request is for. Funes maps that jid to a user (see `funes jid-map`) and
+    # refuses the call outright if it maps to nobody — identity is resolved
+    # there, not here, so this script can never talk its way into another
+    # user's memories by naming a different number.
+    if SERVICE_TOKEN:
+        headers["X-Funes-Service-Token"] = SERVICE_TOKEN
+        headers["X-Funes-User-Jid"] = chat_jid
     req = urllib.request.Request(
         f"{FUNES_API_URL}/api/chat", data=payload,
-        headers={"Content-Type": "application/json"}, method="POST",
+        headers=headers, method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=CHAT_TIMEOUT) as resp:
@@ -298,6 +312,18 @@ def ask_funes(session: str, message: str) -> str | None:
                         log(f"Funes agent error: {data.get('message')}")
                         return None
             return text
+    except urllib.error.HTTPError as e:
+        # 401/403 here is a configuration fault, not a bad message, and it will
+        # hit every single incoming WhatsApp message until someone fixes it.
+        # Say exactly which of the two setup steps is missing rather than
+        # logging a bare status code nobody can act on.
+        if e.code in (401, 403):
+            log(f"Funes rejected the service call ({e.code}) for jid {chat_jid}. "
+                "Check FUNES_SERVICE_TOKEN matches the server's, and that this "
+                f"number is mapped: funes jid-map {chat_jid} <username>")
+        else:
+            log(f"Funes /api/chat returned HTTP {e.code}")
+        return None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
         log(f"Failed to reach Funes /api/chat: {e}")
         return None
@@ -370,7 +396,7 @@ def main():
 
             log(f"New message from {sender} in {chat_jid}: {message_text[:80]!r}")
             session = sanitize_session(chat_jid, session_generation(state, chat_jid))
-            reply = ask_funes(session, message_text)
+            reply = ask_funes(session, message_text, chat_jid)
             if reply is None or not reply.strip():
                 log("No reply generated, skipping send.")
                 continue

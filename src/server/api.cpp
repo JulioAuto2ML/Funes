@@ -4,10 +4,12 @@
 
 #include "api.h"
 #include "../core/base64.h"
+#include "../core/password.h"
 #include "../core/text_utils.h"
 #include "../core/tools/pdf_extract.h"
 #include "httplib.h"
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -55,21 +57,114 @@ bool sse_write(httplib::DataSink& sink, const std::string& type, const json& dat
     return sink.write(frame.data(), frame.size());
 }
 
+// ── authentication helpers ────────────────────────────────────────────────────
+
+constexpr const char* COOKIE_NAME    = "funes_session";
+constexpr int         SESSION_TTL_DAYS = 30;
+
+// Pull one cookie out of a Cookie header. Hand-parsed rather than regexed
+// because the header is attacker-controlled and a backtracking regex over it
+// is a denial-of-service waiting to happen.
+std::string read_cookie(const httplib::Request& req, const std::string& name) {
+    if (!req.has_header("Cookie")) return "";
+    const std::string header = req.get_header_value("Cookie");
+
+    size_t pos = 0;
+    while (pos < header.size()) {
+        size_t end = header.find(';', pos);
+        if (end == std::string::npos) end = header.size();
+
+        size_t start = header.find_first_not_of(" \t", pos);
+        if (start != std::string::npos && start < end) {
+            size_t eq = header.find('=', start);
+            if (eq != std::string::npos && eq < end) {
+                if (header.compare(start, eq - start, name) == 0)
+                    return header.substr(eq + 1, end - eq - 1);
+            }
+        }
+        pos = end + 1;
+    }
+    return "";
+}
+
+// Session cookie. HttpOnly so page scripts can't read it; SameSite=Strict so a
+// cross-site form post can't ride it. Secure is opt-in via FUNES_COOKIE_SECURE
+// because the default deployment is plain HTTP on a LAN — setting it
+// unconditionally would make login silently fail there, which is a worse
+// failure than the one it prevents on a network the traffic never leaves.
+std::string session_cookie(const std::string& token, int max_age_seconds) {
+    const char* secure_env = std::getenv("FUNES_COOKIE_SECURE");
+    const bool secure = secure_env && std::string(secure_env) == "1";
+    return std::string(COOKIE_NAME) + "=" + token +
+           "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" +
+           std::to_string(max_age_seconds) + (secure ? "; Secure" : "");
+}
+
 } // namespace
 
 // ── construction / agents ─────────────────────────────────────────────────────
 
-FunesApi::FunesApi(ToolRegistry& tools, MemoryStore& memory,
+FunesApi::FunesApi(ToolRegistry& tools, MemoryStore& memory, UserStore& users,
                    const AgentDefaults& defaults,
                    const std::string& agents_dir,
                    const std::string& ui_dir,
                    const std::string& default_agent,
-                   const std::string& workspace_dir)
-    : tools_(tools), memory_(memory), defaults_(defaults)
+                   const std::string& workspace_dir,
+                   const std::string& service_token)
+    : tools_(tools), memory_(memory), users_(users), defaults_(defaults)
     , agents_dir_(agents_dir), ui_dir_(ui_dir), default_agent_(default_agent)
-    , workspace_dir_(workspace_dir)
+    , workspace_dir_(workspace_dir), service_token_(service_token)
 {
     load_agents();
+}
+
+// ── authentication ────────────────────────────────────────────────────────────
+
+bool FunesApi::is_public_path(const std::string& path) {
+    // Deliberately an exact-match list, not a prefix test: "/api/auth/" as a
+    // prefix would make any future /api/auth/* route public by accident.
+    return path == "/api/login"
+        || path == "/api/auth/status"
+        || path == "/api/auth/bootstrap";
+}
+
+std::optional<UserStore::User> FunesApi::authenticate(const httplib::Request& req) {
+    // 1. Service token — the WhatsApp autoresponder and anything else that
+    //    runs without a browser. The token proves the *caller* is trusted; it
+    //    does not by itself say who the request is for, so it must be paired
+    //    with a jid that maps to a real user. A service token with no jid
+    //    header, or with an unmapped one, authenticates nobody — that is what
+    //    keeps an incoming message from an unknown number from being answered
+    //    as though it came from the admin.
+    if (!service_token_.empty() && req.has_header("X-Funes-Service-Token")) {
+        const std::string presented = req.get_header_value("X-Funes-Service-Token");
+        if (!funes::constant_time_equals(presented, service_token_)) {
+            std::cerr << "[auth] service token mismatch from " << req.remote_addr << "\n";
+            return std::nullopt;
+        }
+        const std::string jid = req.get_header_value("X-Funes-User-Jid");
+        if (jid.empty()) {
+            std::cerr << "[auth] service token without X-Funes-User-Jid from "
+                      << req.remote_addr << "\n";
+            return std::nullopt;
+        }
+        auto user = users_.resolve_jid(jid);
+        if (!user)
+            std::cerr << "[auth] service token names unmapped jid '" << jid << "'\n";
+        return user;
+    }
+
+    // 2. Session cookie — the web UI.
+    const std::string token = read_cookie(req, COOKIE_NAME);
+    if (token.empty()) return std::nullopt;
+    return users_.resolve_token(token);
+}
+
+std::optional<UserStore::User> FunesApi::require_auth(const httplib::Request& req,
+                                                      httplib::Response& res) {
+    auto user = authenticate(req);
+    if (!user) json_error(res, 401, "Authentication required");
+    return user;
 }
 
 size_t FunesApi::load_agents() {
@@ -127,12 +222,123 @@ std::string FunesApi::agent_roster(const std::string& exclude) const {
 
 void FunesApi::mount(httplib::Server& srv) {
 
+    // ── auth gate ─────────────────────────────────────────────────────────────
+    // Fail closed for everything under /api/ that isn't explicitly public. The
+    // individual handlers authenticate again to learn *who* is calling; this
+    // gate exists so that forgetting to do so in a route added later is a
+    // 401 rather than a silent hole. Non-/api paths (the static UI) pass
+    // through — the login page has to be reachable to log in.
+    srv.set_pre_routing_handler([this](const httplib::Request& req,
+                                       httplib::Response& res) {
+        if (req.path.rfind("/api/", 0) != 0)
+            return httplib::Server::HandlerResponse::Unhandled;
+        if (is_public_path(req.path))
+            return httplib::Server::HandlerResponse::Unhandled;
+        if (authenticate(req))
+            return httplib::Server::HandlerResponse::Unhandled;
+
+        json_error(res, 401, "Authentication required");
+        return httplib::Server::HandlerResponse::Handled;
+    });
+
+    // ── auth: bootstrap / login / logout / whoami ─────────────────────────────
+
+    // Public, but self-closing: it only works while no user exists. That is
+    // what lets a fresh install create its first admin without shipping a
+    // default password, and what stops it being a permanent open door.
+    srv.Post("/api/auth/bootstrap", [this](const httplib::Request& req,
+                                           httplib::Response& res) {
+        if (users_.count() > 0)
+            return json_error(res, 409, "Already initialised — ask an admin for an account");
+
+        json body;
+        try { body = json::parse(req.body); }
+        catch (...) { return json_error(res, 400, "Request body must be JSON"); }
+
+        const std::string username = body.value("username", "");
+        const std::string password = body.value("password", "");
+        const std::string display  = body.value("display_name", username);
+
+        if (username.empty() || password.empty())
+            return json_error(res, 400, "'username' and 'password' are required");
+        if (password.size() < 8)
+            return json_error(res, 400, "Password must be at least 8 characters");
+
+        int64_t id = users_.create_user(username, password, display, UserStore::ROLE_ADMIN);
+        if (id == 0) return json_error(res, 500, "Could not create the admin account");
+
+        std::cerr << "[auth] bootstrapped admin account '" << username << "'\n";
+
+        // Re-check the count rather than trusting the insert: if two bootstrap
+        // requests raced, exactly one created a user and the other must not
+        // hand out a session for it.
+        std::string token = users_.create_token(id, SESSION_TTL_DAYS);
+        if (token.empty()) return json_error(res, 500, "Could not start a session");
+
+        res.set_header("Set-Cookie", session_cookie(token, SESSION_TTL_DAYS * 86400));
+        json_reply(res, 200, {{"ok", true}, {"user", {{"id", id},
+                                                      {"username", username},
+                                                      {"display_name", display},
+                                                      {"role", UserStore::ROLE_ADMIN}}}});
+    });
+
+    srv.Post("/api/login", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        try { body = json::parse(req.body); }
+        catch (...) { return json_error(res, 400, "Request body must be JSON"); }
+
+        const std::string username = body.value("username", "");
+        const std::string password = body.value("password", "");
+
+        auto user = users_.verify_login(username, password);
+        if (!user) {
+            // One message for both "no such user" and "wrong password", so the
+            // endpoint can't be used to enumerate accounts.
+            std::cerr << "[auth] failed login for '" << username << "' from "
+                      << req.remote_addr << "\n";
+            return json_error(res, 401, "Invalid username or password");
+        }
+
+        std::string token = users_.create_token(user->id, SESSION_TTL_DAYS);
+        if (token.empty()) return json_error(res, 500, "Could not start a session");
+
+        std::cerr << "[auth] login: " << user->username << " from " << req.remote_addr << "\n";
+        res.set_header("Set-Cookie", session_cookie(token, SESSION_TTL_DAYS * 86400));
+        json_reply(res, 200, {{"ok", true}, {"user", {{"id", user->id},
+                                                      {"username", user->username},
+                                                      {"display_name", user->display_name},
+                                                      {"role", user->role}}}});
+    });
+
+    srv.Post("/api/logout", [this](const httplib::Request& req, httplib::Response& res) {
+        // Revoke server-side as well as clearing the cookie: a cookie the
+        // client merely forgets is still a valid credential to anyone who
+        // captured it.
+        const std::string token = read_cookie(req, COOKIE_NAME);
+        if (!token.empty()) users_.revoke_token(token);
+        res.set_header("Set-Cookie", session_cookie("", 0));
+        json_reply(res, 200, {{"ok", true}});
+    });
+
+    // What the UI asks before rendering anything: does this install need a
+    // first admin, and am I already logged in?
+    srv.Get("/api/auth/status", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = authenticate(req);
+        json out = {{"ok", true},
+                    {"needs_bootstrap", users_.count() == 0},
+                    {"authenticated", user.has_value()}};
+        if (user)
+            out["user"] = {{"id", user->id}, {"username", user->username},
+                           {"display_name", user->display_name}, {"role", user->role}};
+        json_reply(res, 200, out);
+    });
+
     // ── status ────────────────────────────────────────────────────────────────
     srv.Get("/api/status", [this](const httplib::Request&, httplib::Response& res) {
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
-            {"version",  "3.0.0"},
+            {"version",  "4.0.0"},
             {"agents",   agent_count()},
             {"memories", memory_.count()},
             {"semantic_memory", memory_.semantic_available()},
