@@ -26,6 +26,11 @@ Being explicit, because "tested" has meant two different things here.
 - **Anything against a real LLM.** Every run used the mock or an unreachable
   endpoint. Phase 4 narrows the tool schema agents see, which is exactly what
   `scripts/funes_bench.py` measures — run it before trusting the branch.
+  **It cannot run against 4.0 as written:** it POSTs to `/api/chat` with no
+  credentials and will 401 on every case. It needs the same treatment the
+  autoresponder and `integration.sh` got — log in once (or send a service
+  token) and reuse the cookie. Fix that first, or the bench silently reports
+  a broken model when what is broken is the client.
 - **The WhatsApp service-token path end to end.** Only curl-tested. Never run
   against a real bridge with a real incoming message.
 - **The yoda deployment.** Not started. Runbook in `deploy-v4-yoda.md`.
@@ -108,6 +113,8 @@ Being explicit, because "tested" has meant two different things here.
 
 It was an untracked work-in-progress in the working tree when this branch
 started, and got committed as part of `cae9ccc` (phase 3) by a broad
-`git add`. It therefore exists **only on this branch**. It is a general tool
-rather than a 4.0 one, so it probably belongs on `main` — lift it across
-before it gets forgotten here.
+`git add`. It has since been added to `main` as well (`a610270`), with
+identical content, so a merge is clean and nothing needs moving.
+
+What it still needs on *this* branch is authentication — see the "NOT
+verified" list above.
