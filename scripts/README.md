@@ -50,6 +50,7 @@ Features:
 | `whatsapp-autoresponder.service` | systemd user service for the autoresponder script |
 | `whatsapp-bridge.service` | systemd user service for the personal WhatsApp bridge (port 8090) |
 | `whatsapp-bridge-funes.service` | systemd user service for the dedicated Funes WhatsApp bridge (port 8091) |
+| `funes-v4.service` | systemd user service for the Funes 4.0 install, deliberately separate from 3.x's `funes.service` — every path and port is set explicitly so a config file can never point it at the 3.x database. See [docs/deploy-v4-yoda.md](../docs/deploy-v4-yoda.md) |
 
 Two WhatsApp numbers, two bridge instances: the personal number is used by
 `whatsapp-assistant` (interactive, delegated from funes), and the dedicated

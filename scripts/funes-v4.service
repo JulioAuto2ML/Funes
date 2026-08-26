@@ -1,0 +1,63 @@
+# systemd --user unit for the Funes 4.0 install.
+#
+# This is a SECOND, INDEPENDENT install. It must never touch the 3.x one at
+# /home/julio/Funes (~/.funes/memory.db, ~/.funes/workspace, port 8484,
+# funes.service). The only things the two share are the LLM on :8080 and the
+# embedding model on :8081.
+#
+# Every path and port below is set explicitly, and that is the point rather
+# than verbosity. Funes loads ./config/funes.conf and ~/.funes/config into the
+# environment with setenv(overwrite=0), so anything NOT set here can be filled
+# in by a config file — including one belonging to the 3.x install. An
+# unset FUNES_DB means the binary opens ~/.funes/memory.db and migrates it in
+# place, and there is no downgrade.
+#
+# Install (on yoda):
+#   cp scripts/funes-v4.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now funes-v4
+#   journalctl --user -u funes-v4 -f
+#
+# See docs/deploy-v4-yoda.md for the full runbook, including the one-time
+# data migration from 3.x.
+
+[Unit]
+Description=Funes 4.0 (independent install, parallel to funes.service)
+After=network.target
+
+[Service]
+Type=simple
+
+# The v4 clone. Also where ./config/funes.local is read from, so this must
+# not be the 3.x checkout.
+WorkingDirectory=/home/julio/Funes-v4
+ExecStart=/home/julio/Funes-v4/bin/funes
+
+# ── isolation: separate from the 3.x install ─────────────────────────────────
+Environment=FUNES_DB=/home/julio/.funes-v4/memory.db
+Environment=FUNES_WORKSPACE_DIR=/home/julio/.funes-v4/workspace
+Environment=FUNES_PORT=8485
+Environment=FUNES_HOST=0.0.0.0
+
+# ── shared with 3.x, and only these ──────────────────────────────────────────
+Environment=FUNES_LLM_URL=http://yoda:8080
+Environment=FUNES_EMBED_URL=http://yoda:8081
+
+# ── deliberately off ─────────────────────────────────────────────────────────
+# Empty, not absent: an empty value still blocks config/funes.conf (which sets
+# http://yoda:8083) from filling it in, and Funes reads set-but-empty as
+# unset. Images therefore go to the main model on :8080, which needs an
+# --mmproj loaded to actually read them.
+Environment=FUNES_VISION_URL=
+# funes.conf ships FUNES_ALLOW_SHELL=1. This install has no business running
+# shell commands or scheduled shell jobs.
+Environment=FUNES_ALLOW_SHELL=0
+# No service token: the WhatsApp autoresponder is not run against this
+# install (one bridge store, two pollers, both answering). Absent means
+# service authentication is off, not open.
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
