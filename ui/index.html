@@ -8,6 +8,41 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128024;</text></svg>">
 </head>
 <body>
+
+  <!-- Authentication gate. Covers the whole app until /api/auth/status says
+       there is a logged-in user, and comes back if a session expires
+       mid-use. Hidden by default so a reload of an authenticated session
+       never flashes the login form. -->
+  <div id="auth-gate" class="auth-gate" hidden>
+    <div class="auth-card">
+      <h1>Funes</h1>
+      <p class="tagline" id="auth-tagline">an assistant that remembers</p>
+
+      <form id="auth-form" autocomplete="on">
+        <p id="auth-intro" class="auth-intro"></p>
+
+        <label for="auth-username">Username</label>
+        <input id="auth-username" name="username" type="text" autocomplete="username"
+               autocapitalize="none" spellcheck="false" required>
+
+        <label for="auth-display" id="auth-display-label" hidden>Display name</label>
+        <input id="auth-display" name="display_name" type="text"
+               autocomplete="name" hidden>
+
+        <label for="auth-password">Password</label>
+        <input id="auth-password" name="password" type="password"
+               autocomplete="current-password" required>
+
+        <label for="auth-password2" id="auth-password2-label" hidden>Repeat password</label>
+        <input id="auth-password2" name="password2" type="password"
+               autocomplete="new-password" hidden>
+
+        <p id="auth-error" class="auth-error" hidden></p>
+        <button id="auth-submit" type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+
   <div class="app">
 
     <header class="topbar">
@@ -31,6 +66,10 @@
           <span id="context-pct">0%</span>
         </span>
         <span id="status-dot" class="dot" title="Checking…"></span>
+        <span id="user-chip" class="user-chip" hidden>
+          <span id="user-name"></span>
+          <button id="logout" class="ghost" title="Sign out">Sign out</button>
+        </span>
       </div>
     </header>
 

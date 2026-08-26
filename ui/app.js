@@ -34,6 +34,21 @@ const els = {
   attachments:  $('attachments'),
   attachBtn:    $('attach-btn'),
   fileInput:    $('file-input'),
+  authGate:     $('auth-gate'),
+  authForm:     $('auth-form'),
+  authIntro:    $('auth-intro'),
+  authTagline:  $('auth-tagline'),
+  authUsername: $('auth-username'),
+  authDisplay:  $('auth-display'),
+  authDisplayLabel: $('auth-display-label'),
+  authPassword: $('auth-password'),
+  authPassword2:$('auth-password2'),
+  authPassword2Label: $('auth-password2-label'),
+  authError:    $('auth-error'),
+  authSubmit:   $('auth-submit'),
+  userChip:     $('user-chip'),
+  userName:     $('user-name'),
+  logout:       $('logout'),
 };
 
 const urlSession = new URLSearchParams(location.search).get('session');
@@ -51,6 +66,151 @@ localStorage.setItem('funes.session', state.session);
 function newSessionId() {
   return 's-' + Date.now().toString(36) + '-' +
          Math.random().toString(36).slice(2, 10);
+}
+
+/* ── authentication ──────────────────────────────────────────────────────────
+   Everything under /api/ needs a session cookie (see src/server/api.cpp). The
+   gate covers the app until we know who is logged in, and reappears if a
+   session expires mid-use.
+
+   The 401 handling is a fetch wrapper rather than a check at each call site:
+   there are a dozen callers, several of them on timers, and the failure being
+   guarded against is precisely the one that shows up at whichever call
+   happens to fire first. Wrapping once means a route added later is covered
+   without anyone remembering to cover it.                                   */
+
+const AUTH_PUBLIC = ['/api/login', '/api/auth/status', '/api/auth/bootstrap'];
+
+const rawFetch = window.fetch.bind(window);
+window.fetch = async function (input, init) {
+  const resp = await rawFetch(input, init);
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (resp.status === 401 && url.startsWith('/api/') &&
+      !AUTH_PUBLIC.some((p) => url.startsWith(p))) {
+    showAuthGate({ needs_bootstrap: false },
+                 'Your session expired. Please sign in again.');
+  }
+  return resp;
+};
+
+// mode.needs_bootstrap switches the form between "create the first admin" and
+// a plain login. There is deliberately no third state: an install either has
+// no users at all (bootstrap is open) or it has some (an admin issues them).
+function showAuthGate(mode, message) {
+  const bootstrap = !!mode.needs_bootstrap;
+  els.authGate.hidden = false;
+  els.userChip.hidden = true;
+
+  els.authTagline.textContent = bootstrap
+    ? 'first run — create your admin account'
+    : 'an assistant that remembers';
+  els.authIntro.textContent = bootstrap
+    ? 'No accounts exist yet. Create the admin account for this Funes.'
+    : '';
+  els.authIntro.hidden = !bootstrap;
+
+  els.authDisplay.hidden = !bootstrap;
+  els.authDisplayLabel.hidden = !bootstrap;
+  els.authPassword2.hidden = !bootstrap;
+  els.authPassword2Label.hidden = !bootstrap;
+  els.authPassword.autocomplete = bootstrap ? 'new-password' : 'current-password';
+  els.authSubmit.textContent = bootstrap ? 'Create admin account' : 'Sign in';
+  els.authForm.dataset.mode = bootstrap ? 'bootstrap' : 'login';
+
+  if (message) {
+    els.authError.textContent = message;
+    els.authError.hidden = false;
+  } else {
+    els.authError.hidden = true;
+  }
+  els.authUsername.focus();
+}
+
+function hideAuthGate(user) {
+  els.authGate.hidden = true;
+  els.authPassword.value = '';
+  els.authPassword2.value = '';
+  els.userName.textContent = user.display_name || user.username;
+  els.userChip.hidden = false;
+  els.userChip.title = user.username + ' · ' + user.role;
+}
+
+function authError(message) {
+  els.authError.textContent = message;
+  els.authError.hidden = false;
+  els.authSubmit.disabled = false;
+  els.authPassword.focus();
+  els.authPassword.select();
+}
+
+els.authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const bootstrap = els.authForm.dataset.mode === 'bootstrap';
+  const username = els.authUsername.value.trim();
+  const password = els.authPassword.value;
+
+  if (!username || !password) return authError('Username and password are required.');
+  if (bootstrap) {
+    // Checked here as well as on the server so a typo in a password that is
+    // never echoed is caught before it becomes the admin credential.
+    if (password.length < 8) return authError('Password must be at least 8 characters.');
+    if (password !== els.authPassword2.value) return authError('Passwords do not match.');
+  }
+
+  els.authSubmit.disabled = true;
+  els.authError.hidden = true;
+
+  const body = bootstrap
+    ? { username, password, display_name: els.authDisplay.value.trim() || username }
+    : { username, password };
+
+  try {
+    const resp = await fetch(bootstrap ? '/api/auth/bootstrap' : '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      // A 409 means someone else bootstrapped while this form was open —
+      // reload into login mode rather than leaving a dead form on screen.
+      if (resp.status === 409) return startAuthFlow('Account already created — please sign in.');
+      return authError(data.error || 'Sign-in failed.');
+    }
+    els.authSubmit.disabled = false;
+    hideAuthGate(data.user);
+    await startApp();
+  } catch (err) {
+    authError('Could not reach the Funes server.');
+  }
+});
+
+els.logout.addEventListener('click', async () => {
+  try {
+    // Content-Length matters: httplib rejects a POST with no body at all
+    // before routing, so an empty string body is what makes this reach the
+    // handler that revokes the token server-side.
+    await fetch('/api/logout', { method: 'POST', body: '' });
+  } catch (e) { /* clearing the local view is still the right move */ }
+  location.reload();
+});
+
+// Decides which of the three boot paths this load takes: bootstrap, login, or
+// straight into the app.
+async function startAuthFlow(message) {
+  try {
+    const resp = await fetch('/api/auth/status');
+    const data = await resp.json();
+    if (data.authenticated && data.user) {
+      hideAuthGate(data.user);
+      return true;
+    }
+    showAuthGate(data, message);
+    return false;
+  } catch (e) {
+    showAuthGate({ needs_bootstrap: false }, 'Could not reach the Funes server.');
+    return false;
+  }
 }
 
 /* ── tiny markdown (escape first, then decorate) ─────────────────────────── */
@@ -744,17 +904,33 @@ els.memoryAdd.addEventListener('submit', async (e) => {
 
 /* ── boot ────────────────────────────────────────────────────────────────── */
 
-(async function boot() {
-  // Memory + conversations panes: open by default on wide screens, closed on mobile.
-  if (window.innerWidth < 860) els.memoryPane.hidden = true;
+// Everything that talks to /api/ lives here rather than in boot(), so it can
+// also be called after a successful sign-in without reloading the page. The
+// timers are started once — signing out reloads, so they can't stack up.
+let appStarted = false;
+
+async function startApp() {
   await refreshStatus();
   await restoreHistory();
   refreshMemories();
   refreshJobs();
-  setInterval(refreshStatus, 15000);
-  // Jobs can fire on their own timer (core/cron_runner.h), with no chat turn
-  // to trigger a refresh the way schedule_job/cancel_job calls do — so this
-  // pane also polls unconditionally, same as refreshStatus above.
-  setInterval(refreshJobs, 15000);
+
+  if (!appStarted) {
+    appStarted = true;
+    setInterval(refreshStatus, 15000);
+    // Jobs can fire on their own timer (core/cron_runner.h), with no chat turn
+    // to trigger a refresh the way schedule_job/cancel_job calls do — so this
+    // pane also polls unconditionally, same as refreshStatus above.
+    setInterval(refreshJobs, 15000);
+  }
   els.input.focus();
+}
+
+(async function boot() {
+  // Memory + conversations panes: open by default on wide screens, closed on mobile.
+  if (window.innerWidth < 860) els.memoryPane.hidden = true;
+
+  // Authenticate before anything else touches /api/: firing the refreshes
+  // first would just paint a row of 401s and a broken status dot.
+  if (await startAuthFlow()) await startApp();
 })();
