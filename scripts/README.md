@@ -20,17 +20,26 @@ recipient:
 
 1. **Polls** the WhatsApp bridge's SQLite database for new messages from
    whitelisted chats.
-2. **Asks Funes** via `/api/chat` with the `whatsapp-autoresponder` agent.
-   That agent has no send capability -- only `recall`, `remember`, `read_file`.
+2. **Asks Funes** via `/api/chat` with the `whatsapp-autoresponder` agent,
+   authenticating with `FUNES_SERVICE_TOKEN` plus the sender's jid. That agent
+   has no send capability -- only `recall`, `remember`, `read_file`.
 3. **Sends** the reply back via the bridge's REST API, hardcoded to the exact
    chat the incoming message came from.
+
+Since 4.0 the number must also be mapped to a Funes account
+(`funes jid-map <jid> <username>`) or the API refuses the call. Whitelisting
+decides *whether* to reply; the mapping decides *whose* memories and files the
+reply is drawn from. Both are required.
 
 Features:
 - Per-chat sessions with generation rotation via `/new` command (handled in
   Python, never forwarded to the LLM)
-- Document/image attachment handling: downloads, copies to upload directory,
-  passes `[Document received: <path>]` markers to the agent
-- Expired upload cleanup (default 30 days)
+- Document/image attachment handling: downloads, copies into the sending
+  contact's own Funes workspace (`<workspace>/<user_id>/whatsapp-uploads/`,
+  the account resolved by asking Funes rather than guessed locally), passes
+  `[Document received: <path>]` markers to the agent
+- Expired upload cleanup (default 30 days), sweeping every account's upload
+  folder rather than one shared directory
 - State persistence in `~/.funes/whatsapp_autoresponder_state.json`
 - First-run state seeds from the bridge DB's max timestamp (no backlog replay)
 

@@ -39,6 +39,17 @@ files override earlier ones.
 - `FUNES_DEFAULT_AGENT` -- which agent handles requests without an explicit name
 - `FUNES_ALLOW_SHELL` -- enables `execute_shell` tool and shell cron jobs (default: off)
 
+### Users & authentication (4.0)
+- `FUNES_SERVICE_TOKEN` -- shared secret for non-browser callers (the WhatsApp
+  autoresponder), sent with the sender's jid so Funes can resolve the account.
+  Unset means service authentication is off, not open. `openssl rand -hex 32`
+- `FUNES_COOKIE_SECURE` -- add `; Secure` to the session cookie. Off by
+  default: the usual deployment is plain HTTP on a LAN, where setting it would
+  make login silently fail. Turn it on behind an HTTPS proxy
+- Accounts are CLI-managed: `funes useradd/userdel/userlist/passwd`, plus
+  `funes jid-map <jid> <username>` to let a WhatsApp number act as a user.
+  There is no self-registration and no user-CRUD API
+
 ### Email (Gmail SMTP)
 - `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD` -- shared by newsletter sending and IMAP MCP
 

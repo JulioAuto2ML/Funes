@@ -42,11 +42,17 @@ The user talks only to `funes`. When a request needs a specialist, funes
 delegates via `delegate_to_agent(agent, task)`. The task string must be
 entirely self-contained -- the specialist sees only it, not the conversation.
 
+Delegation carries identity: the specialist runs as the delegating user and
+shares its session, so anything it recalls, remembers or stores belongs to the
+same account the caller is acting for.
+
 **Special cases:**
 
 - `whatsapp-autoresponder` is never invoked by funes. It is called exclusively
   by `scripts/whatsapp_autoresponder.py`, which polls for incoming messages and
-  sends the agent's reply text back via the bridge API.
+  sends the agent's reply text back via the bridge API. The sending number has
+  to be mapped to an account (`funes jid-map <jid> <username>`) or Funes
+  refuses the call -- identity comes from that mapping, never from the script.
 - `agent-builder` is the only agent with `create_agent`. Never delegate
   agent-creation to `operator` -- it can write files but cannot register them.
 - `curator` runs 30+ tool calls per newsletter issue. Funes must never attempt
@@ -74,7 +80,11 @@ answer_schema:                    # JSON shape enforcement
   required: [answer]
 
 # Optional infrastructure
-workspace_dir: /some/path         # override default workspace
+workspace_dir: subfolder          # nested inside the caller's own workspace
+                                  # (<root>/<user_id>/subfolder). An absolute
+                                  # path is honoured verbatim and is then
+                                  # shared by every account -- deliberate, but
+                                  # nothing shipped uses it.
 memory_scope: funes               # share another agent's memory pool
 mcp_servers:
   - name: my-server

@@ -2,6 +2,33 @@
 
 Users and permissions for households and small teams.
 
+> **Status (2026-08-26, branch `feat/v4-users-permissions`).**
+> Phases 1–3 are implemented, tested and committed. Phase 5's login and
+> first-run screens were pulled forward to sit with phase 1, because phase 1
+> on its own left every route behind authentication with no way to
+> authenticate from the browser. Phase 4 (permissions) is the remaining
+> functional work; phase 5's deferred admin panel is still deferred.
+>
+> Corrections made while building, kept here so the plan doesn't mislead
+> anyone reading it later:
+>
+> - **`vec_memories` did need changing** — see the schema table below. The
+>   original claim that it "joins on `memory_id`, which is already filtered"
+>   was wrong.
+> - **`forget()` was missing from the list of methods gaining `user_id`**, and
+>   it is reachable as `DELETE /api/memories/<id>` with sequential integer
+>   ids. So was `get_result()`, isolated only by a client-supplied session
+>   string. Both are now owner-scoped.
+> - **Cron jobs had no identity to run as.** `cron_runner` builds its agent in
+>   a background thread with no request. Jobs record an owner and the runner
+>   adopts it.
+> - **Turning auth on breaks the WhatsApp autoresponder**, which posts to
+>   `/api/chat` with no credentials and logs-and-continues on failure. It
+>   needed a service-token path, which this plan did not have.
+> - **Password hashing:** PBKDF2-HMAC-SHA256 via OpenSSL rather than a
+>   vendored libbcrypt — OpenSSL is already a hard dependency via httplib, so
+>   this cost no new one.
+
 ---
 
 ## Interaction channels
@@ -83,7 +110,7 @@ overlap; phase 4 needs 2; phase 5 needs 1–4.
 *The big schema migration — every table gains `user_id`.*
 
 - `memories`: add `user_id INTEGER NOT NULL`, change unique constraint to
-  `(user_id, agent, text)`
+  `(user_id, agent, text)` (requires recreating the table)
 - `turns`: add `user_id`, index changes to `(user_id, session, id)`
 - `session_summaries`: add `user_id` to PK
 - `tool_results`: inherits isolation via session ownership (add `user_id` for
@@ -104,7 +131,12 @@ more columns.
 - `ToolContext` gains a `user_id` field (threaded from the authenticated
   request)
 - `MemoryStore` methods gain a `user_id` parameter: `remember()`, `recall()`,
-  `list()`, `count()`, `append_turn()`, `recent_turns()`, `list_sessions()`
+  `list()`, `count()`, `append_turn()`, `recent_turns()`, `list_sessions()`,
+  and — missing from the original list, and the two that were security bugs —
+  `forget()` and `get_result()`, plus `turn_count()`, `prune_turns()`,
+  `get_summary()`, `set_summary()`, `store_result()`, `prune_results()` and
+  the cron accessors. No default value on the parameter: a default makes
+  "forgot to pass it" a silent misattribution instead of a compile error
 - Every SQL query adds `WHERE user_id = ?`
 - `FunesAgent::run()` passes user_id through to memory and tool calls
 
@@ -189,7 +221,8 @@ CLI. The UI only needs login/logout and the user indicator.
 | session_summaries | Add column | `user_id INTEGER NOT NULL DEFAULT 1` |
 | tool_results | Add column | `user_id INTEGER NOT NULL DEFAULT 1` |
 | cron_jobs | Add column | `user_id INTEGER NOT NULL DEFAULT 1` |
-| vec_memories | No change | Joins on `memory_id`, already filtered by the `memories` query |
+| vec_memories | **Rebuilt** | Adds `user_id INTEGER PARTITION KEY`. The original "no change needed" was wrong: `recall_semantic` ran KNN across every row and filtered afterwards in C++ (vec0 refuses to combine `MATCH` with an arbitrary `WHERE`). Under multi-user the shared `k*8` candidate pool means a busy account crowds a quiet one out of its own top-k — not a leak, but recall quality decaying as accounts are added. A partition key is the one predicate vec0 *will* combine with `MATCH`, and it prunes partitions rather than post-filtering |
+| memories | Rebuilt | Also needs the unique constraint changed from `(agent, text)` to `(user_id, agent, text)` — SQLite cannot alter a constraint in place, so the table is recreated in one transaction. Without this the second user to store a fact silently gets the first user's row id back and stores nothing |
 | meta | No change | Server-level key/value store, not user-scoped |
 
 ---
@@ -346,9 +379,13 @@ application one — document it in the admin guide, not the code.
 
 ## Open decisions
 
-- **Password hashing library?** Recommendation: bcrypt via a small header-only
-  C implementation (e.g. `libbcrypt`). We already vendor sqlite-vec and httplib.
-  Argon2 is stronger but needs more setup.
+- ~~**Password hashing library?**~~ **Decided: PBKDF2-HMAC-SHA256 via
+  OpenSSL.** OpenSSL is already required (httplib links it for HTTPS), so this
+  cost no new dependency, where vendoring libbcrypt would have. Weaker than
+  bcrypt/argon2 against offline GPU cracking, which is the right trade for a
+  threat model that is mostly "someone has a copy of memory.db". The stored
+  form is self-describing (`pbkdf2_sha256$iterations$salt$hash`) so the cost
+  can be raised later without invalidating existing hashes.
 
 - **Token format?** Recommendation: Random 256-bit hex strings stored in the
   DB. Simpler than JWT, and we already hit the DB every request anyway (SQLite
@@ -358,9 +395,10 @@ application one — document it in the admin guide, not the code.
   bridge is tied to a phone number, not a Funes user. The autoresponder stays
   admin-managed.
 
-- **Consolidation across users?** Recommendation: Per-user. `consolidate()`
-  runs independently for each user's memory pool. Cross-user consolidation
-  would require a shared knowledge base — a later feature.
+- ~~**Consolidation across users?**~~ **Decided: per-user**, as recommended.
+  `consolidate()` with no user named iterates each pool in turn. Two people
+  stating the same fact are two facts; merging them would write one person's
+  wording into the other's memory and delete a row that was never theirs.
 
 ---
 

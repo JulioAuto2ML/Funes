@@ -44,6 +44,12 @@ remembers (and lets you delete any of it).
   persona in five lines.
 - **Pick up where you left off.** Every conversation with at least one message
   shows up in the conversations panel — click to switch back to it.
+- **A household, not just you.** Each person gets their own account, and with
+  it their own memories, conversations, scheduled jobs and files. Isolation is
+  enforced in the SQL rather than in the handlers, so one account genuinely
+  cannot see another's — not even by guessing an id. Accounts are created by
+  an admin from the CLI or the first-run screen; there is no self-registration,
+  because this is an appliance on your own network, not a service.
 
 ![Funes UI](docs/screenshot.png)
 
@@ -101,6 +107,69 @@ appears.
 # → open http://localhost:8484
 ```
 
+The first time you open it, Funes asks you to create the admin account —
+there is no default password to forget to change. Everyone else gets an
+account from you:
+
+```bash
+./bin/funes useradd marta --name "Marta"        # prompts for the password
+./bin/funes userlist
+```
+
+Until that admin exists every API route answers `401`, which is why the
+startup banner says so out loud rather than leaving you to wonder whether the
+deployment is broken or merely unfinished.
+
+---
+
+## Users, and what "yours" means
+
+Everyone who uses this Funes has an account, and everything Funes stores
+belongs to exactly one of them: memories, conversation history, rolling
+summaries, stored tool results, scheduled jobs, and workspace files.
+
+The isolation is in the queries, not in the request handlers. Every storage
+method takes the user it is acting for, and every statement carries a
+`WHERE user_id = ?` — so a handler that forgets to check still cannot read
+across accounts. Deletes are the same shape: `DELETE ... WHERE id = ? AND
+user_id = ?` rather than a lookup followed by a check, which means
+"that isn't yours" and "that doesn't exist" are indistinguishable from
+outside and nobody can map the store by counting ids. Authentication itself
+is checked twice on purpose — a gate that refuses any unauthenticated `/api/`
+path, so a route added next year is protected by default, plus a per-handler
+lookup that decides *whose* data to answer with.
+
+Two front doors, one identity model:
+
+- **The web UI** signs you in with a username and password and keeps an
+  httpOnly session cookie. Passwords are stored as PBKDF2-HMAC-SHA256 — via
+  OpenSSL, which Funes already links for HTTPS, so this cost no new
+  dependency.
+- **WhatsApp** authenticates by number. The autoresponder sends a service
+  token proving the *caller* is trusted plus the sender's jid saying *who
+  for*; Funes maps that jid to an account. Neither half authenticates
+  anything on its own, and an unmapped number is ignored exactly as it was
+  before. Map one with `funes jid-map <jid> <username>`.
+
+Accounts are admin-managed by design — `funes useradd` / `userdel` /
+`userlist` / `passwd`, with passwords always prompted rather than passed as
+arguments, since argv is visible in `ps` and lands in your shell history.
+There is no self-registration and no user-CRUD API, which keeps the
+authenticated surface down to a single login endpoint. The one thing the
+CLI refuses is deleting the last admin: first-run bootstrap only reopens when
+there are *no* users at all, so an install with no admin can't be recovered
+through any interface.
+
+What stays shared: the LLM backend, the agent definitions in `agents/`, and
+the credentials in `funes.local` (one Gmail account, one Tavily key, one
+WhatsApp bridge). Per-user credential vaults are SaaS territory and this is a
+household appliance.
+
+Upgrading from 3.x is in-place. Existing memories, turns and files are
+attributed to the admin account, and the vector index is rebuilt once with a
+per-user partition — memory *texts* are never touched, and the embeddings
+refill in the background.
+
 ---
 
 ## How memory works
@@ -134,7 +203,9 @@ alone if it answers `KEEP ALL` — and `auto` memories older than 30 days that
 were never once recalled are dropped. Explicit `user` memories are never
 pruned, each merge is one transaction so a crash can't lose a fact, and the
 whole thing is off with `FUNES_CONSOLIDATE=off`. Without an embedder the merge
-step is skipped and only the prune runs.
+step is skipped and only the prune runs. Each account's pool is consolidated
+on its own: two people stating the same fact are two facts, and merging them
+would write one person's wording into the other's memory.
 
 ### Large results don't eat the context window
 
@@ -186,6 +257,8 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_CONSOLIDATE_HOURS` | `6` | How often consolidation runs |
 | `FUNES_CONSOLIDATE_PRUNE_DAYS` | `30` | Age at which never-recalled `auto` memories are pruned |
 | `FUNES_CONSOLIDATE_MAX_CLUSTERS` | `20` | Merge calls per run, so a backlog can't hog a local model |
+| `FUNES_SERVICE_TOKEN` | *(empty)* | Shared secret for non-browser callers (the WhatsApp autoresponder). Unset = service authentication is off, not open. Generate with `openssl rand -hex 32` |
+| `FUNES_COOKIE_SECURE` | `0` | Add `; Secure` to the session cookie. Leave off for plain-HTTP LAN use — the browser would refuse to store it and login would silently fail; set to `1` behind an HTTPS proxy |
 
 Consolidation (`docs/nooa-comparison.md` item 4, from NVIDIA's NOOA paper —
 arXiv 2607.20709) targets *bloat*: it merges near-duplicate memories and
@@ -214,9 +287,12 @@ the ones that makes the cut, not just rank higher among four.
 
 ## Files, PDFs, images & shell
 
-`read_file` and `write_file` are confined to `FUNES_WORKSPACE_DIR` — a path
-like `../secret` or `/etc/passwd` is refused, whether or not it exists yet, so
-the model can only ever touch that one directory. Attach a file from the chat
+`read_file` and `write_file` are confined to the calling account's own
+workspace, `FUNES_WORKSPACE_DIR/<user_id>/` — a path like `../secret`,
+`/etc/passwd`, or `../3/notes.txt` is refused, whether or not it exists yet,
+so the model can only ever touch that one directory. An agent's own
+`workspace_dir` nests inside the caller's workspace, so a single agent
+serving several people gives each of them a separate folder. Attach a file from the chat
 UI (📎) and it's saved into the workspace, so a follow-up question can
 reference it and `read_file`/`write_file` can act on it later. What happens
 to the attachment depends on its type:
@@ -575,13 +651,18 @@ would need transcription, a separate feature. `whatsapp_autoresponder.py`
 downloads it via the bridge's `/api/download` (pre-checking the message's
 known `file_length` against `WHATSAPP_MAX_MEDIA_BYTES` before downloading,
 and re-checking the actual size after, so an oversized file is never handed
-to the model), copies it into `WHATSAPP_UPLOAD_DIR` under a per-chat
+to the model), copies it into the *sender's own* workspace under a per-chat
 subfolder, and tells the agent about it with a `[Document received: <path>]`
-or `[Photo received: <path>]` marker in the message text.
-`whatsapp-autoresponder`'s only new tool for this is `read_file`, scoped via
-`workspace_dir: data/whatsapp-uploads` in its yaml — the same confinement
+or `[Photo received: <path>]` marker in the message text. Which workspace
+that is comes from Funes, not from the script: the poller asks which account
+the number maps to and writes there, so identity is resolved in one place and
+an unmapped number's attachments are ignored rather than written somewhere
+nothing can read them. `whatsapp-autoresponder`'s only new tool for this is
+`read_file`, scoped via `workspace_dir: whatsapp-uploads` in its yaml, which
+resolves to `<workspace>/<user_id>/whatsapp-uploads/` — the same confinement
 `read_file` gives every other agent (see `src/core/tools/fs_guard.h`), so it
-can never reach anything outside that one folder. `read_file` already knows
+can never reach anything outside that one folder, including another
+contact's. `read_file` already knows
 how to pull text out of a PDF (`src/core/tools/pdf_extract.cpp`, the same
 code path the web UI's drag-and-drop upload uses) and to hand a PNG/JPEG/
 GIF/WebP image back as multimodal content (`funes::detect_image_mime`,
@@ -601,7 +682,14 @@ of `config/funes.conf`.
 
 Everything the UI does is plain HTTP — script it if you like:
 
+Every route below needs a signed-in user except the four marked *public*.
+
 ```
+POST   /api/login                     {username, password} → session cookie   (public)
+POST   /api/logout                    revoke the token, clear the cookie
+GET    /api/auth/status               {needs_bootstrap, authenticated, user?}  (public)
+POST   /api/auth/bootstrap            create the first admin — refused once
+                                       any user exists                         (public)
 GET    /api/status                    health + model + memory stats
 GET    /api/agents                    available agents
 POST   /api/agents/reload             re-read agents/*.yaml
@@ -615,6 +703,11 @@ POST   /api/upload                    multipart 'file' → saved to the workspac
                                        preview (text/PDF) or base64 (image) for the UI to send on
 ```
 
+Everything except the public routes above is scoped to the signed-in user:
+`/api/memories`, `/api/sessions`, `/api/history` and `/api/jobs` answer with
+that account's rows and no one else's, and `DELETE /api/memories/<id>` on
+somebody else's memory is a `404`.
+
 `images` is an array of `{mime_type, data}` (base64, no `data:` prefix), max 4
 per message — the same shape `/api/upload` hands back for an image file. The
 chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
@@ -626,13 +719,21 @@ chat stream emits `memories`, `delta`, `tool_call`, `tool_result`,
 ## Tests
 
 ```bash
-cd build && ctest --output-on-failure   # unit tests (memory, tools, config, publishing)
+cd build && ctest --output-on-failure   # unit tests (memory, users, tools, config, publishing)
 bash tests/integration.sh               # end-to-end against a mock LLM, no network
 ```
 
 `ctest` runs `publishing/`'s Python suite too, via the same `--self-test` flag
 that runs it on the machine that sends the mail — one set of assertions rather
 than a CI copy and a deployed copy that drift.
+
+`test_user_isolation` is the suite worth watching: it asserts that no account
+can read, delete or overwrite another's memories, turns, summaries, stored
+results, scheduled jobs or files. It also checks something that isn't a leak
+at all — that a user still gets their own recall results when another
+account's pool is two hundred times larger. That one guards the vector
+index's per-user partitioning, whose absence wouldn't expose anything, just
+quietly make recall worse for everyone as accounts were added.
 
 ---
 
@@ -643,15 +744,16 @@ Funes/
 ├── agents/            # agent definitions (funes, researcher, operator, tool-builder, agent-builder…)
 ├── config/            # funes.conf (defaults) + funes.local (secrets, gitignored)
 ├── src/
-│   ├── core/          # llm_client (+ multimodal messages), memory, tools, agent runtime,
-│   │   │              # context compression, completion contract + answer schema,
-│   │   │              # result store, base64, UTF-8-safety helpers
+│   ├── core/          # llm_client (+ multimodal messages), memory, users + password
+│   │   │              # hashing, tools, agent runtime, context compression,
+│   │   │              # completion contract + answer schema, result store,
+│   │   │              # base64, UTF-8-safety helpers
 │   │   └── tools/     # web_search/fetch, remember/recall, read_result, read/write_file
 │   │                  # (+ PDF extraction), execute_shell, compress_context,
 │   │                  # create_tool/create_agent, delegate_to_agent,
 │   │                  # harvest_candidates/publish_issue
 │   │                  # (+ generated/, self-registering)
-│   └── server/        # HTTP API + SSE + entry point
+│   └── server/        # HTTP API + SSE + entry point + the admin user CLI
 ├── publications/      # one YAML + one voice file per publication
 ├── publishing/        # the scripts that render, send and post an issue (Python)
 ├── ui/                # web UI (vanilla JS — no build step)

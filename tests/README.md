@@ -1,6 +1,6 @@
 # tests/
 
-Two-layer test suite: C++ unit tests (22 files) and a Bash integration test
+Two-layer test suite: C++ unit tests (25 files) and a Bash integration test
 that exercises the full stack end-to-end.
 
 ## Running
@@ -24,6 +24,9 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 | `test_agent_config` | YAML parsing, defaults, answer_schema type preservation |
 | `test_tools` | ToolRegistry dispatch, schema generation, error handling, memory scoping |
 | `test_memory` | MemoryStore: keyword/semantic recall, source weighting, turns, consolidation, prune/merge |
+| `test_user_isolation` | **The one to keep green.** No account can read, delete or overwrite another's memories, turns, summaries, results, cron jobs or files. Also *fidelity* -- a user still gets their own recall hits when another pool is 200x larger -- plus regressions for the two 4.0 migration bugs (pre-4.0 vec table rebuilt before the first recall; merged memories keeping their vector) |
+| `test_users` | Accounts, login, token expiry and revocation, delete-cascades-tokens, unmapped jid resolves to nobody |
+| `test_password` | Malformed stored hashes fail closed, iteration downgrade rejected, salt randomness, constant-time compare |
 | `test_delegation` | Validation: missing agent, self-delegation, unknown agent error messages |
 | `test_completion_contract` | Contract bookkeeping, satisfaction tracking, nudge messages, failure format |
 | `test_answer_schema` | JSON extraction generosity + validation strictness, type/required/enum/minItems |
@@ -92,3 +95,6 @@ message to trigger specific agent behaviors:
   specific tool sets and contract/budget settings.
 - **Self-test flag**: `publish_newsletter.py --self-test` runs the publishing
   test suite, used both in CI and on the deployment machine.
+- **Two users, one fixture**: isolation tests use ids 1 and 2 and deliberately
+  collide on session names and file paths, since a client-supplied session id
+  is exactly what two accounts can pick the same value for.

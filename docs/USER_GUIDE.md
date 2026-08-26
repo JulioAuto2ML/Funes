@@ -12,20 +12,21 @@ everything you need to get it running and make the most of it.
 ## Table of contents
 
 1. [Quick start](#quick-start)
-2. [Configuration](#configuration)
-3. [The web interface](#the-web-interface)
-4. [Memory](#memory)
-5. [Conversations](#conversations)
-6. [Files, PDFs, and images](#files-pdfs-and-images)
-7. [Agents and delegation](#agents-and-delegation)
-8. [Creating your own agents](#creating-your-own-agents)
-9. [Creating your own tools](#creating-your-own-tools)
-10. [Scheduled jobs](#scheduled-jobs)
-11. [The newsletter pipeline](#the-newsletter-pipeline)
-12. [WhatsApp integration](#whatsapp-integration)
-13. [Gmail integration](#gmail-integration)
-14. [Shell access](#shell-access)
-15. [Deployment](#deployment)
+2. [Accounts and signing in](#accounts-and-signing-in)
+3. [Configuration](#configuration)
+4. [The web interface](#the-web-interface)
+5. [Memory](#memory)
+6. [Conversations](#conversations)
+7. [Files, PDFs, and images](#files-pdfs-and-images)
+8. [Agents and delegation](#agents-and-delegation)
+9. [Creating your own agents](#creating-your-own-agents)
+10. [Creating your own tools](#creating-your-own-tools)
+11. [Scheduled jobs](#scheduled-jobs)
+12. [The newsletter pipeline](#the-newsletter-pipeline)
+13. [WhatsApp integration](#whatsapp-integration)
+14. [Gmail integration](#gmail-integration)
+15. [Shell access](#shell-access)
+16. [Deployment](#deployment)
 
 ---
 
@@ -56,7 +57,8 @@ export FUNES_LLM_URL=http://localhost:8080
 ./build/funes
 ```
 
-Open `http://localhost:8484` in your browser.
+Open `http://localhost:8484` in your browser. The first time, Funes asks you
+to create the admin account — there is no default password.
 
 ### With a local model (llama.cpp)
 
@@ -87,6 +89,58 @@ export FUNES_LLM_PROVIDER=anthropic
 export FUNES_LLM_API_KEY=sk-ant-...
 export FUNES_LLM_MODEL=claude-sonnet-4-20250514
 ```
+
+---
+
+## Accounts and signing in
+
+Funes is multi-user. Everyone who uses it has an account, and each account has
+its own memories, conversations, scheduled jobs and files. Nobody can see
+anyone else's — not by searching, not by guessing an id.
+
+**The first account.** On a fresh install every page asks you to create the
+admin account. You can also do it from the command line:
+
+```bash
+./bin/funes useradd julio --admin --name "Julio"
+```
+
+Until that account exists the API answers `401` to everything, and the startup
+banner says so.
+
+**Adding people.** There is no sign-up form: you create accounts and hand out
+the credentials. That is deliberate — this is an appliance on your own
+network, and the smaller the authenticated surface, the less there is to get
+wrong.
+
+```bash
+./bin/funes useradd marta --name "Marta"   # prompts for a password, twice
+./bin/funes userlist
+./bin/funes passwd marta                   # reset a forgotten password
+./bin/funes userdel marta                  # also removes their sessions
+```
+
+Passwords are always prompted, never passed as arguments — an argument would
+sit in your shell history and be visible to anyone running `ps`. Funes also
+refuses to delete the last admin account, because first-run setup only reopens
+when there are no users at all.
+
+**WhatsApp.** A WhatsApp number acts as one account, and you decide which:
+
+```bash
+./bin/funes jid-map 5511999999@s.whatsapp.net marta
+```
+
+Two separate things have to line up for an auto-reply: `WHATSAPP_WHITELIST`
+decides *whether* Funes answers a chat at all, and this mapping decides *whose*
+memories and files the answer draws on. An unmapped number is ignored.
+
+**Signing out** revokes the session on the server, not just in the browser — a
+cookie someone else captured stops working immediately.
+
+**Upgrading from 3.x** happens in place on first start. Your existing
+memories, conversations and workspace files become the admin account's;
+nothing is deleted, and the memory texts are never touched.
 
 ---
 
@@ -189,9 +243,15 @@ A background thread runs every 6 hours (configurable via
 
 ### Your data
 
-All memory lives in a single SQLite file (`~/.funes/memory.db` by default).
-Back it up with `cp`. Delete a memory from the UI or the API. Delete everything
-by removing the file.
+All memory lives in a single SQLite file (`~/.funes/memory.db` by default) —
+everyone's, in one file, separated by row rather than by database. Back it up
+with `cp`. Delete a memory from the UI or the API. Delete everything by
+removing the file.
+
+What you see in the memory panel is only ever yours. The same is true of the
+conversations list, the scheduled-jobs panel, and the files an agent can read:
+each account gets its own workspace directory, and a file path that tries to
+climb out of it is refused.
 
 ---
 

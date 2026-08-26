@@ -8,14 +8,17 @@ lines. Everything runs in a single `funes` binary.
 | File | Purpose |
 |---|---|
 | `main.cpp` | Entry point. Config loading, service construction, background threads, HTTP server startup. |
-| `api.h/cpp` | `FunesApi` -- route handlers, agent table, SSE streaming. |
+| `api.h/cpp` | `FunesApi` -- route handlers, agent table, SSE streaming, authentication. |
+| `user_cli.h/cpp` | `funes useradd/userdel/userlist/passwd/jid-map/jid-unmap`. Runs against the database and exits without starting the server, so account management never needs a reachable LLM. |
 
 ## Startup sequence
 
 1. **Load config** -- layered: shell env > `config/funes.local` > `config/funes.conf` > `~/.funes/config`
-2. **Resolve paths** -- data directories, agents directory, workspace, publications
+2. **Resolve paths** -- data directories, agents directory, workspace, publications.
+   A CLI subcommand is dispatched here and exits; the workspace is migrated to
+   its per-user layout (`<root>/<user_id>/`) before any tool can look in it
 3. **Discover model** -- queries `/v1/models` when model is `default` and provider is OpenAI-compatible
-4. **Construct services** -- `MemoryStore` (SQLite), `ToolRegistry` (all built-ins), `FunesApi` (routes + agent table)
+4. **Construct services** -- `MemoryStore` and `UserStore` (same SQLite file, separate connections), `ToolRegistry` (all built-ins), `FunesApi` (routes + agent table)
 5. **Wire circular references** -- delegation, agent creation, cron, and roster injection all need the agent table that `FunesApi` owns
 6. **Start background threads** (all detached):
    - Embedding backfill (fills missing vectors when endpoint recovers)
@@ -26,8 +29,24 @@ lines. Everything runs in a single `funes` binary.
 
 ## API routes
 
+Everything under `/api/` requires authentication except the three marked
+*public*. That is enforced twice: a pre-routing gate refuses any
+unauthenticated `/api/` path, so a route added later is protected by default,
+and each handler separately resolves the caller with `require_auth` to scope
+what it returns. The gate is the security boundary; the per-handler lookup is
+what makes the answer correct.
+
+Callers authenticate with either a session cookie (the web UI) or
+`X-Funes-Service-Token` plus `X-Funes-User-Jid` (the WhatsApp autoresponder --
+the token proves the caller is trusted, the jid says who the request is for,
+and neither alone authenticates anything).
+
 | Route | Method | Purpose |
 |---|---|---|
+| `/api/login` | POST | Username + password, sets the session cookie (*public*) |
+| `/api/logout` | POST | Revokes the token server-side and clears the cookie |
+| `/api/auth/status` | GET | `{needs_bootstrap, authenticated, user?}` (*public*) |
+| `/api/auth/bootstrap` | POST | Creates the first admin; refused once any user exists (*public*) |
 | `/api/status` | GET | Health: model name, memory count, agent count |
 | `/api/agents` | GET | List agents (name + description) |
 | `/api/agents/reload` | POST | Hot-reload all agent YAMLs |
@@ -62,6 +81,9 @@ chunked SSE response. Events streamed during a chat:
 
 ## Limits
 
+- Session cookie: HttpOnly, SameSite=Strict, 30 days; `Secure` only when
+  `FUNES_COOKIE_SECURE=1`, since the default deployment is plain HTTP on a LAN
+  and an unconditional `Secure` would make login silently fail there
 - Max message size: 16 KB
 - Max upload: 5 MB
 - Max images per message: 4

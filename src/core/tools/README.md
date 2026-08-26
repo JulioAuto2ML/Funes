@@ -49,7 +49,7 @@ hop, no protocol overhead.
 
 | File | Purpose |
 |---|---|
-| `fs_guard.h/cpp` | Filesystem path confinement. Catches `..` traversal, symlinks, absolute escapes. Used by read/write_file and shell. |
+| `fs_guard.h/cpp` | Filesystem path confinement plus `workspace_for`, the single resolver for which directory a call operates in (`<root>/<user_id>`, with an agent's own `workspace_dir` nested inside when relative). Catches `..` traversal, symlinks, absolute escapes. Used by read/write_file, shell, and /api/upload -- keep it the only resolver, or the confinement check ends up guarding a different root than the one being written to. |
 | `net_guard.h/cpp` | SSRF protection. Blocks requests to private/loopback hosts. Used by web_fetch and HTTP template tools. |
 | `process_runner.h/cpp` | Fork/exec engine with timeout, process-group kill, output cap. Used by execute_shell, read_file (PDF), publish_issue. |
 | `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search and harvest_candidates. |
@@ -68,13 +68,18 @@ restart, keeping a human in the loop.
 
 The tool system enforces security at multiple layers:
 
-- **Filesystem**: `fs_guard` confines read/write_file to the workspace directory.
-  Path traversal, symlink escapes, and absolute paths are all caught.
+- **Filesystem**: `fs_guard` confines read/write_file to the calling account's
+  own workspace, `<root>/<user_id>/`. Path traversal, symlink escapes, and
+  absolute paths are all caught -- including `../<other_user_id>/...`.
 - **Network**: `net_guard` blocks SSRF to localhost, 10.x, 192.168.x, 169.254.x.
 - **Shell**: Disabled by default. When enabled: hard timeout (120s max), output
   cap (16 KB), process-group kill on timeout.
 - **Delegation**: Self-delegation refused, depth capped at 2, failures detected
-  and surfaced as errors (not content).
+  and surfaced as errors (not content). The specialist runs as the delegating
+  user, sharing its caller's session and memory pool.
+- **Identity**: every handler receives `ToolContext::user_id` and must scope
+  its storage calls to it. Tools that touch memories, results or cron jobs
+  pass it straight through to `MemoryStore`.
 - **Content**: Binary/non-UTF-8 rejected everywhere. Output capped at every
   boundary. Large results stored by reference.
 - **Newsletter pipeline**: The model picks candidates by numeric ID. URL

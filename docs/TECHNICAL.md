@@ -9,6 +9,7 @@ Architecture, internals, and design decisions for the Funes agent harness.
 1. [Architecture overview](#architecture-overview)
 2. [The harness concept](#the-harness-concept)
 3. [Request lifecycle](#request-lifecycle)
+3b. [Users, authentication and isolation](#users-authentication-and-isolation)
 4. [The agent loop](#the-agent-loop)
 5. [Safety mechanisms](#safety-mechanisms)
 6. [Memory system](#memory-system)
@@ -97,10 +98,16 @@ in comments with dates and root causes.
 ## Request lifecycle
 
 1. HTTP POST to `/api/chat` with agent name, session ID, and user message
-2. `FunesApi` looks up the `AgentConfig` from the agent table
-3. Creates a `FunesAgent` with the config, shared `ToolRegistry`, `MemoryStore`,
+2. The pre-routing auth gate resolves a session cookie or service token, or
+   answers `401` before any handler runs
+3. The handler resolves the caller again (`require_auth`) to get the `user_id`
+   it will scope everything to
+4. `FunesApi` looks up the `AgentConfig` from the agent table
+5. Creates a `FunesAgent` with the config, shared `ToolRegistry`, `MemoryStore`,
    and `AgentDefaults`
-4. Calls `FunesAgent::run()` inside a chunked SSE response
+6. Calls `FunesAgent::run(message, session, user_id, ...)` inside a chunked SSE
+   response, which builds a `ToolContext` carrying `user_id` into every tool
+   call — including `delegate_to_agent`, which passes it to the sub-agent
 5. `run()` executes six phases:
    - **Recall**: semantic search for relevant long-term memories
    - **Load history**: rolling summary + recent turns from the session
@@ -111,7 +118,113 @@ in comments with dates and root causes.
    - **Tool loop**: LLM completion -> tool dispatch -> repeat (with all safety
      checks)
    - **Persist**: store turns in session history, auto-memorize the exchange
-6. Final answer streamed via SSE `done` event
+7. Final answer streamed via SSE `done` event
+
+---
+
+## Users, authentication and isolation
+
+Added in 4.0. Two claims are worth stating precisely, because the
+implementation depends on both.
+
+**Authentication is enforced twice, deliberately.** `FunesApi::mount` installs
+a pre-routing handler that refuses any `/api/` path not on a small public
+allowlist (`/api/login`, `/api/auth/status`, `/api/auth/bootstrap`). Each
+handler *also* calls `require_auth`. The gate is the security boundary — it
+means a route added later is protected without anyone remembering to protect
+it — and the per-handler call is what supplies the identity the response is
+scoped to. Neither replaces the other.
+
+**Isolation is enforced in SQL, not in handlers.** Every `MemoryStore` method
+takes the `user_id` it acts as, with no default value, and every statement
+carries `WHERE user_id = ?`. The absent default is the point: a call site that
+forgets to pass one is a compile error rather than a silent write into the
+admin's data. Ownership checks live on the mutating statement itself —
+`DELETE FROM memories WHERE id = ? AND user_id = ?` — which avoids a
+check-then-act race and makes "not yours" and "not there" the same observable
+result, so ids can't be enumerated.
+
+### Storage
+
+| Table | Owner column | Notes |
+|---|---|---|
+| `users` | — | id, username (unique, case-insensitive), display_name, password_hash, role, permissions JSON |
+| `auth_tokens` | `user_id` | Opaque 256-bit hex session tokens with an expiry. `ON DELETE CASCADE` |
+| `jid_users` | `user_id` | WhatsApp `chat_jid` → account. `ON DELETE CASCADE` |
+| `memories` | `user_id` | `UNIQUE(user_id, agent, text)` — the pre-4.0 `UNIQUE(agent, text)` made one user's fact block everyone else's |
+| `turns`, `session_summaries`, `tool_results`, `cron_jobs` | `user_id` | Session ids are client-supplied strings, so two accounts colliding on one is expected and must stay separate |
+| `vec_memories` | `user_id` **partition key** | See below |
+
+`UserStore` owns the first three on its own connection to the same SQLite
+file. Authentication has nothing to do with recall, and `memory.cpp` was
+already large.
+
+### The vector index
+
+`vec_memories` declares `user_id` as a vec0 **PARTITION KEY** rather than an
+ordinary column. vec0 refuses to combine `MATCH` with an arbitrary `WHERE`
+clause — which is why `recall_semantic` originally ran KNN across every row
+and filtered afterwards in C++, over-fetching `k*8` to survive the filter. A
+partition key is the exception vec0 does accept, and it prunes partitions
+instead of post-filtering.
+
+This matters even though post-filtering leaks nothing: the candidate pool is
+drawn from every account, so a heavy user crowds a light one out of their own
+top-k. The symptom is recall quietly getting worse as accounts are added, and
+it would be blamed on the model. `test_user_isolation` asserts against it
+directly with a 200:1 pool imbalance.
+
+Two consequences that cost real debugging:
+
+- **The rebuild happens in `migrate()`, not lazily.** `ensure_vec_table` is
+  otherwise only reachable through `insert_vector`, but `recall_semantic`
+  names `v.user_id` — and a recall normally precedes the first write, since
+  recall runs at the top of every turn. Against a pre-4.0 table that is a
+  failed `sqlite3_prepare_v2`, which throws and takes the agent run with it.
+- **`insert_vector` deletes then inserts.** vec0 with a partition key rejects
+  `INSERT OR REPLACE` on an existing row (`UNIQUE constraint failed on v
+  primary key`). The only caller that hits an existing row is consolidation
+  re-vectorising a merged memory, so the symptom was a logged warning and a
+  merged memory silently dropping to keyword-only recall.
+
+### Password hashing
+
+PBKDF2-HMAC-SHA256 via OpenSSL (`src/core/password.cpp`), 600k iterations,
+16-byte random salt. OpenSSL is already a hard dependency — httplib links it
+for HTTPS — so authentication added none. The stored form is self-describing,
+`pbkdf2_sha256$<iterations>$<b64 salt>$<b64 hash>`, and verification reads the
+iteration count out of the string rather than assuming the current default, so
+the cost can be raised without invalidating existing hashes. Every parse
+failure returns false rather than throwing: an empty or damaged
+`password_hash` must not mean "any password works".
+
+### Identity for non-browser callers
+
+The WhatsApp autoresponder sends `X-Funes-Service-Token` plus
+`X-Funes-User-Jid`. The token establishes that the *caller* is trusted; the
+jid says *who the request is for*, and is resolved through `jid_users`.
+Neither authenticates anything alone — a valid token with no jid, or with an
+unmapped one, is a `401`. That is what stops a message from an unknown number
+being answered as the admin.
+
+### Background work
+
+Work with no request to take an identity from carries its own. Cron jobs
+record their owner at creation and `cron_runner` adopts it for the run;
+consolidation iterates one account's pool at a time, because two people
+stating the same fact are two facts and merging them would write one person's
+wording into the other's memory.
+
+### Workspaces
+
+`FUNES_WORKSPACE_DIR/<user_id>/`, resolved by `fs_guard::workspace_for` —
+the single resolver shared by `read_file`, `write_file`, `execute_shell`'s cwd
+and `/api/upload`. Keeping it single is a correctness requirement, not tidiness:
+if two of those disagree about the root, `fs_guard::resolve`'s confinement
+check is guarding a different directory than the one being written to. An
+agent's `workspace_dir` nests inside the caller's workspace when relative; an
+absolute path is honoured verbatim as a deliberate shared folder, the
+filesystem counterpart of `memory_scope`.
 
 ---
 
@@ -275,25 +388,34 @@ were developed incrementally from production incidents, not designed upfront.
 
 ### Storage (memory.h)
 
-All persistent state lives in one SQLite database with 6 tables:
+All persistent state lives in one SQLite database. Every table below carries
+a `user_id` (see [Users, authentication and
+isolation](#users-authentication-and-isolation)); `users`, `auth_tokens` and
+`jid_users` are owned by `UserStore` on its own connection to the same file.
 
 | Table | Purpose |
 |---|---|
-| `memories` | Long-term facts with source, timestamps, recall bookkeeping |
-| `vec_memories` | sqlite-vec virtual table for KNN semantic search |
+| `memories` | Long-term facts with source, timestamps, recall bookkeeping. `UNIQUE(user_id, agent, text)` |
+| `vec_memories` | sqlite-vec virtual table for KNN semantic search, partitioned by `user_id` |
 | `turns` | Conversation history per session |
 | `session_summaries` | Rolling summary per session |
 | `tool_results` | Large tool outputs stored by reference |
-| `cron_jobs` | Scheduled recurring jobs |
+| `cron_jobs` | Scheduled recurring jobs, each with an owner the runner adopts |
+| `users` / `auth_tokens` / `jid_users` | Accounts, session tokens, WhatsApp identity |
 
 ### Semantic search
 
 When an embedding endpoint is available, `recall()`:
 1. Embeds the query
-2. Over-fetches 8x candidates via KNN
+2. Runs KNN **inside the caller's partition**, over-fetching 8x candidates
 3. Applies source-dependent weights: `user`/`tool` get 1.3x, `consolidated`
    get 1.15x, `auto` get 1.0x
 4. Returns the top k results
+
+Step 2's partition scoping is what keeps the over-fetch a per-user budget
+rather than one shared across every account — the agent filter is still
+applied afterwards, since `agent` is not a partition key, which is why the
+over-fetch remains.
 
 This ensures deliberately taught facts outrank auto-captured conversation logs
 at the same raw similarity.
