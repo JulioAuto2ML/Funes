@@ -88,11 +88,37 @@ int test_dump_safe() {
     return 0;
 }
 
+// ── json_string: the null-vs-absent trap ─────────────────────────────────────
+
+int test_json_string_survives_a_null_field() {
+    // The 2026-08-26 outage. nlohmann's obj.value(key, default) falls back only
+    // when the key is ABSENT; a key present and null throws type_error.302.
+    // Tavily returns "published_date": null for some results, which killed
+    // harvest_candidates on two consecutive days.
+    const nlohmann::json r = {
+        {"title", "A headline"},
+        {"published_date", nullptr},
+        {"score", 0.7},
+        {"tags", nlohmann::json::array()}
+    };
+
+    CHECK(funes::json_string(r, "title") == "A headline");
+    CHECK(funes::json_string(r, "published_date") == "");        // null, not a throw
+    CHECK(funes::json_string(r, "missing") == "");               // absent
+    CHECK(funes::json_string(r, "score") == "");                 // wrong type
+    CHECK(funes::json_string(r, "tags") == "");                  // wrong type
+    CHECK(funes::json_string(r, "published_date", "unknown") == "unknown");
+    CHECK(funes::json_string(nlohmann::json::array(), "title") == "");  // not an object
+    CHECK(funes::json_string(nlohmann::json(), "title") == "");         // null document
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_looks_like_text();
     rc |= test_truncate_utf8_safe();
     rc |= test_dump_safe();
+    rc |= test_json_string_survives_a_null_field();
     if (rc == 0) std::cout << "test_text_utils: all tests passed\n";
     return rc;
 }

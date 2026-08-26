@@ -77,4 +77,13 @@ std::string detect_image_mime(const std::string& data) {
     return "";
 }
 
+
+std::string json_string(const nlohmann::json& obj, const char* key,
+                        const std::string& def) {
+    if (!obj.is_object()) return def;
+    auto it = obj.find(key);
+    if (it == obj.end() || !it->is_string()) return def;
+    return it->get<std::string>();
+}
+
 } // namespace funes

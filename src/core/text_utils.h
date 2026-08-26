@@ -39,4 +39,15 @@ inline std::string dump_safe(const nlohmann::json& j) {
     return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
+// A string field from JSON that came from outside this process — an API
+// response, a file on disk, a model's tool arguments.
+//
+// nlohmann's obj.value(key, default) only falls back to the default when the
+// key is ABSENT. A key that is present and null throws type_error.302, which
+// is how harvest_candidates died for two days on Tavily results carrying
+// "published_date": null — a shape that is perfectly legal JSON and entirely
+// outside our control. Anything that is not a string reads as the default.
+std::string json_string(const nlohmann::json& obj, const char* key,
+                        const std::string& def = "");
+
 } // namespace funes

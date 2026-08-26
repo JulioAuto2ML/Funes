@@ -325,7 +325,7 @@ std::string build_issue(const nlohmann::json& pool,
             continue;
         }
 
-        auto extraction = extract_evidence(sel.text, candidate->value("text", ""));
+        auto extraction = extract_evidence(sel.text, funes::json_string(*candidate, "text"));
         std::string evidence = extraction.first;
         std::string problem = extraction.second;
 
@@ -344,7 +344,7 @@ std::string build_issue(const nlohmann::json& pool,
             for (const auto& c : pool["candidates"]) {
                 const int cid = c.value("id", 0);
                 if (cid == sel.candidate_id || used.count(cid)) continue;
-                auto alt = extract_evidence(sel.text, c.value("text", ""));
+                auto alt = extract_evidence(sel.text, funes::json_string(c, "text"));
                 if (alt.second.empty()) {
                     substitute = &c;
                     substitute_evidence = alt.first;
@@ -378,10 +378,10 @@ std::string build_issue(const nlohmann::json& pool,
             {"n",            n},
             {"emoji",        trim(sel.emoji)},
             {"text",         trim(sel.text)},
-            {"url",          candidate->value("url", "")},
-            {"headline",     headline_from_title(candidate->value("title", ""))},
-            {"source",       candidate->value("source", "")},
-            {"published",    candidate->value("published", "")},
+            {"url",          funes::json_string(*candidate, "url")},
+            {"headline",     headline_from_title(funes::json_string(*candidate, "title"))},
+            {"source",       funes::json_string(*candidate, "source")},
+            {"published",    funes::json_string(*candidate, "published")},
             {"evidence",     evidence},
             {"candidate_id", candidate->value("id", 0)}
         });
@@ -419,8 +419,8 @@ std::string build_issue(const nlohmann::json& pool,
         items[i]["n"] = static_cast<int>(i) + 1;
 
     out = {
-        {"publication", pool.value("publication", "")},
-        {"date",        pool.value("date", "")},
+        {"publication", funes::json_string(pool, "publication")},
+        {"date",        funes::json_string(pool, "date")},
         {"generated",   now_iso()},
         {"harvested",   pool["candidates"].size()},
         {"items",       items}
@@ -501,7 +501,7 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         }
     }
     const PoolChoice choice =
-        resolve_pool_date(available, args.value("date", ""), today_iso());
+        resolve_pool_date(available, funes::json_string(args, "date"), today_iso());
     if (!choice.error.empty()) {
         std::cerr << "[publish_issue] refused: " << choice.error << "\n";
         return {"Not published — " + choice.error, true};
@@ -531,8 +531,8 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         if (!item.contains("id") || !item["id"].is_number_integer())
             return {"Every item needs an integer 'id' from the candidate pool.", true};
         sel.candidate_id = item["id"].get<int>();
-        sel.emoji        = item.value("emoji", "");
-        sel.text         = item.value("text", "");
+        sel.emoji        = funes::json_string(item, "emoji");
+        sel.text         = funes::json_string(item, "text");
         selection.push_back(std::move(sel));
     }
 

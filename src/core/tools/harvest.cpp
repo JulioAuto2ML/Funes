@@ -497,7 +497,7 @@ std::vector<std::string> recently_published(const std::string& issues_dir, int i
         try { in >> j; } catch (...) { continue; }
         if (!j.contains("items") || !j["items"].is_array()) continue;
         for (const auto& item : j["items"]) {
-            const std::string url = item.value("url", "");
+            const std::string url = funes::json_string(item, "url");
             if (!url.empty()) out.push_back(canonical_url(url));
         }
     }
