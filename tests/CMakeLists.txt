@@ -119,3 +119,7 @@ add_test(NAME user_isolation COMMAND test_user_isolation)
 add_executable(test_permissions test_permissions.cpp)
 target_link_libraries(test_permissions PRIVATE funes_core)
 add_test(NAME permissions COMMAND test_permissions)
+
+add_executable(test_migration test_migration.cpp)
+target_link_libraries(test_migration PRIVATE funes_core)
+add_test(NAME migration COMMAND test_migration)
