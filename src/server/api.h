@@ -120,6 +120,14 @@ private:
     std::optional<UserStore::User> require_auth(const httplib::Request& req,
                                                 httplib::Response& res);
 
+    // require_auth(), but also refuses a member with 403. For the routes whose
+    // effect reaches past the caller's own account — reloading every agent
+    // definition process-wide, and anything added later that reads or writes
+    // another user's data. A member hitting one is not a broken client, so it
+    // is 403 (authenticated, not allowed) rather than 401.
+    std::optional<UserStore::User> require_admin(const httplib::Request& req,
+                                                 httplib::Response& res);
+
     // True for the handful of paths reachable without credentials. Anything
     // else under /api/ is refused by the pre-routing gate.
     static bool is_public_path(const std::string& path);

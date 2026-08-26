@@ -729,7 +729,10 @@ async function refreshStatus() {
     const resp = await fetch('/api/status');
     const data = await resp.json();
     els.statusDot.className = 'dot ok';
-    els.statusDot.title = data.llm.provider + ' @ ' + data.llm.url +
+    // url/provider are admin-only; a member gets the model name alone.
+    const llm = data.llm.url ? data.llm.provider + ' @ ' + data.llm.url
+                             : data.llm.model;
+    els.statusDot.title = llm +
                           (data.semantic_memory ? ' · semantic memory' : ' · keyword memory');
     els.memoryCount.textContent = data.memories;
   } catch (e) {

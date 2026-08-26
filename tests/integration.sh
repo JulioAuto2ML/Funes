@@ -40,7 +40,7 @@ cleanup() {
     [ -n "${MOCK_PID:-}" ]  && kill "$MOCK_PID" 2>/dev/null
     rm -f "$DB" "$DB-wal" "$DB-shm"
     rm -rf "$WORKSPACE" "$AGENTS"
-    rm -f "${COOKIE_JAR:-}"
+    rm -f "${COOKIE_JAR:-}" "${MEMBER_JAR:-}"
 }
 trap cleanup EXIT
 
@@ -570,6 +570,42 @@ check "non-image mime_type rejected" "$OUT" "'mime_type'"
 
 OUT=$(curl -s -F "notfile=nope" "$BASE/api/upload")
 check "upload missing file rejected" "$OUT" '"ok":false'
+
+echo "— admin-only routes (a member must not reach them)"
+# A second, non-admin account. Created through the CLI against the same
+# database file the running server holds open — WAL plus busy_timeout makes
+# that safe, and there is no HTTP route that creates users.
+MEMBER_JAR=$(mktemp -u /tmp/funes_it_member_XXXX.txt)
+printf 'member-test-pw\nmember-test-pw\n' \
+    | FUNES_DB="$DB" "$FUNES_BIN" useradd itmember --name "Member" > /dev/null 2>&1
+OUT=$(command curl -s -c "$MEMBER_JAR" -X POST "$BASE/api/login" \
+      -d '{"username":"itmember","password":"member-test-pw"}')
+check "member can log in" "$OUT" '"ok":true'
+
+mcurl() { command curl -b "$MEMBER_JAR" "$@"; }
+
+# The reload route rebuilds every agent definition process-wide, so it is an
+# admin action even though it looks read-only from the caller's side.
+CODE=$(mcurl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/agents/reload" -d '')
+check "member reload forbidden" "$CODE" '403'
+OUT=$(mcurl -s -X POST "$BASE/api/agents/reload" -d '')
+check "member reload says why" "$OUT" 'Administrator'
+
+# The same call as the admin still works — the gate is on the role, not the
+# route being broken.
+OUT=$(curl -s -X POST "$BASE/api/agents/reload" -d '')
+check "admin reload allowed" "$OUT" '"ok":true'
+
+# /api/status stays open to members — they need the memory count — but the
+# LLM endpoint is the operator's infrastructure, not theirs.
+OUT=$(mcurl -s "$BASE/api/status")
+check        "member sees status"       "$OUT" '"ok":true'
+check        "member sees model name"   "$OUT" '"model"'
+check_absent "member cannot see llm url" "$OUT" '"url"'
+OUT=$(curl -s "$BASE/api/status")
+check "admin still sees llm url" "$OUT" '"url"'
+
+rm -f "$MEMBER_JAR"
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

@@ -169,6 +169,19 @@ std::optional<UserStore::User> FunesApi::require_auth(const httplib::Request& re
     return user;
 }
 
+std::optional<UserStore::User> FunesApi::require_admin(const httplib::Request& req,
+                                                       httplib::Response& res) {
+    auto user = require_auth(req, res);
+    if (!user) return std::nullopt;
+    if (!user->is_admin()) {
+        std::cerr << "[auth] '" << user->username << "' (member) refused admin route "
+                  << req.path << "\n";
+        json_error(res, 403, "Administrator access required");
+        return std::nullopt;
+    }
+    return user;
+}
+
 size_t FunesApi::load_agents() {
     std::map<std::string, AgentConfig> loaded;
 
@@ -339,6 +352,14 @@ void FunesApi::mount(httplib::Server& srv) {
     srv.Get("/api/status", [this](const httplib::Request& req, httplib::Response& res) {
         auto user = require_auth(req, res);
         if (!user) return;
+        // The model name is what the UI shows, so everyone gets it. The URL
+        // and provider describe the operator's infrastructure — an internal
+        // hostname and port a member has no use for and should not be handed.
+        json llm = {{"model", defaults_.llm_model.empty() ? "default" : defaults_.llm_model}};
+        if (user->is_admin()) {
+            llm["url"]      = defaults_.llm_url;
+            llm["provider"] = defaults_.llm_provider;
+        }
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
@@ -346,11 +367,7 @@ void FunesApi::mount(httplib::Server& srv) {
             {"agents",   agent_count()},
             {"memories", memory_.count(user->id)},
             {"semantic_memory", memory_.semantic_available()},
-            {"llm", {
-                {"url",      defaults_.llm_url},
-                {"provider", defaults_.llm_provider},
-                {"model",    defaults_.llm_model.empty() ? "default" : defaults_.llm_model}
-            }}
+            {"llm", llm}
         });
     });
 
@@ -376,8 +393,10 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {{"ok", true}, {"agents", arr}});
     });
 
+    // Admin-only: the reload replaces the agent map for every session on the
+    // box, not just the caller's, so it is not a member's call to make.
     srv.Post("/api/agents/reload", [this](const httplib::Request& req, httplib::Response& res) {
-        auto user = require_auth(req, res);
+        auto user = require_admin(req, res);
         if (!user) return;
 
         size_t n = load_agents();
