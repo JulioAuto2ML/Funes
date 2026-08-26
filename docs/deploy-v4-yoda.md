@@ -44,7 +44,8 @@ cat ~/.funes/config 2>/dev/null || echo "no ~/.funes/config — good"
 ## 1. Clone and build (touches nothing existing)
 
 ```bash
-git clone -b feat/v4-users-permissions <repo-url> ~/Funes-v4
+git clone -b feat/v4-users-permissions \
+    git@github.com:JulioAuto2ML/Funes.git ~/Funes-v4
 cd ~/Funes-v4
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j2          # -j2, not -j$(nproc): yoda is RAM-limited
@@ -52,7 +53,9 @@ cmake --build build -j2          # -j2, not -j$(nproc): yoda is RAM-limited
 cd build && ctest --output-on-failure
 ```
 
-All 27 tests must pass before going further.
+All 28 tests must pass before going further. `migration` is the one that
+matters most here — it is the CI proof that the upgrade in step 2 does not
+lose rows.
 
 ## 2. Migrate the 3.x data
 
@@ -60,37 +63,65 @@ The copy is read-only on the source. Do **not** `cp` the database: 3.x is
 running in WAL mode and a plain copy can catch a torn state. `.backup` is
 SQLite's online-backup path and is safe against a live writer.
 
-```bash
-mkdir -p ~/.funes-v4
+**There is no `sqlite3` CLI on yoda.** Use python's stdlib module, which is
+the same library. Every read below opens the source with a `file:...?mode=ro`
+URI so a typo cannot write to the live database.
 
-# Database — read-only on the source, by construction.
-sqlite3 -readonly ~/.funes/memory.db ".backup '$HOME/.funes-v4/memory.db'"
+```bash
+mkdir -p ~/.funes-v4 ~/.funes-v4/workspace
+
+# Database — online backup, read-only on the source by construction.
+python3 - <<'EOF'
+import sqlite3, os
+src = sqlite3.connect(f"file:{os.path.expanduser('~/.funes/memory.db')}?mode=ro", uri=True)
+dst = sqlite3.connect(os.path.expanduser("~/.funes-v4/memory.db"))
+src.backup(dst)
+dst.close(); src.close()
+print("backup complete")
+EOF
 
 # Workspace — copied flat. Funes 4.0's first start moves it into
 # ~/.funes-v4/workspace/1/ (user 1 = the admin), which is the tested path.
-mkdir -p ~/.funes-v4/workspace
 cp -a ~/.funes/workspace/. ~/.funes-v4/workspace/
-
-# Verify the copy before anything migrates it.
-sqlite3 ~/.funes-v4/memory.db \
-  "SELECT 'memories', COUNT(*) FROM memories UNION ALL
-   SELECT 'turns', COUNT(*) FROM turns;"
 ```
 
-Compare those counts against the source (same query, `-readonly`, on
-`~/.funes/memory.db`). They must match before you continue.
+Verify the copy before anything migrates it — the counts must match:
 
-## 3. Secrets
+```bash
+python3 - <<'EOF'
+import sqlite3, os
+def counts(path, ro=True):
+    p = os.path.expanduser(path)
+    uri = f"file:{p}?mode=ro" if ro else p
+    c = sqlite3.connect(uri, uri=ro)
+    out = {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+           for t in ("memories", "turns")}
+    c.close(); return out
+a, b = counts("~/.funes/memory.db"), counts("~/.funes-v4/memory.db")
+print("3.x:", a); print("4.0:", b)
+print("MATCH" if a == b else "MISMATCH — STOP")
+EOF
+```
 
-Only the Tavily key. Gmail credentials are deliberately absent so this install
-cannot send a second copy of the newsletter; WhatsApp settings are absent so
-no second poller can start.
+## 3. Secrets — none, deliberately
+
+This install gets no secrets at all.
+
+Gmail credentials are absent so it cannot send a second copy of the
+newsletter. WhatsApp settings are absent so no second poller can start. And as
+of 2026-08-26 the **Tavily key is withheld too**: web search in a multi-user
+install needs one operator-owned key that no member can see or exfiltrate, and
+that design is not built yet (see `v4-remaining-work.md`, "Deferred by
+decision"). Shipping the key before deciding where it lives would put it on a
+box where members exist.
+
+The consequence is that `web_search` and `web_fetch` will fail on this install
+until the key is added. That is the intended state.
 
 ```bash
 cd ~/Funes-v4
-grep '^FUNES_TAVILY_API_KEY=' ~/Funes/config/funes.local > config/funes.local
-chmod 600 config/funes.local
-cat config/funes.local        # confirm it is exactly one line
+ls config/funes.local 2>/dev/null && echo "UNEXPECTED — this install should have no secrets" \
+                                  || echo "no local secrets, as intended"
 ```
 
 ## 4. Install the service
@@ -124,16 +155,24 @@ exercise.
 ```bash
 systemctl --user status funes --no-pager | head -3     # still active
 curl -sf http://127.0.0.1:8484/api/status >/dev/null && echo "3.x still serving"
-sqlite3 -readonly ~/.funes/memory.db \
-  "SELECT COUNT(*) FROM memories;"                      # unchanged
-sqlite3 -readonly ~/.funes/memory.db \
-  "SELECT name FROM sqlite_master WHERE name='users';"  # MUST be empty
-ls ~/.funes/workspace | head                            # still flat, not 1/
+ls ~/.funes/workspace | head                           # still flat, not 1/
+
+python3 - <<'EOF'
+import sqlite3, os
+c = sqlite3.connect(f"file:{os.path.expanduser('~/.funes/memory.db')}?mode=ro", uri=True)
+print("memories:", c.execute("SELECT COUNT(*) FROM memories").fetchone()[0])
+leaked = c.execute(
+    "SELECT name FROM sqlite_master WHERE name IN ('users','sessions')").fetchall()
+print("4.0 tables in the 3.x db:", leaked or "none — good")
+cols = [r[1] for r in c.execute("PRAGMA table_info(memories)")]
+print("user_id column present:", "user_id" in cols, "(must be False)")
+c.close()
+EOF
 ```
 
-The `users` table check is the sharp one: if it comes back non-empty, the 4.0
-binary opened the 3.x database and the isolation failed. Stop and investigate
-before doing anything else.
+The last two checks are the sharp ones: a `users` table, or a `user_id` column
+on `memories`, means the 4.0 binary opened the 3.x database. There is no
+downgrade from that. Stop and investigate before doing anything else.
 
 ## 6. First account, then the bench
 
@@ -149,8 +188,15 @@ set. Getting this wrong creates the account in the 3.x database.
 Then, before relying on it:
 
 ```bash
-python3 scripts/funes_bench.py          # against the model on :8080
+cd ~/Funes-v4
+python3 scripts/funes_bench.py --url http://127.0.0.1:8485 --user julio --skip-web
 ```
+
+The bench needs an account — 4.0 refuses `/api/chat` without one, and without
+`--user` it stops with an explicit message rather than reporting a model that
+cannot call tools. It prompts for the password, or reads
+`$FUNES_BENCH_PASSWORD`. `--skip-web` because no Tavily key is configured on
+this install yet.
 
 Phase 4 narrows the tool schema each agent sees, so this is the run that says
 whether the model still calls the right tools.
