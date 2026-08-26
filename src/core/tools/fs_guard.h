@@ -24,8 +24,18 @@ namespace funes::fsguard {
 //
 // The absolute form is a deliberate escape hatch, the filesystem counterpart
 // of AgentConfig::memory_scope: it opts one agent out of per-user isolation
-// into a folder every account shares. Nothing in the shipped agents uses it —
-// prefer a relative path, which stays inside the caller's own workspace.
+// into a folder every account shares. Prefer a relative path, which stays
+// inside the caller's own workspace.
+//
+// One shipped agent uses it: curator (agents/curator.yaml), pointing at the
+// publication working directory outside the Funes tree. That is what keeps
+// the newsletter running against one pool of harvested candidates and one set
+// of issue files rather than a copy per account — the publication is the
+// installation's, not any one user's. The consequence to know: every account
+// that runs the curator reads and writes the *same* files, so on a
+// multi-account install two people publishing the same day would overwrite
+// each other's issue. Fine while the admin is the only one who runs it, which
+// is the current arrangement; revisit before granting curator to a member.
 //
 // Lives here rather than in file_tools.cpp so read_file, write_file,
 // execute_shell and the upload endpoint cannot drift apart on where a user's

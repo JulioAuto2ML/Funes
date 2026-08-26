@@ -2,8 +2,12 @@
 
 Branch: `feat/v4-users-permissions`.
 State as of 2026-08-26: phases 1–4 of `dev-plan-users-permissions.md` are
-implemented. 28/28 `ctest` plus the full `tests/integration.sh` pass, and the
-branch has been benchmarked against the real model.
+implemented, benchmarked against the real model, and **deployed on yoda** as
+an independent install on `:8485`. 28/28 `ctest` and 154 `integration.sh`
+assertions pass.
+
+Start at "Pending work" below; everything above it is context for why those
+items are what remain.
 
 ---
 
@@ -35,6 +39,13 @@ Being explicit, because "tested" has meant two different things here.
 - **Concurrency.** Six simultaneous chats, two accounts, deliberately sharing
   one session name. Neither account sees the other's turns, and the test
   fails if the requests merely queue rather than overlap.
+- **Deleting a conversation.** `DELETE /api/sessions/<name>` and a control in
+  the conversation list, covered by unit tests (cross-user, and that memories
+  survive), integration tests over HTTP, and checked in a real browser. Its
+  first test uncovered a pre-existing bug: `session_summaries` was keyed on
+  `session` alone, so the second account to use a session name silently got no
+  rolling summary at all. Key is now `(user_id, session)`; migrated on yoda
+  2026-08-26.
 - **The yoda deployment**, 2026-08-26. 4.0 runs as an independent install on
   `:8485` from `~/Funes-v4`, against `~/.funes-v4/`. The 3.x data migrated
   intact (281 memories, 706 turns, ids preserved, all attributed to user 1)
@@ -80,65 +91,84 @@ model forces, and both were deliberately left for a later pass.
 
 ---
 
-## Known gaps (ordered by how much they'd annoy someone)
+## Pending work
 
-1. **No admin panel.** Phase 5's user list and permissions editor were
-   deferred by the plan itself in favour of the CLI, and that decision still
-   holds — but a member has no way to see their own permissions, and an admin
-   has no way to see anyone's without SSH. `funes perms <user>` prints a
-   resolved view; a read-only `/api/auth/status` extension would be the
-   cheapest improvement.
+Ordered so the list can be worked top to bottom. Each entry says what is
+wrong, where it lives, and what "done" looks like — the point is that none of
+them needs this conversation to be actionable.
 
-2. **Sessions still cannot be deleted**, only rotated. Pre-existing
-   (`MemoryStore::prune_turns` exists, nothing exposes it) but more visible
-   now: a shared household install accumulates other people's conversation
-   list entries that nobody can remove.
+### 1. Members cannot see their own permissions
+`/api/auth/status` returns identity only. A member who finds an agent missing
+or a tool refused has no way to learn why, and an admin cannot inspect anyone
+without SSH to run `funes perms <user>`.
+**Done when:** `/api/auth/status` also returns the caller's resolved
+permissions (allowed agents, denied tools), and the UI shows them somewhere
+unobtrusive. Read-only — editing stays in the CLI, per phase 5's deferral.
+Reuse `Permissions::parse` and the same resolved view `show_permissions()`
+already prints in `src/server/user_cli.cpp`.
 
-3. **`funes passwd` does not revoke existing sessions.** Deliberate — it is
-   the admin resetting a forgotten password, not a response to a stolen
-   cookie. Revisit when users can change their own password, where the
-   opposite behaviour is correct.
+### 2. The embedding backfill does not finish in one start
+`backfill_embeddings(max_items = 256)` is capped per call and `main.cpp` calls
+it exactly once, so a database with more than 256 memories comes back from a
+migration with the remainder on keyword-only recall until the next restart.
+Pre-existing, but 4.0 exposes it: the migration drops every vector, so the cap
+was never reached before. Seen on yoda — 256 on the first start, 25 on the
+second.
+**Done when:** the startup thread loops until a pass returns 0 (with a small
+sleep between, so a down embedding endpoint does not spin), or the runbook
+stops pretending one restart is enough. The loop is the better fix; the
+runbook note is already in `deploy-v4-yoda.md` as a stopgap.
 
-4. **The admin cron view is unexposed.** `MemoryStore::list_cron_jobs(-1)`
-   returns every user's jobs, and nothing calls it with `-1` — `/api/jobs`
-   passes the caller's own id. An admin cannot see what is scheduled on the
-   box.
+### 3. An admin cannot see what is scheduled on the box
+`MemoryStore::list_cron_jobs(-1)` already returns every user's jobs and
+nothing calls it with `-1` — `/api/jobs` passes the caller's own id.
+**Done when:** `/api/jobs` accepts something like `?all=1`, gated on
+`require_admin()` (added 2026-08-26, `src/server/api.cpp`), and returns the
+owning username per job. Small, and it makes a shared box operable.
 
-5. **`curator.yaml` uses an absolute `workspace_dir`**
-   (`/home/julio/Documents/X_posts`), which is the documented escape hatch out
-   of per-user isolation into a folder every account shares. That is fine for
-   a single-admin install and is how the newsletter keeps working, but the
-   comment in `src/core/tools/fs_guard.h` still claims *no* shipped agent uses
-   it. Either the comment or the agent should change; if a second account ever
-   runs the curator they will collide in that directory.
+### 4. `funes passwd` does not revoke existing sessions
+Deliberate today: it is the admin resetting a forgotten password, not a
+response to a stolen cookie, and revoking would kick the user out of a session
+they are mid-conversation in.
+**Done when:** users can change their own password — at which point the
+opposite behaviour is correct and this needs a `--revoke-sessions` flag, or an
+unconditional revoke on the self-service path only. Not actionable before that
+exists; listed so the reasoning is not rediscovered.
 
-6. **One startup does not finish the embedding backfill on a large database.**
-   `backfill_embeddings(max_items = 256)` is capped per call and `main.cpp`
-   calls it once at startup, so a database with more than 256 memories comes
-   back from a 4.0 migration with the remainder unvectored — they fall back to
-   keyword recall until the next restart. Pre-existing, but 4.0 is what makes
-   it visible: the migration drops every vector, so the cap never used to be
-   reached. Seen on yoda (281 memories: 256 on the first start, 25 on the
-   second). Either loop until it returns 0, or say so in the runbook.
+### 5. Session-token expiry is untested
+Expiry is implemented; only revocation has a test.
+**Done when:** a test creates a token with a short TTL, waits it out (or
+backdates the row), and asserts the session no longer authenticates.
 
-7. **Config is read relative to the working directory.** `funes::load_config()`
-   reads `./config/funes.local` and `./config/funes.conf` before
-   `~/.funes/config`, so a binary started from the repo root inherits the
-   repo's config — which sets `FUNES_ALLOW_SHELL=1`. Not a bug, and the v4
-   systemd unit sets every meaningful variable explicitly so it cannot bite in
-   production. It bites when *testing*: a scratch server started from the repo
-   is not running with the environment you think it is.
+### 6. `funes perms` bad input is untested
+`integration.sh` covers `--allow`, `--deny`, `--agents` and `--reset` as a
+side effect of testing the permissions they set. Unknown flags, missing
+values, and a nonexistent username are unasserted, as is the JSON written.
 
 ---
 
-## Tests worth adding
+## Known and deliberate
 
-- **`funes perms` CLI beyond the happy path.** `integration.sh` now covers
-  `--allow`, `--deny`, `--agents` and `--reset` as a side effect of testing
-  the permissions they set, but bad input and the JSON it writes are still
-  unasserted.
-- **Session-token lifetime.** Expiry is implemented and never tested; only
-  revocation is.
+Not bugs, not scheduled — written down so they are not rediscovered as
+surprises.
+
+- **`curator` writes to a shared absolute workspace**
+  (`/home/julio/Documents/X_posts`). That is the documented escape hatch in
+  `src/core/tools/fs_guard.h`, and it is what keeps the newsletter running
+  against one candidate pool rather than a copy per account: the publication
+  belongs to the installation, not to a user. Every account running the
+  curator touches the same files, so two people publishing the same day would
+  overwrite each other. Fine while the admin is the only one who runs it.
+  Revisit before granting `curator` to a member.
+
+- **Config is read relative to the working directory.** `funes::load_config()`
+  reads `./config/funes.local` and `./config/funes.conf` before
+  `~/.funes/config`, so a binary started from the repo root inherits the
+  repo's config — which sets `FUNES_ALLOW_SHELL=1`. The v4 systemd unit sets
+  every meaningful variable explicitly, so it cannot bite in production. It
+  bites when *testing*: a scratch server started from the repo root is not
+  running with the environment you think it is. This is why the yoda bench run
+  could measure the disk and the local member run could not.
 
 ---
 
@@ -158,5 +188,12 @@ model forces, and both were deliberately left for a later pass.
    concurrency test passes identically against a serialising server (hence the
    timing floor), and the migration test was checked against three deliberate
    mutations of `migrate()`.
-5. Merge to `main` has not been discussed. The branch is self-contained; 3.x
-   on yoda is unaffected either way.
+5. To ship a change to yoda: push the branch, then `git pull --ff-only` in
+   `~/Funes-v4`, rebuild with `-j2` (the box is RAM-limited and the model is
+   resident), run `ctest`, and `systemctl --user restart funes-v4`. Never
+   `scp` or edit files there. Take a database backup first if the change
+   touches `migrate()` — `deploy-v4-yoda.md` has the online-backup snippet,
+   and note there is no `sqlite3` CLI on that host.
+6. Merge to `main` has not been discussed. The branch is self-contained and
+   3.x on yoda is unaffected either way, but 4.0 is now the install being
+   iterated on, so the two will keep diverging until this is decided.
