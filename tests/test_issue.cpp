@@ -310,16 +310,25 @@ int test_build_issue_substitutes_a_candidate_that_actually_matches() {
 int test_build_issue_substitution_does_not_reuse_an_already_placed_candidate() {
     // Item 1 legitimately takes id 4. Item 2 declares the wrong id (7) for
     // text that only id 4's page actually supports — but 4 is spoken for, so
-    // there is nothing left to substitute and item 2 must still be rejected,
-    // not silently collide with item 1.
+    // there is nothing left to substitute. The invariant under test is that
+    // id 4 is NOT reused: two items pointing at one story is a duplicate, and
+    // the whole reason substitution skips `used` candidates.
+    //
+    // What that costs item 2 changed with the drop behaviour: it used to sink
+    // the entire issue, and now it is dropped and item 1 still ships. Same
+    // invariant, survivable consequence.
     Selection first = good_selection();               // id 4, correct
     Selection second = good_selection();
     second.candidate_id = 7;
     json out;
-    const std::string why = build_issue(pool_with_two_candidates(), {first, second}, out);
-    CHECK(why.find("item 2") != std::string::npos);
-    CHECK(why.find("does not appear to be about this page") != std::string::npos);
-    CHECK(out.is_null());
+    std::vector<std::string> dropped;
+    const std::string why = build_issue(pool_with_two_candidates(), {first, second},
+                                        out, /*min_items=*/1, &dropped);
+    CHECK(why.empty());
+    CHECK(out["items"].size() == 1);
+    CHECK(out["items"][0]["url"] == "https://reuters.com/tech/anthropic-claude");
+    CHECK(dropped.size() == 1);
+    CHECK(dropped[0].find("item 2") != std::string::npos);
     return 0;
 }
 
@@ -370,6 +379,92 @@ int test_build_issue_rejects_an_empty_selection() {
     return 0;
 }
 
+// ── dropping an ungroundable item instead of losing the whole issue ──────────
+// Before: one item nothing in the pool could support rejected the entire
+// issue, and the model retried with identical arguments until the loop
+// detector killed the run — three attempts, no newsletter. An item that
+// cannot be grounded is now dropped and the rest ship, as long as enough
+// survive.
+
+static Selection grounded_on_id7() {
+    Selection s;
+    s.candidate_id = 7;
+    s.emoji = "\U0001F4B0";
+    s.text = "OpenAI cut enterprise API pricing for high-volume customers by thirty percent.";
+    return s;
+}
+
+static Selection ungroundable_on_id7() {
+    Selection s = grounded_on_id7();
+    s.text = "A completely unrelated claim about neither story in this pool.";
+    return s;
+}
+
+int test_build_issue_drops_an_ungroundable_item_and_keeps_the_rest() {
+    json out;
+    std::vector<std::string> dropped;
+    const std::string why = build_issue(pool_with_two_candidates(),
+                                        {good_selection(), ungroundable_on_id7()},
+                                        out, /*min_items=*/1, &dropped);
+    CHECK(why.empty());
+    CHECK(out["items"].size() == 1);
+    CHECK(out["items"][0]["url"] == "https://reuters.com/tech/anthropic-claude");
+    // The drop is reported, not silent: a nine-item issue when ten were asked
+    // for has to be visible to the caller and in the run record.
+    CHECK(dropped.size() == 1);
+    CHECK(dropped[0].find("item 2") != std::string::npos);
+    return 0;
+}
+
+int test_build_issue_renumbers_after_a_drop() {
+    // post_tweet.py indexes items 1..N, so a gap left by a dropped item would
+    // make the cron post for that slot address the wrong story.
+    json out;
+    std::vector<std::string> dropped;
+    const std::string why = build_issue(pool_with_two_candidates(),
+                                        {ungroundable_on_id7(), good_selection()},
+                                        out, /*min_items=*/1, &dropped);
+    CHECK(why.empty());
+    CHECK(out["items"].size() == 1);
+    CHECK(out["items"][0]["n"] == 1);          // not 2
+    CHECK(dropped.size() == 1);
+    return 0;
+}
+
+int test_build_issue_rejects_when_too_few_survive() {
+    // Dropping is not unlimited: below the publication's min_count there is no
+    // issue worth sending, and the rejection has to say what was dropped and
+    // why rather than leaving the model to guess.
+    json out;
+    std::vector<std::string> dropped;
+    const std::string why = build_issue(pool_with_two_candidates(),
+                                        {good_selection(), ungroundable_on_id7()},
+                                        out, /*min_items=*/2, &dropped);
+    CHECK(!why.empty());
+    CHECK(out.is_null());
+    CHECK(why.find("does not appear to be about this page") != std::string::npos);
+    CHECK(why.find("item 2") != std::string::npos);
+    return 0;
+}
+
+int test_build_issue_still_rejects_contract_violations() {
+    // A duplicate id, an empty post, an over-long post: these are the model
+    // getting the contract wrong, and it can fix them. They must still reject
+    // the whole issue rather than being quietly dropped — otherwise a model
+    // that submits ten malformed items gets a one-item newsletter.
+    json out;
+    std::vector<std::string> dropped;
+    Selection dup = good_selection();          // same id as item 1
+    const std::string why = build_issue(pool_with_two_candidates(),
+                                        {good_selection(), dup},
+                                        out, /*min_items=*/1, &dropped);
+    CHECK(!why.empty());
+    CHECK(out.is_null());
+    CHECK(why.find("every item must be a different story") != std::string::npos);
+    CHECK(dropped.empty());
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_normalize_for_match();
@@ -393,6 +488,10 @@ int main() {
     rc |= test_build_issue_reports_only_bad_items();
     rc |= test_build_issue_reports_all_violations();
     rc |= test_build_issue_rejects_an_empty_selection();
+    rc |= test_build_issue_drops_an_ungroundable_item_and_keeps_the_rest();
+    rc |= test_build_issue_renumbers_after_a_drop();
+    rc |= test_build_issue_rejects_when_too_few_survive();
+    rc |= test_build_issue_still_rejects_contract_violations();
     if (rc == 0) std::cout << "test_issue: all tests passed\n";
     return rc;
 }

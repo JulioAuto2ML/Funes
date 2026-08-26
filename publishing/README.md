@@ -50,6 +50,10 @@ python3 publishing/publish_newsletter.py --self-test
 Exit codes are the interface a caller branches on. `publish_issue.py`: `0` sent
 (with `--send`), `1` bad input, `2` broken links and nothing sent.
 `post_tweet.py`: `3` means it refused because the day's issue did not go out.
+A cron slot past the end of the issue exits `0` with "Nothing to post" — an
+issue can carry fewer items than there are slots, because `publish_issue` drops
+an item no page in the pool supports rather than sinking the whole issue, so a
+short day is expected rather than a failure.
 
 ## Scheduling
 

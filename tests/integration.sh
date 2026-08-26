@@ -130,6 +130,7 @@ FUNES_WORKSPACE_DIR="$WORKSPACE" \
 FUNES_AGENTS_DIR="$AGENTS" \
 FUNES_HOST=127.0.0.1 \
 FUNES_PORT=$API_PORT \
+FUNES_VISION_URL= \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
 FUNES_PID=$!
 
@@ -216,11 +217,15 @@ check "cron flow completed"    "$OUT" 'MOCK-CRON-DONE'
 JOB_ID=$(echo "$OUT" | grep -o 'Scheduled job #[0-9]*' | grep -o '[0-9]*' | head -1)
 
 OUT=$(curl -s "$BASE/api/sessions")
-check "cron job got its own session" "$OUT" "\"cron-$JOB_ID\""
+# Each firing gets its own session, "cron-<id>-<epoch>", so tool budgets don't
+# carry over between runs — match the prefix, then recover the full name for
+# the history lookups below.
+check "cron job got its own session" "$OUT" "\"cron-$JOB_ID-"
+CRON_SESSION=$(echo "$OUT" | grep -o "cron-$JOB_ID-[0-9]*" | head -1)
 
 # persist=true (unlike delegate_to_agent's false, see core/cron_runner.cpp):
 # the job's task and answer show up in their own session, not the orchestrator's.
-OUT=$(curl -s "$BASE/api/history?session=cron-$JOB_ID")
+OUT=$(curl -s "$BASE/api/history?session=$CRON_SESSION")
 check "cron job session has its task"   "$OUT" 'cron-target-task'
 check "cron job session has its answer" "$OUT" 'MOCK-CRON-CHILD-REPLY'
 

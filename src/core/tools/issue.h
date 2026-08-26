@@ -55,11 +55,31 @@ struct Selection {
 constexpr size_t kMaxPostChars = 280;
 
 // Resolves `selection` against a pool record (harvest::pool_record) and builds
-// the issue. Empty return = `out` is the issue, ready to publish. Otherwise one
-// violation and `out` is untouched.
+// the issue. Empty return = `out` is the issue, ready to publish. Otherwise the
+// violations and `out` is untouched.
+//
+// Two classes of problem, handled differently on purpose:
+//
+//   Contract violations — an unknown id, a duplicate story, an empty or
+//     over-long post, a missing emoji — reject the whole issue. The model got
+//     the format wrong and can fix it.
+//
+//   Ungroundable items — the post text is supported by no page in the pool,
+//     not even after trying every unused candidate — are DROPPED, listed in
+//     `dropped`, and the rest of the issue ships. Rejecting everything for one
+//     bad item meant a model that could not fix it (because the code had
+//     already proved no candidate matched) retried with identical arguments
+//     until the loop detector killed the run: three attempts, no newsletter.
+//
+// `min_items` is the floor: if too few survive the drops, the issue is
+// rejected after all and the reasons are in the returned string. `dropped` may
+// be null if the caller does not care, but publish_issue wants it for the run
+// record and for telling the model what it lost.
 std::string build_issue(const nlohmann::json& pool,
                         const std::vector<Selection>& selection,
-                        nlohmann::json& out);
+                        nlohmann::json& out,
+                        int min_items = 1,
+                        std::vector<std::string>* dropped = nullptr);
 
 // The link label: the candidate's own headline, trimmed at a word boundary.
 // Derived rather than asked for — it is the article's title, and the pool
