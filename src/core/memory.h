@@ -16,6 +16,13 @@
 // is available again.
 //
 // Thread-safe: one connection guarded by a mutex (personal-assistant scale).
+//
+// Multi-user (4.0): every row belongs to a user, and every method takes the
+// user_id it operates as. Isolation is enforced in the SQL — a `WHERE user_id
+// = ?` on each query — rather than at the API layer, so a handler that forgets
+// to check still cannot read across accounts. There is deliberately no default
+// value for the parameter: a default would make "forgot to pass it" silently
+// attribute data to somebody instead of failing to compile.
 // =============================================================================
 
 #pragma once
@@ -31,8 +38,14 @@ struct sqlite3;
 
 class MemoryStore {
 public:
+    // Every existing row is attributed to this id by the 4.0 migration, and
+    // it is the account the single-user install becomes. Also what background
+    // work with no user of its own (the startup result sweep) runs as.
+    static constexpr int64_t ADMIN_USER_ID = 1;
+
     struct Memory {
         int64_t     id = 0;
+        int64_t     user_id = 0;
         std::string agent;
         std::string text;
         std::string source;      // "user" | "auto" | "tool" | "consolidated"
@@ -57,25 +70,34 @@ public:
 
     // ── Long-term memory ──────────────────────────────────────────────────────
 
-    // Store one memory. Duplicate (agent, text) pairs are ignored and the
-    // existing id is returned. Embedding failures are non-fatal (stored
-    // without a vector, picked up later by backfill_embeddings).
-    int64_t remember(const std::string& agent, const std::string& text,
-                     const std::string& source);
+    // Store one memory. Duplicate (user_id, agent, text) triples are ignored
+    // and the existing id is returned. Embedding failures are non-fatal
+    // (stored without a vector, picked up later by backfill_embeddings).
+    int64_t remember(int64_t user_id, const std::string& agent,
+                     const std::string& text, const std::string& source);
 
     // Semantic search when embeddings are available, keyword search otherwise.
-    // agent filters to that agent's memories; empty = all agents.
+    // agent filters to that agent's memories; empty = all of this user's agents.
     // touch=false skips the recall bookkeeping consolidate() prunes on — for
     // callers that are browsing (the UI's memory search) rather than feeding
     // an agent, where counting the hit would protect memories nothing used.
-    std::vector<Memory> recall(const std::string& agent, const std::string& query,
-                               int k = 5, bool touch = true);
+    std::vector<Memory> recall(int64_t user_id, const std::string& agent,
+                               const std::string& query, int k = 5, bool touch = true);
 
     // Newest first. agent empty = all agents.
-    std::vector<Memory> list(const std::string& agent, int limit = 50, int offset = 0);
+    std::vector<Memory> list(int64_t user_id, const std::string& agent,
+                             int limit = 50, int offset = 0);
 
-    bool    forget(int64_t id);
-    int64_t count(const std::string& agent = "");
+    // Deletes only if the memory belongs to user_id — returns false otherwise,
+    // indistinguishable from "no such id". Memory ids are sequential integers
+    // exposed straight to the UI as DELETE /api/memories/<id>, so without the
+    // ownership predicate any account could delete another's memories by
+    // counting upwards.
+    bool    forget(int64_t user_id, int64_t id);
+    // user_id < 0 counts every user's memories — for the startup banner and
+    // other server-wide reporting, never for anything a user sees about
+    // themselves.
+    int64_t count(int64_t user_id, const std::string& agent = "");
 
     // Embed memories that have no vector yet (up to max_items). Returns how
     // many were embedded. Safe to call from a background thread.
@@ -97,6 +119,11 @@ public:
     using MergeFn = std::function<std::string(const std::vector<std::string>&)>;
 
     struct ConsolidationOptions {
+        // Which user's pool to consolidate. Merging is always within one user:
+        // two accounts stating the same fact are two facts, and handing both
+        // to the model to merge would write one user's wording into the
+        // other's memory. <0 means "every user, one pool at a time".
+        int64_t     user_id = -1;
         std::string agent;                  // empty = every agent
         double      min_similarity = 0.92;  // cosine; below this they're distinct facts
         int         prune_after_days = 30;  // age threshold for step 2; <0 disables it
@@ -130,13 +157,18 @@ public:
     // another session's results. Delegated sub-agents share the caller's
     // session, so handles cross the delegation boundary for free.
 
-    int64_t store_result(const std::string& session, const std::string& agent,
-                         const std::string& tool, const std::string& text);
+    int64_t store_result(int64_t user_id, const std::string& session,
+                         const std::string& agent, const std::string& tool,
+                         const std::string& text);
 
-    std::optional<std::string> get_result(const std::string& session, int64_t id);
+    // Scoped by user *and* session. The session alone was the boundary before
+    // 4.0, but a session id is a client-supplied string: two accounts can pick
+    // the same one, by accident or on purpose.
+    std::optional<std::string> get_result(int64_t user_id, const std::string& session,
+                                          int64_t id);
 
     // Drops every result of a session (call when the session is deleted).
-    int prune_results(const std::string& session);
+    int prune_results(int64_t user_id, const std::string& session);
 
     // Drops results older than `days` regardless of session — a startup sweep,
     // since results are only useful for the turn that produced them.
@@ -144,27 +176,29 @@ public:
 
     // ── Conversation history (short-term memory) ──────────────────────────────
 
-    void append_turn(const std::string& session, const std::string& agent,
-                     const std::string& role, const std::string& content);
+    void append_turn(int64_t user_id, const std::string& session,
+                     const std::string& agent, const std::string& role,
+                     const std::string& content);
 
     // Last n user/assistant turns of a session, oldest first.
-    std::vector<ChatMessage> recent_turns(const std::string& session, int n = 10);
+    std::vector<ChatMessage> recent_turns(int64_t user_id, const std::string& session,
+                                          int n = 10);
 
     // Total user/assistant turns stored for a session (ignores the n cap above).
-    int64_t turn_count(const std::string& session);
+    int64_t turn_count(int64_t user_id, const std::string& session);
 
     // Delete all but the most recent `keep` turns of a session. Used after
     // folding the older turns into the running summary below.
-    void prune_turns(const std::string& session, int keep);
+    void prune_turns(int64_t user_id, const std::string& session, int keep);
 
     // ── Rolling conversation summary (context compression) ────────────────────
     // One summary per session, replaced (not appended) each time it is
     // recompressed so it stays roughly constant size regardless of how long
     // the conversation runs.
 
-    std::string get_summary(const std::string& session);
-    void set_summary(const std::string& session, const std::string& agent,
-                     const std::string& summary);
+    std::string get_summary(int64_t user_id, const std::string& session);
+    void set_summary(int64_t user_id, const std::string& session,
+                     const std::string& agent, const std::string& summary);
 
     // ── Sessions (the UI's conversation list) ─────────────────────────────────
 
@@ -175,8 +209,8 @@ public:
         int64_t     turn_count = 0;   // user+assistant turns, not counting the preview lookup
     };
 
-    // Every session that has at least one turn, newest activity first.
-    std::vector<SessionSummary> list_sessions(int limit = 50);
+    // Every session of this user that has at least one turn, newest first.
+    std::vector<SessionSummary> list_sessions(int64_t user_id, int limit = 50);
 
     // ── Cron jobs (scheduled recurring work) ──────────────────────────────────
     // See core/cron_schedule.h for the expression syntax and core/cron_runner.h
@@ -184,6 +218,10 @@ public:
 
     struct CronJob {
         int64_t     id = 0;
+        // Whose job this is. The runner has no request to take an identity
+        // from, so it adopts this one for the duration of the run — otherwise
+        // a scheduled agent's remember() calls would land in nobody's pool.
+        int64_t     user_id = ADMIN_USER_ID;
         std::string name;
         std::string kind;      // "agent" | "shell"
         std::string agent;     // kind=agent
@@ -200,17 +238,19 @@ public:
     // Returns the new job's id.
     int64_t create_cron_job(const CronJob& job);
 
-    // Newest first.
-    std::vector<CronJob> list_cron_jobs();
+    // Newest first. user_id < 0 lists every user's jobs (admin view).
+    std::vector<CronJob> list_cron_jobs(int64_t user_id);
 
-    bool delete_cron_job(int64_t id);
+    bool delete_cron_job(int64_t user_id, int64_t id);
 
-    // Not currently running, and due at or before `now`.
+    // Not currently running, and due at or before `now`. Deliberately spans
+    // every user: the poll loop serves all of them, and each returned job
+    // carries the owner the runner must act as.
     std::vector<CronJob> due_cron_jobs(int64_t now);
 
     // Fetches one job by id regardless of running state — used by
     // run_job_now, which runs a job out of band from the poll loop.
-    std::optional<CronJob> get_cron_job(int64_t id);
+    std::optional<CronJob> get_cron_job(int64_t user_id, int64_t id);
 
     void mark_cron_job_running(int64_t id, bool running);
 
@@ -228,13 +268,16 @@ private:
     void migrate();
     void ensure_vec_table(int dim);        // creates/recreates vec_memories
     bool try_embed(const std::string& text, std::vector<float>& out);
-    void insert_vector(int64_t memory_id, const std::vector<float>& vec);
+    void insert_vector(int64_t user_id, int64_t memory_id, const std::vector<float>& vec);
     void touch_recalled(const std::vector<Memory>& hits);  // recall bookkeeping
     int  prune_stale(const ConsolidationOptions& opt);      // consolidate() step 2
-    std::vector<Memory> recall_semantic(const std::string& agent,
+    std::vector<Memory> recall_semantic(int64_t user_id, const std::string& agent,
                                         const std::vector<float>& qvec, int k);
-    std::vector<Memory> recall_keyword(const std::string& agent,
+    std::vector<Memory> recall_keyword(int64_t user_id, const std::string& agent,
                                        const std::string& query, int k);
+    // Every user that owns at least one memory — consolidate() iterates it
+    // when no single user was named.
+    std::vector<int64_t> user_ids_with_memories();
     // Ranking boost by Memory::source — see the .cpp for rationale. Static
     // since it needs no instance state.
     static double source_weight(const std::string& source);

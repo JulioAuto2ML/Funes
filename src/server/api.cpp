@@ -334,13 +334,15 @@ void FunesApi::mount(httplib::Server& srv) {
     });
 
     // ── status ────────────────────────────────────────────────────────────────
-    srv.Get("/api/status", [this](const httplib::Request&, httplib::Response& res) {
+    srv.Get("/api/status", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
             {"version",  "4.0.0"},
             {"agents",   agent_count()},
-            {"memories", memory_.count()},
+            {"memories", memory_.count(user->id)},
             {"semantic_memory", memory_.semantic_available()},
             {"llm", {
                 {"url",      defaults_.llm_url},
@@ -351,7 +353,10 @@ void FunesApi::mount(httplib::Server& srv) {
     });
 
     // ── agents ────────────────────────────────────────────────────────────────
-    srv.Get("/api/agents", [this](const httplib::Request&, httplib::Response& res) {
+    srv.Get("/api/agents", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         json arr = json::array();
         {
             std::lock_guard<std::mutex> lock(agents_mu_);
@@ -367,13 +372,19 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {{"ok", true}, {"agents", arr}});
     });
 
-    srv.Post("/api/agents/reload", [this](const httplib::Request&, httplib::Response& res) {
+    srv.Post("/api/agents/reload", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         size_t n = load_agents();
         json_reply(res, 200, {{"ok", true}, {"agents", n}});
     });
 
     // ── chat (SSE) ────────────────────────────────────────────────────────────
     srv.Post("/api/chat", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         json body;
         try { body = json::parse(req.body); }
         catch (...) { return json_error(res, 400, "Request body must be JSON"); }
@@ -419,9 +430,10 @@ void FunesApi::mount(httplib::Server& srv) {
             std::string   message, session;
             std::vector<ImageAttachment> images;
             FunesApi*     api;
+            int64_t       user_id;
         };
         auto job = std::make_shared<ChatJob>(
-            ChatJob{std::move(cfg), message, session, std::move(images), this});
+            ChatJob{std::move(cfg), message, session, std::move(images), this, user->id});
 
         res.set_header("Cache-Control", "no-store");
         res.set_chunked_content_provider("text/event-stream",
@@ -437,7 +449,8 @@ void FunesApi::mount(httplib::Server& srv) {
                 try {
                     FunesAgent agent(job->cfg, job->api->tools_, job->api->memory_,
                                      job->api->defaults_);
-                    std::string answer = agent.run(job->message, job->session, emit, job->images);
+                    std::string answer = agent.run(job->message, job->session, job->user_id,
+                                                  emit, job->images);
                     emit("done", {{"text", answer}});
                 } catch (const std::exception& e) {
                     emit("error", {{"message", e.what()}});
@@ -451,6 +464,9 @@ void FunesApi::mount(httplib::Server& srv) {
 
     // ── memories ──────────────────────────────────────────────────────────────
     srv.Get("/api/memories", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         const std::string agent = req.get_param_value("agent");
         const std::string q     = req.get_param_value("q");
         int limit  = 50;
@@ -461,10 +477,10 @@ void FunesApi::mount(httplib::Server& srv) {
         if (offset < 0) offset = 0;
 
         std::vector<MemoryStore::Memory> items = q.empty()
-            ? memory_.list(agent, limit, offset)
+            ? memory_.list(user->id, agent, limit, offset)
             // touch=false: browsing the memory list is not a recall, and
             // counting it would shield memories from consolidation's prune.
-            : memory_.recall(agent, q, limit, /*touch=*/false);
+            : memory_.recall(user->id, agent, q, limit, /*touch=*/false);
 
         json arr = json::array();
         for (const auto& m : items) {
@@ -481,11 +497,14 @@ void FunesApi::mount(httplib::Server& srv) {
             });
         }
         json_reply(res, 200, {{"ok", true}, {"memories", arr},
-                              {"total", memory_.count(agent)},
+                              {"total", memory_.count(user->id, agent)},
                               {"semantic", memory_.semantic_available()}});
     });
 
     srv.Post("/api/memories", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         json body;
         try { body = json::parse(req.body); }
         catch (...) { return json_error(res, 400, "Request body must be JSON"); }
@@ -501,20 +520,26 @@ void FunesApi::mount(httplib::Server& srv) {
         if (find_agent(agent).name.empty())
             return json_error(res, 404, "Unknown agent: " + agent);
 
-        int64_t id = memory_.remember(agent, text, "user");
+        int64_t id = memory_.remember(user->id, agent, text, "user");
         json_reply(res, 200, {{"ok", true}, {"id", id}});
     });
 
     srv.Delete(R"(/api/memories/(\d+))", [this](const httplib::Request& req,
                                                 httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         int64_t id = std::stoll(req.matches[1].str());
-        if (!memory_.forget(id))
+        if (!memory_.forget(user->id, id))
             return json_error(res, 404, "No memory with id " + std::to_string(id));
         json_reply(res, 200, {{"ok", true}});
     });
 
     // ── history (restore a session's chat on page reload) ─────────────────────
     srv.Get("/api/history", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         const std::string session = req.get_param_value("session");
         if (!valid_session(session))
             return json_error(res, 400, "'session' must match [A-Za-z0-9_-]{1,64}");
@@ -523,19 +548,22 @@ void FunesApi::mount(httplib::Server& srv) {
         if (limit < 1 || limit > 200) limit = 50;
 
         json arr = json::array();
-        for (const auto& turn : memory_.recent_turns(session, limit))
+        for (const auto& turn : memory_.recent_turns(user->id, session, limit))
             arr.push_back({{"role", turn.role}, {"content", turn.content}});
         json_reply(res, 200, {{"ok", true}, {"turns", arr}});
     });
 
     // ── sessions (the UI's conversation list) ──────────────────────────────────
     srv.Get("/api/sessions", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         int limit = 50;
         if (req.has_param("limit")) limit = std::atoi(req.get_param_value("limit").c_str());
         if (limit < 1 || limit > 200) limit = 50;
 
         json arr = json::array();
-        for (const auto& s : memory_.list_sessions(limit)) {
+        for (const auto& s : memory_.list_sessions(user->id, limit)) {
             arr.push_back({
                 {"session",         s.session},
                 {"last_message_at", s.last_message_at},
@@ -549,9 +577,12 @@ void FunesApi::mount(httplib::Server& srv) {
     // ── cron jobs (read-only view for the UI; managed via the operator agent's
     // schedule_job/cancel_job/run_job_now tools — see core/tools/cron_tool.cpp
     // and core/cron_runner.h for what actually runs a due job) ────────────────
-    srv.Get("/api/jobs", [this](const httplib::Request&, httplib::Response& res) {
+    srv.Get("/api/jobs", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         json arr = json::array();
-        for (const auto& j : memory_.list_cron_jobs()) {
+        for (const auto& j : memory_.list_cron_jobs(user->id)) {
             arr.push_back({
                 {"id",          j.id},
                 {"name",        j.name},
@@ -572,6 +603,9 @@ void FunesApi::mount(httplib::Server& srv) {
 
     // ── upload (attach a file to the chat from the UI) ────────────────────────
     srv.Post("/api/upload", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
         if (!req.has_file("file"))
             return json_error(res, 400, "Missing 'file' field (multipart/form-data)");
 

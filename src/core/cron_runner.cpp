@@ -68,7 +68,12 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
             "[You are running as a scheduled job — there is no interactive "
             "user. Execute the task directly; do not ask for confirmation.]\n\n"
             + job.task;
-        std::string out = sub.run(task, session,
+        // A scheduled run has no request to take an identity from, so it
+        // adopts the job's owner (recorded when it was scheduled). Without
+        // this the agent's remember() calls would be attributed to whichever
+        // user_id happened to be the default, and the person who scheduled
+        // the job would never see what it learned.
+        std::string out = sub.run(task, session, job.user_id,
                                   nullptr, {}, /*persist=*/true);
         const bool ok = !funes::is_run_failure(out);
         bound_preview(out);
@@ -159,7 +164,10 @@ std::pair<bool, std::string> run_cron_job_now(MemoryStore& memory, ToolRegistry&
                                               const AgentDefaults& defaults,
                                               const std::string& workspace_dir,
                                               const FindAgentFn& find_agent, int64_t job_id) {
-    auto job = memory.get_cron_job(job_id);
+    // -1 = any owner. The caller (run_job_now in cron_tool.cpp) has already
+    // checked that this job belongs to the user asking for it; the runner
+    // itself serves every user and must be able to load any job.
+    auto job = memory.get_cron_job(/*user_id=*/-1, job_id);
     if (!job) return {false, "No job with id " + std::to_string(job_id)};
 
     memory.mark_cron_job_running(job_id, true);

@@ -111,3 +111,7 @@ if(Python3_FOUND)
 else()
     message(STATUS "python3 not found — skipping the publishing/ tests")
 endif()
+
+add_executable(test_user_isolation test_user_isolation.cpp)
+target_link_libraries(test_user_isolation PRIVATE funes_core)
+add_test(NAME user_isolation COMMAND test_user_isolation)

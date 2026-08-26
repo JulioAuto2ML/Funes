@@ -22,6 +22,10 @@ namespace fs = std::filesystem;
     } \
 } while (0)
 
+// The user every fixture below acts as. Multi-user isolation gets its
+// own explicit two-user tests; everything else just needs an owner.
+static constexpr int64_t U1 = 1;
+
 // Deterministic fake embedder: normalized letter histogram (26 dims).
 // Texts sharing words get high cosine similarity; identical text → 1.0.
 class FakeEmbedder : public EmbeddingClient {
@@ -57,38 +61,38 @@ int test_keyword_only() {
     MemoryStore store(temp_db("kw"), nullptr);
     CHECK(!store.semantic_available());
 
-    int64_t id1 = store.remember("funes", "The user's favorite color is blue", "user");
-    int64_t id2 = store.remember("funes", "The user lives in Buenos Aires", "auto");
+    int64_t id1 = store.remember(U1, "funes", "The user's favorite color is blue", "user");
+    int64_t id2 = store.remember(U1, "funes", "The user lives in Buenos Aires", "auto");
     CHECK(id1 > 0 && id2 > 0 && id1 != id2);
 
     // Dedup: same (agent, text) returns the same id.
-    CHECK(store.remember("funes", "The user's favorite color is blue", "user") == id1);
-    CHECK(store.count("funes") == 2);
-    CHECK(store.count() == 2);
+    CHECK(store.remember(U1, "funes", "The user's favorite color is blue", "user") == id1);
+    CHECK(store.count(U1, "funes") == 2);
+    CHECK(store.count(U1) == 2);
 
     // Keyword recall.
-    auto r = store.recall("funes", "favorite color", 5);
+    auto r = store.recall(U1, "funes", "favorite color", 5);
     CHECK(r.size() == 1);
     CHECK(r[0].id == id1);
     CHECK(r[0].source == "user");
 
     // Agent scoping.
-    store.remember("other", "Something about color theory", "user");
-    CHECK(store.recall("funes", "color", 5).size() == 1);
-    CHECK(store.recall("", "color", 5).size() == 2);
+    store.remember(U1, "other", "Something about color theory", "user");
+    CHECK(store.recall(U1, "funes", "color", 5).size() == 1);
+    CHECK(store.recall(U1, "", "color", 5).size() == 2);
 
     // LIKE wildcards in the query must not act as wildcards.
-    CHECK(store.recall("funes", "%", 5).empty());
+    CHECK(store.recall(U1, "funes", "%", 5).empty());
 
     // list is newest-first.
-    auto all = store.list("funes");
+    auto all = store.list(U1, "funes");
     CHECK(all.size() == 2);
     CHECK(all[0].id == id2);
 
     // forget.
-    CHECK(store.forget(id1));
-    CHECK(!store.forget(id1));
-    CHECK(store.count("funes") == 1);
+    CHECK(store.forget(U1, id1));
+    CHECK(!store.forget(U1, id1));
+    CHECK(store.count(U1, "funes") == 1);
     return 0;
 }
 
@@ -96,28 +100,28 @@ int test_semantic() {
     FakeEmbedder emb;
     MemoryStore store(temp_db("sem"), &emb);
 
-    store.remember("funes", "zzzz qqqq jjjj", "user");                  // letter-distant
-    int64_t id = store.remember("funes", "the cat sat on the mat", "user");
+    store.remember(U1, "funes", "zzzz qqqq jjjj", "user");                  // letter-distant
+    int64_t id = store.remember(U1, "funes", "the cat sat on the mat", "user");
 
-    auto r = store.recall("funes", "the cat sat on the mat", 2);
+    auto r = store.recall(U1, "funes", "the cat sat on the mat", 2);
     CHECK(!r.empty());
     CHECK(r[0].id == id);            // exact text ranks first
     CHECK(r[0].score > 0.99);        // cosine similarity ≈ 1
 
     // Embedder failure mid-flight → keyword fallback, no crash.
     emb.fail = true;
-    auto r2 = store.recall("funes", "cat", 5);
+    auto r2 = store.recall(U1, "funes", "cat", 5);
     CHECK(!r2.empty());
     CHECK(!store.semantic_available());
 
     // Memory stored while the embedder is down has no vector...
-    int64_t id3 = store.remember("funes", "dogs bark loudly", "user");
+    int64_t id3 = store.remember(U1, "funes", "dogs bark loudly", "user");
     CHECK(id3 > 0);
 
     // ...until backfill runs after the embedder recovers.
     emb.fail = false;
     CHECK(store.backfill_embeddings() >= 1);
-    auto r3 = store.recall("funes", "dogs bark loudly", 1);
+    auto r3 = store.recall(U1, "funes", "dogs bark loudly", 1);
     CHECK(!r3.empty());
     CHECK(r3[0].id == id3);
     return 0;
@@ -134,10 +138,10 @@ int test_source_weighted_ranking() {
     FakeEmbedder emb;
     MemoryStore store(temp_db("srcweight"), &emb);
 
-    int64_t id_auto = store.remember("funes", "the cat sat on the mat", "auto");
-    int64_t id_tool = store.remember("funes", "mat the cat on sat the", "tool");
+    int64_t id_auto = store.remember(U1, "funes", "the cat sat on the mat", "auto");
+    int64_t id_tool = store.remember(U1, "funes", "mat the cat on sat the", "tool");
 
-    auto r = store.recall("funes", "the cat sat on the mat", 2);
+    auto r = store.recall(U1, "funes", "the cat sat on the mat", 2);
     CHECK(r.size() == 2);
     CHECK(r[0].id == id_tool);       // tool's weight breaks an exact raw tie
     CHECK(r[1].id == id_auto);
@@ -153,18 +157,18 @@ int test_source_weighted_ranking() {
 int test_turns() {
     MemoryStore store(temp_db("turns"), nullptr);
 
-    store.append_turn("s1", "funes", "user", "hello");
-    store.append_turn("s1", "funes", "assistant", "hi there");
-    store.append_turn("s2", "funes", "user", "other session");
+    store.append_turn(U1, "s1", "funes", "user", "hello");
+    store.append_turn(U1, "s1", "funes", "assistant", "hi there");
+    store.append_turn(U1, "s2", "funes", "user", "other session");
 
-    auto turns = store.recent_turns("s1", 10);
+    auto turns = store.recent_turns(U1, "s1", 10);
     CHECK(turns.size() == 2);
     CHECK(turns[0].role == "user" && turns[0].content == "hello");
     CHECK(turns[1].role == "assistant");
 
     // Limit keeps the LAST n turns, in chronological order.
-    store.append_turn("s1", "funes", "user", "second question");
-    auto limited = store.recent_turns("s1", 2);
+    store.append_turn(U1, "s1", "funes", "user", "second question");
+    auto limited = store.recent_turns(U1, "s1", 2);
     CHECK(limited.size() == 2);
     CHECK(limited[1].content == "second question");
     return 0;
@@ -174,14 +178,14 @@ int test_list_sessions() {
     MemoryStore store(temp_db("sessions"), nullptr);
 
     // s1: two full exchanges, s2: one, created after s1 so it sorts first.
-    store.append_turn("s1", "funes", "user", "what's the weather like");
-    store.append_turn("s1", "funes", "assistant", "sunny");
-    store.append_turn("s1", "funes", "user", "and tomorrow");
-    store.append_turn("s1", "funes", "assistant", "rain");
-    store.append_turn("s2", "operator", "user", "check disk space");
-    store.append_turn("s2", "operator", "assistant", "42GB free");
+    store.append_turn(U1, "s1", "funes", "user", "what's the weather like");
+    store.append_turn(U1, "s1", "funes", "assistant", "sunny");
+    store.append_turn(U1, "s1", "funes", "user", "and tomorrow");
+    store.append_turn(U1, "s1", "funes", "assistant", "rain");
+    store.append_turn(U1, "s2", "operator", "user", "check disk space");
+    store.append_turn(U1, "s2", "operator", "assistant", "42GB free");
 
-    auto sessions = store.list_sessions();
+    auto sessions = store.list_sessions(U1);
     CHECK(sessions.size() == 2);
 
     // Most recently active session first (s2, created after s1's turns).
@@ -195,9 +199,9 @@ int test_list_sessions() {
     CHECK(sessions[1].preview == "what's the weather like");
 
     // A long first message gets truncated with an ellipsis.
-    store.append_turn("s3", "funes", "user", std::string(200, 'x'));
-    store.append_turn("s3", "funes", "assistant", "ok");
-    auto with_long = store.list_sessions();
+    store.append_turn(U1, "s3", "funes", "user", std::string(200, 'x'));
+    store.append_turn(U1, "s3", "funes", "assistant", "ok");
+    auto with_long = store.list_sessions(U1);
     auto it = std::find_if(with_long.begin(), with_long.end(),
                            [](const auto& s) { return s.session == "s3"; });
     CHECK(it != with_long.end());
@@ -205,7 +209,7 @@ int test_list_sessions() {
     CHECK(it->preview.find("…") != std::string::npos);
 
     // limit is respected.
-    CHECK(store.list_sessions(1).size() == 1);
+    CHECK(store.list_sessions(U1, 1).size() == 1);
     return 0;
 }
 
@@ -213,23 +217,23 @@ int test_list_sessions() {
 
 int test_recall_count() {
     MemoryStore store(temp_db("recall_count"), nullptr);
-    int64_t id = store.remember("funes", "the user prefers dark roast coffee", "auto");
+    int64_t id = store.remember(U1, "funes", "the user prefers dark roast coffee", "auto");
 
-    CHECK(store.list("funes")[0].recall_count == 0);
+    CHECK(store.list(U1, "funes")[0].recall_count == 0);
 
-    store.recall("funes", "coffee", 5);
-    CHECK(store.list("funes")[0].recall_count == 1);
-    store.recall("funes", "coffee", 5);
-    CHECK(store.list("funes")[0].recall_count == 2);
+    store.recall(U1, "funes", "coffee", 5);
+    CHECK(store.list(U1, "funes")[0].recall_count == 1);
+    store.recall(U1, "funes", "coffee", 5);
+    CHECK(store.list(U1, "funes")[0].recall_count == 2);
 
     // Browsing (touch=false) is not a recall: it must not shield a memory
     // from the prune below.
-    store.recall("funes", "coffee", 5, /*touch=*/false);
-    CHECK(store.list("funes")[0].recall_count == 2);
+    store.recall(U1, "funes", "coffee", 5, /*touch=*/false);
+    CHECK(store.list(U1, "funes")[0].recall_count == 2);
 
     // A miss touches nothing.
-    store.recall("funes", "nothing matches this", 5);
-    CHECK(store.list("funes")[0].recall_count == 2);
+    store.recall(U1, "funes", "nothing matches this", 5);
+    CHECK(store.list(U1, "funes")[0].recall_count == 2);
     CHECK(id > 0);
     return 0;
 }
@@ -237,10 +241,10 @@ int test_recall_count() {
 int test_prune_respects_source_age_and_recall() {
     MemoryStore store(temp_db("prune"), nullptr);   // keyword-only: merge step skipped
 
-    store.remember("funes", "explicitly remembered fact", "user");
-    store.remember("funes", "auto captured and never used", "auto");
-    store.remember("funes", "auto captured but recalled later", "auto");
-    store.recall("funes", "recalled later", 5);     // → recall_count 1
+    store.remember(U1, "funes", "explicitly remembered fact", "user");
+    store.remember(U1, "funes", "auto captured and never used", "auto");
+    store.remember(U1, "funes", "auto captured but recalled later", "auto");
+    store.recall(U1, "funes", "recalled later", 5);     // → recall_count 1
 
     bool merge_called = false;
     auto merge = [&](const std::vector<std::string>&) {
@@ -252,16 +256,16 @@ int test_prune_respects_source_age_and_recall() {
     MemoryStore::ConsolidationOptions young;
     young.prune_after_days = 1;
     CHECK(store.consolidate(merge, young).pruned == 0);
-    CHECK(store.count("funes") == 3);
+    CHECK(store.count(U1, "funes") == 3);
 
     // Age floor removed: only the auto memory nobody ever recalled goes.
     MemoryStore::ConsolidationOptions now;
     now.prune_after_days = 0;
     auto report = store.consolidate(merge, now);
     CHECK(report.pruned == 1);
-    CHECK(store.count("funes") == 2);
+    CHECK(store.count(U1, "funes") == 2);
 
-    auto left = store.list("funes");
+    auto left = store.list(U1, "funes");
     for (const auto& m : left)
         CHECK(m.text != "auto captured and never used");
 
@@ -273,9 +277,9 @@ int test_prune_respects_source_age_and_recall() {
     // Negative = pruning off entirely.
     MemoryStore::ConsolidationOptions off;
     off.prune_after_days = -1;
-    store.remember("funes", "another never-recalled auto memory", "auto");
+    store.remember(U1, "funes", "another never-recalled auto memory", "auto");
     CHECK(store.consolidate(merge, off).pruned == 0);
-    CHECK(store.count("funes") == 3);
+    CHECK(store.count(U1, "funes") == 3);
     return 0;
 }
 
@@ -285,9 +289,9 @@ int test_merge_near_duplicates() {
 
     // Same letters → identical vector under FakeEmbedder → cosine 1.0. Two
     // rows saying the same thing in different words is exactly the case.
-    store.remember("funes", "the cat sat on the mat", "auto");
-    store.remember("funes", "the mat sat on the cat", "auto");
-    store.remember("funes", "zzzz qqqq jjjj", "auto");   // distant, untouched
+    store.remember(U1, "funes", "the cat sat on the mat", "auto");
+    store.remember(U1, "funes", "the mat sat on the cat", "auto");
+    store.remember(U1, "funes", "zzzz qqqq jjjj", "auto");   // distant, untouched
 
     MemoryStore::ConsolidationOptions opt;
     opt.prune_after_days = -1;   // isolate the merge step
@@ -304,10 +308,10 @@ int test_merge_near_duplicates() {
     CHECK(cluster_size == 2);
     CHECK(report.clusters_seen == 1);
     CHECK(report.merged == 2);
-    CHECK(store.count("funes") == 2);           // 3 − 2 originals + 1 merged
+    CHECK(store.count(U1, "funes") == 2);           // 3 − 2 originals + 1 merged
 
     bool found = false;
-    for (const auto& m : store.list("funes")) {
+    for (const auto& m : store.list(U1, "funes")) {
         if (m.text == "A cat and a mat sat on each other") {
             found = true;
             CHECK(m.source == "consolidated");
@@ -316,7 +320,7 @@ int test_merge_near_duplicates() {
     CHECK(found);
 
     // The merged row is searchable, i.e. it got its own embedding.
-    auto r = store.recall("funes", "A cat and a mat sat on each other", 1);
+    auto r = store.recall(U1, "funes", "A cat and a mat sat on each other", 1);
     CHECK(!r.empty());
     CHECK(r[0].source == "consolidated");
     return 0;
@@ -326,8 +330,8 @@ int test_merge_keep_all_and_failure() {
     FakeEmbedder emb;
     MemoryStore store(temp_db("keepall"), &emb);
 
-    store.remember("funes", "the cat sat on the mat", "auto");
-    store.remember("funes", "the mat sat on the cat", "auto");
+    store.remember(U1, "funes", "the cat sat on the mat", "auto");
+    store.remember(U1, "funes", "the mat sat on the cat", "auto");
 
     MemoryStore::ConsolidationOptions opt;
     opt.prune_after_days = -1;
@@ -338,7 +342,7 @@ int test_merge_keep_all_and_failure() {
     CHECK(kept.clusters_seen == 1);
     CHECK(kept.kept == 1);
     CHECK(kept.merged == 0);
-    CHECK(store.count("funes") == 2);
+    CHECK(store.count(U1, "funes") == 2);
 
     // A merge call that throws (LLM down mid-run) must leave the cluster
     // exactly as it was: no half-applied merge, no lost memory.
@@ -347,15 +351,15 @@ int test_merge_keep_all_and_failure() {
             throw std::runtime_error("LLM unavailable");
         }, opt);
     CHECK(failed.merged == 0);
-    CHECK(store.count("funes") == 2);
-    CHECK(store.recall("funes", "the cat sat on the mat", 1).size() == 1);
+    CHECK(store.count(U1, "funes") == 2);
+    CHECK(store.recall(U1, "funes", "the cat sat on the mat", 1).size() == 1);
 
     // And the run after recovery still works — nothing was left claimed or
     // locked by the failure.
     auto ok = store.consolidate(
         [](const std::vector<std::string>&) { return std::string("cats and mats, together"); }, opt);
     CHECK(ok.merged == 2);
-    CHECK(store.count("funes") == 1);
+    CHECK(store.count(U1, "funes") == 1);
     return 0;
 }
 
@@ -365,20 +369,20 @@ int test_consolidation_scoping() {
 
     // Identical text under two agents is not a duplicate: the same sentence
     // means different things in two agents' histories.
-    store.remember("funes", "the cat sat on the mat", "auto");
-    store.remember("operator", "the mat sat on the cat", "auto");
+    store.remember(U1, "funes", "the cat sat on the mat", "auto");
+    store.remember(U1, "operator", "the mat sat on the cat", "auto");
 
     MemoryStore::ConsolidationOptions opt;
     opt.prune_after_days = -1;
     auto report = store.consolidate(
         [](const std::vector<std::string>&) { return std::string("merged across agents"); }, opt);
     CHECK(report.clusters_seen == 0);
-    CHECK(store.count() == 2);
+    CHECK(store.count(U1) == 2);
 
     // max_clusters caps the LLM calls per run; the next run continues.
-    store.remember("funes", "the mat sat on the cat", "auto");
-    store.remember("funes", "alpha beta gamma", "auto");
-    store.remember("funes", "gamma beta alpha", "auto");
+    store.remember(U1, "funes", "the mat sat on the cat", "auto");
+    store.remember(U1, "funes", "alpha beta gamma", "auto");
+    store.remember(U1, "funes", "gamma beta alpha", "auto");
     opt.max_clusters = 1;
     int calls = 0;
     store.consolidate([&](const std::vector<std::string>&) {

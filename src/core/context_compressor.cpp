@@ -24,6 +24,7 @@ std::string build_transcript(const std::string& existing_summary,
 } // namespace
 
 CompressOutcome compress_oldest_half(MemoryStore& memory, LLMClient& llm,
+                                     int64_t user_id,
                                      const std::string& session, const std::string& agent,
                                      std::vector<ChatMessage>& recent, std::string& summary,
                                      int min_keep) {
@@ -63,8 +64,8 @@ CompressOutcome compress_oldest_half(MemoryStore& memory, LLMClient& llm,
     }
     if (new_summary.empty()) return out;
 
-    memory.set_summary(session, agent, new_summary);
-    memory.prune_turns(session, static_cast<int>(keep));
+    memory.set_summary(user_id, session, agent, new_summary);
+    memory.prune_turns(user_id, session, static_cast<int>(keep));
 
     recent.erase(recent.begin(), recent.begin() + fold_count);
     summary = new_summary;

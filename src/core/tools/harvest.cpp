@@ -646,7 +646,7 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
     for (size_t i = 0; i < kept.size(); ++i) {
         kept[i].id = static_cast<int>(i) + 1;
         try {
-            kept[i].result_id = memory.store_result(ctx.session, ctx.agent,
+            kept[i].result_id = memory.store_result(ctx.user_id, ctx.session, ctx.agent,
                                                     "harvest_candidates", kept[i].text);
         } catch (const std::exception& e) {
             // The excerpt is still in the pool, so the model can work without

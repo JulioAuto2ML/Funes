@@ -21,6 +21,10 @@ namespace fs = std::filesystem;
     } \
 } while (0)
 
+// The user every fixture below acts as. Multi-user isolation gets its
+// own explicit two-user tests; everything else just needs an owner.
+static constexpr int64_t U1 = 1;
+
 int test_estimate_tokens() {
     CHECK(estimate_tokens("") == 0);
     CHECK(estimate_tokens("abcd") == 1);       // 4 chars / 4
@@ -48,7 +52,7 @@ int test_no_op_below_min_keep() {
     std::string summary;
 
     LLMClient llm("http://localhost:1", "", "default", "openai");
-    CompressOutcome out = compress_oldest_half(store, llm, "s1", "funes", recent, summary, 4);
+    CompressOutcome out = compress_oldest_half(store, llm, U1, "s1", "funes", recent, summary, 4);
     CHECK(!out.compressed);
     CHECK(recent.size() == 1);  // untouched
     CHECK(summary.empty());
@@ -61,24 +65,24 @@ int test_prune_and_summary_storage() {
     MemoryStore store(db.string(), nullptr);
 
     for (int i = 0; i < 6; ++i) {
-        store.append_turn("s1", "funes", "user", "msg" + std::to_string(i));
-        store.append_turn("s1", "funes", "assistant", "reply" + std::to_string(i));
+        store.append_turn(U1, "s1", "funes", "user", "msg" + std::to_string(i));
+        store.append_turn(U1, "s1", "funes", "assistant", "reply" + std::to_string(i));
     }
-    CHECK(store.turn_count("s1") == 12);
+    CHECK(store.turn_count(U1, "s1") == 12);
 
-    store.prune_turns("s1", 4);
-    CHECK(store.turn_count("s1") == 4);
-    auto remaining = store.recent_turns("s1", 100);
+    store.prune_turns(U1, "s1", 4);
+    CHECK(store.turn_count(U1, "s1") == 4);
+    auto remaining = store.recent_turns(U1, "s1", 100);
     CHECK(remaining.size() == 4);
     // The most recent 4 turns survive, oldest first within that window.
     CHECK(remaining.front().content == "msg4");
     CHECK(remaining.back().content == "reply5");
 
-    CHECK(store.get_summary("s1").empty());
-    store.set_summary("s1", "funes", "first summary");
-    CHECK(store.get_summary("s1") == "first summary");
-    store.set_summary("s1", "funes", "replaced, not appended");
-    CHECK(store.get_summary("s1") == "replaced, not appended");
+    CHECK(store.get_summary(U1, "s1").empty());
+    store.set_summary(U1, "s1", "funes", "first summary");
+    CHECK(store.get_summary(U1, "s1") == "first summary");
+    store.set_summary(U1, "s1", "funes", "replaced, not appended");
+    CHECK(store.get_summary(U1, "s1") == "replaced, not appended");
     return 0;
 }
 

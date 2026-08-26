@@ -24,6 +24,10 @@ namespace fs = std::filesystem;
     } \
 } while (0)
 
+// The user every fixture below acts as. Multi-user isolation gets its
+// own explicit two-user tests; everything else just needs an owner.
+static constexpr int64_t U1 = 1;
+
 static std::string temp_db(const char* name) {
     fs::path p = fs::temp_directory_path() / (std::string("funes_test_") + name + ".db");
     fs::remove(p);
@@ -36,32 +40,32 @@ int test_store_and_isolation() {
     MemoryStore store(temp_db("results"), nullptr);
 
     const std::string big(5000, 'x');
-    int64_t id = store.store_result("s1", "funes", "web_fetch", big);
+    int64_t id = store.store_result(U1, "s1", "funes", "web_fetch", big);
     CHECK(id > 0);
 
-    auto got = store.get_result("s1", id);
+    auto got = store.get_result(U1, "s1", id);
     CHECK(got.has_value());
     CHECK(*got == big);
 
     // The session predicate is the isolation boundary: a valid id from another
     // conversation must be indistinguishable from a nonexistent one.
-    CHECK(!store.get_result("s2", id).has_value());
-    CHECK(!store.get_result("s1", id + 999).has_value());
+    CHECK(!store.get_result(U1, "s2", id).has_value());
+    CHECK(!store.get_result(U1, "s1", id + 999).has_value());
 
     // Independent per session.
-    int64_t other = store.store_result("s2", "funes", "read_file", "small");
+    int64_t other = store.store_result(U1, "s2", "funes", "read_file", "small");
     CHECK(other != id);
-    CHECK(store.get_result("s2", other).has_value());
+    CHECK(store.get_result(U1, "s2", other).has_value());
 
     // Pruning a session takes its results and nobody else's.
-    CHECK(store.prune_results("s1") == 1);
-    CHECK(!store.get_result("s1", id).has_value());
-    CHECK(store.get_result("s2", other).has_value());
+    CHECK(store.prune_results(U1, "s1") == 1);
+    CHECK(!store.get_result(U1, "s1", id).has_value());
+    CHECK(store.get_result(U1, "s2", other).has_value());
 
     // Age-based sweep: nothing is old enough yet, everything is at 0 days.
     CHECK(store.prune_results_older_than(7) == 0);
     CHECK(store.prune_results_older_than(0) == 1);
-    CHECK(!store.get_result("s2", other).has_value());
+    CHECK(!store.get_result(U1, "s2", other).has_value());
     return 0;
 }
 
@@ -133,7 +137,7 @@ int test_read_result_tool() {
     CHECK(reg.has("read_result"));
 
     const std::string text(10000, 'z');
-    const int64_t id = store.store_result("s1", "funes", "web_fetch", text);
+    const int64_t id = store.store_result(U1, "s1", "funes", "web_fetch", text);
 
     ToolContext ctx{"funes", "s1", ""};
     ToolResult r = reg.call("read_result", {{"id", id}}, ctx);

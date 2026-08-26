@@ -21,8 +21,8 @@ ToolResult compress_context_handler(MemoryStore& store, const AgentDefaults& def
     if (ctx.session.empty())
         return {"No active session to compress.", /*error=*/true};
 
-    std::string summary = store.get_summary(ctx.session);
-    std::vector<ChatMessage> recent = store.recent_turns(ctx.session, kMaxTurnsFetched);
+    std::string summary = store.get_summary(ctx.user_id, ctx.session);
+    std::vector<ChatMessage> recent = store.recent_turns(ctx.user_id, ctx.session, kMaxTurnsFetched);
 
     if (static_cast<int>(recent.size()) <= kManualMinKeep)
         return {"Nothing to compress yet — this conversation is still short."};
@@ -31,7 +31,7 @@ ToolResult compress_context_handler(MemoryStore& store, const AgentDefaults& def
                  defaults.llm_model.empty() ? "default" : defaults.llm_model,
                  defaults.llm_provider);
 
-    CompressOutcome result = compress_oldest_half(store, llm, ctx.session, ctx.agent,
+    CompressOutcome result = compress_oldest_half(store, llm, ctx.user_id, ctx.session, ctx.agent,
                                                   recent, summary, kManualMinKeep);
     if (!result.compressed)
         return {"Compression didn't produce a shorter summary — leaving the "

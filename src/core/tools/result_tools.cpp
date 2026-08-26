@@ -33,7 +33,7 @@ ToolResult read_result_handler(MemoryStore& store, const json& args, const ToolC
     // note afterwards — so the exemption in result_store.h does that instead.
     const size_t limit = std::min<size_t>(static_cast<size_t>(raw_limit), funes::kInlineLimit);
 
-    std::optional<std::string> text = store.get_result(ctx.session, id);
+    std::optional<std::string> text = store.get_result(ctx.user_id, ctx.session, id);
     if (!text)
         return {"No stored result with id " + std::to_string(id) +
                 " in this conversation. Result ids come from the previews of "

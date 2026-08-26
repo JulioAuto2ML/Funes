@@ -58,6 +58,7 @@ struct CompressOutcome {
 //
 // No-op (compressed=false) if `recent` already has `min_keep` or fewer turns.
 CompressOutcome compress_oldest_half(MemoryStore& memory, LLMClient& llm,
+                                     int64_t user_id,
                                      const std::string& session, const std::string& agent,
                                      std::vector<ChatMessage>& recent, std::string& summary,
                                      int min_keep = 4);

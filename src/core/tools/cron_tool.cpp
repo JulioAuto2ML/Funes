@@ -24,7 +24,7 @@ std::string format_epoch(int64_t t) {
 
 ToolResult schedule_job_handler(MemoryStore& memory,
                                 const std::function<AgentConfig(const std::string&)>& find_agent,
-                                const json& args, const ToolContext&) {
+                                const json& args, const ToolContext& ctx) {
     if (!args.contains("name") || !args["name"].is_string() || args["name"].get<std::string>().empty())
         return {"Missing 'name' argument", true};
     if (!args.contains("schedule") || !args["schedule"].is_string()
@@ -50,6 +50,10 @@ ToolResult schedule_job_handler(MemoryStore& memory,
     job.name     = name;
     job.kind     = kind;
     job.schedule = schedule;
+    // The job belongs to whoever scheduled it, and the runner will adopt this
+    // identity when it fires (see cron_runner.cpp) — otherwise a scheduled
+    // agent's remember() calls would land in nobody's memory pool.
+    job.user_id  = ctx.user_id;
 
     if (kind == "agent") {
         const std::string agent = args.value("agent", "");
@@ -76,8 +80,8 @@ ToolResult schedule_job_handler(MemoryStore& memory,
             "), schedule '" + schedule + "', next run " + format_epoch(job.next_run_at)};
 }
 
-ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext&) {
-    auto jobs = memory.list_cron_jobs();
+ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext& ctx) {
+    auto jobs = memory.list_cron_jobs(ctx.user_id);
     if (jobs.empty()) return {"No scheduled jobs."};
 
     std::ostringstream out;
@@ -97,11 +101,11 @@ ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext
     return {out.str()};
 }
 
-ToolResult cancel_job_handler(MemoryStore& memory, const json& args, const ToolContext&) {
+ToolResult cancel_job_handler(MemoryStore& memory, const json& args, const ToolContext& ctx) {
     if (!args.contains("id") || !args["id"].is_number_integer())
         return {"Missing 'id' argument", true};
     int64_t id = args["id"].get<int64_t>();
-    if (!memory.delete_cron_job(id))
+    if (!memory.delete_cron_job(ctx.user_id, id))
         return {"No job with id " + std::to_string(id), true};
     return {"Cancelled job #" + std::to_string(id)};
 }
@@ -109,10 +113,16 @@ ToolResult cancel_job_handler(MemoryStore& memory, const json& args, const ToolC
 ToolResult run_job_now_handler(MemoryStore& memory, ToolRegistry& tools,
                                const AgentDefaults& defaults, const std::string& workspace_dir,
                                const std::function<AgentConfig(const std::string&)>& find_agent,
-                               const json& args, const ToolContext&) {
+                               const json& args, const ToolContext& ctx) {
     if (!args.contains("id") || !args["id"].is_number_integer())
         return {"Missing 'id' argument", true};
     int64_t id = args["id"].get<int64_t>();
+
+    // Ownership is checked before the job runs, not inside the runner: firing
+    // someone else's job would execute their agent (or shell command) on
+    // demand, which is a bigger hole than merely reading it.
+    if (!memory.get_cron_job(ctx.user_id, id))
+        return {"No job with id " + std::to_string(id), true};
 
     auto [ok, output] = funes::cron::run_cron_job_now(memory, tools, defaults, workspace_dir,
                                                        find_agent, id);

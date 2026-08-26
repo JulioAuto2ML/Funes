@@ -298,7 +298,7 @@ int main(int argc, char** argv) {
               << ", model: " << defaults.llm_model << ")\n"
               << (defaults.vision_url.empty() ? ""
                   : "  Vision:    " + defaults.vision_url + "\n")
-              << "  Memory:    " << db_path << " (" << memory.count() << " memories, "
+              << "  Memory:    " << db_path << " (" << memory.count(-1) << " memories, "
               << (embedder ? "semantic" : "keyword-only") << ")\n"
               << "  Agents:    " << api.agent_count() << " from " << agents_dir << "\n"
               << "  Workspace: " << workspace_dir << " (shell "

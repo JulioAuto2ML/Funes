@@ -74,9 +74,17 @@ public:
     // doesn't show up as a separate turn in the visible conversation. The
     // specialist's own recall/remember tool calls are unaffected either way.
     //
+    // `user_id` is whose memories, history and stored results this run reads
+    // and writes. Required rather than defaulted: every caller genuinely
+    // knows who it is acting for — the API from the authenticated request,
+    // the cron runner from the job's owner, delegation from its caller — and
+    // a default would let a new call site silently write into the admin's
+    // pool instead of failing to compile.
+    //
     // Returns the final assistant text. Throws std::runtime_error on
     // unrecoverable LLM errors.
     std::string run(const std::string& user_message, const std::string& session,
+                    int64_t user_id,
                     const EventFn& emit = nullptr,
                     const std::vector<ImageAttachment>& images = {},
                     bool persist = true);

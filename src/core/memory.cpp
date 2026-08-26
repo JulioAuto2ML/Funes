@@ -193,27 +193,117 @@ void MemoryStore::migrate() {
     add_column_if_missing(db_, "memories", "recall_count", "INTEGER NOT NULL DEFAULT 0");
     add_column_if_missing(db_, "memories", "last_recalled_at", "TEXT");
 
+    // ── 4.0: multi-user ───────────────────────────────────────────────────────
+    // DEFAULT 1 attributes every pre-4.0 row to the admin account, which is
+    // what the single-user install becomes. See ADMIN_USER_ID in memory.h.
+    const char* const USER_ID_DECL = "INTEGER NOT NULL DEFAULT 1";
+    add_column_if_missing(db_, "memories",          "user_id", USER_ID_DECL);
+    add_column_if_missing(db_, "turns",             "user_id", USER_ID_DECL);
+    add_column_if_missing(db_, "session_summaries", "user_id", USER_ID_DECL);
+    add_column_if_missing(db_, "tool_results",      "user_id", USER_ID_DECL);
+    add_column_if_missing(db_, "cron_jobs",         "user_id", USER_ID_DECL);
+
+    // The pre-4.0 unique constraint was UNIQUE(agent, text), which would make
+    // one user storing a fact block every other user from storing it — and
+    // silently hand back the first user's row id. SQLite cannot alter a
+    // constraint in place, so the table is rebuilt. Guarded by a marker in
+    // `meta` rather than by inspecting the constraint, and wrapped in one
+    // transaction: a crash mid-rebuild must not leave the memories behind.
+    {
+        Stmt check(db_, "SELECT value FROM meta WHERE key='schema_user_scoped'");
+        const bool done = check.step();
+        if (!done) {
+            exec_or_throw(db_, R"sql(
+                BEGIN IMMEDIATE;
+                CREATE TABLE memories_new (
+                    id         INTEGER PRIMARY KEY,
+                    user_id    INTEGER NOT NULL DEFAULT 1,
+                    agent      TEXT NOT NULL,
+                    text       TEXT NOT NULL,
+                    source     TEXT NOT NULL DEFAULT 'auto',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    recall_count     INTEGER NOT NULL DEFAULT 0,
+                    last_recalled_at TEXT,
+                    UNIQUE(user_id, agent, text)
+                );
+                INSERT INTO memories_new
+                    (id, user_id, agent, text, source, created_at,
+                     recall_count, last_recalled_at)
+                SELECT id, user_id, agent, text, source, created_at,
+                       recall_count, last_recalled_at
+                FROM memories;
+                DROP TABLE memories;
+                ALTER TABLE memories_new RENAME TO memories;
+                CREATE INDEX IF NOT EXISTS idx_memories_user_agent
+                    ON memories(user_id, agent, id DESC);
+                INSERT INTO meta(key, value) VALUES('schema_user_scoped', '1');
+                COMMIT;
+            )sql");
+            std::cerr << "[memory] migrated to per-user memory scoping\n";
+        }
+    }
+
+    // Indexes for the new predicates. The old single-column ones are left in
+    // place; SQLite picks whichever is cheaper and dropping them buys nothing.
+    exec_or_throw(db_, R"sql(
+        CREATE INDEX IF NOT EXISTS idx_turns_user_session
+            ON turns(user_id, session, id);
+        CREATE INDEX IF NOT EXISTS idx_tool_results_user_session
+            ON tool_results(user_id, session);
+    )sql");
+
     // Restore the vec table dimension recorded by a previous run.
-    Stmt s(db_, "SELECT value FROM meta WHERE key='embed_dim'");
-    if (s.step())
-        dim_ = std::stoi(s.col_text(0));
+    {
+        Stmt s(db_, "SELECT value FROM meta WHERE key='embed_dim'");
+        if (s.step())
+            dim_ = std::stoi(s.col_text(0));
+    }
+
+    // Rebuild the vector index here rather than waiting for the next write.
+    // ensure_vec_table is otherwise only reached through insert_vector, but a
+    // recall can come first — and recall_semantic's query names v.user_id,
+    // which a pre-4.0 vec table does not have. That is a failed prepare, not a
+    // graceful degradation: the statement throws and takes the agent run with
+    // it. Reproduced against a copy of a real 3.x database before shipping.
+    if (dim_ != 0) ensure_vec_table(dim_);
 }
 
 void MemoryStore::ensure_vec_table(int dim) {
-    if (dim_ == dim) return;
+    // The 4.0 vec table adds a user_id partition key. A pre-4.0 table has the
+    // right dimension but the wrong shape, so the dimension check alone would
+    // keep it forever — hence the separate marker.
+    Stmt marker(db_, "SELECT value FROM meta WHERE key='vec_partitioned'");
+    const bool partitioned = marker.step();
 
-    if (dim_ != 0) {
+    if (dim_ == dim && partitioned) return;
+
+    if (dim_ != 0 && dim_ != dim) {
         std::cerr << "[memory] embedding dimension changed " << dim_ << " → " << dim
                   << "; rebuilding vector index (memory texts are preserved)\n";
         exec_or_throw(db_, "DROP TABLE IF EXISTS vec_memories;");
+    } else if (!partitioned) {
+        std::cerr << "[memory] rebuilding vector index with per-user partitioning "
+                     "(memory texts are preserved; vectors refill in the background)\n";
+        exec_or_throw(db_, "DROP TABLE IF EXISTS vec_memories;");
     }
 
+    // user_id is a PARTITION KEY, not an ordinary column: vec0 refuses to
+    // combine MATCH with an arbitrary WHERE clause, but a partition key it
+    // will — and it prunes whole partitions rather than filtering after the
+    // fact. That distinction is the whole point here. Post-filtering a shared
+    // KNN result, which is what recall_semantic did when there was only one
+    // user, silently degrades as users are added: the k*8 candidate pool is
+    // drawn from everybody, so a busy account can crowd a quiet one out of
+    // its own top-k and recall just quietly gets worse.
     const std::string ddl =
         "CREATE VIRTUAL TABLE IF NOT EXISTS vec_memories USING vec0("
         "  memory_id INTEGER PRIMARY KEY,"
+        "  user_id INTEGER PARTITION KEY,"
         "  embedding float[" + std::to_string(dim) + "] distance_metric=cosine"
         ");";
     exec_or_throw(db_, ddl.c_str());
+    exec_or_throw(db_,
+        "INSERT OR REPLACE INTO meta(key, value) VALUES('vec_partitioned', '1');");
 
     Stmt s(db_, "INSERT OR REPLACE INTO meta(key, value) VALUES('embed_dim', ?)");
     s.bind_text(1, std::to_string(dim));
@@ -238,20 +328,37 @@ bool MemoryStore::try_embed(const std::string& text, std::vector<float>& out) {
     }
 }
 
-void MemoryStore::insert_vector(int64_t memory_id, const std::vector<float>& vec) {
+void MemoryStore::insert_vector(int64_t user_id, int64_t memory_id,
+                                const std::vector<float>& vec) {
     ensure_vec_table(static_cast<int>(vec.size()));
-    Stmt s(db_, "INSERT OR REPLACE INTO vec_memories(memory_id, embedding) VALUES(?, ?)");
+    // DELETE then INSERT, not INSERT OR REPLACE: a vec0 table with a PARTITION
+    // KEY rejects the replace with "UNIQUE constraint failed on v primary key"
+    // when the row already exists. The only caller that hits an existing row
+    // is consolidation re-vectorising a merged memory, so the symptom was a
+    // merged memory silently losing its embedding — recall quietly dropping
+    // to keyword for exactly the rows consolidation had just decided were the
+    // important ones. Verified against sqlite-vec directly.
+    {
+        Stmt del(db_, "DELETE FROM vec_memories WHERE memory_id = ?");
+        del.bind_int64(1, memory_id);
+        del.step();
+    }
+    Stmt s(db_, "INSERT INTO vec_memories(memory_id, user_id, embedding) "
+                "VALUES(?, ?, ?)");
     s.bind_int64(1, memory_id);
-    s.bind_blob(2, vec.data(), vec.size() * sizeof(float));
+    s.bind_int64(2, user_id);
+    s.bind_blob(3, vec.data(), vec.size() * sizeof(float));
     s.step();
 }
 
 // ── long-term memory ──────────────────────────────────────────────────────────
 
-int64_t MemoryStore::remember(const std::string& agent, const std::string& text,
-                              const std::string& source) {
+int64_t MemoryStore::remember(int64_t user_id, const std::string& agent,
+                              const std::string& text, const std::string& source) {
     if (agent.empty() || text.empty())
         throw std::runtime_error("remember: agent and text must be non-empty");
+    if (user_id <= 0)
+        throw std::runtime_error("remember: a valid user_id is required");
 
     std::vector<float> vec;
     const bool have_vec = try_embed(text, vec);  // network call outside the lock
@@ -259,25 +366,28 @@ int64_t MemoryStore::remember(const std::string& agent, const std::string& text,
     std::lock_guard<std::mutex> lock(mu_);
 
     {
-        Stmt s(db_, "INSERT OR IGNORE INTO memories(agent, text, source) VALUES(?,?,?)");
-        s.bind_text(1, agent);
-        s.bind_text(2, text);
-        s.bind_text(3, source);
+        Stmt s(db_, "INSERT OR IGNORE INTO memories(user_id, agent, text, source) "
+                    "VALUES(?,?,?,?)");
+        s.bind_int64(1, user_id);
+        s.bind_text(2, agent);
+        s.bind_text(3, text);
+        s.bind_text(4, source);
         s.step();
     }
 
     int64_t id = sqlite3_last_insert_rowid(db_);
     if (sqlite3_changes(db_) == 0) {
-        // Duplicate (agent, text): fetch the existing row's id.
-        Stmt s(db_, "SELECT id FROM memories WHERE agent=? AND text=?");
-        s.bind_text(1, agent);
-        s.bind_text(2, text);
+        // Duplicate (user_id, agent, text): fetch this user's existing row.
+        Stmt s(db_, "SELECT id FROM memories WHERE user_id=? AND agent=? AND text=?");
+        s.bind_int64(1, user_id);
+        s.bind_text(2, agent);
+        s.bind_text(3, text);
         if (s.step()) id = s.col_int64(0);
         return id;  // vector already present (or backfill will handle it)
     }
 
     if (have_vec) {
-        try { insert_vector(id, vec); }
+        try { insert_vector(user_id, id, vec); }
         catch (const std::exception& e) {
             std::cerr << "[memory] vector insert failed for memory " << id
                       << ": " << e.what() << "\n";
@@ -286,29 +396,30 @@ int64_t MemoryStore::remember(const std::string& agent, const std::string& text,
     return id;
 }
 
-std::vector<MemoryStore::Memory> MemoryStore::recall(const std::string& agent,
+std::vector<MemoryStore::Memory> MemoryStore::recall(int64_t user_id,
+                                                     const std::string& agent,
                                                      const std::string& query, int k,
                                                      bool touch) {
-    if (query.empty() || k <= 0) return {};
+    if (query.empty() || k <= 0 || user_id <= 0) return {};
 
     std::vector<float> qvec;
     if (try_embed(query, qvec)) {
         std::lock_guard<std::mutex> lock(mu_);
         if (dim_ == static_cast<int>(qvec.size())) {
-            auto results = recall_semantic(agent, qvec, k);
+            auto results = recall_semantic(user_id, agent, qvec, k);
             if (!results.empty()) {
                 if (touch) touch_recalled(results);
                 return results;
             }
         }
         // No vec table yet, dimension mismatch, or empty index → keyword.
-        auto results = recall_keyword(agent, query, k);
+        auto results = recall_keyword(user_id, agent, query, k);
         if (touch) touch_recalled(results);
         return results;
     }
 
     std::lock_guard<std::mutex> lock(mu_);
-    auto results = recall_keyword(agent, query, k);
+    auto results = recall_keyword(user_id, agent, query, k);
     if (touch) touch_recalled(results);
     return results;
 }
@@ -343,28 +454,41 @@ double MemoryStore::source_weight(const std::string& source) {
 }
 
 std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
-    const std::string& agent, const std::vector<float>& qvec, int k) {
-    // KNN over all agents, then filter — vec0 MATCH cannot combine with
-    // arbitrary WHERE clauses. Over-fetch to survive the filter *and* to give
-    // source-weighted re-ranking below a real candidate pool to work with —
-    // stopping accumulation at exactly k, in raw-similarity order, would
-    // fetch the pool but never let a lower-similarity/higher-weight memory
-    // displace anything.
+    int64_t user_id, const std::string& agent, const std::vector<float>& qvec, int k) {
+    // The user_id predicate is a vec0 PARTITION KEY (see ensure_vec_table), so
+    // unlike an ordinary column it *can* sit alongside MATCH — the KNN runs
+    // inside this user's partition instead of across everybody's and being
+    // filtered afterwards. That keeps the candidate pool below a per-user
+    // budget rather than a shared one, which is what stops recall quality
+    // decaying as accounts are added.
+    //
+    // The agent filter is still applied after the fact (agent is not a
+    // partition key), so the over-fetch stays: it has to survive that filter
+    // *and* give source-weighted re-ranking a real pool to work with —
+    // stopping at exactly k in raw-similarity order would fetch the pool but
+    // never let a lower-similarity/higher-weight memory displace anything.
     const int fetch_k = k * 8;
 
     Stmt s(db_, R"sql(
-        SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance, m.recall_count
+        SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance,
+               m.recall_count, m.user_id
         FROM vec_memories v
         JOIN memories m ON m.id = v.memory_id
-        WHERE v.embedding MATCH ? AND v.k = ?
+        WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = ?
         ORDER BY v.distance
     )sql");
-    s.bind_blob(1, qvec.data(), qvec.size() * sizeof(float));
-    s.bind_int64(2, fetch_k);
+    s.bind_int64(1, user_id);
+    s.bind_blob(2, qvec.data(), qvec.size() * sizeof(float));
+    s.bind_int64(3, fetch_k);
 
     std::vector<Memory> out;
     while (s.step()) {
         if (!agent.empty() && s.col_text(1) != agent) continue;
+        // Belt and braces: the partition key already scoped the KNN, but the
+        // join could still surface a row whose vector was written under the
+        // wrong partition by an older build. Cross-user leakage is the one
+        // failure here that must not be possible.
+        if (s.col_int64(7) != user_id) continue;
         Memory m;
         m.id         = s.col_int64(0);
         m.agent      = s.col_text(1);
@@ -374,6 +498,7 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
         double similarity = 1.0 - s.col_double(5);  // cosine distance → similarity
         m.score         = similarity * source_weight(m.source);
         m.recall_count  = s.col_int64(6);
+        m.user_id       = s.col_int64(7);
         out.push_back(std::move(m));
     }
 
@@ -384,15 +509,16 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
 }
 
 std::vector<MemoryStore::Memory> MemoryStore::recall_keyword(
-    const std::string& agent, const std::string& query, int k) {
+    int64_t user_id, const std::string& agent, const std::string& query, int k) {
     std::string sql =
-        "SELECT id, agent, text, source, created_at, recall_count FROM memories "
-        "WHERE text LIKE ? ESCAPE '\\'";
+        "SELECT id, agent, text, source, created_at, recall_count, user_id FROM memories "
+        "WHERE user_id = ? AND text LIKE ? ESCAPE '\\'";
     if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ?";
 
     Stmt s(db_, sql.c_str());
     int i = 1;
+    s.bind_int64(i++, user_id);
     s.bind_text(i++, like_pattern(query));
     if (!agent.empty()) s.bind_text(i++, agent);
     s.bind_int64(i, k);
@@ -406,21 +532,25 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_keyword(
         m.source       = s.col_text(3);
         m.created_at   = s.col_text(4);
         m.recall_count = s.col_int64(5);
+        m.user_id      = s.col_int64(6);
         out.push_back(std::move(m));
     }
     return out;
 }
 
-std::vector<MemoryStore::Memory> MemoryStore::list(const std::string& agent,
+std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
+                                                   const std::string& agent,
                                                    int limit, int offset) {
     std::lock_guard<std::mutex> lock(mu_);
 
-    std::string sql = "SELECT id, agent, text, source, created_at, recall_count FROM memories";
-    if (!agent.empty()) sql += " WHERE agent = ?";
+    std::string sql = "SELECT id, agent, text, source, created_at, recall_count, user_id "
+                      "FROM memories WHERE user_id = ?";
+    if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ? OFFSET ?";
 
     Stmt s(db_, sql.c_str());
     int i = 1;
+    s.bind_int64(i++, user_id);
     if (!agent.empty()) s.bind_text(i++, agent);
     s.bind_int64(i++, limit);
     s.bind_int64(i, offset);
@@ -434,65 +564,88 @@ std::vector<MemoryStore::Memory> MemoryStore::list(const std::string& agent,
         m.source       = s.col_text(3);
         m.created_at   = s.col_text(4);
         m.recall_count = s.col_int64(5);
+        m.user_id      = s.col_int64(6);
         out.push_back(std::move(m));
     }
     return out;
 }
 
-bool MemoryStore::forget(int64_t id) {
+bool MemoryStore::forget(int64_t user_id, int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
-    if (dim_ != 0) {
+    // The ownership predicate is on the DELETE itself rather than a SELECT
+    // first: a check-then-act would be a race, and this way "not yours" and
+    // "not there" are the same zero-rows-changed result the caller reports as
+    // 404 — so the endpoint can't be used to probe which ids exist.
+    Stmt s(db_, "DELETE FROM memories WHERE id = ? AND user_id = ?");
+    s.bind_int64(1, id);
+    s.bind_int64(2, user_id);
+    s.step();
+    const bool deleted = sqlite3_changes(db_) > 0;
+
+    // Only drop the vector once the row it belongs to is confirmed gone —
+    // otherwise a delete aimed at someone else's memory would still strip
+    // their embedding and silently downgrade them to keyword recall.
+    if (deleted && dim_ != 0) {
         Stmt v(db_, "DELETE FROM vec_memories WHERE memory_id = ?");
         v.bind_int64(1, id);
         v.step();
     }
-    Stmt s(db_, "DELETE FROM memories WHERE id = ?");
-    s.bind_int64(1, id);
-    s.step();
-    return sqlite3_changes(db_) > 0;
+    return deleted;
 }
 
-int64_t MemoryStore::count(const std::string& agent) {
+int64_t MemoryStore::count(int64_t user_id, const std::string& agent) {
     std::lock_guard<std::mutex> lock(mu_);
-    if (agent.empty()) {
-        Stmt s(db_, "SELECT COUNT(*) FROM memories");
-        s.step();
-        return s.col_int64(0);
-    }
-    Stmt s(db_, "SELECT COUNT(*) FROM memories WHERE agent = ?");
-    s.bind_text(1, agent);
+    std::string sql = "SELECT COUNT(*) FROM memories WHERE 1=1";
+    if (user_id >= 0)       sql += " AND user_id = ?";
+    if (!agent.empty())     sql += " AND agent = ?";
+    Stmt s(db_, sql.c_str());
+    int i = 1;
+    if (user_id >= 0)   s.bind_int64(i++, user_id);
+    if (!agent.empty()) s.bind_text(i, agent);
     s.step();
     return s.col_int64(0);
+}
+
+std::vector<int64_t> MemoryStore::user_ids_with_memories() {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT DISTINCT user_id FROM memories ORDER BY user_id");
+    std::vector<int64_t> out;
+    while (s.step()) out.push_back(s.col_int64(0));
+    return out;
 }
 
 size_t MemoryStore::backfill_embeddings(size_t max_items) {
     if (!embedder_) return 0;
 
-    // Collect candidates under the lock, embed outside it.
-    std::vector<std::pair<int64_t, std::string>> missing;
+    // Collect candidates under the lock, embed outside it. user_id travels
+    // with each row so the vector lands in its owner's partition — a backfill
+    // that guessed would quietly file everyone's vectors under one user and
+    // make recall miss for the rest.
+    struct Pending { int64_t id; int64_t user_id; std::string text; };
+    std::vector<Pending> missing;
     {
         std::lock_guard<std::mutex> lock(mu_);
         std::string sql = (dim_ == 0)
-            ? "SELECT id, text FROM memories ORDER BY id LIMIT ?"
-            : "SELECT m.id, m.text FROM memories m "
+            ? "SELECT id, user_id, text FROM memories ORDER BY id LIMIT ?"
+            : "SELECT m.id, m.user_id, m.text FROM memories m "
               "LEFT JOIN vec_memories v ON v.memory_id = m.id "
               "WHERE v.memory_id IS NULL ORDER BY m.id LIMIT ?";
         Stmt s(db_, sql.c_str());
         s.bind_int64(1, static_cast<int64_t>(max_items));
         while (s.step())
-            missing.emplace_back(s.col_int64(0), s.col_text(1));
+            missing.push_back({s.col_int64(0), s.col_int64(1), s.col_text(2)});
     }
 
     size_t done = 0;
-    for (const auto& [id, text] : missing) {
+    for (const auto& p : missing) {
         std::vector<float> vec;
-        if (!try_embed(text, vec)) break;  // endpoint down — stop, retry later
+        if (!try_embed(p.text, vec)) break;  // endpoint down — stop, retry later
         std::lock_guard<std::mutex> lock(mu_);
         try {
-            insert_vector(id, vec);
+            insert_vector(p.user_id, p.id, vec);
             ++done;
         } catch (const std::exception& e) {
-            std::cerr << "[memory] backfill failed for memory " << id
+            std::cerr << "[memory] backfill failed for memory " << p.id
                       << ": " << e.what() << "\n";
             break;
         }
@@ -514,13 +667,16 @@ int MemoryStore::prune_stale(const ConsolidationOptions& opt) {
     std::string sql =
         "SELECT id FROM memories WHERE source = 'auto' AND recall_count = 0 "
         "AND created_at <= datetime('now', ?)";   // <= so days=0 means "any age"
+    if (opt.user_id >= 0)   sql += " AND user_id = ?";
     if (!opt.agent.empty()) sql += " AND agent = ?";
 
     std::vector<int64_t> ids;
     {
         Stmt s(db_, sql.c_str());
-        s.bind_text(1, "-" + std::to_string(opt.prune_after_days) + " days");
-        if (!opt.agent.empty()) s.bind_text(2, opt.agent);
+        int i = 1;
+        s.bind_text(i++, "-" + std::to_string(opt.prune_after_days) + " days");
+        if (opt.user_id >= 0)   s.bind_int64(i++, opt.user_id);
+        if (!opt.agent.empty()) s.bind_text(i, opt.agent);
         while (s.step()) ids.push_back(s.col_int64(0));
     }
     if (ids.empty()) return 0;
@@ -543,6 +699,23 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
     const MergeFn& merge, const ConsolidationOptions& opt) {
     ConsolidationReport report;
 
+    // Consolidating "every user" means consolidating each user's pool in turn,
+    // never one pool spanning accounts: two people stating the same fact are
+    // two facts, and handing both to the model would write one person's
+    // wording into the other's memory.
+    if (opt.user_id < 0) {
+        for (int64_t uid : user_ids_with_memories()) {
+            ConsolidationOptions per_user = opt;
+            per_user.user_id = uid;
+            ConsolidationReport r = consolidate(merge, per_user);
+            report.clusters_seen += r.clusters_seen;
+            report.merged       += r.merged;
+            report.pruned       += r.pruned;
+            report.kept         += r.kept;
+        }
+        return report;
+    }
+
     // Step 1 — near-duplicate merge. Needs vectors: in keyword-only mode there
     // is nothing to cluster on, so this is skipped and only the prune runs.
     if (merge && semantic_available() && dim_ != 0) {
@@ -550,11 +723,13 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
         {
             std::lock_guard<std::mutex> lock(mu_);
             std::string sql = "SELECT m.id FROM memories m "
-                              "JOIN vec_memories v ON v.memory_id = m.id";
-            if (!opt.agent.empty()) sql += " WHERE m.agent = ?";
+                              "JOIN vec_memories v ON v.memory_id = m.id "
+                              "WHERE m.user_id = ?";
+            if (!opt.agent.empty()) sql += " AND m.agent = ?";
             sql += " ORDER BY m.id";
             Stmt s(db_, sql.c_str());
-            if (!opt.agent.empty()) s.bind_text(1, opt.agent);
+            s.bind_int64(1, opt.user_id);
+            if (!opt.agent.empty()) s.bind_text(2, opt.agent);
             while (s.step()) candidates.push_back(s.col_int64(0));
         }
 
@@ -580,10 +755,11 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                     SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance
                     FROM vec_memories v
                     JOIN memories m ON m.id = v.memory_id
-                    WHERE v.embedding MATCH ? AND v.k = 8
+                    WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = 8
                     ORDER BY v.distance
                 )sql");
-                s.bind_blob(1, vec.data(), vec.size() * sizeof(float));
+                s.bind_int64(1, opt.user_id);
+                s.bind_blob(2, vec.data(), vec.size() * sizeof(float));
 
                 std::string seed_agent;
                 while (s.step()) {
@@ -635,18 +811,21 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                 exec_or_throw(db_, "BEGIN IMMEDIATE");
                 int64_t new_id = 0;
                 {
-                    Stmt s(db_, "INSERT OR IGNORE INTO memories(agent, text, source) "
-                                "VALUES(?,?,'consolidated')");
-                    s.bind_text(1, cluster.front().agent);
-                    s.bind_text(2, merged);
+                    Stmt s(db_, "INSERT OR IGNORE INTO memories(user_id, agent, text, source) "
+                                "VALUES(?,?,?,'consolidated')");
+                    s.bind_int64(1, opt.user_id);
+                    s.bind_text(2, cluster.front().agent);
+                    s.bind_text(3, merged);
                     s.step();
                     new_id = sqlite3_last_insert_rowid(db_);
                     if (sqlite3_changes(db_) == 0) {
                         // The merged sentence already exists verbatim: keep the
                         // existing row and still drop the originals.
-                        Stmt e(db_, "SELECT id FROM memories WHERE agent=? AND text=?");
-                        e.bind_text(1, cluster.front().agent);
-                        e.bind_text(2, merged);
+                        Stmt e(db_, "SELECT id FROM memories WHERE user_id=? AND agent=? "
+                                    "AND text=?");
+                        e.bind_int64(1, opt.user_id);
+                        e.bind_text(2, cluster.front().agent);
+                        e.bind_text(3, merged);
                         if (e.step()) new_id = e.col_int64(0);
                     }
                 }
@@ -666,7 +845,7 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                 // recoverable (backfill_embeddings picks it up), a half-applied
                 // merge is not.
                 if (have_vec) {
-                    try { insert_vector(new_id, merged_vec); }
+                    try { insert_vector(opt.user_id, new_id, merged_vec); }
                     catch (const std::exception& e) {
                         std::cerr << "[memory] merged-vector insert failed for " << new_id
                                   << ": " << e.what() << "\n";
@@ -686,33 +865,44 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
 
 // ── tool results ──────────────────────────────────────────────────────────────
 
-int64_t MemoryStore::store_result(const std::string& session, const std::string& agent,
-                                  const std::string& tool, const std::string& text) {
+int64_t MemoryStore::store_result(int64_t user_id, const std::string& session,
+                                  const std::string& agent, const std::string& tool,
+                                  const std::string& text) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "INSERT INTO tool_results(session, agent, tool, text) VALUES(?,?,?,?)");
-    s.bind_text(1, session);
-    s.bind_text(2, agent);
-    s.bind_text(3, tool);
-    s.bind_text(4, text);
+    Stmt s(db_, "INSERT INTO tool_results(user_id, session, agent, tool, text) "
+                "VALUES(?,?,?,?,?)");
+    s.bind_int64(1, user_id);
+    s.bind_text(2, session);
+    s.bind_text(3, agent);
+    s.bind_text(4, tool);
+    s.bind_text(5, text);
     s.step();
     return sqlite3_last_insert_rowid(db_);
 }
 
-std::optional<std::string> MemoryStore::get_result(const std::string& session, int64_t id) {
+std::optional<std::string> MemoryStore::get_result(int64_t user_id,
+                                                   const std::string& session,
+                                                   int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
-    // The session predicate is the isolation boundary, not an optimisation:
-    // a result id from another conversation must read as "not found".
-    Stmt s(db_, "SELECT text FROM tool_results WHERE id = ? AND session = ?");
+    // Both predicates are isolation boundaries, not optimisations: a result id
+    // from another conversation must read as "not found", and so must one from
+    // another account. Session alone was enough while there was one user;
+    // session ids are client-supplied strings, so two accounts can hold the
+    // same one.
+    Stmt s(db_, "SELECT text FROM tool_results WHERE id = ? AND session = ? "
+                "AND user_id = ?");
     s.bind_int64(1, id);
     s.bind_text(2, session);
+    s.bind_int64(3, user_id);
     if (!s.step()) return std::nullopt;
     return s.col_text(0);
 }
 
-int MemoryStore::prune_results(const std::string& session) {
+int MemoryStore::prune_results(int64_t user_id, const std::string& session) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "DELETE FROM tool_results WHERE session = ?");
+    Stmt s(db_, "DELETE FROM tool_results WHERE session = ? AND user_id = ?");
     s.bind_text(1, session);
+    s.bind_int64(2, user_id);
     s.step();
     return sqlite3_changes(db_);
 }
@@ -730,28 +920,33 @@ int MemoryStore::prune_results_older_than(int days) {
 
 // ── conversation history ──────────────────────────────────────────────────────
 
-void MemoryStore::append_turn(const std::string& session, const std::string& agent,
-                              const std::string& role, const std::string& content) {
+void MemoryStore::append_turn(int64_t user_id, const std::string& session,
+                              const std::string& agent, const std::string& role,
+                              const std::string& content) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "INSERT INTO turns(session, agent, role, content) VALUES(?,?,?,?)");
-    s.bind_text(1, session);
-    s.bind_text(2, agent);
-    s.bind_text(3, role);
-    s.bind_text(4, content);
+    Stmt s(db_, "INSERT INTO turns(user_id, session, agent, role, content) "
+                "VALUES(?,?,?,?,?)");
+    s.bind_int64(1, user_id);
+    s.bind_text(2, session);
+    s.bind_text(3, agent);
+    s.bind_text(4, role);
+    s.bind_text(5, content);
     s.step();
 }
 
-std::vector<ChatMessage> MemoryStore::recent_turns(const std::string& session, int n) {
+std::vector<ChatMessage> MemoryStore::recent_turns(int64_t user_id,
+                                                   const std::string& session, int n) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, R"sql(
         SELECT role, content FROM (
             SELECT id, role, content FROM turns
-            WHERE session = ? AND role IN ('user','assistant')
+            WHERE user_id = ? AND session = ? AND role IN ('user','assistant')
             ORDER BY id DESC LIMIT ?
         ) ORDER BY id ASC
     )sql");
-    s.bind_text(1, session);
-    s.bind_int64(2, n);
+    s.bind_int64(1, user_id);
+    s.bind_text(2, session);
+    s.bind_int64(3, n);
 
     std::vector<ChatMessage> out;
     while (s.step()) {
@@ -763,72 +958,89 @@ std::vector<ChatMessage> MemoryStore::recent_turns(const std::string& session, i
     return out;
 }
 
-int64_t MemoryStore::turn_count(const std::string& session) {
+int64_t MemoryStore::turn_count(int64_t user_id, const std::string& session) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "SELECT COUNT(*) FROM turns WHERE session = ? AND role IN ('user','assistant')");
-    s.bind_text(1, session);
+    Stmt s(db_, "SELECT COUNT(*) FROM turns WHERE user_id = ? AND session = ? "
+                "AND role IN ('user','assistant')");
+    s.bind_int64(1, user_id);
+    s.bind_text(2, session);
     s.step();
     return s.col_int64(0);
 }
 
-void MemoryStore::prune_turns(const std::string& session, int keep) {
+void MemoryStore::prune_turns(int64_t user_id, const std::string& session, int keep) {
     if (keep < 0) keep = 0;
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, R"sql(
-        DELETE FROM turns WHERE session = ? AND id NOT IN (
-            SELECT id FROM turns WHERE session = ? ORDER BY id DESC LIMIT ?
+        DELETE FROM turns WHERE user_id = ? AND session = ? AND id NOT IN (
+            SELECT id FROM turns WHERE user_id = ? AND session = ?
+            ORDER BY id DESC LIMIT ?
         )
     )sql");
-    s.bind_text(1, session);
+    s.bind_int64(1, user_id);
     s.bind_text(2, session);
-    s.bind_int64(3, keep);
+    s.bind_int64(3, user_id);
+    s.bind_text(4, session);
+    s.bind_int64(5, keep);
     s.step();
 }
 
 // ── rolling summary ───────────────────────────────────────────────────────────
 
-std::string MemoryStore::get_summary(const std::string& session) {
+std::string MemoryStore::get_summary(int64_t user_id, const std::string& session) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "SELECT summary FROM session_summaries WHERE session = ?");
+    Stmt s(db_, "SELECT summary FROM session_summaries WHERE session = ? AND user_id = ?");
     s.bind_text(1, session);
+    s.bind_int64(2, user_id);
     return s.step() ? s.col_text(0) : "";
 }
 
-void MemoryStore::set_summary(const std::string& session, const std::string& agent,
-                              const std::string& summary) {
+void MemoryStore::set_summary(int64_t user_id, const std::string& session,
+                              const std::string& agent, const std::string& summary) {
     std::lock_guard<std::mutex> lock(mu_);
+    // The ON CONFLICT target is still `session` alone, because that is the
+    // table's primary key and SQLite requires the target to match a unique
+    // index. The user_id predicate on the UPDATE arm is what keeps one
+    // account from overwriting another's summary if they pick the same
+    // session id: a conflicting row belonging to someone else updates zero
+    // rows rather than theirs.
     Stmt s(db_, R"sql(
-        INSERT INTO session_summaries(session, agent, summary, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
+        INSERT INTO session_summaries(session, user_id, agent, summary, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
         ON CONFLICT(session) DO UPDATE SET
             summary = excluded.summary, updated_at = excluded.updated_at
+        WHERE session_summaries.user_id = excluded.user_id
     )sql");
     s.bind_text(1, session);
-    s.bind_text(2, agent);
-    s.bind_text(3, summary);
+    s.bind_int64(2, user_id);
+    s.bind_text(3, agent);
+    s.bind_text(4, summary);
     s.step();
 }
 
 // ── sessions ───────────────────────────────────────────────────────────────────
 
-std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int limit) {
+std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int64_t user_id,
+                                                                    int limit) {
     std::lock_guard<std::mutex> lock(mu_);
 
     Stmt s(db_, R"sql(
         SELECT g.session, g.last_at, g.cnt,
                (SELECT content FROM turns
-                WHERE session = g.session AND role = 'user'
+                WHERE session = g.session AND user_id = ? AND role = 'user'
                 ORDER BY id ASC LIMIT 1) AS preview
         FROM (
             SELECT session, MAX(created_at) AS last_at, MAX(id) AS last_id, COUNT(*) AS cnt
             FROM turns
-            WHERE role IN ('user', 'assistant')
+            WHERE user_id = ? AND role IN ('user', 'assistant')
             GROUP BY session
         ) g
         ORDER BY g.last_at DESC, g.last_id DESC
         LIMIT ?
     )sql");
-    s.bind_int64(1, limit);
+    s.bind_int64(1, user_id);
+    s.bind_int64(2, user_id);
+    s.bind_int64(3, limit);
 
     constexpr size_t kMaxPreviewBytes = 120;
     std::vector<SessionSummary> out;
@@ -865,12 +1077,13 @@ MemoryStore::CronJob cron_job_from_row(Stmt& s) {
     job.last_run_at = s.col_int64(9);
     job.last_status = s.col_text(10);
     job.last_output = s.col_text(11);
+    job.user_id     = s.col_int64(12);
     return job;
 }
 
 constexpr const char* kCronJobColumns =
     "id, name, kind, agent, task, command, schedule, running, "
-    "next_run_at, last_run_at, last_status, last_output";
+    "next_run_at, last_run_at, last_status, last_output, user_id";
 
 } // namespace
 
@@ -878,8 +1091,8 @@ int64_t MemoryStore::create_cron_job(const CronJob& job) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, R"sql(
         INSERT INTO cron_jobs(name, kind, agent, task, command, schedule,
-                              created_at, next_run_at)
-        VALUES (?,?,?,?,?,?,strftime('%s','now'),?)
+                              created_at, next_run_at, user_id)
+        VALUES (?,?,?,?,?,?,strftime('%s','now'),?,?)
     )sql");
     s.bind_text(1, job.name);
     s.bind_text(2, job.kind);
@@ -888,23 +1101,33 @@ int64_t MemoryStore::create_cron_job(const CronJob& job) {
     s.bind_text(5, job.command);
     s.bind_text(6, job.schedule);
     s.bind_int64(7, job.next_run_at);
+    s.bind_int64(8, job.user_id);
     s.step();
     return sqlite3_last_insert_rowid(db_);
 }
 
-std::vector<MemoryStore::CronJob> MemoryStore::list_cron_jobs() {
+std::vector<MemoryStore::CronJob> MemoryStore::list_cron_jobs(int64_t user_id) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +
-                " FROM cron_jobs ORDER BY id DESC").c_str());
+    std::string sql = std::string("SELECT ") + kCronJobColumns + " FROM cron_jobs";
+    if (user_id >= 0) sql += " WHERE user_id = ?";
+    sql += " ORDER BY id DESC";
+    Stmt s(db_, sql.c_str());
+    if (user_id >= 0) s.bind_int64(1, user_id);
     std::vector<CronJob> out;
     while (s.step()) out.push_back(cron_job_from_row(s));
     return out;
 }
 
-bool MemoryStore::delete_cron_job(int64_t id) {
+bool MemoryStore::delete_cron_job(int64_t user_id, int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "DELETE FROM cron_jobs WHERE id = ?");
+    // user_id < 0 is the admin path (cancel any job). Otherwise the owner
+    // predicate is on the DELETE, so cancelling someone else's scheduled job
+    // is indistinguishable from cancelling one that doesn't exist.
+    std::string sql = "DELETE FROM cron_jobs WHERE id = ?";
+    if (user_id >= 0) sql += " AND user_id = ?";
+    Stmt s(db_, sql.c_str());
     s.bind_int64(1, id);
+    if (user_id >= 0) s.bind_int64(2, user_id);
     s.step();
     return sqlite3_changes(db_) > 0;
 }
@@ -920,11 +1143,14 @@ std::vector<MemoryStore::CronJob> MemoryStore::due_cron_jobs(int64_t now) {
     return out;
 }
 
-std::optional<MemoryStore::CronJob> MemoryStore::get_cron_job(int64_t id) {
+std::optional<MemoryStore::CronJob> MemoryStore::get_cron_job(int64_t user_id, int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +
-                " FROM cron_jobs WHERE id = ?").c_str());
+    std::string sql = std::string("SELECT ") + kCronJobColumns +
+                      " FROM cron_jobs WHERE id = ?";
+    if (user_id >= 0) sql += " AND user_id = ?";
+    Stmt s(db_, sql.c_str());
     s.bind_int64(1, id);
+    if (user_id >= 0) s.bind_int64(2, user_id);
     if (!s.step()) return std::nullopt;
     return cron_job_from_row(s);
 }

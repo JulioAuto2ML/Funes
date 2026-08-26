@@ -24,7 +24,7 @@ class MemoryStore;
 struct AgentDefaults;
 struct AgentConfig;
 
-// Per-call context: which agent and chat session triggered the tool.
+// Per-call context: which user, agent and chat session triggered the tool.
 //
 // Not a plain aggregate: the constructor defaults memory_scope to agent when
 // left unset, so every existing 2-/3-arg `ToolContext{agent, session, ...}`
@@ -42,12 +42,21 @@ struct ToolContext {
     // Which agent's memory pool recall/remember read and write — see
     // AgentConfig::memory_scope.
     std::string memory_scope;
+    // Whose data this call reads and writes. Every memory, turn and stored
+    // result the tool touches is scoped to it. Trailing (and defaulted to the
+    // admin) rather than leading so the existing positional call sites in
+    // tests keep compiling; the paths that matter — FunesAgent::run and
+    // delegate_to_agent — all set it explicitly from the authenticated
+    // request, and there is a test asserting delegation carries it across.
+    int64_t user_id = 1;
 
     ToolContext(std::string agent_, std::string session_,
-                std::string workspace_dir_ = "", std::string memory_scope_ = "")
+                std::string workspace_dir_ = "", std::string memory_scope_ = "",
+                int64_t user_id_ = 1)
         : agent(std::move(agent_)), session(std::move(session_)),
           workspace_dir(std::move(workspace_dir_)),
-          memory_scope(memory_scope_.empty() ? agent : std::move(memory_scope_)) {}
+          memory_scope(memory_scope_.empty() ? agent : std::move(memory_scope_)),
+          user_id(user_id_) {}
 };
 
 struct ToolResult {

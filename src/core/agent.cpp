@@ -186,14 +186,18 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 // ── run ───────────────────────────────────────────────────────────────────────
 
 std::string FunesAgent::run(const std::string& user_message, const std::string& session,
+                            int64_t user_id,
                             const EventFn& emit, const std::vector<ImageAttachment>& images,
                             bool persist) {
-    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope};
+    // Every store call below goes through this context's user_id, and so does
+    // every tool the loop dispatches — including delegate_to_agent, which
+    // hands it to the sub-agent's own run().
+    ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope, user_id};
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
     if (defaults_.memory_recall_k > 0) {
-        auto memories = memory_.recall(cfg_.memory_scope, user_message, defaults_.memory_recall_k);
+        auto memories = memory_.recall(user_id, cfg_.memory_scope, user_message, defaults_.memory_recall_k);
         if (!memories.empty()) {
             json items = json::array();
             std::ostringstream oss;
@@ -218,8 +222,8 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     //    Skipped for non-persisting (delegated) calls: a specialist doing one
     //    task shouldn't rewrite the shared session's summary or prune its
     //    turns as a side effect — that's the persisting caller's job.
-    std::string summary = persist ? memory_.get_summary(session) : std::string();
-    std::vector<ChatMessage> recent = memory_.recent_turns(session, defaults_.memory_turns);
+    std::string summary = persist ? memory_.get_summary(user_id, session) : std::string();
+    std::vector<ChatMessage> recent = memory_.recent_turns(user_id, session, defaults_.memory_turns);
     if (persist) {
         constexpr double kCompressTriggerFraction = 0.7;
         constexpr int    kMinKeep = 4;
@@ -228,7 +232,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                             + estimate_tokens(recent) + estimate_tokens(user_message)
                             + static_cast<int>(images.size()) * kEstimatedTokensPerImage;
         if (estimated > budget) {
-            CompressOutcome result = compress_oldest_half(memory_, llm_, session, cfg_.name,
+            CompressOutcome result = compress_oldest_half(memory_, llm_, user_id, session, cfg_.name,
                                                            recent, summary, kMinKeep);
             if (result.compressed && emit)
                 emit("context_compressed", {{"turns_folded", result.turns_folded},
@@ -297,14 +301,14 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     //    a real turn in the visible conversation, and the orchestrating
     //    call already persists its own user message and final answer.
     if (persist) {
-        memory_.append_turn(session, cfg_.name, "user", user_message);
-        memory_.append_turn(session, cfg_.name, "assistant", final_text);
+        memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
+        memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
         if (defaults_.auto_memory && !final_text.empty()) {
             std::string reply = final_text.substr(0, 300);
             if (final_text.size() > 300) reply += "…";
             try {
-                memory_.remember(cfg_.memory_scope,
+                memory_.remember(user_id, cfg_.memory_scope,
                                  "User said: \"" + user_message + "\" — I replied: \"" + reply + "\"",
                                  "auto");
             } catch (const std::exception& e) {
@@ -700,7 +704,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             if (!result.error && !funes::exempt_from_store(tc.name)
                 && funes::exceeds_inline_limit(tool_text)) {
                 try {
-                    const int64_t rid = memory_.store_result(ctx.session, cfg_.name,
+                    const int64_t rid = memory_.store_result(ctx.user_id, ctx.session, cfg_.name,
                                                              tc.name, tool_text);
                     tool_text = funes::result_preview(rid, tc.name, result.text);
                     if (emit) emit("result_stored", {{"result_id", rid},

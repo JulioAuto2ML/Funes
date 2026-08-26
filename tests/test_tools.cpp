@@ -17,6 +17,10 @@ namespace fs = std::filesystem;
     } \
 } while (0)
 
+// The user every fixture below acts as. Multi-user isolation gets its
+// own explicit two-user tests; everything else just needs an owner.
+static constexpr int64_t U1 = 1;
+
 int test_registry() {
     ToolRegistry reg;
     reg.add({
@@ -80,8 +84,8 @@ int test_memory_tools() {
     // remember stores under the calling agent, source "tool".
     auto r1 = reg.call("remember", {{"text", "User prefers espresso over filter coffee"}}, ctx);
     CHECK(!r1.error);
-    CHECK(store.count("funes") == 1);
-    CHECK(store.list("funes")[0].source == "tool");
+    CHECK(store.count(U1, "funes") == 1);
+    CHECK(store.list(U1, "funes")[0].source == "tool");
 
     // recall finds it.
     auto r2 = reg.call("recall", {{"query", "espresso"}}, ctx);
