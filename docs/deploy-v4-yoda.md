@@ -147,6 +147,15 @@ The vector rebuild drops the embeddings and refills them in the background
 from `:8081`. Recall falls back to keyword search until that finishes, which
 for a few dozen memories is seconds.
 
+**The backfill is capped at 256 per start**, and it runs once. A database with
+more memories than that needs one restart per 256 to finish — check the count
+and restart until the line stops appearing:
+
+```bash
+journalctl --user -u funes-v4 --no-pager | grep backfilled
+systemctl --user restart funes-v4      # repeat while the count is still 256
+```
+
 ## 5. Confirm 3.x is untouched
 
 Run this immediately after the first start. It is the whole point of the

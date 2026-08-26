@@ -102,7 +102,16 @@ model forces, and both were deliberately left for a later pass.
    it. Either the comment or the agent should change; if a second account ever
    runs the curator they will collide in that directory.
 
-6. **Config is read relative to the working directory.** `funes::load_config()`
+6. **One startup does not finish the embedding backfill on a large database.**
+   `backfill_embeddings(max_items = 256)` is capped per call and `main.cpp`
+   calls it once at startup, so a database with more than 256 memories comes
+   back from a 4.0 migration with the remainder unvectored — they fall back to
+   keyword recall until the next restart. Pre-existing, but 4.0 is what makes
+   it visible: the migration drops every vector, so the cap never used to be
+   reached. Seen on yoda (281 memories: 256 on the first start, 25 on the
+   second). Either loop until it returns 0, or say so in the runbook.
+
+7. **Config is read relative to the working directory.** `funes::load_config()`
    reads `./config/funes.local` and `./config/funes.conf` before
    `~/.funes/config`, so a binary started from the repo root inherits the
    repo's config — which sets `FUNES_ALLOW_SHELL=1`. Not a bug, and the v4
