@@ -297,6 +297,33 @@ int test_unique_constraint_is_rebuilt_not_kept() {
     return 0;
 }
 
+int test_summary_primary_key_is_rebuilt() {
+    // session_summaries shipped with `session` alone as the primary key, so
+    // there was one summary row per session name across every account. The
+    // second account to use a name silently got no summary at all — its
+    // INSERT conflicted with a row it did not own and the guarded UPDATE arm
+    // matched nothing. The rebuild makes the key (user_id, session).
+    const std::string path = temp_db("summarypk");
+    CHECK(build_pre4(path) == 0);
+
+    MemoryStore store(path, nullptr);
+
+    // The pre-4.0 summary survived and belongs to the admin.
+    CHECK(store.get_summary(ADMIN, "chat-a") == "They said hello.");
+    CHECK(store.get_summary(BOB, "chat-a").empty());
+
+    // ...and a second account can now hold its own summary for that name.
+    store.set_summary(BOB, "chat-a", "funes", "Bob's own summary");
+    CHECK(store.get_summary(BOB, "chat-a") == "Bob's own summary");
+    CHECK(store.get_summary(ADMIN, "chat-a") == "They said hello.");  // untouched
+
+    // Updating still replaces rather than duplicating, within one account.
+    store.set_summary(BOB, "chat-a", "funes", "Bob's revised summary");
+    CHECK(store.get_summary(BOB, "chat-a") == "Bob's revised summary");
+    CHECK(scalar(path, "SELECT COUNT(*) FROM session_summaries") == 2);
+    return 0;
+}
+
 int test_vec_index_is_partitioned_and_recall_works() {
     // A 3.x database with an embedding dimension recorded and a vec table
     // lacking the partition key. recall_semantic names v.user_id, so opening
@@ -388,6 +415,7 @@ int main() {
     rc |= test_turns_summaries_and_results_survive();
     rc |= test_cron_jobs_survive_and_are_owned();
     rc |= test_unique_constraint_is_rebuilt_not_kept();
+    rc |= test_summary_primary_key_is_rebuilt();
     rc |= test_vec_index_is_partitioned_and_recall_works();
     rc |= test_migration_is_idempotent();
     rc |= test_already_migrated_database_is_left_alone();

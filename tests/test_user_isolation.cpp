@@ -160,6 +160,63 @@ int test_turns_and_sessions_are_isolated() {
     return 0;
 }
 
+int test_deleting_a_session_cannot_cross_users() {
+    // Deleting a conversation is the one destructive thing a member can do to
+    // their own data, and session ids are client-supplied — so "delete
+    // s-collision" from Alice must not take Bob's session of the same name
+    // with it. Same shape as forget()'s ownership predicate: the user_id is on
+    // the DELETE itself, not on a check before it.
+    MemoryStore store(temp_db("delsession"), nullptr);
+    const std::string shared = "s-collision";
+
+    store.append_turn(ALICE, shared, "funes", "user", "Alice's secret question");
+    store.append_turn(ALICE, shared, "funes", "assistant", "Alice's answer");
+    store.set_summary(ALICE, shared, "funes", "Alice's running summary");
+    store.store_result(ALICE, shared, "funes", "web_fetch", "Alice's fetched page");
+
+    store.append_turn(BOB, shared, "funes", "user", "Bob's question");
+    store.set_summary(BOB, shared, "funes", "Bob's running summary");
+    store.store_result(BOB, shared, "funes", "web_fetch", "Bob's fetched page");
+
+    // Everything of Alice's goes; nothing of Bob's does.
+    CHECK(store.delete_session(ALICE, shared) == 2);   // turns removed
+    CHECK(store.turn_count(ALICE, shared) == 0);
+    CHECK(store.get_summary(ALICE, shared).empty());
+    CHECK(store.list_sessions(ALICE, 50).empty());
+
+    CHECK(store.turn_count(BOB, shared) == 1);
+    CHECK(store.get_summary(BOB, shared) == "Bob's running summary");
+    auto bob_sessions = store.list_sessions(BOB, 50);
+    CHECK(bob_sessions.size() == 1);
+    CHECK(bob_sessions[0].preview == "Bob's question");
+
+    // Deleting again reports nothing removed, which is what lets the endpoint
+    // answer 404 instead of pretending it deleted someone else's session.
+    CHECK(store.delete_session(ALICE, shared) == 0);
+    CHECK(store.delete_session(ALICE, "never-existed") == 0);
+
+    // Bob's is still deletable afterwards — Alice's delete did not poison it.
+    CHECK(store.delete_session(BOB, shared) == 1);
+    CHECK(store.turn_count(BOB, shared) == 0);
+    return 0;
+}
+
+int test_deleting_a_session_leaves_memories_alone() {
+    // A conversation and the facts learned from it are different things. The
+    // whole point of Funes is that forgetting the chat does not forget the
+    // person, so deleting a session must not touch memories — not even the
+    // auto-memories that conversation produced.
+    MemoryStore store(temp_db("delsession_mem"), nullptr);
+
+    store.append_turn(ALICE, "chat-1", "funes", "user", "my dog is called Zorbax");
+    store.remember(ALICE, "funes", "The user's dog is called Zorbax", "auto");
+
+    CHECK(store.delete_session(ALICE, "chat-1") == 1);
+    CHECK(store.turn_count(ALICE, "chat-1") == 0);
+    CHECK(store.count(ALICE) == 1);
+    return 0;
+}
+
 int test_tool_results_are_isolated() {
     MemoryStore store(temp_db("results"), nullptr);
     const std::string shared = "s-collision";
@@ -413,6 +470,8 @@ int main() {
     rc |= test_same_text_is_two_memories();
     rc |= test_forget_cannot_cross_users();
     rc |= test_turns_and_sessions_are_isolated();
+    rc |= test_deleting_a_session_cannot_cross_users();
+    rc |= test_deleting_a_session_leaves_memories_alone();
     rc |= test_tool_results_are_isolated();
     rc |= test_summaries_are_isolated();
     rc |= test_cron_jobs_are_owned();

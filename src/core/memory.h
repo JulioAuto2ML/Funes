@@ -191,6 +191,18 @@ public:
     // folding the older turns into the running summary below.
     void prune_turns(int64_t user_id, const std::string& session, int keep);
 
+    // Remove a whole conversation: its turns, its rolling summary, and any
+    // tool results stored against it. Returns the number of turns removed, so
+    // a caller can tell "deleted" from "no such session" — which is what lets
+    // the endpoint answer 404 rather than reporting success for a session name
+    // that belongs to somebody else.
+    //
+    // Memories are deliberately untouched. A conversation and the facts
+    // learned from it are different things, and the whole point of Funes is
+    // that forgetting the chat does not forget the person. Use forget() for
+    // the other half.
+    int64_t delete_session(int64_t user_id, const std::string& session);
+
     // ── Rolling conversation summary (context compression) ────────────────────
     // One summary per session, replaced (not appended) each time it is
     // recompressed so it stays roughly constant size regardless of how long

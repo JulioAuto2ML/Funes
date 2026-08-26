@@ -411,12 +411,36 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 .chat-item:hover { border-color: var(--accent); }
 .chat-item.active { border-color: var(--accent); background: var(--accent-soft); }
 
+.chat-item { position: relative; }
+
 .chat-item .preview {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.4;
+  padding-right: 18px;   /* room for the delete button */
 }
+
+/* Hidden until the row is hovered or the button is focused: a destructive
+   control on every row in a long list is easy to hit by accident. Keyboard
+   users get it via :focus-visible, since they have no hover. */
+.chat-item .chat-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s, color .12s;
+}
+.chat-item:hover .chat-delete,
+.chat-item .chat-delete:focus-visible { opacity: 1; }
+.chat-item .chat-delete:hover { color: var(--error); }
 .chat-item .meta {
   margin-top: 4px;
   font-size: 11px;

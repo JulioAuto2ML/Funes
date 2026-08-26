@@ -803,10 +803,54 @@ async function refreshChats() {
                          (s.turn_count === 1 ? ' turn' : ' turns');
       item.appendChild(meta);
 
+      const del = document.createElement('button');
+      del.className = 'chat-delete';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = 'Delete this conversation';
+      del.setAttribute('aria-label', 'Delete conversation: ' + (s.preview || 'untitled'));
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();          // don't switch to the chat we're deleting
+        deleteSession(s.session, s.preview);
+      });
+      item.appendChild(del);
+
       item.addEventListener('click', () => switchToSession(s.session));
       els.chatsList.appendChild(item);
     }
   } catch (e) { /* server down — status dot will show it */ }
+}
+
+async function deleteSession(session, preview) {
+  const label = preview ? '"' + preview.slice(0, 60) + '"' : 'this conversation';
+  // Irreversible and one click away from the item you might have meant to
+  // open, so it asks. Memories are not deleted, which is worth saying here:
+  // people expect "delete" to mean everything it learned goes too.
+  if (!confirm('Delete ' + label + '?\n\nThe conversation is removed. Anything Funes ' +
+               'remembered from it is kept — clear those from Memories.')) return;
+
+  try {
+    const resp = await fetch('/api/sessions/' + encodeURIComponent(session),
+                             { method: 'DELETE' });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      alert('Could not delete: ' + (data.error || resp.status));
+      return;
+    }
+    // Deleting the conversation you are in leaves nowhere to be, so start a
+    // fresh one rather than showing an empty transcript of something gone.
+    if (session === state.session) {
+      state.session = newSessionId();
+      localStorage.setItem('funes.session', state.session);
+      state.attachments = [];
+      renderAttachments();
+      els.messages.innerHTML = '';
+      showWelcome('Nothing here yet.');
+    }
+    refreshChats();
+  } catch (e) {
+    alert('Could not delete: ' + e.message);
+  }
 }
 
 async function switchToSession(session) {

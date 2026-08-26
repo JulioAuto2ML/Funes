@@ -608,6 +608,27 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {{"ok", true}, {"sessions", arr}});
     });
 
+    // Deleting a conversation. Scoped to the caller like every other write:
+    // the session name comes from the URL and two accounts can hold the same
+    // one, so ownership is enforced in the DELETE rather than checked first.
+    // Memories are deliberately left alone — see MemoryStore::delete_session.
+    srv.Delete(R"(/api/sessions/([A-Za-z0-9_-]{1,64}))",
+               [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        const std::string session = req.matches[1].str();
+        const int64_t removed = memory_.delete_session(user->id, session);
+        if (removed == 0) {
+            // Same answer for "not yours" and "not there", so the route can't
+            // be used to discover which session names another account holds.
+            return json_error(res, 404, "No conversation '" + session + "'");
+        }
+        std::cerr << "[api] " << user->username << " deleted session '" << session
+                  << "' (" << removed << " turns)\n";
+        json_reply(res, 200, {{"ok", true}, {"session", session}, {"turns_deleted", removed}});
+    });
+
     // ── cron jobs (read-only view for the UI; managed via the operator agent's
     // schedule_job/cancel_job/run_job_now tools — see core/tools/cron_tool.cpp
     // and core/cron_runner.h for what actually runs a due job) ────────────────

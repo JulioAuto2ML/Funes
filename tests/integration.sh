@@ -658,6 +658,50 @@ check "member forbidden from researcher" "$CODE" '403'
 OUT=$(curl -s "$BASE/api/agents")
 check "admin still sees researcher" "$OUT" '"researcher"'
 
+echo "— deleting a conversation"
+# Give the member a session of its own, and the admin one with the SAME name:
+# the delete must take exactly one of them.
+mcurl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"member private chat","session":"doomed-session"}' > /dev/null
+curl  -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"admin keeps this one","session":"doomed-session"}' > /dev/null
+
+OUT=$(mcurl -s "$BASE/api/history?session=doomed-session")
+check "member session exists first" "$OUT" 'member private chat'
+
+# Counted rather than searched: by this point the suite has stored enough
+# memories that a keyword query's top-k is a ranking question, not an
+# existence one.
+MEMS_BEFORE=$(mcurl -s "$BASE/api/status" | grep -o '"memories":[0-9]*' | cut -d: -f2)
+
+OUT=$(mcurl -s -X DELETE "$BASE/api/sessions/doomed-session")
+check "member deletes own session" "$OUT" '"ok":true'
+
+OUT=$(mcurl -s "$BASE/api/history?session=doomed-session")
+check_absent "member session is gone" "$OUT" 'member private chat'
+OUT=$(mcurl -s "$BASE/api/sessions")
+check_absent "gone from member conversation list" "$OUT" 'doomed-session'
+
+# The admin's identically-named session is untouched — this is the assertion
+# that a client-supplied name can't be used to delete someone else's chat.
+OUT=$(curl -s "$BASE/api/history?session=doomed-session")
+check "admin session survived" "$OUT" 'admin keeps this one'
+
+# Deleting it again, and deleting one that never existed, are the same 404 —
+# so the route can't enumerate which session names another account holds.
+CODE=$(mcurl -s -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/sessions/doomed-session")
+check "second delete is 404" "$CODE" '404'
+CODE=$(mcurl -s -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/sessions/never-existed")
+check "unknown session is 404" "$CODE" '404'
+
+# Memories outlive the conversation they came from — forgetting the chat must
+# not forget the person.
+MEMS_AFTER=$(mcurl -s "$BASE/api/status" | grep -o '"memories":[0-9]*' | cut -d: -f2)
+check "memories survive a session delete" "$MEMS_AFTER" "^$MEMS_BEFORE$"
+
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/sessions/bad..name")
+check "invalid session name rejected" "$CODE" '404'
+
 echo "— two users chatting at once"
 # The multi-user premise rests on this and nothing had ever exercised it: no
 # two accounts had chatted simultaneously. Both users are deliberately pointed

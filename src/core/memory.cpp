@@ -243,6 +243,38 @@ void MemoryStore::migrate() {
         }
     }
 
+    // session_summaries had the same shape of bug the memories rebuild above
+    // fixes, and was missed: `session` alone is the primary key, so there is
+    // one summary row per session name across every account. The insert
+    // guarded its UPDATE arm on user_id, which stopped one account overwriting
+    // another's — but the cost was that the second account silently got no
+    // summary at all. Its conflicting INSERT matched a row it did not own, the
+    // UPDATE arm was skipped, and nothing was stored. Not a leak; a quiet loss
+    // of context compression for whoever picked the session name second.
+    {
+        Stmt check(db_, "SELECT value FROM meta WHERE key='schema_summaries_user_scoped'");
+        if (!check.step()) {
+            exec_or_throw(db_, R"sql(
+                BEGIN IMMEDIATE;
+                CREATE TABLE session_summaries_new (
+                    session    TEXT NOT NULL,
+                    user_id    INTEGER NOT NULL DEFAULT 1,
+                    agent      TEXT NOT NULL,
+                    summary    TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    PRIMARY KEY (user_id, session)
+                );
+                INSERT INTO session_summaries_new (session, user_id, agent, summary, updated_at)
+                SELECT session, user_id, agent, summary, updated_at FROM session_summaries;
+                DROP TABLE session_summaries;
+                ALTER TABLE session_summaries_new RENAME TO session_summaries;
+                INSERT INTO meta(key, value) VALUES('schema_summaries_user_scoped', '1');
+                COMMIT;
+            )sql");
+            std::cerr << "[memory] migrated session summaries to per-user scoping\n";
+        }
+    }
+
     // Indexes for the new predicates. The old single-column ones are left in
     // place; SQLite picks whichever is cheaper and dropping them buys nothing.
     exec_or_throw(db_, R"sql(
@@ -985,6 +1017,46 @@ void MemoryStore::prune_turns(int64_t user_id, const std::string& session, int k
     s.step();
 }
 
+int64_t MemoryStore::delete_session(int64_t user_id, const std::string& session) {
+    if (user_id <= 0 || session.empty()) return 0;
+    std::lock_guard<std::mutex> lock(mu_);
+
+    // One transaction: a conversation half-deleted — turns gone, summary left
+    // behind — would come back as an empty session carrying the summary of
+    // what the user asked to erase.
+    exec_or_throw(db_, "BEGIN IMMEDIATE;");
+    int64_t removed = 0;
+    try {
+        // user_id sits on the DELETE itself rather than in a check before it,
+        // the same as forget(): a check-then-act is a race, and this way a
+        // session name belonging to another account simply matches no rows.
+        {
+            Stmt s(db_, "DELETE FROM turns WHERE user_id = ? AND session = ?");
+            s.bind_int64(1, user_id);
+            s.bind_text(2, session);
+            s.step();
+            removed = sqlite3_changes(db_);
+        }
+        {
+            Stmt s(db_, "DELETE FROM session_summaries WHERE user_id = ? AND session = ?");
+            s.bind_int64(1, user_id);
+            s.bind_text(2, session);
+            s.step();
+        }
+        {
+            Stmt s(db_, "DELETE FROM tool_results WHERE user_id = ? AND session = ?");
+            s.bind_int64(1, user_id);
+            s.bind_text(2, session);
+            s.step();
+        }
+        exec_or_throw(db_, "COMMIT;");
+    } catch (...) {
+        exec_or_throw(db_, "ROLLBACK;");
+        throw;
+    }
+    return removed;
+}
+
 // ── rolling summary ───────────────────────────────────────────────────────────
 
 std::string MemoryStore::get_summary(int64_t user_id, const std::string& session) {
@@ -998,18 +1070,16 @@ std::string MemoryStore::get_summary(int64_t user_id, const std::string& session
 void MemoryStore::set_summary(int64_t user_id, const std::string& session,
                               const std::string& agent, const std::string& summary) {
     std::lock_guard<std::mutex> lock(mu_);
-    // The ON CONFLICT target is still `session` alone, because that is the
-    // table's primary key and SQLite requires the target to match a unique
-    // index. The user_id predicate on the UPDATE arm is what keeps one
-    // account from overwriting another's summary if they pick the same
-    // session id: a conflicting row belonging to someone else updates zero
-    // rows rather than theirs.
+    // The conflict target is (user_id, session), the table's primary key since
+    // the rebuild in migrate(). Two accounts using the same session id now get
+    // a row each, so no guard on the UPDATE arm is needed — before the rebuild
+    // the target was `session` alone and the second account silently stored
+    // nothing at all.
     Stmt s(db_, R"sql(
         INSERT INTO session_summaries(session, user_id, agent, summary, updated_at)
         VALUES (?, ?, ?, ?, datetime('now'))
-        ON CONFLICT(session) DO UPDATE SET
+        ON CONFLICT(user_id, session) DO UPDATE SET
             summary = excluded.summary, updated_at = excluded.updated_at
-        WHERE session_summaries.user_id = excluded.user_id
     )sql");
     s.bind_text(1, session);
     s.bind_int64(2, user_id);
