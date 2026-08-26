@@ -154,14 +154,49 @@ sleep between, so a down embedding endpoint does not spin), or the runbook
 stops pretending one restart is enough. The loop is the better fix; the
 runbook note is already in `deploy-v4-yoda.md` as a stopgap.
 
-### 3. An admin cannot see what is scheduled on the box
+### 3. Cron runs are stored as conversations, and as memories
+Every firing gets its own session (`cron-<id>-<epoch>`, one per run by design,
+so tool budgets do not carry over), and `run_agent_job` passes `persist=true`.
+On yoda that is **33 of 180 sessions (18%)**, two turns each, growing by one
+per job per day forever — you have already deleted some by hand.
+
+The turns are only clutter. The memories are worse. `persist` gates *both* the
+turns and the auto-memory write (`src/core/agent.cpp`, step 5), so each firing
+also stores a memory of the form `User said: "<the job's task>" — I replied:
+"..."`. The scheduler is not the user, and one of them on yoda records the
+job-runner preamble verbatim: `User said: "[You are running as a scheduled job
+— there is no interactive user...]"`. **13 of 273 memories** are these. They
+are semantically recalled into real conversations, so asking about the
+newsletter surfaces the scheduler talking to itself.
+
+The record that survives without them: `cron_jobs.last_status` and
+`last_output` (a 4000-byte preview, **last run only**), the journal, and — for
+these two jobs — the actual artifacts, which are the real record anyway: the
+published issue files and the sent email, the delivered WhatsApp message. The
+transcript was never the evidence that the newsletter went out.
+
+**Done when:** `run_agent_job` passes `persist=false` (`src/core/cron_runner.cpp`;
+its comment currently argues the opposite — "the job's own session is the
+record" — and needs rewriting, not just flipping). Then decide separately
+whether to backfill: existing `cron-%` sessions and their auto-memories can be
+removed with the same care the bench cleanup used (delete through
+`MemoryStore::forget`/`delete_session`, not raw SQL, or the vec0 index is
+left with orphans).
+
+**Consider first:** this drops per-run history, keeping only the last run's
+bounded preview. If post-mortem on a *previous* failed run matters — and this
+morning's newsletter did fail — either widen what `record_cron_job_run` keeps,
+or take the smaller option instead: keep persisting but exclude `cron-%` from
+`list_sessions`, which fixes the clutter and not the memory pollution.
+
+### 4. An admin cannot see what is scheduled on the box
 `MemoryStore::list_cron_jobs(-1)` already returns every user's jobs and
 nothing calls it with `-1` — `/api/jobs` passes the caller's own id.
 **Done when:** `/api/jobs` accepts something like `?all=1`, gated on
 `require_admin()` (added 2026-08-26, `src/server/api.cpp`), and returns the
 owning username per job. Small, and it makes a shared box operable.
 
-### 4. `funes passwd` does not revoke existing sessions
+### 5. `funes passwd` does not revoke existing sessions
 Deliberate today: it is the admin resetting a forgotten password, not a
 response to a stolen cookie, and revoking would kick the user out of a session
 they are mid-conversation in.
@@ -170,12 +205,12 @@ opposite behaviour is correct and this needs a `--revoke-sessions` flag, or an
 unconditional revoke on the self-service path only. Not actionable before that
 exists; listed so the reasoning is not rediscovered.
 
-### 5. Session-token expiry is untested
+### 6. Session-token expiry is untested
 Expiry is implemented; only revocation has a test.
 **Done when:** a test creates a token with a short TTL, waits it out (or
 backdates the row), and asserts the session no longer authenticates.
 
-### 6. `funes perms` bad input is untested
+### 7. `funes perms` bad input is untested
 `integration.sh` covers `--allow`, `--deny`, `--agents` and `--reset` as a
 side effect of testing the permissions they set. Unknown flags, missing
 values, and a nonexistent username are unasserted, as is the JSON written.
