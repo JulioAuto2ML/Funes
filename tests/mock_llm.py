@@ -24,6 +24,12 @@ def mentions(messages, keyword):
                for m in messages if m.get("role") == "user")
 
 
+def offered(req):
+    """The tool names this turn actually put in front of the model."""
+    return {t.get("function", {}).get("name", "")
+            for t in (req.get("tools") or [])}
+
+
 def fake_embedding(text):
     vec = [0.0] * 8
     for i, ch in enumerate(text.encode()):
@@ -240,6 +246,20 @@ class Handler(BaseHTTPRequestHandler):
                                   "function": {"name": "read_file",
                                                "arguments": json.dumps({"path": "small.txt"})}},
                                  stream)
+            return
+
+        # Per-user permissions (phase 4) narrow the schema before the model
+        # ever sees it, exactly the way a spent tool budget does. This probe
+        # reports back which of the two it was shown, so integration.sh can
+        # assert the narrowing over real HTTP for a real account rather than
+        # only in test_permissions.cpp. The agent's own `tools:` list offers
+        # both; whether execute_shell survives is the permission's doing.
+        if mentions(messages, "perm-probe"):
+            names = offered(req)
+            self._reply_text(
+                ("MOCK-SAW-SHELL" if "execute_shell" in names else "MOCK-NO-SHELL")
+                + ("+READFILE" if "read_file" in names else "+NOREADFILE"),
+                stream)
             return
 
         # The same ceiling, against a model that ignores the refusal. The

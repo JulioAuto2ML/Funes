@@ -53,6 +53,13 @@ require_tools: [write_file]
 max_steps: 6
 system_prompt: Write the file you are asked for.
 YAML
+cat > "$AGENTS/perm-tester.yaml" <<'YAML'
+name: perm-tester
+description: Test fixture — offers one privileged tool and one ordinary one, so a run can report which of them survived the caller's permissions.
+tools: [execute_shell, read_file]
+max_steps: 4
+system_prompt: Answer the probe.
+YAML
 cat > "$AGENTS/delegator-tester.yaml" <<'YAML'
 name: delegator-tester
 description: Test fixture — require_tools=[delegate_to_agent] must track the MOST RECENT call, not any call that ever succeeded.
@@ -604,6 +611,52 @@ check        "member sees model name"   "$OUT" '"model"'
 check_absent "member cannot see llm url" "$OUT" '"url"'
 OUT=$(curl -s "$BASE/api/status")
 check "admin still sees llm url" "$OUT" '"url"'
+
+echo "— per-user permissions over HTTP (phase 4)"
+# A member's schema is narrowed before the model sees it. perm-tester offers
+# execute_shell and read_file; the reply says which of them actually arrived.
+# An admin bypasses permissions entirely and must still see both.
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"perm-probe","session":"perm-admin","agent":"perm-tester"}')
+check "admin is offered execute_shell" "$OUT" 'MOCK-SAW-SHELL+READFILE'
+
+# The default for a new member, with no permissions written at all: ordinary
+# tools allowed, privileged ones denied. This is the case that needs no admin
+# to have configured anything, so it is the one most likely to be relied on.
+OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"perm-probe","session":"perm-member","agent":"perm-tester"}')
+check "member is denied execute_shell" "$OUT" 'MOCK-NO-SHELL+READFILE'
+
+# Granting it explicitly overrides the privileged-by-default denial. Also the
+# only coverage `funes perms` argument parsing has.
+FUNES_DB="$DB" "$FUNES_BIN" perms itmember --allow execute_shell > /dev/null 2>&1
+OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"perm-probe","session":"perm-member-2","agent":"perm-tester"}')
+check "granted member is offered execute_shell" "$OUT" 'MOCK-SAW-SHELL+READFILE'
+
+# ...and denying an ordinary tool works in the other direction, proving the
+# entry is the final word rather than a one-way widening.
+FUNES_DB="$DB" "$FUNES_BIN" perms itmember --deny read_file > /dev/null 2>&1
+OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"perm-probe","session":"perm-member-3","agent":"perm-tester"}')
+check "denied member loses read_file" "$OUT" 'MOCK-SAW-SHELL+NOREADFILE'
+
+echo "— per-user agent allowlist"
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itmember --agents funes,perm-tester 2>&1)
+check "perms CLI reports the allowlist" "$OUT" 'perm-tester'
+
+# The list a member is shown and the list they can actually reach must agree —
+# a hidden-but-reachable agent is the IDOR shape, just on a different noun.
+OUT=$(mcurl -s "$BASE/api/agents")
+check        "member sees allowed agent"     "$OUT" '"perm-tester"'
+check_absent "member cannot see researcher"  "$OUT" '"researcher"'
+CODE=$(mcurl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/chat" \
+       -d '{"message":"hello","session":"perm-member-4","agent":"researcher"}')
+check "member forbidden from researcher" "$CODE" '403'
+
+# The admin's view is unchanged by any of the above.
+OUT=$(curl -s "$BASE/api/agents")
+check "admin still sees researcher" "$OUT" '"researcher"'
 
 rm -f "$MEMBER_JAR"
 
