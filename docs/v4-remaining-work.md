@@ -6,6 +6,16 @@ implemented, benchmarked against the real model, and **deployed on yoda** as
 an independent install on `:8485`. 28/28 `ctest` and 154 `integration.sh`
 assertions pass.
 
+**2026-08-26, later:** 3.x was stopped deliberately and 4.0 now owns the
+schedule for testing. A host drop-in
+(`~/.config/systemd/user/funes-v4.service.d/cron.conf`) sets
+`FUNES_CRON_ENABLED=1`, overriding the shipped unit's `0`. **Revert that
+drop-in before starting `funes.service` again**, or both installs fire every
+job — the newsletter publishes twice and the daily reminder reaches a real
+person twice. 4.0 also now holds the Tavily and Gmail keys, which the earlier
+"no secrets on this install" note deliberately withheld; that note was written
+when 4.0 was a parallel test install, not the primary one.
+
 Start at "Pending work" below; everything above it is context for why those
 items are what remain.
 
@@ -76,8 +86,33 @@ model forces, and both were deliberately left for a later pass.
    plus `X-Funes-User-Jid` resolves to an account through `funes jid-map`,
    which already has the right shape — one jid, one user. What is missing is
    the story for a household: each person's number maps to their own account,
-   so their memories, workspace and permissions are theirs. Until that is
-   thought through, the v4 unit leaves WhatsApp off entirely.
+   so their memories, workspace and permissions are theirs.
+
+   **Operational state as of 2026-08-26**, learned while handing the schedule
+   to 4.0. `whatsapp-autoresponder.service` is **stopped** — it posts to
+   `:8484`, and 3.x is down. It is still `enabled`, so a reboot restarts it
+   against a dead port; disable it, or repoint it, before that matters.
+
+   To bring it up on 4.0, three things are needed, in this order:
+   - a `FUNES_SERVICE_TOKEN` on the v4 unit (absent by design today, which is
+     why repointing the poller alone would still 401), and the same value in
+     the autoresponder's config;
+   - `funes jid-map <jid> <username>` per person — this is the per-user
+     mechanism, already built and curl-tested but never run against a real
+     incoming message;
+   - `WHATSAPP_WHITELIST`, deliberately not copied to v4 with the other
+     secrets.
+
+   Note the `whatsapp-assistant` agent (used by the cron reminder) is a
+   *different* path and already works on 4.0: it reaches WhatsApp through the
+   MCP server, not the service token. That MCP resolves its message store
+   from its own file location, so v4's copy needed
+   `third-party/whatsapp-mcp/whatsapp-bridge/store` symlinked to the live
+   store in the 3.x clone. **If the 3.x clone is ever deleted, that symlink
+   breaks and every WhatsApp read fails** — move the bridge's store somewhere
+   install-independent first. Both `whatsapp-bridge` units stay running
+   regardless; stopping them loses the authenticated session and costs a QR
+   re-scan.
 
 2. **Web search gets one Tavily key shared by every account, which no user can
    see or steal.** The key is the operator's, not a per-user secret: it is
