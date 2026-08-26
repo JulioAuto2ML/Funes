@@ -35,6 +35,14 @@ Being explicit, because "tested" has meant two different things here.
 - **Concurrency.** Six simultaneous chats, two accounts, deliberately sharing
   one session name. Neither account sees the other's turns, and the test
   fails if the requests merely queue rather than overlap.
+- **The yoda deployment**, 2026-08-26. 4.0 runs as an independent install on
+  `:8485` from `~/Funes-v4`, against `~/.funes-v4/`. The 3.x data migrated
+  intact (281 memories, 706 turns, ids preserved, all attributed to user 1)
+  and 3.x was verified untouched afterwards: still serving on `:8484`, its
+  workspace still flat, and its database with no `users` table, no `user_id`
+  column and no migration marker. A second restart produced no migration
+  lines at all, which is the idempotency `test_migration.cpp` asserts, seen
+  in production.
 
 **NOT verified**
 - **`web_search` / `web_fetch`.** Every bench run so far used `--skip-web`.
@@ -42,7 +50,9 @@ Being explicit, because "tested" has meant two different things here.
   untested path.
 - **The WhatsApp service-token path end to end.** Only curl-tested; never run
   against a real bridge with a real incoming message. Also now a design task.
-- **The yoda deployment.** Runbook in `deploy-v4-yoda.md`.
+- **Any real use of the yoda install.** It is deployed and serving (see
+  below), but it has no accounts yet and nobody has held a conversation on
+  it.
 
 ---
 
