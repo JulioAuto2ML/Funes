@@ -81,6 +81,27 @@ std::string build_issue(const nlohmann::json& pool,
                         int min_items = 1,
                         std::vector<std::string>* dropped = nullptr);
 
+// Which pool publish_issue resolves ids against.
+//
+// Split out and filesystem-free so it can be tested: on 2026-08-26 the "no
+// date given" path silently fell back to the newest pool on disk. Harvest had
+// failed that morning, so the newest was the previous day's — and today's post
+// text was grounded against yesterday's pages. It only surfaced because the
+// overlap check rejected almost everything; had a few posts matched by
+// coincidence, the issue would have shipped yesterday's URLs under today's
+// headlines. That is the one failure this whole pipeline exists to prevent.
+//
+// `requested` empty means "today's issue": today's pool must exist, and no
+// other date will do. A non-empty `requested` is a deliberate republish of an
+// older day and is honoured if that pool exists.
+struct PoolChoice {
+    std::string date;    // empty when `error` is set
+    std::string error;
+};
+PoolChoice resolve_pool_date(const std::vector<std::string>& available_dates,
+                             const std::string& requested,
+                             const std::string& today);
+
 // The link label: the candidate's own headline, trimmed at a word boundary.
 // Derived rather than asked for — it is the article's title, and the pool
 // already holds it.

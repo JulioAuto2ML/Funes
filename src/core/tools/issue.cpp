@@ -65,6 +65,16 @@ size_t utf8_length(const std::string& s) {
 
 std::string two(int n) { return (n < 10 ? "0" : "") + std::to_string(n); }
 
+// Local time, matching harvest.cpp's today_local(): the two have to agree on
+// what "today" is or publish_issue would look for a pool harvest never named.
+std::string today_iso() {
+    const std::time_t now = std::time(nullptr);
+    std::tm tm{};
+    localtime_r(&now, &tm);
+    return std::to_string(tm.tm_year + 1900) + "-" + two(tm.tm_mon + 1) + "-" +
+           two(tm.tm_mday);
+}
+
 std::string now_iso() {
     const std::time_t now = std::time(nullptr);
     std::tm tm{};
@@ -193,6 +203,37 @@ std::pair<std::string, std::string> extract_evidence(
                     std::to_string(kMinOverlap) + ")"};
 
     return {best, ""};
+}
+
+PoolChoice resolve_pool_date(const std::vector<std::string>& available_dates,
+                             const std::string& requested,
+                             const std::string& today) {
+    std::string newest;
+    for (const auto& d : available_dates)
+        if (d > newest) newest = d;
+
+    if (available_dates.empty())
+        return {"", "there is no candidate pool in the workspace at all. Call "
+                    "harvest_candidates first — publishing resolves your ids "
+                    "against the pool it writes."};
+
+    if (!requested.empty()) {
+        for (const auto& d : available_dates)
+            if (d == requested) return {requested, ""};
+        return {"", "no candidate pool for " + requested + " (the newest is " +
+                    newest + "). Call harvest_candidates for that date, or "
+                    "publish the day a pool exists for."};
+    }
+
+    for (const auto& d : available_dates)
+        if (d == today) return {today, ""};
+
+    // Deliberately NOT falling back to `newest`. See the header: this is the
+    // path that published today's text against yesterday's pages.
+    return {"", "no candidate pool for today (" + today + "); the newest is " +
+                newest + ". harvest_candidates has not run successfully today, "
+                "so there is nothing to publish. Run it, and only pass "
+                "date=" + newest + " if you really mean to republish that day."};
 }
 
 std::string headline_from_title(const std::string& title, size_t max_chars) {
@@ -447,24 +488,25 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
 
     // The date comes from the pool, not from the model: the pool is the thing
     // being published, and a mismatch would publish yesterday's candidates
-    // under today's headline.
-    std::string date = args.value("date", "");
-    if (date.empty()) {
-        // Newest pool for this publication.
+    // under today's headline. It used to do exactly that whenever harvest had
+    // failed — see resolve_pool_date in issue.h.
+    std::vector<std::string> available;
+    {
         std::error_code ec;
+        const std::string prefix = "harvest_" + publication + "_";
         for (const auto& e : std::filesystem::directory_iterator(workspace, ec)) {
             const std::string name = e.path().filename().string();
-            const std::string prefix = "harvest_" + publication + "_";
-            if (name.rfind(prefix, 0) == 0 && e.path().extension() == ".json") {
-                const std::string found = name.substr(prefix.size(), 10);
-                if (found > date) date = found;
-            }
+            if (name.rfind(prefix, 0) == 0 && e.path().extension() == ".json")
+                available.push_back(name.substr(prefix.size(), 10));
         }
     }
-    if (date.empty())
-        return {"No candidate pool for '" + publication + "' in the workspace. "
-                "Call harvest_candidates first — publishing resolves your ids "
-                "against the pool it writes.", true};
+    const PoolChoice choice =
+        resolve_pool_date(available, args.value("date", ""), today_iso());
+    if (!choice.error.empty()) {
+        std::cerr << "[publish_issue] refused: " << choice.error << "\n";
+        return {"Not published — " + choice.error, true};
+    }
+    const std::string date = choice.date;
 
     const std::filesystem::path pool_path =
         workspace / ("harvest_" + publication + "_" + date + ".json");

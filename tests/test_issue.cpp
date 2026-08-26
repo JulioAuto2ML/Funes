@@ -465,6 +465,50 @@ int test_build_issue_still_rejects_contract_violations() {
     return 0;
 }
 
+// ── which pool gets published ────────────────────────────────────────────────
+
+int test_pool_date_uses_today_when_todays_pool_exists() {
+    auto c = resolve_pool_date({"2026-08-24", "2026-08-25", "2026-08-26"}, "", "2026-08-26");
+    CHECK(c.error.empty());
+    CHECK(c.date == "2026-08-26");
+    return 0;
+}
+
+int test_pool_date_refuses_to_fall_back_to_a_stale_pool() {
+    // The 2026-08-26 incident: harvest failed that morning, so the newest pool
+    // on disk was the previous day's. Publishing against it grounded today's
+    // posts in yesterday's pages. Refuse, and say what to do.
+    auto c = resolve_pool_date({"2026-08-24", "2026-08-25"}, "", "2026-08-26");
+    CHECK(c.date.empty());
+    CHECK(c.error.find("2026-08-26") != std::string::npos);   // what is missing
+    CHECK(c.error.find("2026-08-25") != std::string::npos);   // what exists instead
+    CHECK(c.error.find("harvest_candidates") != std::string::npos);
+    return 0;
+}
+
+int test_pool_date_honours_an_explicit_older_date() {
+    // Republishing an old day on purpose stays possible — the ids are then
+    // resolved against the pool that day actually used.
+    auto c = resolve_pool_date({"2026-08-24", "2026-08-25"}, "2026-08-24", "2026-08-26");
+    CHECK(c.error.empty());
+    CHECK(c.date == "2026-08-24");
+    return 0;
+}
+
+int test_pool_date_rejects_an_explicit_date_with_no_pool() {
+    auto c = resolve_pool_date({"2026-08-24"}, "2026-08-25", "2026-08-26");
+    CHECK(c.date.empty());
+    CHECK(c.error.find("2026-08-25") != std::string::npos);
+    return 0;
+}
+
+int test_pool_date_rejects_an_empty_workspace() {
+    auto c = resolve_pool_date({}, "", "2026-08-26");
+    CHECK(c.date.empty());
+    CHECK(!c.error.empty());
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_normalize_for_match();
@@ -492,6 +536,11 @@ int main() {
     rc |= test_build_issue_renumbers_after_a_drop();
     rc |= test_build_issue_rejects_when_too_few_survive();
     rc |= test_build_issue_still_rejects_contract_violations();
+    rc |= test_pool_date_uses_today_when_todays_pool_exists();
+    rc |= test_pool_date_refuses_to_fall_back_to_a_stale_pool();
+    rc |= test_pool_date_honours_an_explicit_older_date();
+    rc |= test_pool_date_rejects_an_explicit_date_with_no_pool();
+    rc |= test_pool_date_rejects_an_empty_workspace();
     if (rc == 0) std::cout << "test_issue: all tests passed\n";
     return rc;
 }
