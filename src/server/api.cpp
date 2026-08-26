@@ -6,6 +6,7 @@
 #include "../core/base64.h"
 #include "../core/password.h"
 #include "../core/text_utils.h"
+#include "../core/tools/fs_guard.h"
 #include "../core/tools/pdf_extract.h"
 #include "httplib.h"
 #include <chrono>
@@ -620,9 +621,12 @@ void FunesApi::mount(httplib::Server& srv) {
             std::chrono::system_clock::now().time_since_epoch()).count();
         safe_name = std::to_string(stamp) + "_" + safe_name;
 
-        std::error_code ec;
-        fs::create_directories(workspace_dir_, ec);
-        fs::path dest = fs::path(workspace_dir_) / safe_name;
+        // The uploader's own workspace, not the shared root — otherwise an
+        // attachment would be readable by every account's read_file, and the
+        // path handed back would resolve outside the caller's confinement.
+        const fs::path workspace =
+            funes::fsguard::workspace_for(workspace_dir_, user->id, "");
+        fs::path dest = workspace / safe_name;
 
         std::ofstream out(dest, std::ios::binary | std::ios::trunc);
         if (!out) return json_error(res, 500, "Could not save upload");
@@ -651,7 +655,7 @@ void FunesApi::mount(httplib::Server& srv) {
 
         if (looks_like_pdf(file.content)) {
             funes::pdf::ExtractResult extracted = funes::pdf::extract_text(
-                dest, workspace_dir_, PDF_UPLOAD_TIMEOUT_S, MAX_UPLOAD_PREVIEW);
+                dest, workspace, PDF_UPLOAD_TIMEOUT_S, MAX_UPLOAD_PREVIEW);
             is_text = extracted.ok;
             if (extracted.ok) preview = extracted.text_or_error;
         } else if (funes::looks_like_text(file.content)) {

@@ -12,6 +12,7 @@
 #include "../funes_config.h"
 #include "../text_utils.h"
 #include "../tools.h"
+#include "fs_guard.h"
 #include "process_runner.h"
 #include <filesystem>
 
@@ -24,14 +25,13 @@ constexpr int    DEFAULT_TIMEOUT_SECS = 20;
 constexpr int    MAX_TIMEOUT_SECS     = 120;
 
 ToolResult execute_shell_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
-    // An agent's own `workspace_dir` (agents/*.yaml) overrides the server-wide
-    // default, same as read_file/write_file — see file_tools.cpp.
-    fs::path workspace = default_workspace;
-    if (!ctx.workspace_dir.empty()) {
-        workspace = ctx.workspace_dir;
-        std::error_code ec;
-        fs::create_directories(workspace, ec);
-    }
+    // Per-user, with the agent's own `workspace_dir` applied inside it —
+    // same resolution read_file/write_file use, from fs_guard.h. Note this
+    // only sets the command's *working directory*: execute_shell is real
+    // unconfined execution, so a per-user cwd is a convenience, not a
+    // sandbox. The sandbox is FUNES_ALLOW_SHELL being off.
+    fs::path workspace = funes::fsguard::workspace_for(default_workspace, ctx.user_id,
+                                                       ctx.workspace_dir);
 
     if (!funes::shell_allowed())
         return {"Shell execution is disabled. Set FUNES_ALLOW_SHELL=1 to enable it — "

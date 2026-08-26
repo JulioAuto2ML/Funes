@@ -58,10 +58,10 @@ int test_enabled_execution() {
     CHECK(fails.error);
     CHECK(fails.text.find("exit_code: 3") != std::string::npos);
 
-    // cwd is the workspace: a file written there should be visible.
+    // cwd is the caller's workspace, which is now <root>/<user_id>.
     auto write = reg.call("execute_shell", {{"command", "echo marker > seen.txt"}}, ctx);
     CHECK(!write.error);
-    CHECK(fs::exists(ws / "seen.txt"));
+    CHECK(fs::exists(ws / "1" / "seen.txt"));
 
     // Timeout: process outlives its budget and gets killed.
     auto timeout = reg.call("execute_shell",

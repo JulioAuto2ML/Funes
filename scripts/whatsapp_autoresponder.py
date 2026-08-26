@@ -16,7 +16,8 @@ the incoming message came from. The LLM never chooses a recipient.
 
 Documents ("document" attachments — PDFs, plain text files, etc.) and photos
 ("image" attachments) sent by a whitelisted contact are downloaded via the
-bridge's /api/download and copied into WHATSAPP_UPLOAD_DIR, where the
+bridge's /api/download and copied into the sending contact's own Funes
+workspace ($FUNES_WORKSPACE_DIR/<user_id>/whatsapp-uploads/), where the
 whatsapp-autoresponder agent's `read_file` tool (scoped to that directory
 only, see workspace_dir in its yaml) can read them — PDFs and plain text via
 text extraction, images via the vision-capable backend if one is configured.
@@ -83,7 +84,15 @@ WHITELIST = {
     jid.strip() for jid in CFG.get("WHATSAPP_WHITELIST", "").split(",") if jid.strip()
 }
 
-UPLOAD_DIR = Path(CFG.get("WHATSAPP_UPLOAD_DIR", str(REPO_ROOT / "data" / "whatsapp-uploads")))
+# Funes 4.0 workspaces are per user: <root>/<user_id>/. Uploads have to land
+# inside the sending contact's own workspace, because that is the only place
+# the whatsapp-autoresponder agent's read_file is allowed to look (its
+# `workspace_dir: whatsapp-uploads` in the yaml resolves relative to it).
+WORKSPACE_ROOT = Path(os.path.expanduser(
+    CFG.get("FUNES_WORKSPACE_DIR", "~/.funes/workspace")))
+# The folder name inside each user's workspace. Must match `workspace_dir` in
+# agents/whatsapp-autoresponder.yaml.
+UPLOAD_SUBDIR = CFG.get("WHATSAPP_UPLOAD_SUBDIR", "whatsapp-uploads")
 MAX_MEDIA_BYTES = int(CFG.get("WHATSAPP_MAX_MEDIA_BYTES", str(20 * 1024 * 1024)))
 UPLOAD_MAX_AGE_DAYS = int(CFG.get("WHATSAPP_UPLOAD_MAX_AGE_DAYS", "30"))
 CLEANUP_INTERVAL_SECONDS = 24 * 3600
@@ -178,9 +187,10 @@ def download_media(message_id: str, chat_jid: str) -> dict:
 
 
 def handle_incoming_media(msg_id: str, chat_jid: str, media_type: str, filename: str,
-                           file_length: int, caption: str) -> str:
+                           file_length: int, caption: str, user_id: int) -> str:
     """Download a WhatsApp "document" or "image" attachment and copy it into
-    UPLOAD_DIR, returning the text to hand to Funes (a `[Document received:
+    the sending contact's own Funes workspace, returning the text to hand to
+    Funes (a `[Document received:
     <path>]` / `[Photo received: <path>]` marker the agent's read_file tool
     can act on, plus the original caption if any). On any failure, returns a
     note describing what went wrong instead, so the reply can explain rather
@@ -213,7 +223,8 @@ def handle_incoming_media(msg_id: str, chat_jid: str, media_type: str, filename:
                  f"bytes, over the {MAX_MEDIA_BYTES}-byte limit, so it was discarded.]")
         return f"{note} {caption}".strip()
 
-    chat_dir = UPLOAD_DIR / sanitize_path_component(chat_jid, 80, keep_dots=False)
+    upload_dir = upload_dir_for(user_id)
+    chat_dir = upload_dir / sanitize_path_component(chat_jid, 80, keep_dots=False)
     chat_dir.mkdir(parents=True, exist_ok=True)
     raw_name = Path(filename or result.get("filename") or "file").name
     safe_name = sanitize_path_component(raw_name, 100, keep_dots=True)
@@ -225,29 +236,34 @@ def handle_incoming_media(msg_id: str, chat_jid: str, media_type: str, filename:
         note = f"[The user sent a {label} but it could not be saved for reading: {e}]"
         return f"{note} {caption}".strip()
 
-    note = f"[{label.capitalize()} received: {dest.relative_to(UPLOAD_DIR)}]"
+    note = f"[{label.capitalize()} received: {dest.relative_to(upload_dir)}]"
     return f"{note} {caption}".strip()
 
 
 def cleanup_expired_uploads() -> None:
-    if not UPLOAD_DIR.exists():
+    """Sweep every user's upload folder, not just one: uploads now live under
+    <workspace>/<user_id>/<UPLOAD_SUBDIR>/, so a single directory walk would
+    silently stop expiring files for everyone but the first account."""
+    if not WORKSPACE_ROOT.exists():
         return
     cutoff = time.time() - UPLOAD_MAX_AGE_DAYS * 86400
     removed = 0
-    for path in UPLOAD_DIR.rglob("*"):
-        if path.is_file():
-            try:
-                if path.stat().st_mtime < cutoff:
-                    path.unlink()
-                    removed += 1
-            except OSError:
-                continue
-    for sub in sorted(UPLOAD_DIR.rglob("*"), reverse=True):
-        if sub.is_dir():
-            try:
-                sub.rmdir()  # only succeeds if already empty
-            except OSError:
-                pass
+    upload_dirs = [d for d in WORKSPACE_ROOT.glob(f"*/{UPLOAD_SUBDIR}") if d.is_dir()]
+    for upload_dir in upload_dirs:
+        for path in upload_dir.rglob("*"):
+            if path.is_file():
+                try:
+                    if path.stat().st_mtime < cutoff:
+                        path.unlink()
+                        removed += 1
+                except OSError:
+                    continue
+        for sub in sorted(upload_dir.rglob("*"), reverse=True):
+            if sub.is_dir():
+                try:
+                    sub.rmdir()  # only succeeds if already empty
+                except OSError:
+                    pass
     if removed:
         log(f"Deleted {removed} expired upload(s) older than {UPLOAD_MAX_AGE_DAYS} days.")
 
@@ -279,6 +295,50 @@ def fetch_new_messages(state):
         state["last_timestamp_ids"] = [r[0] for r in rows if r[4] == max_ts]
 
     return fresh
+
+
+# chat_jid -> user_id, resolved by Funes (never guessed here). Cached because
+# it only changes when an admin runs `funes jid-map`, and a failed lookup is
+# not cached so a mapping added later is picked up without a restart.
+_USER_ID_CACHE: dict[str, int] = {}
+
+
+def resolve_user_id(chat_jid: str) -> int | None:
+    """Ask Funes which user this WhatsApp number acts as.
+
+    Identity resolution stays server-side: this sends the jid and reads back
+    the id Funes assigned it. Returning None means the number is not mapped,
+    which is also what makes /api/chat refuse the message.
+    """
+    if chat_jid in _USER_ID_CACHE:
+        return _USER_ID_CACHE[chat_jid]
+    if not SERVICE_TOKEN:
+        return None
+    req = urllib.request.Request(
+        f"{FUNES_API_URL}/api/auth/status",
+        headers={"X-Funes-Service-Token": SERVICE_TOKEN,
+                 "X-Funes-User-Jid": chat_jid},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        log(f"Could not resolve a Funes user for {chat_jid}: {e}")
+        return None
+
+    user = data.get("user") or {}
+    uid = user.get("id")
+    if not isinstance(uid, int):
+        log(f"WhatsApp number {chat_jid} is not mapped to a Funes user. "
+            f"Map it with: funes jid-map {chat_jid} <username>")
+        return None
+    _USER_ID_CACHE[chat_jid] = uid
+    return uid
+
+
+def upload_dir_for(user_id: int) -> Path:
+    return WORKSPACE_ROOT / str(user_id) / UPLOAD_SUBDIR
 
 
 def ask_funes(session: str, message: str, chat_jid: str) -> str | None:
@@ -386,8 +446,17 @@ def main():
                 continue
 
             if media_type in ("document", "image"):
+                # Resolve who this number is before writing anything: the file
+                # has to land in that user's workspace, and an unmapped number
+                # has no workspace to write into (and /api/chat would refuse
+                # the message anyway).
+                user_id = resolve_user_id(chat_jid)
+                if user_id is None:
+                    log(f"Ignoring {media_type} from unmapped number {chat_jid}.")
+                    continue
                 message_text = handle_incoming_media(
-                    msg_id, chat_jid, media_type, filename, file_length, message_text)
+                    msg_id, chat_jid, media_type, filename, file_length,
+                    message_text, user_id)
             elif not message_text:
                 continue  # other media types or empty message, nothing to reply to
 

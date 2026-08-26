@@ -8,6 +8,27 @@ namespace fs = std::filesystem;
 
 namespace funes::fsguard {
 
+fs::path workspace_for(const fs::path& root, int64_t user_id,
+                       const std::string& agent_override) {
+    // A non-positive user_id would collapse every caller into one directory,
+    // which is the failure this whole function exists to prevent — so it gets
+    // its own bucket rather than silently sharing user 1's files.
+    const fs::path base = root / (user_id > 0 ? std::to_string(user_id)
+                                              : std::string("unknown"));
+
+    fs::path ws = base;
+    if (!agent_override.empty()) {
+        const fs::path given(agent_override);
+        // Absolute means "this exact shared folder"; relative means "inside
+        // whoever is calling". See the header for why both exist.
+        ws = given.is_absolute() ? given : base / given;
+    }
+
+    std::error_code ec;
+    fs::create_directories(ws, ec);
+    return ws;
+}
+
 std::optional<fs::path> resolve(const fs::path& workspace_dir, const std::string& user_path) {
     if (user_path.empty()) return std::nullopt;
 

@@ -51,15 +51,13 @@ ToolResult extract_pdf_text(const fs::path& workspace, const fs::path& resolved)
     return out;
 }
 
-// An agent's own `workspace_dir` (agents/*.yaml) overrides the server-wide
-// default so a skill can be scoped to one folder without widening every
-// other agent's file access.
-fs::path effective_workspace(const fs::path& default_workspace, const ToolContext& ctx) {
-    if (ctx.workspace_dir.empty()) return default_workspace;
-    fs::path ws = ctx.workspace_dir;
-    std::error_code ec;
-    fs::create_directories(ws, ec);
-    return ws;
+// Where this call's files live: the caller's own directory under the
+// server-wide root, with the agent's `workspace_dir` (agents/*.yaml) applied
+// inside it. All the reasoning is in fs_guard.h — kept there so read_file,
+// write_file, execute_shell and /api/upload cannot disagree about where a
+// given user's workspace is.
+fs::path effective_workspace(const fs::path& root, const ToolContext& ctx) {
+    return funes::fsguard::workspace_for(root, ctx.user_id, ctx.workspace_dir);
 }
 
 ToolResult read_file_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {

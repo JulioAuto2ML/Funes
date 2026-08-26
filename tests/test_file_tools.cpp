@@ -64,7 +64,8 @@ int test_read_write_file() {
     // write_file creates parent dirs and the file.
     auto w1 = reg.call("write_file", {{"path", "notes/todo.txt"}, {"content", "buy milk"}}, ctx);
     CHECK(!w1.error);
-    CHECK(fs::exists(ws / "notes" / "todo.txt"));
+    // 4.0: read_file/write_file operate inside <root>/<user_id>.
+    CHECK(fs::exists(ws / "1" / "notes" / "todo.txt"));
 
     // read_file reads it back.
     auto r1 = reg.call("read_file", {{"path", "notes/todo.txt"}}, ctx);
@@ -96,7 +97,8 @@ int test_read_write_file() {
     // Binary content that isn't a recognized image format is rejected, not
     // dumped as garbage.
     {
-        std::ofstream bin(ws / "unknown.bin", std::ios::binary);
+        fs::create_directories(ws / "1");
+        std::ofstream bin(ws / "1" / "unknown.bin", std::ios::binary);
         bin.write("\x00\x01\x02\x03NOTANIMAGE\x00\x01", 15);
     }
     auto r6 = reg.call("read_file", {{"path", "unknown.bin"}}, ctx);
@@ -105,7 +107,7 @@ int test_read_write_file() {
 
     // A recognized image format is handed back as an image, not rejected.
     {
-        std::ofstream img(ws / "photo.jpg", std::ios::binary);
+        std::ofstream img(ws / "1" / "photo.jpg", std::ios::binary);
         img.write("\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01", 12);
     }
     auto r7 = reg.call("read_file", {{"path", "photo.jpg"}}, ctx);
@@ -145,7 +147,8 @@ int test_pdf_extraction() {
     fs::remove_all(ws);
     fs::create_directories(ws);
     {
-        std::ofstream f(ws / "doc.pdf", std::ios::binary);
+        fs::create_directories(ws / "1");
+        std::ofstream f(ws / "1" / "doc.pdf", std::ios::binary);
         f << kMinimalPdf;
     }
 
@@ -192,7 +195,8 @@ int test_pdf_no_text_extraction() {
     fs::remove_all(ws);
     fs::create_directories(ws);
     {
-        std::ofstream f(ws / "blank.pdf", std::ios::binary);
+        fs::create_directories(ws / "1");
+        std::ofstream f(ws / "1" / "blank.pdf", std::ios::binary);
         f << kBlankPagePdf;
     }
 

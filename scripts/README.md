@@ -8,6 +8,7 @@ companion services.
 | Script | Purpose |
 |---|---|
 | `funesctl.sh` | Thin wrapper around `systemctl --user start/stop/restart/status funes.service`. |
+| `funes_bench.py` | Tool-calling benchmark: drives `/api/chat` through a fixed suite of prompts and scores whether the currently-connected model calls the right tools (and avoids the wrong ones). Run after swapping `FUNES_LLM_MODEL` to check the new model still works with Funes' agents before trusting it. `--list` for cases, `--compare` to diff saved runs across models. |
 | `whatsapp_autoresponder.py` | Polls the WhatsApp bridge for incoming messages, asks the `whatsapp-autoresponder` agent for a reply, sends it back. |
 | `whatsapp_whitelist.py` | CLI tool for managing the autoresponder contact whitelist (`list/add/remove`). |
 

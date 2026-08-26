@@ -22,6 +22,7 @@
 #include <chrono>
 #include <csignal>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -54,6 +55,64 @@ static std::string resolve_dir(const std::string& configured, const std::string&
         if (fs::exists(candidate)) return fs::absolute(candidate).string();
     }
     return fs::absolute(relative).string();
+}
+
+// 4.0: the workspace root gained a per-user level (<root>/<user_id>), so an
+// existing install's files are sitting one directory too high and read_file
+// would no longer find them. Move them once, into the admin's directory —
+// the same account the memory migration attributes existing rows to.
+//
+// Guarded by a marker file rather than by "is the directory empty", because
+// this moves a user's own files: getting it wrong twice is worse than not
+// running it at all. Anything that fails to move is left where it is and
+// named in the log, never silently dropped.
+static void migrate_workspace_to_per_user(const fs::path& root) {
+    const fs::path marker = root / ".per-user-layout";
+    std::error_code ec;
+    if (fs::exists(marker, ec)) return;
+
+    const fs::path admin_dir = root / std::to_string(MemoryStore::ADMIN_USER_ID);
+
+    std::vector<fs::path> to_move;
+    for (const auto& entry : fs::directory_iterator(root, ec)) {
+        const std::string name = entry.path().filename().string();
+        if (name == admin_dir.filename().string()) continue;   // already there
+        if (name == ".per-user-layout") continue;
+        to_move.push_back(entry.path());
+    }
+    if (ec) {
+        std::cerr << "[funes] cannot read workspace '" << root.string()
+                  << "': " << ec.message() << " — skipping the per-user move\n";
+        return;
+    }
+
+    if (!to_move.empty()) {
+        fs::create_directories(admin_dir, ec);
+        int moved = 0, failed = 0;
+        for (const auto& src : to_move) {
+            std::error_code move_ec;
+            fs::rename(src, admin_dir / src.filename(), move_ec);
+            if (move_ec) {
+                ++failed;
+                std::cerr << "[funes] could not move '" << src.string()
+                          << "' into " << admin_dir.string() << ": "
+                          << move_ec.message() << "\n";
+            } else {
+                ++moved;
+            }
+        }
+        std::cerr << "[funes] workspace is now per-user: moved " << moved
+                  << " entr" << (moved == 1 ? "y" : "ies") << " into "
+                  << admin_dir.string();
+        if (failed) std::cerr << " (" << failed << " left in place — see above)";
+        std::cerr << "\n";
+        // Leaving the marker unwritten after a partial failure would retry the
+        // move next start, which is the right behaviour: the entries that did
+        // move are already gone from the root, so a retry only sees the rest.
+        if (failed) return;
+    }
+
+    std::ofstream(marker) << "Funes 4.0: user files live in <root>/<user_id>/\n";
 }
 
 // The LLM half of MemoryStore::consolidate: given a cluster of near-identical
@@ -143,6 +202,9 @@ int main(int argc, char** argv) {
         std::error_code ec;
         fs::create_directories(workspace_dir, ec);
     }
+    // Relocate a pre-4.0 flat workspace into <root>/1/ before any tool looks
+    // for a file in it.
+    migrate_workspace_to_per_user(workspace_dir);
 
     // With llama-server the model name is usually left as "default" — resolve
     // the real one so model-specific handling (e.g. Qwen tool-result format)

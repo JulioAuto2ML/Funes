@@ -17,6 +17,7 @@
 
 #include "memory.h"
 #include "sqlite3.h"
+#include "tools.h"
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -352,9 +353,62 @@ int test_pre4_vec_table_is_rebuilt_before_first_recall() {
     return 0;
 }
 
+int test_workspaces_are_isolated() {
+    // Phase 3: files, like memories, belong to one account. Two users writing
+    // the same relative path must get two files, and neither must be able to
+    // read the other's — the confinement in fs_guard::resolve is what stops
+    // "../2/secret.txt" from being the way around it.
+    fs::path root = fs::temp_directory_path() / "funes_iso_ws";
+    fs::remove_all(root);
+
+    ToolRegistry reg;
+    register_file_tools(reg, root.string());
+
+    ToolContext alice{"funes", "s1", "", "", ALICE};
+    ToolContext bob  {"funes", "s1", "", "", BOB};
+
+    CHECK(!reg.call("write_file", {{"path", "notes.txt"}, {"content", "alice salary"}},
+                    alice).error);
+    CHECK(!reg.call("write_file", {{"path", "notes.txt"}, {"content", "bob groceries"}},
+                    bob).error);
+
+    // Same relative path, two separate files.
+    CHECK(fs::exists(root / "1" / "notes.txt"));
+    CHECK(fs::exists(root / "2" / "notes.txt"));
+
+    auto bob_read = reg.call("read_file", {{"path", "notes.txt"}}, bob);
+    CHECK(!bob_read.error);
+    CHECK(bob_read.text == "bob groceries");
+
+    auto alice_read = reg.call("read_file", {{"path", "notes.txt"}}, alice);
+    CHECK(alice_read.text == "alice salary");
+
+    // Traversal out of one's own workspace into another's is refused.
+    auto escape = reg.call("read_file", {{"path", "../1/notes.txt"}}, bob);
+    CHECK(escape.error);
+    auto abs_escape = reg.call("read_file",
+                               {{"path", (root / "1" / "notes.txt").string()}}, bob);
+    CHECK(abs_escape.error);
+
+    // A relative agent workspace_dir override nests inside the caller, so two
+    // users sharing one agent still get separate folders. This is what
+    // whatsapp-autoresponder relies on.
+    ToolContext alice_scoped{"wa", "s1", "whatsapp-uploads", "", ALICE};
+    ToolContext bob_scoped  {"wa", "s1", "whatsapp-uploads", "", BOB};
+    CHECK(!reg.call("write_file", {{"path", "doc.txt"}, {"content", "alice doc"}},
+                    alice_scoped).error);
+    CHECK(!reg.call("write_file", {{"path", "doc.txt"}, {"content", "bob doc"}},
+                    bob_scoped).error);
+    CHECK(fs::exists(root / "1" / "whatsapp-uploads" / "doc.txt"));
+    CHECK(fs::exists(root / "2" / "whatsapp-uploads" / "doc.txt"));
+    CHECK(reg.call("read_file", {{"path", "doc.txt"}}, bob_scoped).text == "bob doc");
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_pre4_vec_table_is_rebuilt_before_first_recall();
+    rc |= test_workspaces_are_isolated();
     rc |= test_memories_are_isolated();
     rc |= test_same_text_is_two_memories();
     rc |= test_forget_cannot_cross_users();

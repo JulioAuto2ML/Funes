@@ -5,7 +5,7 @@ tool_choice: auto
 tools: [recall, remember, read_file]
 max_steps: 6
 context_limit: 16384
-workspace_dir: data/whatsapp-uploads
+workspace_dir: whatsapp-uploads
 # Share funes' own memory pool instead of starting a separate, empty one —
 # see AgentConfig::memory_scope. Without this, recall/remember here would be
 # isolated from everything the user has told the funes agent through its own
