@@ -168,7 +168,12 @@ def post_to_linkedin(text: str, token: str) -> str:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
+    return main_with_args(sys.argv[1:])
+
+
+# Split from main() so the exit codes can be tested without patching sys.argv —
+# they are the interface cron branches on, so they deserve coverage.
+def main_with_args(args):
 
     def take(flag):
         if flag not in args:
@@ -203,11 +208,27 @@ def main():
 
     try:
         issue = load_sent_issue(work_dir, publication, target_date)
-        text = post_body(issue, post_number)
     except RuntimeError as e:
         print(f"REFUSED: {e}")
         return 3
-    except (IndexError, KeyError, json.JSONDecodeError) as e:
+    except (KeyError, json.JSONDecodeError) as e:
+        print(f"ERROR: {e}")
+        return 1
+
+    # An issue can legitimately carry fewer items than there are cron slots:
+    # publish_issue drops an item whose post text no page in the pool supports
+    # rather than sinking the whole issue. A slot past the end is therefore an
+    # expected quiet day, not a failure — exiting non-zero here would put an
+    # ERROR in the log most days and teach us to stop reading it.
+    item_count = len(issue.get("items", []))
+    if post_number > item_count:
+        print(f"Nothing to post: today's {publication} issue has {item_count} "
+              f"item(s), and this is slot {post_number}.")
+        return 0
+
+    try:
+        text = post_body(issue, post_number)
+    except (IndexError, KeyError) as e:
         print(f"ERROR: {e}")
         return 1
 

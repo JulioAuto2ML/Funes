@@ -16,7 +16,9 @@ import json
 import unittest
 from datetime import date
 from pathlib import Path
+from contextlib import redirect_stdout
 from tempfile import TemporaryDirectory
+import io
 
 import post_tweet as pt
 
@@ -129,10 +131,37 @@ class PostBody(unittest.TestCase):
         self.assertIn("OpenAI cuts prices", pt.post_body(ISSUE, 2))
 
     def test_an_out_of_range_number_raises(self):
-        # Cron is configured for ten items; a short issue has fewer.
+        # post_body itself still refuses; main() is what decides whether that
+        # is an error or an ordinary short day (see below).
         for n in (0, 3, 10):
             with self.assertRaises(IndexError):
                 pt.post_body(ISSUE, n)
+
+    def test_main_treats_a_slot_past_the_end_as_a_quiet_day(self):
+        # publish_issue drops an item no page in the pool supports rather than
+        # sinking the whole issue, so an issue can be shorter than the number
+        # of cron slots. That must exit 0 with an explanatory line: exiting
+        # non-zero would put an ERROR in the log most days and teach us to
+        # stop reading it.
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp)                       # ISSUE has 2 items
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc = pt.main_with_args(["7", "--dir", str(f.dir),
+                                        "--date", DAY.isoformat()])
+            self.assertEqual(rc, 0)
+            self.assertIn("Nothing to post", out.getvalue())
+            self.assertIn("2 item(s)", out.getvalue())
+
+    def test_main_still_posts_a_slot_within_range(self):
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc = pt.main_with_args(["1", "--dir", str(f.dir),
+                                        "--date", DAY.isoformat(), "--dry-run"])
+            self.assertEqual(rc, 0)
+            self.assertIn("DRY RUN", out.getvalue())
 
     def test_the_headline_is_not_posted(self):
         # It is a link label for the newsletter's HTML; in a post it reads as a

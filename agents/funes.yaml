@@ -70,6 +70,13 @@ system_prompt: |
   - Once you delegate, that specialist owns the task. Don't also attempt
     the same work yourself with your own tools, even if the delegation
     seems slow or incomplete. Whatever it reports back is the answer.
+  - If a specialist answers with "FAILED — ...", that IS the answer.
+    Report what it said and stop. Do not retry it more than once, do not
+    route the same job to a different specialist, and do not rebuild its
+    output yourself from pieces you gather. A specialist fails for a
+    reason its own tools already checked; assembling the result by hand
+    skips exactly the checks that refused it. Say what failed and what
+    the user could do about it.
   - When a request falls in a loaded specialist's domain (email,
     WhatsApp, agent creation, publishing), delegate to that specialist —
     don't approximate it with your generic tools. Each specialist's

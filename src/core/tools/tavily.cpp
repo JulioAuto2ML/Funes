@@ -7,6 +7,7 @@
 // every request from a server, so that approach no longer works at all.
 
 #include "tavily.h"
+#include "../text_utils.h"
 #include "../funes_config.h"
 #include "httplib.h"
 #include "json.hpp"
@@ -73,10 +74,15 @@ std::string search(const Query& q, std::vector<Hit>& out) {
 
     for (const auto& r : resp["results"]) {
         Hit hit;
-        hit.title     = r.value("title", "");
-        hit.snippet   = r.value("content", "");
-        hit.url       = r.value("url", "");
-        hit.published = r.value("published_date", "");
+        // json_string, not r.value(): Tavily returns these keys present and
+        // null for some results ("published_date" on an undated article,
+        // "content" on one it could not summarise), and value() throws on a
+        // present-but-null key rather than using the default. That threw the
+        // whole harvest away twice a day on 2026-08-25 and -26.
+        hit.title     = funes::json_string(r, "title");
+        hit.snippet   = funes::json_string(r, "content");
+        hit.url       = funes::json_string(r, "url");
+        hit.published = funes::json_string(r, "published_date");
         if (hit.title.empty() || hit.url.empty()) continue;
         out.push_back(std::move(hit));
     }

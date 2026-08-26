@@ -55,11 +55,52 @@ struct Selection {
 constexpr size_t kMaxPostChars = 280;
 
 // Resolves `selection` against a pool record (harvest::pool_record) and builds
-// the issue. Empty return = `out` is the issue, ready to publish. Otherwise one
-// violation and `out` is untouched.
+// the issue. Empty return = `out` is the issue, ready to publish. Otherwise the
+// violations and `out` is untouched.
+//
+// Two classes of problem, handled differently on purpose:
+//
+//   Contract violations — an unknown id, a duplicate story, an empty or
+//     over-long post, a missing emoji — reject the whole issue. The model got
+//     the format wrong and can fix it.
+//
+//   Ungroundable items — the post text is supported by no page in the pool,
+//     not even after trying every unused candidate — are DROPPED, listed in
+//     `dropped`, and the rest of the issue ships. Rejecting everything for one
+//     bad item meant a model that could not fix it (because the code had
+//     already proved no candidate matched) retried with identical arguments
+//     until the loop detector killed the run: three attempts, no newsletter.
+//
+// `min_items` is the floor: if too few survive the drops, the issue is
+// rejected after all and the reasons are in the returned string. `dropped` may
+// be null if the caller does not care, but publish_issue wants it for the run
+// record and for telling the model what it lost.
 std::string build_issue(const nlohmann::json& pool,
                         const std::vector<Selection>& selection,
-                        nlohmann::json& out);
+                        nlohmann::json& out,
+                        int min_items = 1,
+                        std::vector<std::string>* dropped = nullptr);
+
+// Which pool publish_issue resolves ids against.
+//
+// Split out and filesystem-free so it can be tested: on 2026-08-26 the "no
+// date given" path silently fell back to the newest pool on disk. Harvest had
+// failed that morning, so the newest was the previous day's — and today's post
+// text was grounded against yesterday's pages. It only surfaced because the
+// overlap check rejected almost everything; had a few posts matched by
+// coincidence, the issue would have shipped yesterday's URLs under today's
+// headlines. That is the one failure this whole pipeline exists to prevent.
+//
+// `requested` empty means "today's issue": today's pool must exist, and no
+// other date will do. A non-empty `requested` is a deliberate republish of an
+// older day and is honoured if that pool exists.
+struct PoolChoice {
+    std::string date;    // empty when `error` is set
+    std::string error;
+};
+PoolChoice resolve_pool_date(const std::vector<std::string>& available_dates,
+                             const std::string& requested,
+                             const std::string& today);
 
 // The link label: the candidate's own headline, trimmed at a word boundary.
 // Derived rather than asked for — it is the article's title, and the pool

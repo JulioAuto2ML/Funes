@@ -2,7 +2,10 @@ name: curator
 description: Picks the day's items out of a harvested candidate pool, writes the posts, and publishes the issue — for any publication in publications/, not just the AI newsletter.
 delegation_notes: >
   Runs many tool calls internally. Don't attempt the same work yourself
-  after delegating.
+  after delegating. If it returns FAILED, report that — never assemble or
+  send an issue by hand, and never route the job to a research agent
+  instead. The URLs in a published issue are resolved from a fetched pool
+  precisely so no model ever types one.
 model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]

@@ -497,7 +497,7 @@ std::vector<std::string> recently_published(const std::string& issues_dir, int i
         try { in >> j; } catch (...) { continue; }
         if (!j.contains("items") || !j["items"].is_array()) continue;
         for (const auto& item : j["items"]) {
-            const std::string url = item.value("url", "");
+            const std::string url = funes::json_string(item, "url");
             if (!url.empty()) out.push_back(canonical_url(url));
         }
     }
@@ -533,8 +533,20 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
                            const std::string& publications_dir,
                            const json& args, const ToolContext& ctx) {
     const std::string publication = safe_id(args.value("publication", "ai-pulse"));
-    if (publication.empty())
+    // Log the call before anything can reject it. On 2026-08-26 both of a
+    // run's two harvest calls failed inside 22 seconds and left nothing in the
+    // journal at all, so the outage could not be diagnosed after the fact —
+    // publish_issue then fell back to the previous day's pool. Every exit from
+    // this function now says why.
+    std::cerr << "[harvest] called: publication=" << (publication.empty() ? "(empty)" : publication)
+              << " date=" << (args.contains("date") ? args["date"].dump() : "(default)")
+              << " queries=" << (args.contains("queries") ? args["queries"].dump().substr(0, 200)
+                                                          : "(from config)")
+              << "\n";
+    if (publication.empty()) {
+        std::cerr << "[harvest] REFUSED: 'publication' has no letters or digits\n";
         return {"'publication' must contain at least one letter or digit.", true};
+    }
 
     // The config supplies everything the caller didn't. A publication with no
     // config still works — the defaults in publication.h are what the AI
@@ -545,19 +557,28 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
     if (configured) {
         const std::string problem =
             funes::Publication::load(publications_dir, publication, pub);
-        if (!problem.empty())
+        if (!problem.empty()) {
+            std::cerr << "[harvest] REFUSED: publication '" << publication
+                      << "' is misconfigured: " << problem << "\n";
             return {"Publication '" + publication + "' is misconfigured: " + problem, true};
+        }
     }
 
     std::vector<std::string> queries;
     {
         const std::string problem = resolve_queries(args, pub.queries, publication, queries);
-        if (!problem.empty()) return {problem, true};
+        if (!problem.empty()) {
+            std::cerr << "[harvest] REFUSED: " << problem << "\n";
+            return {problem, true};
+        }
     }
 
     std::string date = args.value("date", "");
-    if (!date.empty() && iso_date(date) != date)
+    if (!date.empty() && iso_date(date) != date) {
+        std::cerr << "[harvest] REFUSED: bad date " << args["date"].dump()
+                  << " — must be YYYY-MM-DD\n";
         return {"'date' must be YYYY-MM-DD.", true};
+    }
     if (date.empty()) date = today_local();
 
     const int per_query = std::clamp(args.value("per_query", pub.per_query), 1, 20);
@@ -636,10 +657,28 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
         kept.push_back(std::move(c));
     }
 
-    if (kept.empty())
+    // The rejection reasons were collected all along and thrown away. They are
+    // the whole diagnosis when a harvest comes back empty.
+    {
+        std::map<std::string, int> by_reason;
+        for (const auto& r : rejected) ++by_reason[r.reason];
+        std::cerr << "[harvest] " << publication << " " << date << ": "
+                  << hits.size() << " hit(s), " << kept.size() << " kept, "
+                  << rejected.size() << " dropped";
+        if (!by_reason.empty()) {
+            std::cerr << " —";
+            for (const auto& [reason, count] : by_reason)
+                std::cerr << " " << count << "x " << reason << ";";
+        }
+        std::cerr << "\n";
+    }
+
+    if (kept.empty()) {
+        std::cerr << "[harvest] REFUSED: nothing survived the filters\n";
         return {"Harvested nothing: " + std::to_string(hits.size()) + " search hit(s), "
                 "all dropped (" + std::to_string(fetch_failures) + " failed to fetch). "
                 "Try a wider time_range or different queries.", true};
+    }
 
     // ── 5. ids + full text in the result store ───────────────────────────────
     renumber_stories(kept);

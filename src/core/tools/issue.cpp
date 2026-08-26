@@ -65,6 +65,16 @@ size_t utf8_length(const std::string& s) {
 
 std::string two(int n) { return (n < 10 ? "0" : "") + std::to_string(n); }
 
+// Local time, matching harvest.cpp's today_local(): the two have to agree on
+// what "today" is or publish_issue would look for a pool harvest never named.
+std::string today_iso() {
+    const std::time_t now = std::time(nullptr);
+    std::tm tm{};
+    localtime_r(&now, &tm);
+    return std::to_string(tm.tm_year + 1900) + "-" + two(tm.tm_mon + 1) + "-" +
+           two(tm.tm_mday);
+}
+
 std::string now_iso() {
     const std::time_t now = std::time(nullptr);
     std::tm tm{};
@@ -190,10 +200,40 @@ std::pair<std::string, std::string> extract_evidence(
         return {"", "the post does not appear to be about this page — the best "
                     "sentence shares only " + std::to_string(best_score) +
                     " content word(s) with the post (need " +
-                    std::to_string(kMinOverlap) + "). Pick a different candidate "
-                    "whose page actually covers what the post claims"};
+                    std::to_string(kMinOverlap) + ")"};
 
     return {best, ""};
+}
+
+PoolChoice resolve_pool_date(const std::vector<std::string>& available_dates,
+                             const std::string& requested,
+                             const std::string& today) {
+    std::string newest;
+    for (const auto& d : available_dates)
+        if (d > newest) newest = d;
+
+    if (available_dates.empty())
+        return {"", "there is no candidate pool in the workspace at all. Call "
+                    "harvest_candidates first — publishing resolves your ids "
+                    "against the pool it writes."};
+
+    if (!requested.empty()) {
+        for (const auto& d : available_dates)
+            if (d == requested) return {requested, ""};
+        return {"", "no candidate pool for " + requested + " (the newest is " +
+                    newest + "). Call harvest_candidates for that date, or "
+                    "publish the day a pool exists for."};
+    }
+
+    for (const auto& d : available_dates)
+        if (d == today) return {today, ""};
+
+    // Deliberately NOT falling back to `newest`. See the header: this is the
+    // path that published today's text against yesterday's pages.
+    return {"", "no candidate pool for today (" + today + "); the newest is " +
+                newest + ". harvest_candidates has not run successfully today, "
+                "so there is nothing to publish. Run it, and only pass "
+                "date=" + newest + " if you really mean to republish that day."};
 }
 
 std::string headline_from_title(const std::string& title, size_t max_chars) {
@@ -218,7 +258,9 @@ std::string headline_from_title(const std::string& title, size_t max_chars) {
 
 std::string build_issue(const nlohmann::json& pool,
                         const std::vector<Selection>& selection,
-                        nlohmann::json& out) {
+                        nlohmann::json& out,
+                        int min_items,
+                        std::vector<std::string>* dropped) {
     if (!pool.contains("candidates") || !pool["candidates"].is_array())
         return "the candidate pool is unreadable — run harvest_candidates again";
     if (selection.empty())
@@ -227,6 +269,9 @@ std::string build_issue(const nlohmann::json& pool,
     std::map<int, int> used;               // candidate id → the item that took it
     nlohmann::json items = nlohmann::json::array();
     std::vector<std::string> errors;
+    // Always collected, whether or not the caller asked for them: a rejection
+    // has to carry the reasons even when `dropped` is null.
+    std::vector<std::string> drops;
     int n = 0;
 
     for (const auto& sel : selection) {
@@ -280,7 +325,7 @@ std::string build_issue(const nlohmann::json& pool,
             continue;
         }
 
-        auto extraction = extract_evidence(sel.text, candidate->value("text", ""));
+        auto extraction = extract_evidence(sel.text, funes::json_string(*candidate, "text"));
         std::string evidence = extraction.first;
         std::string problem = extraction.second;
 
@@ -299,7 +344,7 @@ std::string build_issue(const nlohmann::json& pool,
             for (const auto& c : pool["candidates"]) {
                 const int cid = c.value("id", 0);
                 if (cid == sel.candidate_id || used.count(cid)) continue;
-                auto alt = extract_evidence(sel.text, c.value("text", ""));
+                auto alt = extract_evidence(sel.text, funes::json_string(c, "text"));
                 if (alt.second.empty()) {
                     substitute = &c;
                     substitute_evidence = alt.first;
@@ -307,7 +352,16 @@ std::string build_issue(const nlohmann::json& pool,
                 }
             }
             if (!substitute) {
-                errors.push_back(where + problem);
+                // Every unused candidate has now been checked and none
+                // supports this text. Telling the model to "pick a different
+                // candidate" here would be asking for something just proved
+                // impossible — which is exactly what it used to do, and why
+                // it resubmitted identical arguments until the loop detector
+                // fired. Drop the item instead and keep the issue.
+                const std::string reason = where + problem;
+                std::cerr << "[publish_issue] dropped " << reason << "\n";
+                drops.push_back(reason);
+                used.erase(sel.candidate_id);
                 continue;
             }
             std::cerr << "[publish_issue] item " << n << ": candidate "
@@ -324,10 +378,10 @@ std::string build_issue(const nlohmann::json& pool,
             {"n",            n},
             {"emoji",        trim(sel.emoji)},
             {"text",         trim(sel.text)},
-            {"url",          candidate->value("url", "")},
-            {"headline",     headline_from_title(candidate->value("title", ""))},
-            {"source",       candidate->value("source", "")},
-            {"published",    candidate->value("published", "")},
+            {"url",          funes::json_string(*candidate, "url")},
+            {"headline",     headline_from_title(funes::json_string(*candidate, "title"))},
+            {"source",       funes::json_string(*candidate, "source")},
+            {"published",    funes::json_string(*candidate, "published")},
             {"evidence",     evidence},
             {"candidate_id", candidate->value("id", 0)}
         });
@@ -343,9 +397,30 @@ std::string build_issue(const nlohmann::json& pool,
         return combined;
     }
 
+    // Dropping is bounded. Below the publication's floor there is no issue
+    // worth sending, and the reasons have to travel with the rejection — the
+    // model cannot fix what it is not told.
+    if (static_cast<int>(items.size()) < std::max(1, min_items)) {
+        out = nlohmann::json();
+        std::string combined = "only " + std::to_string(items.size()) +
+            " item(s) could be grounded in the pool; this publication needs at "
+            "least " + std::to_string(std::max(1, min_items)) + ".";
+        for (const auto& d : drops) combined += "\n" + d;
+        combined += "\nRewrite these posts so they say what the candidate's page "
+                    "actually says, or choose different stories from the pool.";
+        return combined;
+    }
+
+    if (dropped) *dropped = drops;
+
+    // Renumber: a gap left by a drop would misalign post_tweet.py, which
+    // addresses items by their 1-based position.
+    for (size_t i = 0; i < items.size(); ++i)
+        items[i]["n"] = static_cast<int>(i) + 1;
+
     out = {
-        {"publication", pool.value("publication", "")},
-        {"date",        pool.value("date", "")},
+        {"publication", funes::json_string(pool, "publication")},
+        {"date",        funes::json_string(pool, "date")},
         {"generated",   now_iso()},
         {"harvested",   pool["candidates"].size()},
         {"items",       items}
@@ -413,24 +488,25 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
 
     // The date comes from the pool, not from the model: the pool is the thing
     // being published, and a mismatch would publish yesterday's candidates
-    // under today's headline.
-    std::string date = args.value("date", "");
-    if (date.empty()) {
-        // Newest pool for this publication.
+    // under today's headline. It used to do exactly that whenever harvest had
+    // failed — see resolve_pool_date in issue.h.
+    std::vector<std::string> available;
+    {
         std::error_code ec;
+        const std::string prefix = "harvest_" + publication + "_";
         for (const auto& e : std::filesystem::directory_iterator(workspace, ec)) {
             const std::string name = e.path().filename().string();
-            const std::string prefix = "harvest_" + publication + "_";
-            if (name.rfind(prefix, 0) == 0 && e.path().extension() == ".json") {
-                const std::string found = name.substr(prefix.size(), 10);
-                if (found > date) date = found;
-            }
+            if (name.rfind(prefix, 0) == 0 && e.path().extension() == ".json")
+                available.push_back(name.substr(prefix.size(), 10));
         }
     }
-    if (date.empty())
-        return {"No candidate pool for '" + publication + "' in the workspace. "
-                "Call harvest_candidates first — publishing resolves your ids "
-                "against the pool it writes.", true};
+    const PoolChoice choice =
+        resolve_pool_date(available, funes::json_string(args, "date"), today_iso());
+    if (!choice.error.empty()) {
+        std::cerr << "[publish_issue] refused: " << choice.error << "\n";
+        return {"Not published — " + choice.error, true};
+    }
+    const std::string date = choice.date;
 
     const std::filesystem::path pool_path =
         workspace / ("harvest_" + publication + "_" + date + ".json");
@@ -455,8 +531,8 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         if (!item.contains("id") || !item["id"].is_number_integer())
             return {"Every item needs an integer 'id' from the candidate pool.", true};
         sel.candidate_id = item["id"].get<int>();
-        sel.emoji        = item.value("emoji", "");
-        sel.text         = item.value("text", "");
+        sel.emoji        = funes::json_string(item, "emoji");
+        sel.text         = funes::json_string(item, "text");
         selection.push_back(std::move(sel));
     }
 
@@ -473,12 +549,12 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
     }
 
     nlohmann::json issue;
-    const std::string problem = build_issue(pool, selection, issue);
+    std::vector<std::string> dropped;
+    const std::string problem = build_issue(pool, selection, issue, min_items, &dropped);
     if (!problem.empty()) {
         std::cerr << "[publish_issue] rejected: " << problem << "\n";
         write_blocked_record(run_path, publication, date, problem);
-        return {"Not published — " + problem + ".\nNothing was sent. Fix the "
-                "items listed above and call publish_issue again with the full list.", true};
+        return {"Not published — " + problem + "\nNothing was sent.", true};
     }
 
     // publish_issue.py's own link re-check can drop an item whose link has
@@ -544,8 +620,18 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         return {"Not published (publish_issue.py exit " + std::to_string(run.exit_code) +
                 "). Nothing was sent.\n" + run.output, true};
 
-    return {"Published " + std::to_string(issue["items"].size()) + " items for " +
-            publication + " " + date + ".\n" + run.output};
+    // Say what was lost as well as what shipped. A model that asked for ten
+    // and got nine has to learn that from the tool result, not from the
+    // subscriber who notices.
+    std::string summary = "Published " + std::to_string(issue["items"].size()) +
+                          " items for " + publication + " " + date + ".";
+    if (!dropped.empty()) {
+        summary += "\n" + std::to_string(dropped.size()) +
+                   " item(s) were dropped because no page in the pool supported "
+                   "the post text:";
+        for (const auto& d : dropped) summary += "\n  " + d;
+    }
+    return {summary + "\n" + run.output};
 }
 
 } // namespace
