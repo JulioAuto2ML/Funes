@@ -160,20 +160,34 @@ so tool budgets do not carry over), and `run_agent_job` passes `persist=true`.
 On yoda that is **33 of 180 sessions (18%)**, two turns each, growing by one
 per job per day forever — you have already deleted some by hand.
 
-The turns are only clutter. The memories are worse. `persist` gates *both* the
-turns and the auto-memory write (`src/core/agent.cpp`, step 5), so each firing
-also stores a memory of the form `User said: "<the job's task>" — I replied:
-"..."`. The scheduler is not the user, and one of them on yoda records the
-job-runner preamble verbatim: `User said: "[You are running as a scheduled job
-— there is no interactive user...]"`. **13 of 273 memories** are these. They
-are semantically recalled into real conversations, so asking about the
-newsletter surfaces the scheduler talking to itself.
+The turns are only clutter. The memories are a smaller problem than it first
+appears, but a real one. `persist` gates *both* the turns and the auto-memory
+write (`src/core/agent.cpp`, step 5), so a firing also stores a memory of the
+form `User said: "<the job's task>" — I replied: "..."`. The scheduler is not
+the user, and one on yoda records the job-runner preamble verbatim: `User
+said: "[You are running as a scheduled job — there is no interactive user...]"`.
+
+They do **not** accumulate one per firing, which a first reading of the code
+suggests. `remember()` inserts under `UNIQUE(user_id, agent, text)`, so a job
+whose task and reply are word-for-word identical to last time dedupes away
+silently — the 2026-08-26 reminder run added no memory at all. They accumulate
+only when the model words its reply differently, which for the reminder has
+been roughly three times in two weeks. The count is bounded and irregular, not
+linear.
+
+That still matters, because these get recalled: the cron-authored reminder
+memories on yoda carry `recall_count` of 13 and 15, i.e. they have been
+injected into real conversations that often, presenting the scheduler talking
+to itself as something the user said.
 
 The record that survives without them: `cron_jobs.last_status` and
 `last_output` (a 4000-byte preview, **last run only**), the journal, and — for
 these two jobs — the actual artifacts, which are the real record anyway: the
 published issue files and the sent email, the delivered WhatsApp message. The
 transcript was never the evidence that the newsletter went out.
+
+**Confirmed live** on 2026-08-26: the 20:00 reminder fired from 4.0, succeeded,
+and left a `cron-1-*` session of two turns and no new memory.
 
 **Done when:** `run_agent_job` passes `persist=false` (`src/core/cron_runner.cpp`;
 its comment currently argues the opposite — "the job's own session is the
