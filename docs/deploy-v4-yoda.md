@@ -217,6 +217,9 @@ whether the model still calls the right tools.
 
 ## 7. One-off: clear out what the old scheduler wrote
 
+**Already done on this install** (2026-08-28: 10 auto-memories removed, all 36
+transcripts kept). Kept here for a fresh migration from a 3.x database.
+
 Only needed on a database that predates the `Persist::TurnsOnly` change. Until
 then every cron firing also wrote an auto-memory phrased `User said: "<the
 job's task>" — I replied: "..."` — the scheduler talking to itself, stored as

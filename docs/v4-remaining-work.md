@@ -13,10 +13,9 @@ Only #5 remains, and it is blocked on a feature that does not exist yet. The
 two items under "Deferred by decision" are untouched and are still the largest
 open questions.
 
-**`funes cron-cleanup` has not been run.** The dry run on yoda reports 10
-auto-memories and 36 scheduled-run sessions (94 turns). See "The cleanup still
-to run" at the end — the numbers there are worse than this document previously
-recorded.
+**`funes cron-cleanup --apply` was run on yoda the same day**, removing 10
+auto-memories and keeping all 36 scheduled-run transcripts. See "The cleanup,
+run" at the end.
 
 **2026-08-26, later:** 3.x was stopped deliberately and 4.0 now owns the
 schedule for testing. A host drop-in
@@ -336,18 +335,20 @@ database. The authenticated views (a member's own permissions, the box-wide
 job list, `?cron=1`) are covered by `integration.sh` but have not been
 exercised against the live install — that needs a login.
 
-## The cleanup still to run
+## The cleanup, run
 
-`funes cron-cleanup --apply` has **not** been run. The dry run on yoda:
+`funes cron-cleanup --apply` was run on yoda on 2026-08-28, against the backup
+above:
 
 ```
+Removed:
   10 auto-memories written by a scheduled run
   (keeping 36 scheduled-run session(s), 94 turns)
 ```
 
-The recall counts are worse than this document previously recorded. It said
-two memories at 13 and 15; the live table has ten, and seven of them have been
-recalled at least once:
+The recall counts were worse than this document had recorded. It said two
+memories at 13 and 15; the live table held ten, seven of them recalled at least
+once:
 
 | memory id | recalls |
 |---|---|
@@ -360,11 +361,30 @@ recalled at least once:
 | 348 | 1 |
 | 323, 324, 350 | 0 |
 
-That is 61 occasions on which the scheduler's own preamble was injected into a
-real conversation as something the person had said. The code change stops new
-ones; only the cleanup removes these.
+That is 61 occasions on which the scheduler's own preamble had been injected
+into a real conversation as something the person had said. The earlier figure
+came from spot-checking two rows rather than counting.
 
-Runbook is section 7 of `deploy-v4-yoda.md`. It is destructive and has no undo,
-so read the dry run first. The transcripts are kept unless `--drop-sessions`,
-and there is no reason to drop them — they are already hidden and are the only
-record of what a run older than the last one did.
+### Verified afterwards
+
+- 270 → 260 memories; **696 turns and all 36 `cron-*` sessions untouched**,
+  which is the point of not passing `--drop-sessions`.
+- The single `source='user'` memory is still there. Explicit facts are never
+  what this removes.
+- **No orphaned vectors**, in either direction: `vec_memories_rowids` has 260
+  entries and every one joins to a memory row, and every memory has a vector.
+  This is the failure a raw `DELETE FROM memories` would have caused silently,
+  and it is why the command goes through `MemoryStore::forget`.
+- A restart logs `260 memories, semantic` — vec0 loads, the last embed
+  succeeded, and the backfill thread finds nothing missing and exits.
+
+Checking that from outside needs a trick worth writing down: **python's stdlib
+`sqlite3` cannot open `vec_memories`** ("no such module: vec0"), and there is
+no `sqlite3` CLI on yoda. Read the shadow table `vec_memories_rowids` instead.
+Its `id` column is NULL and irrelevant — `vec_memories`' key is
+`memory_id INTEGER PRIMARY KEY`, which maps onto the shadow table's **rowid**.
+Joining on `id` silently matches nothing and reports every row as an orphan,
+which is exactly as wrong as reporting none.
+
+The backup taken beforehand is `~/.funes-v4/memory.db.bak-20260828-121310`
+(with its `-wal`/`-shm` siblings). Delete it once you are satisfied.
