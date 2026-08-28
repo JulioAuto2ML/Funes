@@ -7,11 +7,16 @@ an independent install on `:8485`. 28/28 `ctest` and 220 `integration.sh`
 assertions pass.
 
 **2026-08-28:** Julio tested the deployed 4.0 install and it works. Six of the
-seven pending items below are now done (1, 2, 3, 4, 6, 7); only #5 remains,
-and it is blocked on a feature that does not exist yet. The two items under
-"Deferred by decision" are untouched and are still the largest open questions.
-None of the completed work has been deployed to yoda yet — see "Deploying
-this" at the end.
+seven pending items below are now done (1, 2, 3, 4, 6, 7) and **deployed to
+yoda** (commit `c6f189d`, 28/28 `ctest` on the host, service restarted clean).
+Only #5 remains, and it is blocked on a feature that does not exist yet. The
+two items under "Deferred by decision" are untouched and are still the largest
+open questions.
+
+**`funes cron-cleanup` has not been run.** The dry run on yoda reports 10
+auto-memories and 36 scheduled-run sessions (94 turns). See "The cleanup still
+to run" at the end — the numbers there are worse than this document previously
+recorded.
 
 **2026-08-26, later:** 3.x was stopped deliberately and 4.0 now owns the
 schedule for testing. A host drop-in
@@ -307,18 +312,59 @@ surprises.
 
 ---
 
-## Deploying this
+## Deployed, 2026-08-28
 
-Nothing from 2026-08-28 is on yoda yet. It is a plain code change — no
-`migrate()` change, so no schema risk — but two things behave differently
-after the restart and are worth knowing before it happens:
+`c6f189d` is live on yoda. Pulled into `~/Funes-v4`, rebuilt with `-j2`, 28/28
+`ctest` on the host, `funes-v4` restarted and serving on `:8485`. A database
+backup was taken first even though `migrate()` was untouched:
+`~/.funes-v4/memory.db.bak-20260828-121310` (270 memories, 696 turns, 2 jobs,
+1 user — matching the live database at the time).
 
-- The conversation list loses its `cron-*` entries. They are hidden, not
-  deleted; `GET /api/sessions?cron=1` still lists them.
-- The startup backfill now drains instead of stopping at 256, so the first
-  start after the upgrade may spend longer talking to `:8081` than usual and
-  will log one total rather than a per-restart count.
+Two things behave differently since the restart:
 
-Follow step 5 above to ship it. Then, separately and only after reading the
-dry-run numbers, section 7 of `deploy-v4-yoda.md` for `funes cron-cleanup` —
-that one *is* destructive and has no undo.
+- The conversation list no longer shows `cron-*` entries. They are hidden, not
+  deleted; `GET /api/sessions?cron=1` lists them.
+- The startup backfill drains instead of stopping at 256. On this database
+  every memory already had a vector, so the thread found nothing missing and
+  exited — which is the "all done, stop for good" path, and why the log has no
+  backfill line at all.
+
+Verified on the host after the restart: an unauthenticated `/api/auth/status`
+carries no `permissions` block, `/api/jobs?all=1` is 401 without credentials,
+and `funes cron-cleanup` reports the same counts as a direct read of the
+database. The authenticated views (a member's own permissions, the box-wide
+job list, `?cron=1`) are covered by `integration.sh` but have not been
+exercised against the live install — that needs a login.
+
+## The cleanup still to run
+
+`funes cron-cleanup --apply` has **not** been run. The dry run on yoda:
+
+```
+  10 auto-memories written by a scheduled run
+  (keeping 36 scheduled-run session(s), 94 turns)
+```
+
+The recall counts are worse than this document previously recorded. It said
+two memories at 13 and 15; the live table has ten, and seven of them have been
+recalled at least once:
+
+| memory id | recalls |
+|---|---|
+| 281 | 18 |
+| 271 | 13 |
+| 311 | 11 |
+| 316 | 11 |
+| 321 | 5 |
+| 346 | 2 |
+| 348 | 1 |
+| 323, 324, 350 | 0 |
+
+That is 61 occasions on which the scheduler's own preamble was injected into a
+real conversation as something the person had said. The code change stops new
+ones; only the cleanup removes these.
+
+Runbook is section 7 of `deploy-v4-yoda.md`. It is destructive and has no undo,
+so read the dry run first. The transcripts are kept unless `--drop-sessions`,
+and there is no reason to drop them — they are already hidden and are the only
+record of what a run older than the last one did.
