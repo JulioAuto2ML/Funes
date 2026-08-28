@@ -52,9 +52,12 @@ Environment=FUNES_VISION_URL=
 # funes.conf ships FUNES_ALLOW_SHELL=1. This install has no business running
 # shell commands or scheduled shell jobs.
 Environment=FUNES_ALLOW_SHELL=0
-# No service token: the WhatsApp autoresponder is not run against this
-# install (one bridge store, two pollers, both answering). Absent means
-# service authentication is off, not open.
+# FUNES_SERVICE_TOKEN is deliberately NOT set here: it is a secret, and this
+# file is in git. It comes from config/funes.local, which WorkingDirectory
+# above makes resolve to the v4 clone's — the same file the v4 autoresponder
+# (scripts/whatsapp-autoresponder-v4.service) reads, so the two cannot drift
+# apart into a permanent 401. Absent entirely means service authentication is
+# off, not open.
 # The migrated database carries 3.x's scheduled jobs, and jobs are just rows:
 # nothing about copying a database says "do not run these". Without this the
 # newsletter publishes twice and the daily WhatsApp reminder reaches a real

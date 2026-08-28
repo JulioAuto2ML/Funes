@@ -43,7 +43,6 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-STATE_PATH = Path(os.path.expanduser("~/.funes/whatsapp_autoresponder_state.json"))
 
 
 def load_config():
@@ -96,6 +95,15 @@ UPLOAD_SUBDIR = CFG.get("WHATSAPP_UPLOAD_SUBDIR", "whatsapp-uploads")
 MAX_MEDIA_BYTES = int(CFG.get("WHATSAPP_MAX_MEDIA_BYTES", str(20 * 1024 * 1024)))
 UPLOAD_MAX_AGE_DAYS = int(CFG.get("WHATSAPP_UPLOAD_MAX_AGE_DAYS", "30"))
 CLEANUP_INTERVAL_SECONDS = 24 * 3600
+
+# How far this poller has read. Configurable, and it has to be, because two
+# installs on one box share one bridge store: the default below lives under
+# ~/.funes, so a second poller pointed at a 4.0 install would advance the same
+# watermark the 3.x one reads. The visible symptom would not be an error — it
+# is one poller silently skipping messages the other consumed. The default is
+# unchanged so an existing 3.x install keeps its watermark on upgrade.
+STATE_PATH = Path(os.path.expanduser(
+    CFG.get("WHATSAPP_STATE_PATH", "~/.funes/whatsapp_autoresponder_state.json")))
 
 
 def log(msg):

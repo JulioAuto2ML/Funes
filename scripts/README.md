@@ -40,14 +40,19 @@ Features:
   `[Document received: <path>]` markers to the agent
 - Expired upload cleanup (default 30 days), sweeping every account's upload
   folder rather than one shared directory
-- State persistence in `~/.funes/whatsapp_autoresponder_state.json`
+- State persistence in `~/.funes/whatsapp_autoresponder_state.json`, or
+  `WHATSAPP_STATE_PATH` if set. Two installs on one box share one bridge
+  store, so a second poller must have its own watermark — otherwise the
+  symptom is not an error, it is one poller silently skipping messages the
+  other consumed
 - First-run state seeds from the bridge DB's max timestamp (no backlog replay)
 
 ## Service files
 
 | File | Purpose |
 |---|---|
-| `whatsapp-autoresponder.service` | systemd user service for the autoresponder script |
+| `whatsapp-autoresponder.service` | systemd user service for the autoresponder script, against 3.x on :8484 |
+| `whatsapp-autoresponder-v4.service` | the same script against the 4.0 install on :8485. **Only one of the two may be enabled** — they `Conflicts=` each other, but that stops the running one rather than warning you. Needs `FUNES_SERVICE_TOKEN` and `WHATSAPP_WHITELIST` in the v4 clone's `config/funes.local`, plus a `funes jid-map` per sender |
 | `whatsapp-bridge.service` | systemd user service for the personal WhatsApp bridge (port 8090) |
 | `whatsapp-bridge-funes.service` | systemd user service for the dedicated Funes WhatsApp bridge (port 8091) |
 | `funes-v4.service` | systemd user service for the Funes 4.0 install, deliberately separate from 3.x's `funes.service` — every path and port is set explicitly so a config file can never point it at the 3.x database. See [docs/deploy-v4-yoda.md](../docs/deploy-v4-yoda.md) |
@@ -55,3 +60,20 @@ Features:
 Two WhatsApp numbers, two bridge instances: the personal number is used by
 `whatsapp-assistant` (interactive, delegated from funes), and the dedicated
 number is used by the autoresponder (automated, polled by this script).
+
+### Authenticating the poller against 4.0
+
+4.0 answers 401 to an unauthenticated `/api/chat`, so the script needs a
+`FUNES_SERVICE_TOKEN` — and the token alone is not enough. It says the caller
+is trusted; it does not say who the message is *for*. The script sends the
+sender's `chat_jid` alongside it, and Funes maps that jid to an account:
+
+```bash
+cd ~/Funes-v4 && FUNES_DB=~/.funes-v4/memory.db \
+    ./bin/funes jid-map '<chat_jid>' <username>
+```
+
+An unmapped jid resolves to nobody, never to a default account — so adding a
+number to `WHATSAPP_WHITELIST` without mapping it gets a refusal, not somebody
+else's memories. `funes jid-unmap` reverses it. Neither the token nor the jid
+authenticates anything on its own.
