@@ -10,6 +10,7 @@
 #include "../core/tools/fs_guard.h"
 #include "../core/tools/pdf_extract.h"
 #include "httplib.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -182,6 +183,46 @@ std::optional<UserStore::User> FunesApi::require_admin(const httplib::Request& r
     return user;
 }
 
+// The caller's own permissions, resolved the way the runtime resolves them
+// rather than echoed back raw — the JSON blob in users.permissions is not
+// self-explanatory (an absent "agents" means every agent, an absent "tools"
+// entry means "unless privileged"), and a UI that re-derived those rules
+// would eventually disagree with permissions.cpp about what a member can do.
+//
+// `agents` is intersected with the agents actually loaded, so it says what
+// the person can reach, not what someone once typed: an allowlist naming an
+// agent that has since been deleted should not show up as available.
+// `denied_tools` is likewise the answer for every registered tool, which is
+// why it is a deny-list — it is short, and the interesting fact is always
+// which ones are missing.
+json FunesApi::resolved_permissions(const UserStore::User& user) const {
+    const auto perms = funes::Permissions::parse(user.permissions, user.is_admin());
+
+    json agents_allowed = json::array();
+    bool agents_restricted = false;
+    {
+        std::lock_guard<std::mutex> lock(agents_mu_);
+        for (const auto& [name, cfg] : agents_) {
+            (void)cfg;
+            if (perms.allows_agent(name)) agents_allowed.push_back(name);
+            else agents_restricted = true;
+        }
+    }
+
+    json denied = json::array();
+    for (const auto& t : tools_.names())
+        if (!perms.allows_tool(t)) denied.push_back(t);
+    std::sort(denied.begin(), denied.end());
+
+    return {
+        {"role",              user.role},
+        {"is_admin",          user.is_admin()},
+        {"agents_restricted", agents_restricted},
+        {"agents",            agents_allowed},
+        {"denied_tools",      denied}
+    };
+}
+
 size_t FunesApi::load_agents() {
     std::map<std::string, AgentConfig> loaded;
 
@@ -319,10 +360,15 @@ void FunesApi::mount(httplib::Server& srv) {
 
         std::cerr << "[auth] login: " << user->username << " from " << req.remote_addr << "\n";
         res.set_header("Set-Cookie", session_cookie(token, SESSION_TTL_DAYS * 86400));
-        json_reply(res, 200, {{"ok", true}, {"user", {{"id", user->id},
-                                                      {"username", user->username},
-                                                      {"display_name", user->display_name},
-                                                      {"role", user->role}}}});
+        // Permissions ride along for the same reason /api/auth/status carries
+        // them: the UI shows them right after sign-in, and without this it
+        // would have to re-fetch status on a page it just authenticated.
+        json_reply(res, 200, {{"ok", true},
+                              {"user", {{"id", user->id},
+                                        {"username", user->username},
+                                        {"display_name", user->display_name},
+                                        {"role", user->role}}},
+                              {"permissions", resolved_permissions(*user)}});
     });
 
     srv.Post("/api/logout", [this](const httplib::Request& req, httplib::Response& res) {
@@ -337,14 +383,26 @@ void FunesApi::mount(httplib::Server& srv) {
 
     // What the UI asks before rendering anything: does this install need a
     // first admin, and am I already logged in?
+    //
+    // It also carries the caller's resolved permissions, because a member who
+    // finds an agent missing or a tool refused otherwise has no way to learn
+    // why, and an admin had to SSH in and run `funes perms <user>` to inspect
+    // anyone. Resolved, not raw: the same view show_permissions() prints, so
+    // the UI never has to re-implement the "absent means different things for
+    // agents and tools" rule in JavaScript. Read-only — editing stays in the
+    // CLI. Only ever the *caller's* own permissions; this route is public, so
+    // returning anyone else's would leak the box's roster to an anonymous
+    // request.
     srv.Get("/api/auth/status", [this](const httplib::Request& req, httplib::Response& res) {
         auto user = authenticate(req);
         json out = {{"ok", true},
                     {"needs_bootstrap", users_.count() == 0},
                     {"authenticated", user.has_value()}};
-        if (user)
+        if (user) {
             out["user"] = {{"id", user->id}, {"username", user->username},
                            {"display_name", user->display_name}, {"role", user->role}};
+            out["permissions"] = resolved_permissions(*user);
+        }
         json_reply(res, 200, out);
     });
 
@@ -596,8 +654,15 @@ void FunesApi::mount(httplib::Server& srv) {
         if (req.has_param("limit")) limit = std::atoi(req.get_param_value("limit").c_str());
         if (limit < 1 || limit > 200) limit = 50;
 
+        // Scheduled runs are hidden from the conversation list — they are
+        // transcripts nobody held — but they are the only per-run record a
+        // failed job leaves, and the per-run epoch in their name makes them
+        // unguessable. ?cron=1 is the way back to them. Still the caller's own
+        // sessions: this widens what you see of yours, never whose.
+        const bool include_cron = req.get_param_value("cron") == "1";
+
         json arr = json::array();
-        for (const auto& s : memory_.list_sessions(user->id, limit)) {
+        for (const auto& s : memory_.list_sessions(user->id, limit, include_cron)) {
             arr.push_back({
                 {"session",         s.session},
                 {"last_message_at", s.last_message_at},
@@ -633,12 +698,23 @@ void FunesApi::mount(httplib::Server& srv) {
     // schedule_job/cancel_job/run_job_now tools — see core/tools/cron_tool.cpp
     // and core/cron_runner.h for what actually runs a due job) ────────────────
     srv.Get("/api/jobs", [this](const httplib::Request& req, httplib::Response& res) {
-        auto user = require_auth(req, res);
+        // ?all=1 is the whole box, which is another user's data and therefore
+        // admin-only. Without it there was no way to see what is scheduled on
+        // a shared machine short of SSH — and a job someone else scheduled is
+        // exactly the one that surprises you at 08:00.
+        const bool all = req.get_param_value("all") == "1";
+        auto user = all ? require_admin(req, res) : require_auth(req, res);
         if (!user) return;
 
+        // Resolved once into a map rather than per job: a busy scheduler has
+        // many jobs and few owners, and find_by_id is a query each time.
+        std::map<int64_t, std::string> owners;
+        if (all)
+            for (const auto& u : users_.list_users()) owners[u.id] = u.username;
+
         json arr = json::array();
-        for (const auto& j : memory_.list_cron_jobs(user->id)) {
-            arr.push_back({
+        for (const auto& j : memory_.list_cron_jobs(all ? -1 : user->id)) {
+            json entry = {
                 {"id",          j.id},
                 {"name",        j.name},
                 {"kind",        j.kind},
@@ -651,9 +727,20 @@ void FunesApi::mount(httplib::Server& srv) {
                 {"last_run_at", j.last_run_at},
                 {"last_status", j.last_status},
                 {"last_output", j.last_output}
-            });
+            };
+            // Only in the box-wide view. In the caller's own listing the owner
+            // is always the caller, so naming them would be noise — and the
+            // field's presence is what tells the client which view it got.
+            if (all) {
+                auto it = owners.find(j.user_id);
+                // A job whose owner has been deleted still runs and still has
+                // to be visible — it is the one most in need of cancelling.
+                entry["owner"]    = it != owners.end() ? it->second : "(deleted user)";
+                entry["owner_id"] = j.user_id;
+            }
+            arr.push_back(std::move(entry));
         }
-        json_reply(res, 200, {{"ok", true}, {"jobs", arr}});
+        json_reply(res, 200, {{"ok", true}, {"jobs", arr}, {"scope", all ? "all" : "mine"}});
     });
 
     // ── upload (attach a file to the chat from the UI) ────────────────────────

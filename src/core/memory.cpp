@@ -646,6 +646,19 @@ std::vector<int64_t> MemoryStore::user_ids_with_memories() {
     return out;
 }
 
+int64_t MemoryStore::count_missing_vectors() {
+    if (!embedder_) return 0;
+    std::lock_guard<std::mutex> lock(mu_);
+    // dim_ == 0 means the vec table has not been sized yet (no vector has ever
+    // been written), so every memory is missing one.
+    Stmt s(db_, dim_ == 0
+        ? "SELECT COUNT(*) FROM memories"
+        : "SELECT COUNT(*) FROM memories m "
+          "LEFT JOIN vec_memories v ON v.memory_id = m.id "
+          "WHERE v.memory_id IS NULL");
+    return s.step() ? s.col_int64(0) : 0;
+}
+
 size_t MemoryStore::backfill_embeddings(size_t max_items) {
     if (!embedder_) return 0;
 
@@ -1017,6 +1030,61 @@ void MemoryStore::prune_turns(int64_t user_id, const std::string& session, int k
     s.step();
 }
 
+MemoryStore::CronCleanup MemoryStore::cleanup_cron_history(const CronCleanupOptions& opt) {
+    CronCleanup report;
+    const int64_t user_id = opt.user_id;
+
+    // Collected first, deleted after — delete_session() and forget() each take
+    // the mutex themselves, so iterating a live statement while calling them
+    // would deadlock. The set is small (one row per firing) so holding it in
+    // memory costs nothing.
+    struct Target { int64_t user_id; std::string session; int64_t turns; };
+    std::vector<Target> sessions;
+    std::vector<std::pair<int64_t, int64_t>> memories;   // (user_id, memory id)
+    {
+        std::lock_guard<std::mutex> lock(mu_);
+        {
+            std::string sql =
+                "SELECT user_id, session, COUNT(*) FROM turns "
+                "WHERE session LIKE ?";
+            if (user_id >= 0) sql += " AND user_id = ?";
+            sql += " GROUP BY user_id, session";
+            Stmt s(db_, sql.c_str());
+            s.bind_text(1, std::string(CRON_SESSION_PREFIX) + "%");
+            if (user_id >= 0) s.bind_int64(2, user_id);
+            while (s.step())
+                sessions.push_back({s.col_int64(0), s.col_text(1), s.col_int64(2)});
+        }
+        {
+            // source='auto' as well as the preamble: an explicit `remember`
+            // made *by* a scheduled job is a fact the job deliberately stored,
+            // not the transcript-echo this is here to remove. Only the echo
+            // quotes the preamble back, and only auto-memories are echoes.
+            std::string sql =
+                "SELECT user_id, id FROM memories "
+                "WHERE source = 'auto' AND text LIKE ?";
+            if (user_id >= 0) sql += " AND user_id = ?";
+            Stmt s(db_, sql.c_str());
+            s.bind_text(1, std::string("User said: \"") + CRON_TASK_PREAMBLE + "%");
+            if (user_id >= 0) s.bind_int64(2, user_id);
+            while (s.step()) memories.emplace_back(s.col_int64(0), s.col_int64(1));
+        }
+    }
+
+    // Sessions are counted either way — a dry run should report what is
+    // there, and the caller decides separately whether to act on it.
+    for (const auto& t : sessions) {
+        report.sessions += 1;
+        report.turns    += t.turns;
+        if (!opt.dry_run && opt.drop_sessions) delete_session(t.user_id, t.session);
+    }
+    for (const auto& [uid, id] : memories) {
+        report.memories += 1;
+        if (!opt.dry_run) forget(uid, id);
+    }
+    return report;
+}
+
 int64_t MemoryStore::delete_session(int64_t user_id, const std::string& session) {
     if (user_id <= 0 || session.empty()) return 0;
     std::lock_guard<std::mutex> lock(mu_);
@@ -1091,10 +1159,19 @@ void MemoryStore::set_summary(int64_t user_id, const std::string& session,
 // ── sessions ───────────────────────────────────────────────────────────────────
 
 std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int64_t user_id,
-                                                                    int limit) {
+                                                                    int limit,
+                                                                    bool include_cron) {
     std::lock_guard<std::mutex> lock(mu_);
 
-    Stmt s(db_, R"sql(
+    // The filter goes inside the grouped subquery, not outside it: applied
+    // after the LIMIT it would return short pages on a database where the
+    // newest sessions are all scheduled runs, which on a busy scheduler is
+    // most of them.
+    const std::string cron_filter = include_cron
+        ? std::string()
+        : std::string(" AND session NOT LIKE '") + CRON_SESSION_PREFIX + "%'";
+
+    Stmt s(db_, (std::string(R"sql(
         SELECT g.session, g.last_at, g.cnt,
                (SELECT content FROM turns
                 WHERE session = g.session AND user_id = ? AND role = 'user'
@@ -1102,12 +1179,13 @@ std::vector<MemoryStore::SessionSummary> MemoryStore::list_sessions(int64_t user
         FROM (
             SELECT session, MAX(created_at) AS last_at, MAX(id) AS last_id, COUNT(*) AS cnt
             FROM turns
-            WHERE user_id = ? AND role IN ('user', 'assistant')
+            WHERE user_id = ? AND role IN ('user', 'assistant'))sql")
+        + cron_filter + R"sql(
             GROUP BY session
         ) g
         ORDER BY g.last_at DESC, g.last_id DESC
         LIMIT ?
-    )sql");
+    )sql").c_str());
     s.bind_int64(1, user_id);
     s.bind_int64(2, user_id);
     s.bind_int64(3, limit);

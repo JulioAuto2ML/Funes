@@ -5,7 +5,8 @@
 // Routes (all JSON unless noted):
 //   POST   /api/login               — {username, password} → sets session cookie  [public]
 //   POST   /api/logout              — revokes the token and clears the cookie
-//   GET    /api/auth/status         — {needs_bootstrap, authenticated, user?}     [public]
+//   GET    /api/auth/status         — {needs_bootstrap, authenticated, user?,
+//                                       permissions?}                            [public]
 //   POST   /api/auth/bootstrap      — {username, password, display_name?} → first admin,
 //                                       refused once any user exists              [public]
 //   GET    /api/status              — health, model info, memory stats
@@ -16,10 +17,13 @@
 //   POST   /api/memories            — {agent?, text} (manual memory from UI)
 //   DELETE /api/memories/<id>
 //   GET    /api/history             — ?session=&limit= (restore chat on reload)
-//   GET    /api/sessions            — ?limit= (conversation list: preview + last activity)
+//   GET    /api/sessions            — ?limit=&cron= (conversation list: preview + last
+//                                       activity; cron=1 also lists scheduled-run
+//                                       transcripts, hidden by default)
 //   GET    /api/jobs                — scheduled cron jobs, read-only (managed via the
 //                                       schedule_job/cancel_job/run_job_now tools — see
-//                                       core/tools/cron_tool.cpp)
+//                                       core/tools/cron_tool.cpp). ?all=1 lists every
+//                                       account's jobs with their owner [admin]
 //   POST   /api/upload               — multipart 'file' → saved into the workspace,
 //                                       returns a text preview for the UI to embed
 //   GET    /*                       — static web UI
@@ -43,6 +47,7 @@
 
 #pragma once
 #include "agent.h"
+#include "json.hpp"
 #include "memory.h"
 #include "tools.h"
 #include "users.h"
@@ -131,4 +136,11 @@ private:
     // True for the handful of paths reachable without credentials. Anything
     // else under /api/ is refused by the pre-routing gate.
     static bool is_public_path(const std::string& path);
+
+    // One user's permissions as the runtime resolves them — which of the
+    // loaded agents they may reach, and which registered tools are denied.
+    // Served by /api/auth/status so a member can see why an agent is missing
+    // or a tool refused without an admin having to SSH in and run
+    // `funes perms`. Read-only; editing stays in the CLI.
+    nlohmann::json resolved_permissions(const UserStore::User& user) const;
 };

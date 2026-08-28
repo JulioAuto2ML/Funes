@@ -199,7 +199,11 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 std::string FunesAgent::run(const std::string& user_message, const std::string& session,
                             int64_t user_id, const funes::Permissions& perms,
                             const EventFn& emit, const std::vector<ImageAttachment>& images,
-                            bool persist) {
+                            Persist persist) {
+    // Two independent questions, previously one bool. A scheduled run wants
+    // the first and emphatically not the second.
+    const bool writes_history = (persist != Persist::None);
+    const bool writes_memory  = (persist == Persist::Full);
     // Narrow the schema to what this user may actually call. Built in the
     // constructor from the agent's own allowlist; intersected here, because
     // the caller isn't known until the run. Withholding the schema is the
@@ -255,12 +259,12 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     // 2. Load the rolling summary + recent turns, compressing the oldest half
     //    of the window into the summary first if it's about to crowd out the
     //    context window (automatic safety net; see context_compressor.h).
-    //    Skipped for non-persisting (delegated) calls: a specialist doing one
+    //    Skipped for Persist::None (delegated) calls: a specialist doing one
     //    task shouldn't rewrite the shared session's summary or prune its
     //    turns as a side effect — that's the persisting caller's job.
-    std::string summary = persist ? memory_.get_summary(user_id, session) : std::string();
+    std::string summary = writes_history ? memory_.get_summary(user_id, session) : std::string();
     std::vector<ChatMessage> recent = memory_.recent_turns(user_id, session, defaults_.memory_turns);
-    if (persist) {
+    if (writes_history) {
         constexpr double kCompressTriggerFraction = 0.7;
         constexpr int    kMinKeep = 4;
         const int budget = static_cast<int>(cfg_.context_limit * kCompressTriggerFraction);
@@ -349,16 +353,18 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     int prompt_tokens = 0;
     std::string final_text = run_loop(history, ctx, emit, prompt_tokens, use_vision);
 
-    // 5. Persist the exchange: session history always; long-term memory when
-    //    auto-memory is on (source "auto" so the UI can distinguish it).
-    //    Skipped for delegated calls (persist=false) — the task/answer isn't
-    //    a real turn in the visible conversation, and the orchestrating
-    //    call already persists its own user message and final answer.
-    if (persist) {
+    // 5. Persist the exchange, per the Persist mode (see agent.h):
+    //    session history unless this is a delegated call, and the long-term
+    //    auto-memory only for a run a person actually authored. The
+    //    auto-memory phrases itself as `User said: "..." — I replied: "..."`,
+    //    which is a lie for a scheduled job and a lie that gets *recalled*:
+    //    the cron-authored ones on the deployment had been injected into real
+    //    conversations a dozen times each.
+    if (writes_history) {
         memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
-        if (defaults_.auto_memory && !final_text.empty()) {
+        if (writes_memory && defaults_.auto_memory && !final_text.empty()) {
             std::string reply = final_text.substr(0, 300);
             if (final_text.size() > 300) reply += "…";
             try {

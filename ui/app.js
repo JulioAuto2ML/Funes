@@ -126,13 +126,33 @@ function showAuthGate(mode, message) {
   els.authUsername.focus();
 }
 
-function hideAuthGate(user) {
+function hideAuthGate(user, permissions) {
   els.authGate.hidden = true;
   els.authPassword.value = '';
   els.authPassword2.value = '';
   els.userName.textContent = user.display_name || user.username;
   els.userChip.hidden = false;
-  els.userChip.title = user.username + ' · ' + user.role;
+  els.userChip.title = permissionsTooltip(user, permissions);
+}
+
+// What this account may do, in the user chip's tooltip. The chip is already
+// where "who am I" lives, so this needs no new element and no CSS: a member
+// who finds an agent missing or a tool refused can hover and see why, instead
+// of the answer only existing behind `funes perms` over SSH.
+function permissionsTooltip(user, permissions) {
+  const lines = [user.username + ' · ' + user.role];
+  if (!permissions) return lines.join('\n');
+  if (permissions.is_admin) {
+    lines.push('every agent and every tool');
+    return lines.join('\n');
+  }
+  lines.push(permissions.agents_restricted
+    ? 'agents: ' + (permissions.agents.length ? permissions.agents.join(', ') : 'none')
+    : 'agents: all');
+  lines.push(permissions.denied_tools && permissions.denied_tools.length
+    ? 'tools denied: ' + permissions.denied_tools.join(', ')
+    : 'tools: all');
+  return lines.join('\n');
 }
 
 function authError(message) {
@@ -178,7 +198,7 @@ els.authForm.addEventListener('submit', async (e) => {
       return authError(data.error || 'Sign-in failed.');
     }
     els.authSubmit.disabled = false;
-    hideAuthGate(data.user);
+    hideAuthGate(data.user, data.permissions);
     await startApp();
   } catch (err) {
     authError('Could not reach the Funes server.');
@@ -202,7 +222,7 @@ async function startAuthFlow(message) {
     const resp = await fetch('/api/auth/status');
     const data = await resp.json();
     if (data.authenticated && data.user) {
-      hideAuthGate(data.user);
+      hideAuthGate(data.user, data.permissions);
       return true;
     }
     showAuthGate(data, message);

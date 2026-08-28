@@ -44,9 +44,10 @@ Create one from the web UI's first-run screen, or from the CLI:
 ./bin/funes useradd julio --admin
 ```
 
-Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `jid-map`,
-`jid-unmap`. They run against `FUNES_DB` and exit without starting the server
-or touching the LLM. Passwords are always prompted, never taken as arguments.
+Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
+`jid-map`, `jid-unmap`, and one maintenance command, `cron-cleanup`. They run
+against `FUNES_DB` and exit without starting the server or touching the LLM.
+Passwords are always prompted, never taken as arguments.
 
 ## Tests
 
@@ -168,6 +169,15 @@ consolidates near-duplicates and prunes stale never-recalled `auto` memories
 (`FUNES_CONSOLIDATE*` env vars); explicit `user` memories are never pruned,
 and merging only ever happens within one account's pool.
 
+What a run *writes* is three-valued, not a bool: `FunesAgent::run` takes a
+`Persist` of `Full` (a person talking), `TurnsOnly` (a scheduled job — keep the
+transcript, write no auto-memory) or `None` (a delegated sub-agent call). The
+middle one exists because a cron firing used to store `User said: "<the job's
+task>" — I replied: "..."`, and those got recalled into real conversations as
+things the person had said. Scheduled sessions (`cron-<id>-<epoch>`) are hidden
+from `list_sessions` unless asked for; `funes cron-cleanup` removes what an
+older database already holds.
+
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (used by
 `whatsapp-autoresponder` to share `funes`'s memory). That is orthogonal to
@@ -239,17 +249,23 @@ honoured verbatim as a deliberate shared folder (nothing shipped uses it).
 
 ### Server
 
-`src/server/` (`main.cpp`, `api.cpp`, `user_cli.cpp`) — one binary, all
-routes plain HTTP/SSE. `/api/chat` streams `memories`, `delta`, `tool_call`,
+`src/server/` (`main.cpp`, `api.cpp`, `user_cli.cpp`, `maint_cli.cpp`) — one
+binary, all routes plain HTTP/SSE. `/api/chat` streams `memories`, `delta`, `tool_call`,
 `tool_result`, `result_stored`, `contract_nudge`, `schema_nudge`,
 `context_compressed`, `usage`, `done`, `error` events over SSE. Four routes
 are public (`/api/login`, `/api/logout` aside, `/api/auth/status`,
 `/api/auth/bootstrap`); everything else needs a session cookie or a service
 token. `bootstrap` is public but self-closing — it only works while no user
 exists, which is how a fresh install gets its first admin without shipping a
-default password. See `src/server/README.md` for the full route table and
-startup sequence (background threads: embedding backfill, result pruning,
-memory consolidation, cron runner).
+default password. `/api/auth/status` also returns the caller's *resolved*
+permissions (allowed agents, denied tools) so a member can see why an agent is
+missing without an admin SSHing in — read-only, editing stays in the CLI. See
+`src/server/README.md` for the full route table and startup sequence
+(background threads: embedding backfill, result pruning, memory consolidation,
+cron runner). The backfill thread *drains* rather than making one capped call:
+one call is not the backfill, and before 4.0 a database with more than 256
+memories missing vectors came back on keyword-only recall until the next
+restart.
 
 ### UI
 

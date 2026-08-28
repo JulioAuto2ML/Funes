@@ -22,7 +22,14 @@ Dark theme ("ink & parchment"):
 ## Layout
 
 - **Header**: brand, controls (New chat, Chats, Memory, Jobs), context gauge, status dot
-- **Left panel**: conversations sidebar with previews and relative timestamps
+- **Left panel**: conversations sidebar with previews and relative timestamps.
+  Scheduled runs are excluded server-side (`/api/sessions` hides `cron-*`);
+  they are transcripts nobody held, and were 18% of the list on the deployment
+- **User chip**: name, and on hover the account's resolved permissions --
+  which agents it may reach and which tools are denied. The tooltip rather
+  than a panel on purpose: the chip is already where "who am I" lives, so this
+  needed no new element and no CSS, and the question ("why is that agent
+  missing?") is one people ask rarely and answer once
 - **Center**: chat pane with message history and composer (text + file attach)
 - **Right panel**: memory sidebar (add/search/list) or jobs sidebar
 

@@ -56,6 +56,13 @@ struct AgentDefaults {
     std::function<std::string(const std::string&)> agent_roster;
 };
 
+// What a run leaves behind in the database. See FunesAgent::run.
+enum class Persist {
+    None,       // nothing — a delegated sub-agent call
+    TurnsOnly,  // session history, but no auto-memory — a scheduled job
+    Full        // history and auto-memory — a person talking
+};
+
 class FunesAgent {
 public:
     // tools and memory must outlive the agent. One FunesAgent per request.
@@ -68,11 +75,24 @@ public:
     // they don't replay (or bloat storage) on future turns. Whether the
     // model actually sees them depends on the backend supporting vision.
     //
-    // `persist=false` skips storing the exchange (session history + auto-
-    // memory) entirely — used for delegated sub-agent calls (see
-    // src/core/tools/delegation.cpp), so a specialist's internal task/answer
-    // doesn't show up as a separate turn in the visible conversation. The
-    // specialist's own recall/remember tool calls are unaffected either way.
+    // `persist` decides what this run leaves behind. It is three-valued
+    // rather than a bool because the two things it used to gate together are
+    // wanted separately:
+    //
+    //   Full      — a real conversation. Session history, the rolling summary
+    //               and the auto-memory write.
+    //   TurnsOnly — a transcript worth keeping, authored by nobody. Scheduled
+    //               runs: the turns are the post-mortem record, but the
+    //               auto-memory would say `User said: "<the job's task>"`,
+    //               and the scheduler is not the user. Those memories get
+    //               recalled into real conversations as things the person
+    //               said, which is the actual harm — the clutter is secondary.
+    //   None      — delegated sub-agent calls (src/core/tools/delegation.cpp):
+    //               the task/answer isn't a turn in the visible conversation,
+    //               and the orchestrating call persists its own.
+    //
+    // The specialist's own recall/remember tool calls are unaffected by all
+    // three — an agent that deliberately stores something still does.
     //
     // `perms` is what that user may do: it narrows the tool schema this run
     // offers the model, and is re-checked at dispatch. It only ever
@@ -94,7 +114,7 @@ public:
                     const funes::Permissions& perms,
                     const EventFn& emit = nullptr,
                     const std::vector<ImageAttachment>& images = {},
-                    bool persist = true);
+                    Persist persist = Persist::Full);
 
     const AgentConfig& config() const { return cfg_; }
 

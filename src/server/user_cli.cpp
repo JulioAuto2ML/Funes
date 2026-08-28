@@ -137,6 +137,16 @@ int cmd_perms(UserStore& users, const std::vector<std::string>& args) {
         const std::string& a = args[i];
         if (a == "--show") return show_permissions(*user);
         if (a == "--reset") { doc = nlohmann::json::object(); changed = true; continue; }
+
+        // Recognise the flag before asking for its value, or a typo at the end
+        // of the line ("--agentz") is reported as a missing value for an
+        // option that does not exist — which reads as though the spelling was
+        // fine and sends you looking in the wrong place.
+        if (a != "--agents" && a != "--allow" && a != "--deny") {
+            std::cerr << "Unknown option: " << a << "\n";
+            usage();
+            return 2;
+        }
         if (i + 1 >= args.size()) { std::cerr << "Missing value for " << a << "\n"; return 2; }
         const std::string value = args[++i];
 
@@ -146,17 +156,16 @@ int cmd_perms(UserStore& users, const std::vector<std::string>& args) {
             if (value == "any") doc.erase("agents");
             else doc["agents"] = split_csv(value);
             changed = true;
-        } else if (a == "--allow" || a == "--deny") {
+        } else {
             const bool allow = (a == "--allow");
             for (const auto& t : split_csv(value)) doc["tools"][t] = allow;
             changed = true;
-        } else {
-            std::cerr << "Unknown option: " << a << "\n";
-            usage();
-            return 2;
         }
     }
 
+    // Only now, with every argument accepted, is anything written: a line that
+    // is half-valid must leave the stored blob exactly as it was, or a typo in
+    // the third flag silently applies the first two.
     if (!changed) return show_permissions(*user);
     if (user->is_admin())
         std::cout << "Note: " << user->username

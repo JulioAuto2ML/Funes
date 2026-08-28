@@ -1,10 +1,17 @@
 # Funes 4.0 — what's left
 
 Branch: `feat/v4-users-permissions`.
-State as of 2026-08-26: phases 1–4 of `dev-plan-users-permissions.md` are
+State as of 2026-08-28: phases 1–4 of `dev-plan-users-permissions.md` are
 implemented, benchmarked against the real model, and **deployed on yoda** as
-an independent install on `:8485`. 28/28 `ctest` and 154 `integration.sh`
+an independent install on `:8485`. 28/28 `ctest` and 220 `integration.sh`
 assertions pass.
+
+**2026-08-28:** Julio tested the deployed 4.0 install and it works. Six of the
+seven pending items below are now done (1, 2, 3, 4, 6, 7); only #5 remains,
+and it is blocked on a feature that does not exist yet. The two items under
+"Deferred by decision" are untouched and are still the largest open questions.
+None of the completed work has been deployed to yoda yet — see "Deploying
+this" at the end.
 
 **2026-08-26, later:** 3.x was stopped deliberately and 4.0 now owns the
 schedule for testing. A host drop-in
@@ -46,6 +53,9 @@ Being explicit, because "tested" has meant two different things here.
   identically, had no `execute_shell`, and said so. The figure matched the
   real `df`, so the admin path genuinely executed and the member's refusal
   was the permission, not a broken server.
+- **Real use of the yoda install**, 2026-08-28: Julio used it and reported it
+  working. That closes the "deployed but nobody has talked to it" gap; it is
+  not a substitute for the bench, which last ran on 2026-08-26.
 - **Concurrency.** Six simultaneous chats, two accounts, deliberately sharing
   one session name. Neither account sees the other's turns, and the test
   fails if the requests merely queue rather than overlap.
@@ -71,9 +81,10 @@ Being explicit, because "tested" has meant two different things here.
   untested path.
 - **The WhatsApp service-token path end to end.** Only curl-tested; never run
   against a real bridge with a real incoming message. Also now a design task.
-- **Any real use of the yoda install.** It is deployed and serving (see
-  below), but it has no accounts yet and nobody has held a conversation on
-  it.
+- **Anything from 2026-08-28.** All of it is covered by `ctest` and
+  `integration.sh` against the mock LLM, and each new assertion was checked
+  against a deliberate mutation of the code it covers. None of it has run on
+  yoda, and none of it has been near the real model.
 
 ---
 
@@ -128,87 +139,9 @@ model forces, and both were deliberately left for a later pass.
 
 ## Pending work
 
-Ordered so the list can be worked top to bottom. Each entry says what is
-wrong, where it lives, and what "done" looks like — the point is that none of
-them needs this conversation to be actionable.
-
-### 1. Members cannot see their own permissions
-`/api/auth/status` returns identity only. A member who finds an agent missing
-or a tool refused has no way to learn why, and an admin cannot inspect anyone
-without SSH to run `funes perms <user>`.
-**Done when:** `/api/auth/status` also returns the caller's resolved
-permissions (allowed agents, denied tools), and the UI shows them somewhere
-unobtrusive. Read-only — editing stays in the CLI, per phase 5's deferral.
-Reuse `Permissions::parse` and the same resolved view `show_permissions()`
-already prints in `src/server/user_cli.cpp`.
-
-### 2. The embedding backfill does not finish in one start
-`backfill_embeddings(max_items = 256)` is capped per call and `main.cpp` calls
-it exactly once, so a database with more than 256 memories comes back from a
-migration with the remainder on keyword-only recall until the next restart.
-Pre-existing, but 4.0 exposes it: the migration drops every vector, so the cap
-was never reached before. Seen on yoda — 256 on the first start, 25 on the
-second.
-**Done when:** the startup thread loops until a pass returns 0 (with a small
-sleep between, so a down embedding endpoint does not spin), or the runbook
-stops pretending one restart is enough. The loop is the better fix; the
-runbook note is already in `deploy-v4-yoda.md` as a stopgap.
-
-### 3. Cron runs are stored as conversations, and as memories
-Every firing gets its own session (`cron-<id>-<epoch>`, one per run by design,
-so tool budgets do not carry over), and `run_agent_job` passes `persist=true`.
-On yoda that is **33 of 180 sessions (18%)**, two turns each, growing by one
-per job per day forever — you have already deleted some by hand.
-
-The turns are only clutter. The memories are a smaller problem than it first
-appears, but a real one. `persist` gates *both* the turns and the auto-memory
-write (`src/core/agent.cpp`, step 5), so a firing also stores a memory of the
-form `User said: "<the job's task>" — I replied: "..."`. The scheduler is not
-the user, and one on yoda records the job-runner preamble verbatim: `User
-said: "[You are running as a scheduled job — there is no interactive user...]"`.
-
-They do **not** accumulate one per firing, which a first reading of the code
-suggests. `remember()` inserts under `UNIQUE(user_id, agent, text)`, so a job
-whose task and reply are word-for-word identical to last time dedupes away
-silently — the 2026-08-26 reminder run added no memory at all. They accumulate
-only when the model words its reply differently, which for the reminder has
-been roughly three times in two weeks. The count is bounded and irregular, not
-linear.
-
-That still matters, because these get recalled: the cron-authored reminder
-memories on yoda carry `recall_count` of 13 and 15, i.e. they have been
-injected into real conversations that often, presenting the scheduler talking
-to itself as something the user said.
-
-The record that survives without them: `cron_jobs.last_status` and
-`last_output` (a 4000-byte preview, **last run only**), the journal, and — for
-these two jobs — the actual artifacts, which are the real record anyway: the
-published issue files and the sent email, the delivered WhatsApp message. The
-transcript was never the evidence that the newsletter went out.
-
-**Confirmed live** on 2026-08-26: the 20:00 reminder fired from 4.0, succeeded,
-and left a `cron-1-*` session of two turns and no new memory.
-
-**Done when:** `run_agent_job` passes `persist=false` (`src/core/cron_runner.cpp`;
-its comment currently argues the opposite — "the job's own session is the
-record" — and needs rewriting, not just flipping). Then decide separately
-whether to backfill: existing `cron-%` sessions and their auto-memories can be
-removed with the same care the bench cleanup used (delete through
-`MemoryStore::forget`/`delete_session`, not raw SQL, or the vec0 index is
-left with orphans).
-
-**Consider first:** this drops per-run history, keeping only the last run's
-bounded preview. If post-mortem on a *previous* failed run matters — and this
-morning's newsletter did fail — either widen what `record_cron_job_run` keeps,
-or take the smaller option instead: keep persisting but exclude `cron-%` from
-`list_sessions`, which fixes the clutter and not the memory pollution.
-
-### 4. An admin cannot see what is scheduled on the box
-`MemoryStore::list_cron_jobs(-1)` already returns every user's jobs and
-nothing calls it with `-1` — `/api/jobs` passes the caller's own id.
-**Done when:** `/api/jobs` accepts something like `?all=1`, gated on
-`require_admin()` (added 2026-08-26, `src/server/api.cpp`), and returns the
-owning username per job. Small, and it makes a shared box operable.
+One item, and it is not actionable yet. Everything else that was here on
+2026-08-26 was done on 2026-08-28 — see "Done on 2026-08-28" below for what
+each turned into, including the two decisions that were left open.
 
 ### 5. `funes passwd` does not revoke existing sessions
 Deliberate today: it is the admin resetting a forgotten password, not a
@@ -219,15 +152,103 @@ opposite behaviour is correct and this needs a `--revoke-sessions` flag, or an
 unconditional revoke on the self-service path only. Not actionable before that
 exists; listed so the reasoning is not rediscovered.
 
-### 6. Session-token expiry is untested
-Expiry is implemented; only revocation has a test.
-**Done when:** a test creates a token with a short TTL, waits it out (or
-backdates the row), and asserts the session no longer authenticates.
+---
 
-### 7. `funes perms` bad input is untested
-`integration.sh` covers `--allow`, `--deny`, `--agents` and `--reset` as a
-side effect of testing the permissions they set. Unknown flags, missing
-values, and a nonexistent username are unasserted, as is the JSON written.
+## Done on 2026-08-28
+
+Kept rather than deleted, because two of them were decisions rather than
+straightforward fixes and the reasoning is worth not rediscovering.
+
+### 1. Members can see their own permissions — done
+`/api/auth/status` (and `/api/login`, so the UI need not re-fetch on a page it
+just authenticated) now returns `permissions`: `role`, `is_admin`,
+`agents_restricted`, the allowed `agents`, and `denied_tools`. **Resolved**,
+not the raw blob — `FunesApi::resolved_permissions` runs the same
+`Permissions::parse` the runtime uses, intersects the agent allowlist with the
+agents actually loaded, and answers `allows_tool` for every registered tool. A
+UI that re-derived "absent means different things for agents and tools" in
+JavaScript would eventually disagree with `permissions.cpp`.
+
+Still the caller's own permissions only: the route is public, so returning
+anyone else's would describe the box's roster to an anonymous request. That is
+asserted. In the UI it is the user chip's hover tooltip — no new element, no
+CSS.
+
+### 2. The embedding backfill drains — done
+The startup thread in `main.cpp` loops until a pass reports nothing done.
+`MemoryStore::count_missing_vectors()` was added because a pass returning 0 is
+ambiguous — nothing left, or the endpoint is down — and the two need different
+responses. An unreachable embedding endpoint is now retried every 5 minutes for
+about an hour (`kMaxRetries`) before giving up with a line saying how many are
+still on keyword recall, so the ordinary case of `:8081` coming up *after*
+Funes does no longer waits for a restart. The runbook stopgap in
+`deploy-v4-yoda.md` is replaced.
+
+### 3. Cron runs — done, as a three-way split rather than the flip
+The "Done when" here said `persist=false`. That was **not** what was done, and
+deliberately: it would have dropped the per-run transcripts, which are the only
+record of what a run older than the last one did (`cron_jobs.last_output` is a
+preview of the last run only, and a newsletter run had failed the morning this
+was written).
+
+Instead `FunesAgent::run`'s `bool persist` became a three-valued `Persist`
+(`Full` / `TurnsOnly` / `None`, see `src/core/agent.h`). Cron uses
+`TurnsOnly`: keep the transcript, write no auto-memory. The auto-memory was
+always the real harm — it phrased the exchange as `User said: "<the job's
+task>"`, and those were being recalled into real conversations.
+
+The clutter half is solved by hiding rather than deleting:
+`MemoryStore::list_sessions` excludes `cron-%` unless asked, and
+`GET /api/sessions?cron=1` is how the job history is reached — the per-run
+epoch makes the session name unguessable, so hiding it without a listing would
+be losing it. The filter sits inside the grouped subquery, not after the
+`LIMIT`, or a busy scheduler returns short pages.
+
+`MemoryStore::CRON_SESSION_PREFIX` and `CRON_TASK_PREAMBLE` are now constants
+shared by `cron_runner.cpp` (which writes them) and `memory.cpp` (which matches
+on them). Two spellings would make the filter and the cleanup silently find
+nothing.
+
+**Backfill: written, not run.** `funes cron-cleanup` (new
+`src/server/maint_cli.{h,cpp}`) removes the auto-memories an older database
+already holds, going through `MemoryStore::forget`/`delete_session` — a raw
+`DELETE` from `memories` leaves the vec0 index holding an orphan vector.
+It **reports without deleting** unless `--apply`, and it **keeps** the old
+transcripts unless `--drop-sessions`, since they are already hidden and are
+the only per-run record. Section 7 of `deploy-v4-yoda.md` has the runbook.
+Nobody has run it on yoda.
+
+### 4. An admin can see what is scheduled on the box — done
+`GET /api/jobs?all=1`, gated on `require_admin()`, returns every account's jobs
+with `owner`/`owner_id`; the response carries `"scope": "mine" | "all"`. Owners
+are resolved once into a map (few owners, many jobs), and a job whose owner was
+deleted shows as `(deleted user)` rather than vanishing — that is the one most
+in need of cancelling. The caller's own listing deliberately carries no `owner`
+field: there it is always the caller, and the field's presence is what tells
+the client which view it got.
+
+Worth knowing: the first version of this test passed against a handler that
+ignored `all` entirely, because the admin owned the only job on the box. The
+suite now schedules a job as the member too.
+
+### 6. Session-token expiry is tested — done
+The unit-level test already existed (`tests/test_users.cpp`); what was missing
+was the HTTP path, which is the one that matters. `integration.sh` now
+backdates the member's `auth_tokens` row via `tests/expire_token.py`, asserts
+the cookie stops authenticating (`/api/auth/status` and a 401 on a protected
+route), and that logging in again works — expiry is not a lockout. The helper
+asserts the row is still present and now expired, because "no such token" and
+"expired token" are deliberately indistinguishable from outside.
+
+### 7. `funes perms` bad input is tested — done
+Unknown options, missing values, a nonexistent username, exit codes, and the
+JSON actually written. Also that a half-valid line writes nothing at all — a
+command that errors and still takes effect is the worst outcome here.
+
+Testing it turned up a small wart, now fixed: `cmd_perms` asked for an
+option's value before checking the option was known, so a typo in the last
+argument (`funes perms bob --agentz`) reported "Missing value for --agentz",
+which reads as though the spelling was fine.
 
 ---
 
@@ -268,10 +289,12 @@ surprises.
    regresses, the second is permanent data loss, since Funes migrates whatever
    database it opens and there is no downgrade.
 4. When adding a test here, check it fails for the right reason before
-   trusting it. Two of today's would have passed while proving nothing: the
-   concurrency test passes identically against a serialising server (hence the
-   timing floor), and the migration test was checked against three deliberate
-   mutations of `migrate()`.
+   trusting it. This keeps catching real gaps: the concurrency test passes
+   identically against a serialising server (hence the timing floor); the
+   migration test was checked against three deliberate mutations of
+   `migrate()`; and on 2026-08-28 the `/api/jobs?all=1` test passed against a
+   handler that ignored `all` entirely, because the admin owned the only job
+   on the box.
 5. To ship a change to yoda: push the branch, then `git pull --ff-only` in
    `~/Funes-v4`, rebuild with `-j2` (the box is RAM-limited and the model is
    resident), run `ctest`, and `systemctl --user restart funes-v4`. Never
@@ -281,3 +304,21 @@ surprises.
 6. Merge to `main` has not been discussed. The branch is self-contained and
    3.x on yoda is unaffected either way, but 4.0 is now the install being
    iterated on, so the two will keep diverging until this is decided.
+
+---
+
+## Deploying this
+
+Nothing from 2026-08-28 is on yoda yet. It is a plain code change — no
+`migrate()` change, so no schema risk — but two things behave differently
+after the restart and are worth knowing before it happens:
+
+- The conversation list loses its `cron-*` entries. They are hidden, not
+  deleted; `GET /api/sessions?cron=1` still lists them.
+- The startup backfill now drains instead of stopping at 256, so the first
+  start after the upgrade may spend longer talking to `:8081` than usual and
+  will log one total rather than a per-restart count.
+
+Follow step 5 above to ship it. Then, separately and only after reading the
+dry-run numbers, section 7 of `deploy-v4-yoda.md` for `funes cron-cleanup` —
+that one *is* destructive and has no undo.

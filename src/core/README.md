@@ -161,3 +161,45 @@ before changing anything there:
 Background work that has no request to take an identity from carries its own:
 cron jobs record their owner and the runner adopts it; consolidation iterates
 one user's pool at a time.
+
+## What a run leaves behind (`Persist`)
+
+`FunesAgent::run` takes a three-valued `Persist` (agent.h) rather than a bool,
+because the two things it used to gate together are wanted separately:
+
+| Mode | Session turns | Auto-memory | Used by |
+|---|---|---|---|
+| `Full` | yes | yes | a person talking -- `/api/chat` |
+| `TurnsOnly` | yes | **no** | scheduled runs -- `cron_runner.cpp` |
+| `None` | no | no | delegated sub-agent calls -- `delegation.cpp` |
+
+The middle one is why the split exists. A cron firing used to persist exactly
+like a conversation, which meant it also wrote an auto-memory phrased
+`User said: "<the job's task>" -- I replied: "..."`. The scheduler is not the
+user: one of those on the deployment recorded the job-runner preamble verbatim,
+as if the person had typed `[You are running as a scheduled job...]`.
+
+They were not merely clutter -- they were *recalled*. Two of them carried
+`recall_count` of 13 and 15, i.e. they had been injected into that many real
+conversations, presenting the scheduler talking to itself as something the
+person had said.
+
+They also did not accumulate one per firing, which is why this took so long to
+notice. `remember()` inserts under `UNIQUE(user_id, agent, text)`, so a job
+whose reply is word-for-word last week's dedupes away silently; the count grows
+only when the model words itself differently. Irregular and bounded, easy to
+mistake for nothing happening.
+
+The turns are kept, though, and deliberately: `cron_jobs.last_output` is a
+4000-byte preview of the **last** run only, which is no help the morning after
+a failure two runs ago. They are hidden from the conversation list instead --
+`MemoryStore::list_sessions` filters `cron-%` unless asked. `funes cron-cleanup`
+removes the auto-memories an older database already holds (and, only if asked,
+the old transcripts); it goes through `forget()`/`delete_session()` rather than
+SQL, because a raw `DELETE` from `memories` leaves the vec0 index holding a
+vector whose row is gone and nothing ever notices.
+
+`MemoryStore::CRON_SESSION_PREFIX` and `CRON_TASK_PREAMBLE` live next to each
+other for the same reason: `cron_runner.cpp` writes both and `memory.cpp`
+matches on both, and two spellings would make the filter and the cleanup
+silently stop finding anything.

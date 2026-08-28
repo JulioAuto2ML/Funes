@@ -17,6 +17,7 @@
 #include "tools/harvest.h"
 #include "tools/http_tool_runtime.h"
 #include "tools/issue.h"
+#include "maint_cli.h"
 #include "user_cli.h"
 #include "users.h"
 #include "httplib.h"
@@ -193,6 +194,10 @@ int main(int argc, char** argv) {
     if (funes::is_user_cli_command(argc, argv))
         return funes::run_user_cli(argc, argv, db_path);
 
+    // Same deal for the one-off maintenance commands (`funes cron-cleanup`).
+    if (funes::is_maint_cli_command(argc, argv))
+        return funes::run_maint_cli(argc, argv, db_path);
+
     // read_file/write_file/execute_shell are confined to this directory.
     std::string workspace_dir = funes::env("FUNES_WORKSPACE_DIR");
     if (workspace_dir.empty()) {
@@ -327,10 +332,52 @@ int main(int argc, char** argv) {
 
     // Embed any memories that are missing vectors (e.g. stored while the
     // embedding endpoint was down) without blocking startup.
+    //
+    // Drained in a loop, not called once. backfill_embeddings() is capped per
+    // call because it takes the write lock per row on a server that is already
+    // answering requests; a single call therefore leaves everything past the
+    // cap on keyword-only recall until the next restart. That went unnoticed
+    // for as long as it did because only a migration drops every vector at
+    // once — normally there are a handful to fill, never hundreds.
+    //
+    // A pass returning 0 is ambiguous: nothing left, or the embedding endpoint
+    // is down (backfill_embeddings stops at the first failed embed rather than
+    // burning through the whole backlog against a dead endpoint). Asking how
+    // many are still missing separates the two, so the endpoint coming up
+    // *after* Funes does — the ordinary case when both start at boot — gets
+    // retried instead of waiting for a restart, and a real "all done" stops
+    // the thread for good.
     std::thread([&memory] {
-        size_t n = memory.backfill_embeddings();
-        if (n > 0)
-            std::cerr << "[funes] backfilled " << n << " memory embeddings\n";
+        constexpr auto kPassGap    = std::chrono::seconds(2);
+        constexpr auto kRetryGap   = std::chrono::minutes(5);
+        constexpr int  kMaxRetries = 12;   // ~1h of a down endpoint, then give up
+
+        size_t total = 0;
+        for (int retries = 0; ; ) {
+            const size_t n = memory.backfill_embeddings();
+            total += n;
+            if (n > 0) {
+                retries = 0;                  // progress resets the patience
+                std::this_thread::sleep_for(kPassGap);
+                continue;
+            }
+            const int64_t remaining = memory.count_missing_vectors();
+            if (remaining == 0) break;
+            if (++retries > kMaxRetries) {
+                std::cerr << "[funes] giving up on " << remaining
+                          << " memory embedding(s) — the embedding endpoint has been "
+                             "unreachable for a while; they stay on keyword recall "
+                             "until the next restart\n";
+                break;
+            }
+            std::cerr << "[funes] " << remaining << " memory embedding(s) still missing; "
+                         "embedding endpoint unreachable, retrying in "
+                      << std::chrono::duration_cast<std::chrono::minutes>(kRetryGap).count()
+                      << "m (" << retries << "/" << kMaxRetries << ")\n";
+            std::this_thread::sleep_for(kRetryGap);
+        }
+        if (total > 0)
+            std::cerr << "[funes] backfilled " << total << " memory embeddings\n";
     }).detach();
 
     // Stored tool results (see core/result_store.h) are only useful to the turn

@@ -91,12 +91,12 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
         FunesAgent sub(target, reg, memory, defaults);
         // No emit (black-box: sub-agent's own tool calls aren't streamed),
         // no images (this is a text task description, not the user's turn),
-        // persist=false (see file header).
+        // Persist::None (see file header).
         // The specialist runs as the delegating user: it shares the caller's
         // session, so its recall/remember and any result it stores have to
         // land in the same pool the caller will read them back from.
         std::string result = sub.run(task, ctx.session, ctx.user_id, ctx.permissions,
-                                     nullptr, {}, /*persist=*/false);
+                                     nullptr, {}, Persist::None);
         const bool failed = funes::is_run_failure(result);
         std::cerr << "[delegate] " << ctx.agent << " → " << agent_name
                   << (failed ? " FAILED: " : " OK: ")

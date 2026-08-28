@@ -147,14 +147,19 @@ The vector rebuild drops the embeddings and refills them in the background
 from `:8081`. Recall falls back to keyword search until that finishes, which
 for a few dozen memories is seconds.
 
-**The backfill is capped at 256 per start**, and it runs once. A database with
-more memories than that needs one restart per 256 to finish — check the count
-and restart until the line stops appearing:
+The backfill is capped at 256 per call, but the startup thread now drains it
+in a loop, so one start finishes the whole database. (It used to run exactly
+once, which meant restarting once per 256 memories — if you remember doing
+that, that is why.) One line reports the total when it is done:
 
 ```bash
-journalctl --user -u funes-v4 --no-pager | grep backfilled
-systemctl --user restart funes-v4      # repeat while the count is still 256
+journalctl --user -u funes-v4 --no-pager | grep -E "backfilled|embedding"
 ```
+
+If the embedding endpoint on `:8081` is not up yet, the thread says how many
+are still missing and retries every 5 minutes for about an hour rather than
+giving up until the next restart. A `giving up on N memory embedding(s)` line
+means `:8081` was down that whole time — start it and restart `funes-v4`.
 
 ## 5. Confirm 3.x is untouched
 
@@ -209,6 +214,31 @@ this install yet.
 
 Phase 4 narrows the tool schema each agent sees, so this is the run that says
 whether the model still calls the right tools.
+
+## 7. One-off: clear out what the old scheduler wrote
+
+Only needed on a database that predates the `Persist::TurnsOnly` change. Until
+then every cron firing also wrote an auto-memory phrased `User said: "<the
+job's task>" — I replied: "..."` — the scheduler talking to itself, stored as
+though the person had said it. They are not inert: two on this box carried
+`recall_count` of 13 and 15, meaning they had been injected into that many real
+conversations.
+
+The command reports without deleting unless you pass `--apply`. Read the
+numbers first — there is no undo and no downgrade.
+
+```bash
+cd ~/Funes-v4
+FUNES_DB=~/.funes-v4/memory.db ./bin/funes cron-cleanup            # dry run
+FUNES_DB=~/.funes-v4/memory.db ./bin/funes cron-cleanup --apply
+```
+
+The per-run transcripts are reported but **kept** unless you add
+`--drop-sessions`. They no longer clutter anything — `/api/sessions` hides
+`cron-*` and `?cron=1` is how you reach them — and they are the only record of
+what a run older than the last one did, since `cron_jobs.last_output` keeps a
+preview of the last run only. Take a database backup first either way; the
+snippet is in section 2.
 
 ## Rolling back
 

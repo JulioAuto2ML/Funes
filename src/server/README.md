@@ -1,7 +1,7 @@
 # src/server/
 
-The HTTP server, REST/SSE API, and application entry point. Three files, ~816
-lines. Everything runs in a single `funes` binary.
+The HTTP server, REST/SSE API, and application entry point. Four files.
+Everything runs in a single `funes` binary.
 
 ## Files
 
@@ -9,7 +9,8 @@ lines. Everything runs in a single `funes` binary.
 |---|---|
 | `main.cpp` | Entry point. Config loading, service construction, background threads, HTTP server startup. |
 | `api.h/cpp` | `FunesApi` -- route handlers, agent table, SSE streaming, authentication. |
-| `user_cli.h/cpp` | `funes useradd/userdel/userlist/passwd/jid-map/jid-unmap`. Runs against the database and exits without starting the server, so account management never needs a reachable LLM. |
+| `user_cli.h/cpp` | `funes useradd/userdel/userlist/passwd/perms/jid-map/jid-unmap`. Runs against the database and exits without starting the server, so account management never needs a reachable LLM. |
+| `maint_cli.h/cpp` | `funes cron-cleanup`. One-off, destructive database maintenance -- separate from `user_cli` because it operates on stored conversations and memories rather than accounts, and is run once after an upgrade rather than as part of running the box. |
 
 ## Startup sequence
 
@@ -21,7 +22,9 @@ lines. Everything runs in a single `funes` binary.
 4. **Construct services** -- `MemoryStore` and `UserStore` (same SQLite file, separate connections), `ToolRegistry` (all built-ins), `FunesApi` (routes + agent table)
 5. **Wire circular references** -- delegation, agent creation, cron, and roster injection all need the agent table that `FunesApi` owns
 6. **Start background threads** (all detached):
-   - Embedding backfill (fills missing vectors when endpoint recovers)
+   - Embedding backfill (fills missing vectors when endpoint recovers). Drains
+     in a loop rather than making one capped call, and retries on a slow timer
+     while the embedding endpoint is unreachable -- see the note below
    - Result pruning (sweeps expired tool results)
    - Memory consolidation (merges near-duplicates, prunes stale auto-memories)
    - Cron runner (polls for due scheduled jobs)
@@ -29,8 +32,8 @@ lines. Everything runs in a single `funes` binary.
 
 ## API routes
 
-Everything under `/api/` requires authentication except the three marked
-*public*. That is enforced twice: a pre-routing gate refuses any
+Everything under `/api/` requires authentication except the ones marked
+*public*; the ones marked *admin* additionally refuse a member with 403. That is enforced twice: a pre-routing gate refuses any
 unauthenticated `/api/` path, so a route added later is protected by default,
 and each handler separately resolves the caller with `require_auth` to scope
 what it returns. The gate is the security boundary; the per-handler lookup is
@@ -45,7 +48,7 @@ and neither alone authenticates anything).
 |---|---|---|
 | `/api/login` | POST | Username + password, sets the session cookie (*public*) |
 | `/api/logout` | POST | Revokes the token server-side and clears the cookie |
-| `/api/auth/status` | GET | `{needs_bootstrap, authenticated, user?}` (*public*) |
+| `/api/auth/status` | GET | `{needs_bootstrap, authenticated, user?, permissions?}` (*public*) |
 | `/api/auth/bootstrap` | POST | Creates the first admin; refused once any user exists (*public*) |
 | `/api/status` | GET | Health: model name, memory count, agent count |
 | `/api/agents` | GET | List agents (name + description) |
@@ -55,10 +58,57 @@ and neither alone authenticates anything).
 | `/api/memories` | POST | Create a memory |
 | `/api/memories/<id>` | DELETE | Delete a memory |
 | `/api/history` | GET | Get session conversation turns |
-| `/api/sessions` | GET | List sessions with previews |
-| `/api/jobs` | GET | List scheduled cron jobs |
+| `/api/sessions` | GET | List sessions with previews. `?cron=1` also lists scheduled-run transcripts, hidden by default |
+| `/api/sessions/<name>` | DELETE | Delete one conversation (turns, summary, stored results; memories survive) |
+| `/api/jobs` | GET | List the caller's scheduled cron jobs. `?all=1` lists every account's, with the owning username (*admin*) |
 | `/api/upload` | POST | Upload file to workspace |
 | `/*` | GET | Static files (web UI) |
+
+### What `/api/auth/status` reports about permissions
+
+Identity alone was not enough: a member who found an agent missing or a tool
+refused had no way to learn why, and an admin had to SSH in and run
+`funes perms <user>` to inspect anyone. The route now also returns the
+caller's *resolved* permissions -- allowed agents intersected with the agents
+actually loaded, and a deny-list over every registered tool -- rather than
+echoing back the raw `users.permissions` blob, whose "absent" means different
+things for the two fields. The UI would otherwise have to re-implement that
+rule in JavaScript and would eventually disagree with `permissions.cpp`.
+
+Read-only. Editing stays in the CLI. It is always the *caller's* own
+permissions: the route is public, so returning anyone else's would describe
+the box's roster to an anonymous request. `/api/login` returns the same block
+so the UI does not have to re-fetch status on a page it just authenticated.
+
+### The embedding backfill drains
+
+`MemoryStore::backfill_embeddings` is capped per call because it takes the
+write lock per row on a server that is already answering requests. One call is
+therefore not "the backfill" -- the startup thread loops until a pass reports
+nothing done. Before that it ran once, so a database with more than 256
+memories missing vectors came back with the remainder on keyword-only recall
+until the next restart. It went unnoticed for a long time because only a
+migration drops every vector at once; normally there are a handful to fill.
+
+A pass returning 0 is ambiguous -- nothing left, or the endpoint is down, since
+`backfill_embeddings` stops at the first failed embed rather than burning
+through the backlog against a dead endpoint. `count_missing_vectors()`
+separates the two, so an embedding endpoint that comes up *after* Funes does
+(the ordinary case when both start at boot) gets retried rather than waiting
+for a restart.
+
+### Scheduled runs are hidden, not discarded
+
+Every cron firing gets its own session (`cron-<id>-<epoch>`, one per run by
+design so tool budgets do not carry over). On the deployment those were 18% of
+the conversation list -- two-turn transcripts nobody had held. They are still
+the only record of what a run older than the last one did, so `/api/sessions`
+hides them and `?cron=1` is how you get back to them; the per-run epoch makes
+the name unguessable, so hiding without a way to list would be losing them.
+
+The auto-memory those runs used to write is a separate matter and is simply
+gone -- see `src/core/README.md`. `funes cron-cleanup` removes the ones an
+older database already holds.
 
 ## Chat endpoint
 

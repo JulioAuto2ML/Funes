@@ -23,7 +23,7 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 |---|---|
 | `test_agent_config` | YAML parsing, defaults, answer_schema type preservation |
 | `test_tools` | ToolRegistry dispatch, schema generation, error handling, memory scoping |
-| `test_memory` | MemoryStore: keyword/semantic recall, source weighting, turns, consolidation, prune/merge |
+| `test_memory` | MemoryStore: keyword/semantic recall, source weighting, turns, consolidation, prune/merge, backfill draining (one capped call is not "the backfill"), cron sessions hidden from the conversation list, `cron-cleanup` scoping |
 | `test_user_isolation` | **The one to keep green.** No account can read, delete or overwrite another's memories, turns, summaries, results, cron jobs or files. Also *fidelity* -- a user still gets their own recall hits when another pool is 200x larger -- plus regressions for the two 4.0 migration bugs (pre-4.0 vec table rebuilt before the first recall; merged memories keeping their vector) |
 | `test_users` | Accounts, login, token expiry and revocation, delete-cascades-tokens, unmapped jid resolves to nobody |
 | `test_password` | Malformed stored hashes fail closed, iteration downgrade rejected, salt randomness, constant-time compare |
@@ -49,7 +49,7 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 
 ## Integration test
 
-`integration.sh` (~556 lines) starts the real `funes` binary against
+`integration.sh` (~1000 lines, 220 assertions) starts the real `funes` binary against
 `mock_llm.py` on scratch ports with a scratch database and workspace. It
 creates fixture agents on the fly and validates responses via `curl`.
 
@@ -86,6 +86,18 @@ message to trigger specific agent behaviors:
 - File upload (text, binary, image)
 - Chat with image attachments
 - Session continuity (history restoration)
+- A caller's own resolved permissions on `/api/auth/status` (and none at all
+  for an anonymous request, since the route is public)
+- Scheduled runs: hidden from the conversation list, reachable via `?cron=1`,
+  and writing no auto-memory
+- `funes cron-cleanup` reporting without deleting unless `--apply`
+- An admin's box-wide `/api/jobs?all=1` -- with a job owned by *each* account,
+  because with only the admin's the widening would be unobservable
+- An expired session cookie (backdated via `tests/expire_token.py`) failing to
+  authenticate over HTTP, and login still working afterwards
+- `funes perms` bad input: unknown options, missing values, a nonexistent
+  user, exit codes, the JSON actually written, and a half-valid line leaving
+  the stored blob untouched
 
 ## Testing patterns
 
@@ -93,6 +105,17 @@ message to trigger specific agent behaviors:
   vectors for deterministic semantic similarity without a real embedding model.
 - **Fixture agents**: `integration.sh` writes temporary YAML agent configs with
   specific tool sets and contract/budget settings.
+- **Mutation-checking a new test**: before trusting an assertion, break the
+  code it covers and confirm it fails, and fails for the stated reason. Two
+  tests in this suite would otherwise have passed while proving nothing -- the
+  concurrency test passes identically against a serialising server (hence the
+  timing floor), and `/api/jobs?all=1` passed against a handler that ignored
+  `all` entirely until the suite grew a second job owner.
+- **`expire_token.py`**: backdates one `auth_tokens` row so expiry can be
+  tested over HTTP without waiting out a 30-day TTL. It asserts the row is
+  still present and now expired, because "no such token" and "expired token"
+  are deliberately indistinguishable from outside and the test must not pass
+  for the wrong one.
 - **Self-test flag**: `publish_newsletter.py --self-test` runs the publishing
   test suite, used both in CI and on the deployment machine.
 - **Two users, one fixture**: isolation tests use ids 1 and 2 and deliberately

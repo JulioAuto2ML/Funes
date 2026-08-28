@@ -101,7 +101,19 @@ public:
 
     // Embed memories that have no vector yet (up to max_items). Returns how
     // many were embedded. Safe to call from a background thread.
+    //
+    // Capped on purpose — it holds the write lock per row and runs while the
+    // server is already serving. One call is therefore not "the backfill";
+    // the caller drains it, which is what the startup thread in main.cpp
+    // does. A return of 0 means either nothing left or the embedding endpoint
+    // is unreachable, and those need different responses: pair it with
+    // count_missing_vectors() to tell them apart.
     size_t backfill_embeddings(size_t max_items = 256);
+
+    // How many memories still have no vector. 0 when no embedder is
+    // configured — with keyword-only recall there is nothing missing, only a
+    // feature that is off.
+    int64_t count_missing_vectors();
 
     // True if an embedder is configured and the last embed attempt succeeded.
     bool semantic_available() const { return embedder_ != nullptr && embedder_ok_; }
@@ -222,7 +234,71 @@ public:
     };
 
     // Every session of this user that has at least one turn, newest first.
-    std::vector<SessionSummary> list_sessions(int64_t user_id, int limit = 50);
+    //
+    // Scheduled runs are excluded by default. Each firing gets its own
+    // session ("cron-<id>-<epoch>", one per run by design so tool budgets do
+    // not carry over), which on the deployment meant 18% of the conversation
+    // list was two-turn transcripts nobody had held — enough that they were
+    // being deleted by hand. They are still worth keeping (they are the only
+    // record of what a failed run actually did), so this hides rather than
+    // drops them, and `include_cron` is how the job history is reached: the
+    // per-run epoch makes the session name unguessable, so without a listing
+    // there is no way back to it.
+    std::vector<SessionSummary> list_sessions(int64_t user_id, int limit = 50,
+                                              bool include_cron = false);
+
+    // The prefix every scheduled run's session name starts with. One place,
+    // because cron_runner.cpp composes it and list_sessions filters on it —
+    // if those two ever disagreed the filter would silently stop working.
+    static constexpr const char* CRON_SESSION_PREFIX = "cron-";
+
+    // The preamble cron_runner.cpp prepends to every scheduled agent task.
+    // It lives beside CRON_SESSION_PREFIX for the same reason: it is also the
+    // only marker distinguishing an auto-memory a scheduled run wrote from one
+    // a person's conversation wrote, so cleanup_cron_history() matches on it.
+    // Two copies of this string and the cleanup silently finds nothing.
+    static constexpr const char* CRON_TASK_PREAMBLE =
+        "[You are running as a scheduled job — there is no interactive user. "
+        "Execute the task directly; do not ask for confirmation.]";
+
+    // ── Maintenance: clearing out what the scheduler wrote before 4.0 ─────────
+    //
+    // Until the Persist::TurnsOnly change (src/core/cron_runner.cpp) every
+    // scheduled firing also wrote an auto-memory phrased `User said: "<the
+    // job's task>" — I replied: "..."`. Those get *recalled*: on the
+    // deployment two of them had been injected into real conversations 13 and
+    // 15 times, presenting the scheduler talking to itself as something the
+    // person had said. The code change stops new ones; this removes the ones
+    // already there.
+    //
+    // Lives here rather than in the CLI as a SQL script because a raw DELETE
+    // against `memories` leaves the vec0 index holding an orphan vector —
+    // forget() and delete_session() are the only correct way to remove either.
+    struct CronCleanup {
+        int64_t sessions = 0;   // cron-* sessions removed (or that would be)
+        int64_t turns    = 0;
+        int64_t memories = 0;   // auto-memories authored by a scheduled run
+    };
+
+    struct CronCleanupOptions {
+        // Counts without deleting. Defaults to true because this is not
+        // reversible, there is no downgrade, and the operator should see the
+        // numbers before agreeing to them.
+        bool dry_run = true;
+
+        // The transcripts are NOT dropped by default. They are already hidden
+        // from the conversation list, which was the whole complaint, and they
+        // are the only per-run record a failed job leaves — cron_jobs
+        // .last_output keeps a preview of the *last* run only, which is no
+        // help the morning after a failure two runs ago. Dropping them is a
+        // deliberate "I want the disk space" choice, not part of the fix.
+        bool drop_sessions = false;
+
+        int64_t user_id = -1;   // < 0 = every account
+    };
+
+    // The auto-memories are always what this removes; sessions only if asked.
+    CronCleanup cleanup_cron_history(const CronCleanupOptions& opt);
 
     // ── Cron jobs (scheduled recurring work) ──────────────────────────────────
     // See core/cron_schedule.h for the expression syntax and core/cron_runner.h

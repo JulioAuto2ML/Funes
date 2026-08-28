@@ -393,6 +393,155 @@ int test_consolidation_scoping() {
     return 0;
 }
 
+// The backfill is capped per call, so ONE call is not "the backfill" — the
+// caller has to drain it. That distinction was invisible until 4.0's migration
+// dropped every vector at once and a restart came back with the first 256
+// embedded and the rest on keyword-only recall. Also covers the ambiguity the
+// drain loop in main.cpp has to resolve: a pass returning 0 means "nothing
+// left" or "endpoint down", and only count_missing_vectors() tells them apart.
+int test_backfill_drains() {
+    const std::string db = temp_db("backfill_drain");
+    FakeEmbedder emb;
+    MemoryStore store(db, &emb);
+
+    // Nothing stored yet, and nothing missing.
+    CHECK(store.count_missing_vectors() == 0);
+
+    // Store while the endpoint is down: rows land without vectors.
+    emb.fail = true;
+    const int kTotal = 5;
+    for (int i = 0; i < kTotal; ++i)
+        CHECK(store.remember(U1, "funes", "memory number " + std::to_string(i), "user") > 0);
+    CHECK(store.count_missing_vectors() == kTotal);
+
+    // Still down: a pass writes nothing, but the work is emphatically not
+    // done. This is the pair of facts the startup loop branches on.
+    CHECK(store.backfill_embeddings() == 0);
+    CHECK(store.count_missing_vectors() == kTotal);
+
+    // Endpoint back. A capped pass takes its cap and no more — the bug.
+    emb.fail = false;
+    CHECK(store.backfill_embeddings(2) == 2);
+    CHECK(store.count_missing_vectors() == kTotal - 2);
+
+    // Draining is what finishes it, and the drain terminates.
+    int passes = 0;
+    while (store.backfill_embeddings(2) > 0)
+        CHECK(++passes < 10);
+    CHECK(store.count_missing_vectors() == 0);
+
+    // A drained store keeps returning 0 rather than looping forever.
+    CHECK(store.backfill_embeddings() == 0);
+    return 0;
+}
+
+// Scheduled runs are kept but hidden, and the memories they used to write are
+// removable. Two separate behaviours, one origin: before Persist::TurnsOnly a
+// cron firing persisted exactly like a person's conversation, so its two-turn
+// transcripts filled the conversation list and its auto-memories — phrased
+// `User said: "<the job's task>"` — were recalled into real conversations as
+// things the person had said.
+int test_cron_sessions_and_cleanup() {
+    const std::string db = temp_db("cron_cleanup");
+    FakeEmbedder emb;
+    MemoryStore store(db, &emb);
+
+    const int64_t U2 = 2;
+    const std::string preamble = MemoryStore::CRON_TASK_PREAMBLE;
+    const std::string cron_session = std::string(MemoryStore::CRON_SESSION_PREFIX) + "7-1756000000";
+
+    // A real conversation, and a scheduled run, for two different accounts.
+    store.append_turn(U1, "morning-chat", "funes", "user", "what is on today");
+    store.append_turn(U1, "morning-chat", "funes", "assistant", "two meetings");
+    store.append_turn(U1, cron_session, "funes", "user", preamble + "\n\nsend the reminder");
+    store.append_turn(U1, cron_session, "funes", "assistant", "reminder sent");
+    store.append_turn(U2, cron_session, "funes", "user", preamble + "\n\nother account's job");
+    store.append_turn(U2, cron_session, "funes", "assistant", "done");
+
+    // Hidden by default, reachable on request. Both halves matter: hiding a
+    // record with an unguessable name and no way to list it is losing it.
+    auto listed = store.list_sessions(U1, 50);
+    CHECK(listed.size() == 1);
+    CHECK(listed[0].session == "morning-chat");
+    auto listed_all = store.list_sessions(U1, 50, /*include_cron=*/true);
+    CHECK(listed_all.size() == 2);
+
+    // The exclusion belongs inside the grouping, not after the LIMIT: with a
+    // limit of 1 and the scheduled run being the newest session, filtering
+    // afterwards would return an empty page rather than the real conversation.
+    auto limited = store.list_sessions(U1, 1);
+    CHECK(limited.size() == 1);
+    CHECK(limited[0].session == "morning-chat");
+
+    // Three memories that all mention the preamble, of which exactly one is
+    // the transcript-echo this removes.
+    const int64_t echo = store.remember(
+        U1, "funes", "User said: \"" + preamble + "\n\nsend the reminder\" — I replied: \"sent\"", "auto");
+    const int64_t ordinary = store.remember(
+        U1, "funes", "User said: \"what is on today\" — I replied: \"two meetings\"", "auto");
+    // Deliberately taught, and deliberately about the job. source='user' is
+    // the guard: a fact a scheduled run chose to store is not an echo.
+    const int64_t taught = store.remember(
+        U1, "funes", "User said: \"" + preamble + "\" is the job preamble", "user");
+    const int64_t other_user_echo = store.remember(
+        U2, "funes", "User said: \"" + preamble + "\n\nother account's job\" — I replied: \"ok\"", "auto");
+    CHECK(echo > 0 && ordinary > 0 && taught > 0 && other_user_echo > 0);
+
+    // Dry run: reports, deletes nothing. The default, because there is no undo.
+    MemoryStore::CronCleanupOptions opt;
+    CHECK(opt.dry_run);
+    CHECK(!opt.drop_sessions);
+    auto report = store.cleanup_cron_history(opt);
+    CHECK(report.memories == 2);   // both accounts' echoes
+    CHECK(report.sessions == 2);   // one per account, same session name
+    CHECK(report.turns == 4);
+    CHECK(store.count(U1) == 3);
+    CHECK(store.list_sessions(U1, 50, true).size() == 2);
+
+    // Scoped to one account, the way a per-user cleanup would run.
+    opt.user_id = U1;
+    report = store.cleanup_cron_history(opt);
+    CHECK(report.memories == 1);
+    CHECK(report.sessions == 1);
+
+    // Apply, still keeping the transcripts.
+    opt.dry_run = false;
+    report = store.cleanup_cron_history(opt);
+    CHECK(report.memories == 1);
+    CHECK(store.count(U1) == 2);                        // echo gone
+    CHECK(store.count(U2) == 1);                        // the other account untouched
+    CHECK(store.list_sessions(U1, 50, true).size() == 2);   // transcript kept
+
+    // The surviving two are the ordinary auto-memory and the taught one — the
+    // point being that "mentions the preamble" alone was never the test.
+    bool saw_ordinary = false, saw_taught = false;
+    for (const auto& m : store.list(U1, "", 50)) {
+        if (m.id == ordinary) saw_ordinary = true;
+        if (m.id == taught)   saw_taught = true;
+        CHECK(m.id != echo);
+    }
+    CHECK(saw_ordinary && saw_taught);
+
+    // Deleting through forget() rather than raw SQL is what keeps the vec0
+    // index consistent: an orphaned vector would leave nothing missing here
+    // while pointing at a row that no longer exists.
+    CHECK(store.count_missing_vectors() == 0);
+    auto still_recalls = store.recall(U1, "funes", "what is on today", 3);
+    CHECK(!still_recalls.empty());
+
+    // Now the transcripts, opted into explicitly.
+    opt.drop_sessions = true;
+    report = store.cleanup_cron_history(opt);
+    CHECK(report.sessions == 1);
+    CHECK(report.memories == 0);                            // already gone
+    auto after = store.list_sessions(U1, 50, true);
+    CHECK(after.size() == 1);
+    CHECK(after[0].session == "morning-chat");              // the real one survives
+    CHECK(store.list_sessions(U2, 50, true).size() == 1);   // other account still has its own
+
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_keyword_only();
@@ -405,6 +554,8 @@ int main() {
     rc |= test_merge_near_duplicates();
     rc |= test_merge_keep_all_and_failure();
     rc |= test_consolidation_scoping();
+    rc |= test_backfill_drains();
+    rc |= test_cron_sessions_and_cleanup();
     if (rc == 0) std::cout << "test_memory: all tests passed\n";
     return rc;
 }

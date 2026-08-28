@@ -242,18 +242,54 @@ check "cron flow completed"    "$OUT" 'MOCK-CRON-DONE'
 
 JOB_ID=$(echo "$OUT" | grep -o 'Scheduled job #[0-9]*' | grep -o '[0-9]*' | head -1)
 
+# A scheduled run is a transcript nobody held, so it is kept but hidden: the
+# conversation list must not show it, and ?cron=1 must be how you get to it.
+# On the deployment these were 18% of the list and were being deleted by hand.
 OUT=$(curl -s "$BASE/api/sessions")
+check_absent "cron session hidden from the conversation list" "$OUT" "\"cron-$JOB_ID-"
+
+OUT=$(curl -s "$BASE/api/sessions?cron=1")
 # Each firing gets its own session, "cron-<id>-<epoch>", so tool budgets don't
 # carry over between runs — match the prefix, then recover the full name for
 # the history lookups below.
 check "cron job got its own session" "$OUT" "\"cron-$JOB_ID-"
 CRON_SESSION=$(echo "$OUT" | grep -o "cron-$JOB_ID-[0-9]*" | head -1)
 
-# persist=true (unlike delegate_to_agent's false, see core/cron_runner.cpp):
-# the job's task and answer show up in their own session, not the orchestrator's.
+# Persist::TurnsOnly (see core/cron_runner.cpp): the turns are kept, because
+# they are the only per-run record a failed job leaves behind.
 OUT=$(curl -s "$BASE/api/history?session=$CRON_SESSION")
 check "cron job session has its task"   "$OUT" 'cron-target-task'
 check "cron job session has its answer" "$OUT" 'MOCK-CRON-CHILD-REPLY'
+
+# ...and the other half of TurnsOnly: no auto-memory. The one it used to write
+# was phrased `User said: "[You are running as a scheduled job...]"` — a
+# sentence the person never said, which then got recalled into their real
+# conversations as though they had.
+OUT=$(curl -s "$BASE/api/memories?limit=200")
+check_absent "cron run wrote no auto-memory" "$OUT" 'You are running as a scheduled job'
+check_absent "cron reply is not in memory"   "$OUT" 'MOCK-CRON-CHILD-REPLY'
+
+# The cleanup command for databases that predate the change. Run against this
+# database it must find nothing — which is the assertion that new runs are
+# already clean, and that a --dry-run on a clean database is a no-op rather
+# than an error.
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup 2>&1)
+check "cron-cleanup finds no auto-memories"  "$OUT" '0 auto-memories'
+check "cron-cleanup reports the transcript"  "$OUT" 'keeping 1 scheduled-run session'
+# Reporting without --apply is the safety property worth asserting, not a
+# formatting detail: the command is destructive and has no undo.
+check "cron-cleanup defaults to a dry run"   "$OUT" 'Dry run'
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup --drop-sessions 2>&1)
+check "drop-sessions is still a dry run"     "$OUT" 'Dry run'
+check "drop-sessions counts the transcript"  "$OUT" '1 scheduled-run session'
+OUT=$(curl -s "$BASE/api/sessions?cron=1")
+check "dry run deleted nothing"              "$OUT" "\"cron-$JOB_ID-"
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup --user nosuchuser 2>&1)
+check "cron-cleanup rejects unknown user"    "$OUT" 'No such user'
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup --bogus 2>&1)
+check "cron-cleanup rejects unknown option"  "$OUT" 'Unknown option'
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup --user 2>&1)
+check "cron-cleanup rejects a missing value" "$OUT" 'Missing value'
 
 echo "— completion contract (require_tools): premature answer gets nudged, not accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
@@ -658,6 +694,69 @@ check "member forbidden from researcher" "$CODE" '403'
 OUT=$(curl -s "$BASE/api/agents")
 check "admin still sees researcher" "$OUT" '"researcher"'
 
+echo "— a user can see their own permissions"
+# itmember currently carries every kind of entry at once: an agent allowlist,
+# a privileged tool granted, an ordinary tool denied. /api/auth/status must
+# report what the runtime actually resolved, not echo the raw blob back —
+# that is the whole point of the route, since the blob's "absent" means
+# different things for agents and for tools.
+OUT=$(mcurl -s "$BASE/api/auth/status")
+check        "member sees own permissions"      "$OUT" '"permissions"'
+check        "member permissions say member"    "$OUT" '"is_admin":false'
+check        "member is told agents are limited" "$OUT" '"agents_restricted":true'
+check        "member permissions list perm-tester" "$OUT" 'perm-tester'
+check_absent "member permissions omit researcher"  "$OUT" 'researcher'
+# read_file was denied explicitly; create_agent is denied by default because
+# it is privileged; execute_shell was granted and must NOT appear.
+check        "denied ordinary tool is reported"    "$OUT" 'read_file'
+check        "denied privileged tool is reported"  "$OUT" 'create_agent'
+check_absent "granted tool is not reported denied" "$OUT" 'execute_shell'
+
+# The admin's own view: no restrictions at all, so nothing to list.
+OUT=$(curl -s "$BASE/api/auth/status")
+check "admin permissions say admin"       "$OUT" '"is_admin":true'
+check "admin has no denied tools"         "$OUT" '"denied_tools":\[\]'
+check "admin agents are unrestricted"     "$OUT" '"agents_restricted":false'
+
+# The route is public so the UI can ask it before signing in. It must not
+# describe an account to a caller who has not proved they are one.
+OUT=$(curl -s "$BASE/api/auth/status" -H 'Cookie: funes_session=nonsense')
+check        "anonymous status still answers" "$OUT" '"authenticated":false'
+check_absent "anonymous sees no permissions"  "$OUT" '"permissions"'
+
+echo "— an admin can see what is scheduled on the whole box"
+# The admin scheduled a job earlier in this run. A member's own listing must
+# be empty rather than showing it — that is the isolation — and ?all=1 must be
+# refused to them rather than quietly downgraded to their own jobs, which
+# would look like it worked.
+OUT=$(mcurl -s "$BASE/api/jobs")
+check        "member job list ok"          "$OUT" '"scope":"mine"'
+check_absent "member sees no admin job"    "$OUT" 'cron-target-task'
+CODE=$(mcurl -s -o /dev/null -w '%{http_code}' "$BASE/api/jobs?all=1")
+check "member forbidden from the box-wide job list" "$CODE" '403'
+
+# Give the member a job of its own. Without a second owner in the table this
+# whole section proves nothing: ?all=1 and the admin's own listing would be
+# the same rows, so a handler that ignored `all` entirely would still pass.
+FUNES_DB="$DB" "$FUNES_BIN" perms itmember --agents any > /dev/null 2>&1
+OUT=$(mcurl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"schedule-now","session":"it-member-cron","agent":"operator"}')
+check "member scheduled a job" "$OUT" 'MOCK-CRON-DONE'
+
+# The admin's own listing still shows only the admin's, and names no owner —
+# in that view the owner is always the caller, so it would be noise.
+OUT=$(curl -s "$BASE/api/jobs")
+check        "admin sees own job"          "$OUT" 'cron-target-task'
+check_absent "own listing has no owner"    "$OUT" '"owner"'
+check_absent "own listing omits the member's job" "$OUT" 'itmember'
+
+# ...and the box-wide one shows both accounts', each attributed. Both names
+# have to be here: only the member's proves `all` actually widened the query.
+OUT=$(curl -s "$BASE/api/jobs?all=1")
+check "box-wide listing is marked"          "$OUT" '"scope":"all"'
+check "box-wide listing names the admin"    "$OUT" '"owner":"itadmin"'
+check "box-wide listing names the member"   "$OUT" '"owner":"itmember"'
+
 echo "— deleting a conversation"
 # Give the member a session of its own, and the admin one with the SAME name:
 # the delete must take exactly one of them.
@@ -768,6 +867,114 @@ else
 fi
 
 rm -rf "$CONC_DIR"
+
+echo "— an expired session cookie stops authenticating"
+# Expiry has a unit test (tests/test_users.cpp) but had never been exercised
+# over HTTP, which is the path that matters: the pre-routing gate and every
+# handler resolve the caller through resolve_token, and a cookie that outlived
+# its row is exactly the credential someone captured last month.
+#
+# Backdated rather than waited out — the TTL is 30 days. python3 is already a
+# dependency of this suite (the mock LLM), and the server holds the database
+# in WAL mode, so a second writer alongside it is safe.
+MEMBER_TOKEN=$(awk '/funes_session/ {print $NF}' "$MEMBER_JAR" | tail -1)
+if [ -z "$MEMBER_TOKEN" ]; then
+    echo "  FAIL: could not read the member's session token from the cookie jar"
+    FAILURES=$((FAILURES + 1))
+else
+    # Still good right now — otherwise the assertion below proves nothing.
+    OUT=$(mcurl -s "$BASE/api/auth/status")
+    check "member cookie authenticates before expiry" "$OUT" '"authenticated":true'
+
+    python3 tests/expire_token.py "$DB" "$MEMBER_TOKEN"
+
+    OUT=$(mcurl -s "$BASE/api/auth/status")
+    check        "expired cookie no longer authenticates" "$OUT" '"authenticated":false'
+    check_absent "expired cookie carries no identity"     "$OUT" 'itmember'
+
+    # And the gate refuses it outright on a protected route, rather than the
+    # handler answering with somebody's data.
+    CODE=$(mcurl -s -o /dev/null -w '%{http_code}' "$BASE/api/memories")
+    check "expired cookie is 401 on a protected route" "$CODE" '401'
+
+    # Logging in again issues a new token, so expiry is not a lockout.
+    OUT=$(command curl -s -c "$MEMBER_JAR" -X POST "$BASE/api/login" \
+          -d '{"username":"itmember","password":"member-test-pw"}')
+    check "member can log in again after expiry" "$OUT" '"ok":true'
+    OUT=$(mcurl -s "$BASE/api/auth/status")
+    check "the new cookie authenticates" "$OUT" '"authenticated":true'
+fi
+
+echo "— funes perms: bad input, and what actually gets written"
+# The happy paths above only exercise `perms` as a means to an end. These are
+# the arguments a person gets wrong at 23:00 on a live box, where the failure
+# that matters is a command that looks like it worked.
+printf 'perm-test-pw\nperm-test-pw\n' \
+    | FUNES_DB="$DB" "$FUNES_BIN" useradd itperms --name "Perms" > /dev/null 2>&1
+
+RC=0; OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms nosuchuser --reset 2>&1) || RC=$?
+check "perms rejects an unknown user"       "$OUT" 'No such user'
+check "perms exits nonzero for that"        "$RC"  '^1$'
+
+RC=0; OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms 2>&1) || RC=$?
+check "perms with no username prints usage" "$OUT" 'Usage'
+check "perms with no username exits 2"      "$RC"  '^2$'
+
+RC=0; OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms --agentz funes 2>&1) || RC=$?
+check "perms rejects an unknown option"     "$OUT" 'Unknown option: --agentz'
+check "unknown option exits 2"              "$RC"  '^2$'
+
+# A typo in the LAST argument used to be reported as a missing value, which
+# reads as though the spelling was fine.
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms --agentz 2>&1)
+check "a trailing typo is still 'unknown option'" "$OUT" 'Unknown option: --agentz'
+
+for FLAG in --agents --allow --deny; do
+    RC=0; OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms "$FLAG" 2>&1) || RC=$?
+    check "perms rejects $FLAG with no value" "$OUT" "Missing value for $FLAG"
+    check "missing value for $FLAG exits 2"   "$RC"  '^2$'
+done
+
+# Nothing above should have written anything.
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms 2>&1)
+check "a fresh member still has no blob" "$OUT" 'raw: {}'
+
+# Now the JSON that a valid line actually stores — asserted directly, because
+# every other test reads it back through Permissions::parse, which would mask
+# a blob that was stored in the wrong shape but happened to parse to the same
+# defaults.
+FUNES_DB="$DB" "$FUNES_BIN" perms itperms --agents funes,curator --deny execute_shell \
+    --allow web_search > /dev/null 2>&1
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms 2>&1)
+check "agents are stored as an array"  "$OUT" '"agents":\["funes","curator"\]'
+check "a denial is stored as false"    "$OUT" '"execute_shell":false'
+check "a grant is stored as true"      "$OUT" '"web_search":true'
+check "resolved view shows the denial" "$OUT" 'execute_shell: denied'
+
+# A half-valid line must change nothing: the first flag is good, the second is
+# not. Applying the first would be the worst outcome — a command that errored
+# and still took effect.
+RC=0; FUNES_DB="$DB" "$FUNES_BIN" perms itperms --agents any --nope x > /dev/null 2>&1 || RC=$?
+check "half-valid line exits 2" "$RC" '^2$'
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms 2>&1)
+check "half-valid line wrote nothing" "$OUT" '"agents":\["funes","curator"\]'
+
+# --reset really empties it, and --agents any drops only the agent list.
+FUNES_DB="$DB" "$FUNES_BIN" perms itperms --agents any > /dev/null 2>&1
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms 2>&1)
+check        "agents any clears the list"    "$OUT" 'agents: all'
+check        "agents any keeps tool entries" "$OUT" '"execute_shell":false'
+FUNES_DB="$DB" "$FUNES_BIN" perms itperms --reset > /dev/null 2>&1
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itperms 2>&1)
+check "reset empties the blob" "$OUT" 'raw: {}'
+
+# An admin's entries are stored but not enforced — say so rather than let it
+# look like it took effect.
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" perms itadmin --deny execute_shell 2>&1)
+check "perms warns when the target is an admin" "$OUT" 'stored but not enforced'
+check "admin still resolves to everything"      "$OUT" 'every agent and every tool'
+
+FUNES_DB="$DB" "$FUNES_BIN" userdel itperms > /dev/null 2>&1
 
 rm -f "$MEMBER_JAR"
 

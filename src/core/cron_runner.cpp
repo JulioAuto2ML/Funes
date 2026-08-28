@@ -34,9 +34,27 @@ void bound_preview(std::string& s) {
 }
 
 // Runs an agent-kind job in-process — the same call delegate_to_agent makes
-// (src/core/tools/delegation.cpp), no HTTP hop. persist=true (unlike
-// delegate_to_agent's false) because there is no orchestrator here to relay
-// the answer to: the job's own session, "cron-<id>", is the record.
+// (src/core/tools/delegation.cpp), no HTTP hop.
+//
+// Persist::TurnsOnly, which is the middle of the three and deliberately so.
+// The turns are kept: there is no orchestrator here to relay the answer to,
+// so the job's own session is the only full record of what a run did, and
+// cron_jobs.last_output holds a 4000-byte preview of the *last* run only —
+// no help the morning after a failure two runs ago.
+//
+// What is dropped is the auto-memory. It phrases every exchange as
+// `User said: "<the job's task>" — I replied: "..."`, and the scheduler is
+// not the user: one on the deployment recorded the job-runner preamble
+// verbatim, as if the person had typed "[You are running as a scheduled
+// job...]". Those are not merely clutter — they are recalled. Two of them had
+// been injected into real conversations 13 and 15 times, presenting the
+// scheduler talking to itself as something the person had said.
+//
+// They also did not accumulate one per firing, which is why this took a while
+// to notice: remember() inserts under UNIQUE(user_id, agent, text), so a job
+// whose reply is word-for-word last week's dedupes away silently. The count
+// grows only when the model words itself differently — irregular and bounded,
+// not linear, and easy to mistake for nothing happening.
 //
 // Hyphen, not the colon a "cron:<id>" reads more naturally with: session ids
 // reach the HTTP API's /api/history and /api/chat routes (FunesApi::
@@ -59,16 +77,16 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
         const auto now = std::chrono::system_clock::now();
         const auto epoch = std::chrono::duration_cast<std::chrono::seconds>(
             now.time_since_epoch()).count();
-        const std::string session = "cron-" + std::to_string(job.id) +
-                                    "-" + std::to_string(epoch);
+        // The prefix is MemoryStore's, not a literal, because list_sessions
+        // filters on it — two spellings and the filter quietly stops working.
+        const std::string session = std::string(MemoryStore::CRON_SESSION_PREFIX)
+                                    + std::to_string(job.id) + "-" + std::to_string(epoch);
         // The agent has no way to know it's running unattended unless we
         // tell it. Without this preamble a cautious prompt ("when in
         // doubt, confirm first") deadlocks because there is nobody to
         // confirm with.
         const std::string task =
-            "[You are running as a scheduled job — there is no interactive "
-            "user. Execute the task directly; do not ask for confirmation.]\n\n"
-            + job.task;
+            std::string(MemoryStore::CRON_TASK_PREAMBLE) + "\n\n" + job.task;
         // A scheduled run has no request to take an identity from, so it
         // adopts the job's owner (recorded when it was scheduled). Without
         // this the agent's remember() calls would be attributed to whichever
@@ -85,7 +103,7 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
                            "agent '" + target.name + "'"};
 
         std::string out = sub.run(task, session, job.user_id, perms,
-                                  nullptr, {}, /*persist=*/true);
+                                  nullptr, {}, Persist::TurnsOnly);
         const bool ok = !funes::is_run_failure(out);
         bound_preview(out);
         return {ok, out};

@@ -24,3 +24,6 @@ data/whatsapp-uploads/
 .idea/
 *.swp
 .DS_Store
+
+# ctest scratch, written when ctest is run from the repo root
+Testing/
