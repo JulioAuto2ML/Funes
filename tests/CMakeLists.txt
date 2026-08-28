@@ -14,7 +14,11 @@ add_executable(test_context_compressor test_context_compressor.cpp)
 target_link_libraries(test_context_compressor PRIVATE funes_core)
 add_test(NAME context_compressor COMMAND test_context_compressor)
 
-add_executable(test_meta_tools test_meta_tools.cpp)
+# http_tool_runtime.cpp is a source of the funes *executable*, not of
+# funes_core (see the root CMakeLists for why the generated tools have to be),
+# so a test that calls make_http_template_tool has to compile it in directly.
+add_executable(test_meta_tools test_meta_tools.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/tools/http_tool_runtime.cpp)
 target_link_libraries(test_meta_tools PRIVATE funes_core)
 add_test(NAME meta_tools COMMAND test_meta_tools)
 

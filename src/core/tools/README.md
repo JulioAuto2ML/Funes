@@ -55,7 +55,7 @@ hop, no protocol overhead.
 | `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search and harvest_candidates. |
 | `page_text.h/cpp` | URL fetching + HTML-to-text extraction. Manual scan (no regex -- avoids stack overflow on large inline scripts). |
 | `pdf_extract.h/cpp` | PDF text extraction via pdftotext, with image rendering fallback for scans. |
-| `http_tool_runtime.h/cpp` | Execution engine for generated HTTP-template tools. Resolves `{param}` and `${ENV_VAR}` placeholders. |
+| `http_tool_runtime.h/cpp` | Execution engine for generated HTTP-template tools. Resolves `{param}` from arguments (URL and body) and `${ENV_VAR}` from the environment (**header values only** — the URL is echoed back to the model on a parse failure, so a secret resolved into it becomes something the model can print). |
 
 ## generated/
 

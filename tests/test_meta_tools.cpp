@@ -4,9 +4,11 @@
 
 #include "tools.h"
 #include "agent_config.h"
+#include "tools/http_tool_runtime.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -137,11 +139,63 @@ int test_create_agent() {
     return 0;
 }
 
+// A generated HTTP tool can reference an operator secret as ${ENV_VAR}. That
+// must never resolve into the URL, because the URL is the one part of the
+// request echoed back to the model — "invalid URL after substitution: <url>"
+// — and a tool result is something the model will repeat to whoever it is
+// talking to. The shared Tavily key is the live example.
+//
+// Header values are where secrets are meant to resolve, and that is safe for a
+// less obvious reason than "headers are special": nothing ever echoes them.
+// The body is the same — it reaches the remote host and nowhere else. The URL
+// is the asymmetric one, so it is the only one this asserts on.
+//
+// Two things currently protect it, and only one is obvious. The obvious one is
+// that resolve_env_placeholders is never called on the URL template. The
+// subtle one is ordering: argument substitution runs first and its `{param}`
+// regex consumes the inner braces of `${VAR}`, so the pattern is already
+// destroyed. That means the tempting "resolve env on the URL too, for
+// symmetry" change is harmless *if appended*, and a genuine leak if applied
+// *before* substitution. Only the second is a realistic mistake, and it is
+// what this test is aimed at.
+int test_env_placeholders_never_reach_the_url() {
+    ::setenv("FUNES_TEST_FAKE_SECRET", "s3cr3t-must-not-appear", 1);
+    ToolContext ctx{"a", "s"};
+
+    // Deliberately unparseable as an http URL: the echo only happens on a
+    // parse failure. A loopback URL parses fine and is refused by net_guard
+    // with a message naming only the host — which is how an earlier version of
+    // this test passed against a build that had been broken on purpose.
+    auto tool = funes::tools::make_http_template_tool(
+        "GET", "ftp://${FUNES_TEST_FAKE_SECRET}/x", {}, "");
+    auto r = tool(json::object(), ctx);
+
+    CHECK(r.error);
+    // Proves the echo path is the one being exercised. Without this the
+    // assertion below would hold trivially against any error message.
+    CHECK(r.text.find("invalid URL") != std::string::npos);
+    CHECK(r.text.find("s3cr3t-must-not-appear") == std::string::npos);
+
+    // Same placeholder in a header does resolve, and the result still carries
+    // nothing: the failure is reported before any send, and no code path
+    // prints a request header.
+    auto hdr_tool = funes::tools::make_http_template_tool(
+        "GET", "ftp://example.invalid/x",
+        {{"Authorization", "Bearer ${FUNES_TEST_FAKE_SECRET}"}}, "");
+    auto r2 = hdr_tool(json::object(), ctx);
+    CHECK(r2.error);
+    CHECK(r2.text.find("s3cr3t-must-not-appear") == std::string::npos);
+
+    ::unsetenv("FUNES_TEST_FAKE_SECRET");
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_list_tools();
     rc |= test_create_tool();
     rc |= test_create_agent();
+    rc |= test_env_placeholders_never_reach_the_url();
     if (rc == 0) std::cout << "test_meta_tools: all tests passed\n";
     return rc;
 }

@@ -19,6 +19,14 @@
 //   - `${ENV_VAR}` in header values is replaced with getenv("ENV_VAR") at call
 //     time, so a generated file can reference an API key without ever
 //     containing the literal secret.
+//
+//     **Header values only, and it has to stay that way.** The URL is echoed
+//     back to the model on a parse failure ("invalid URL after substitution:
+//     <url>"), and a tool result is something the model will happily repeat to
+//     whoever it is talking to. Resolving `${...}` in the URL or body template
+//     "for symmetry" would turn a shared operator credential — the Tavily key
+//     is the live example — into something any user could print. Headers are
+//     never echoed anywhere, which is the whole reason secrets go there.
 //   - Same private/loopback-host guard as web_fetch (net_guard.h): refused
 //     unless FUNES_ALLOW_LOCAL_FETCH=1.
 // =============================================================================

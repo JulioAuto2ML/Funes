@@ -17,6 +17,12 @@ open questions.
 auto-memories and keeping all 36 scheduled-run transcripts. See "The cleanup,
 run" at the end.
 
+**2026-08-28, decisions.** Julio settled both "Deferred by decision" items:
+`web_search` keeps one shared key for every account (which is already what the
+code does — see below), and per-user WhatsApp is **deferred again**, until a
+few local accounts have been exercised through the web UI. That makes
+"create a couple of member accounts and use them" the next piece of work.
+
 **2026-08-26, later:** 3.x was stopped deliberately and 4.0 now owns the
 schedule for testing. A host drop-in
 (`~/.config/systemd/user/funes-v4.service.d/cron.conf`) sets
@@ -97,9 +103,12 @@ Being explicit, because "tested" has meant two different things here.
   in production.
 
 **NOT verified**
-- **`web_search` / `web_fetch`.** Every bench run so far used `--skip-web`.
-  See "Deferred by decision" below — this is now a design task, not just an
-  untested path.
+- **`web_search` / `web_fetch`.** Every bench run so far has used
+  `--skip-web`, so neither has ever run. The design question is settled (one
+  shared key — see "Deferred by decision" below, where the answer turned out to
+  be what the code already did), which leaves this a plain untested path rather
+  than a decision. The key is present on yoda, so a bench run without
+  `--skip-web` is all it takes.
 - ~~The WhatsApp service-token path end to end.~~ **Proven 2026-08-28** — see
   "Verified against real data" above. `web_search` above is now the only
   untested path left here.
@@ -113,10 +122,10 @@ Being explicit, because "tested" has meant two different things here.
 
 ---
 
-## Deferred by decision (2026-08-26)
+## Deferred by decision
 
-These two are not oversights. Both need a design choice that 4.0's multi-user
-model forces, and both were deliberately left for a later pass.
+Both items needed a design choice that 4.0's multi-user model forces. **Both
+were decided on 2026-08-28**; what is left of each is written under it.
 
 1. **WhatsApp becomes per-user, keyed by phone number.** A service token plus
    `X-Funes-User-Jid` resolves to an account through `funes jid-map`, which
@@ -158,6 +167,11 @@ model forces, and both were deliberately left for a later pass.
    data" above for what was checked in the database, not just observed in the
    chat.
 
+   **Deferred again on 2026-08-28**, deliberately: the household case waits
+   until a few local accounts have been used through the web UI. Getting
+   multi-user right for people who can see what is happening comes before
+   getting it right for people reaching it through a phone.
+
    Still open for the household case:
    - Both bridges run out of the 3.x clone, and v4 reaches their stores by a
      `store` symlink plus that absolute `WHATSAPP_DB_PATH`. **Deleting
@@ -177,17 +191,39 @@ model forces, and both were deliberately left for a later pass.
    regardless; stopping them loses the authenticated session and costs a QR
    re-scan.
 
-2. **Web search gets one Tavily key shared by every account, which no user can
-   see or steal.** The key is the operator's, not a per-user secret: it is
-   billed centrally and must never reach a member. That rules out putting it
-   anywhere a user-facing surface could echo it back — not in `/api/status`,
-   not in a tool argument, not in an error message. `web_search` stays a
-   permissioned *capability* (an admin can deny it per account) while the
-   credential behind it stays entirely server-side. Note the precedent already
-   set: `/api/status` now redacts the LLM url and provider for members for
-   exactly this reason.
+2. **Web search: one shared key, decided 2026-08-28.** Every account uses the
+   operator's Tavily key. It is billed centrally and must never reach a member,
+   which rules out anywhere a user-facing surface could echo it back.
 
----
+   **This is already the implementation**, which is why the decision cost no
+   code: `funes::tavily::search` reads `FUNES_TAVILY_API_KEY` from the process
+   environment at call time. It is never a tool argument, never per-user, and
+   never in a response. `web_search` also already behaves as a permissioned
+   *capability* — it is not in `PRIVILEGED`, so it is allowed by default and an
+   admin can take it away per account with `funes perms <user> --deny
+   web_search`. The precedent for keeping the credential server-side is
+   `/api/status`, which already redacts the LLM url and provider for members.
+
+   The one place a shared secret can reach a user is a **generated HTTP tool**
+   (`src/core/tools/http_tool_runtime.cpp`), where `${ENV_VAR}` in a header
+   value resolves via `getenv` at call time. Headers are safe because nothing
+   echoes them; the **URL** is not, because a parse failure returns
+   "invalid URL after substitution: <url>" and the model will repeat a tool
+   result. That invariant is now commented at both the header and the call
+   site, and asserted by `test_env_placeholders_never_reach_the_url`.
+
+   Writing that test was instructive twice over. The first version passed
+   against a deliberately broken build: it used a loopback URL, which parses
+   fine and is refused by `net_guard` with a message naming only the host, so
+   the echo path was never reached. The second surfaced why the current code is
+   safe in a way nobody had written down — argument substitution runs first and
+   its `{param}` regex eats the inner braces of `${VAR}`, so appending env
+   resolution to the URL is harmless while applying it *before* substitution is
+   a real leak. Only the second is a plausible mistake, and it is what the test
+   now catches.
+
+   **Still not verified: that `web_search` works at all.** Every bench run has
+   used `--skip-web`. The decision settles the design, not the untested path.
 
 ## Pending work
 

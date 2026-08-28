@@ -150,6 +150,10 @@ ToolHandler make_http_template_tool(const std::string& method,
             return {"Refusing to call private/loopback host '" + parsed.host +
                     "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)", true};
 
+        // Secrets resolve here and ONLY here. The url above is built from
+        // `args` alone and is echoed back on a parse error; the body likewise
+        // carries only argument values. See the header for why widening this
+        // to the URL or body would leak the operator's shared API keys.
         httplib::Headers hdrs = {{"User-Agent", "Mozilla/5.0 (Funes)"}};
         for (const auto& [name, value] : headers)
             hdrs.emplace(name, resolve_env_placeholders(value));
