@@ -63,6 +63,14 @@ Being explicit, because "tested" has meant two different things here.
   identically, had no `execute_shell`, and said so. The figure matched the
   real `df`, so the admin path genuinely executed and the member's refusal
   was the permission, not a broken server.
+- **The full newsletter pipeline on 4.0.** The Daily AI Newsletter cron fired
+  at 09:04 on 2026-08-28 from the 4.0 install and sent a ten-story issue:
+  `harvest_candidates` searched Tavily with the operator key, fetched and
+  staleness-filtered the pool, the curator picked by number, and `publish_issue`
+  re-checked the links, rendered and sent. That is the heaviest single exercise
+  of this install to date and it went through the real model. Note it ran on
+  `6873aa0`, before the 12:14 deploy — **tomorrow's 09:00 run is the first on
+  the current build.**
 - **Real use of the yoda install**, 2026-08-28: Julio used it and reported it
   working. That closes the "deployed but nobody has talked to it" gap; it is
   not a substitute for the bench, which last ran on 2026-08-26.
@@ -103,12 +111,19 @@ Being explicit, because "tested" has meant two different things here.
   in production.
 
 **NOT verified**
-- **`web_search` / `web_fetch`.** Every bench run so far has used
-  `--skip-web`, so neither has ever run. The design question is settled (one
-  shared key — see "Deferred by decision" below, where the answer turned out to
-  be what the code already did), which leaves this a plain untested path rather
-  than a decision. The key is present on yoda, so a bench run without
-  `--skip-web` is all it takes.
+- **The `web_search` and `web_fetch` tool wrappers**, and only those. An
+  earlier version of this line said web search was untested because every bench
+  run used `--skip-web`. That was wrong, and wrong in a way worth keeping:
+  **the newsletter runs every morning and searches the web to do it.**
+
+  `harvest_candidates` calls the same `funes::tavily::search` that `web_search`
+  does, and shares `page_text` with `web_fetch`. So the Tavily key, the HTTPS
+  client, the error paths, the HTML-to-text extraction and the whole
+  shared-credential design are exercised daily against the real API — on 4.0,
+  successfully, since it took over the schedule. What is actually untested is
+  the two thin wrappers around that shared machinery: their argument parsing
+  and their output formatting. Worth a bench run without `--skip-web`, but a
+  much smaller gap than "never run".
 - ~~The WhatsApp service-token path end to end.~~ **Proven 2026-08-28** — see
   "Verified against real data" above. `web_search` above is now the only
   untested path left here.
@@ -222,8 +237,12 @@ were decided on 2026-08-28**; what is left of each is written under it.
    a real leak. Only the second is a plausible mistake, and it is what the test
    now catches.
 
-   **Still not verified: that `web_search` works at all.** Every bench run has
-   used `--skip-web`. The decision settles the design, not the untested path.
+   **The shared-key design is proven in production, daily.** The newsletter
+   cron searches Tavily every morning through `harvest_candidates`, which calls
+   the same `funes::tavily::search` with the same operator key — so "one key,
+   server-side, no user can see it" is not a plan, it is what has been running.
+   What has never run is the `web_search` *tool* wrapper itself; see the
+   verified/not list above.
 
 ## Pending work
 
