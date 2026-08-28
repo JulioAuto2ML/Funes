@@ -83,8 +83,10 @@ Being explicit, because "tested" has meant two different things here.
 - **`web_search` / `web_fetch`.** Every bench run so far used `--skip-web`.
   See "Deferred by decision" below — this is now a design task, not just an
   untested path.
-- **The WhatsApp service-token path end to end.** Only curl-tested; never run
-  against a real bridge with a real incoming message. Also now a design task.
+- **The WhatsApp service-token path end to end.** Wired up and running on 4.0
+  since 2026-08-28 (see "Deferred by decision" below), and every negative case
+  is curl-tested, but **no real incoming message has arrived since the
+  switch**. That is the last unproven step.
 - **Anything from 2026-08-28.** All of it is covered by `ctest` and
   `integration.sh` against the mock LLM, and each new assertion was checked
   against a deliberate mutation of the code it covers. None of it has run on
@@ -97,26 +99,53 @@ Being explicit, because "tested" has meant two different things here.
 These two are not oversights. Both need a design choice that 4.0's multi-user
 model forces, and both were deliberately left for a later pass.
 
-1. **WhatsApp becomes per-user, keyed by phone number.** Today a service token
-   plus `X-Funes-User-Jid` resolves to an account through `funes jid-map`,
-   which already has the right shape — one jid, one user. What is missing is
-   the story for a household: each person's number maps to their own account,
-   so their memories, workspace and permissions are theirs.
+1. **WhatsApp becomes per-user, keyed by phone number.** A service token plus
+   `X-Funes-User-Jid` resolves to an account through `funes jid-map`, which
+   already has the right shape — one jid, one user. What is still missing is
+   the story for a *household*: several numbers, several accounts, and
+   whatever an unmapped-but-whitelisted sender should get.
 
-   **Operational state as of 2026-08-26**, learned while handing the schedule
-   to 4.0. `whatsapp-autoresponder.service` is **stopped** — it posts to
-   `:8484`, and 3.x is down. It is still `enabled`, so a reboot restarts it
-   against a dead port; disable it, or repoint it, before that matters.
+   **Running on 4.0 as of 2026-08-28, single-user.** The whole path is wired
+   and live, with the one whitelisted jid mapped to the admin (`julio`). That
+   makes this item now about the second person, not the first — the mechanism
+   is no longer theoretical.
 
-   To bring it up on 4.0, three things are needed, in this order:
-   - a `FUNES_SERVICE_TOKEN` on the v4 unit (absent by design today, which is
-     why repointing the poller alone would still 401), and the same value in
-     the autoresponder's config;
-   - `funes jid-map <jid> <username>` per person — this is the per-user
-     mechanism, already built and curl-tested but never run against a real
-     incoming message;
-   - `WHATSAPP_WHITELIST`, deliberately not copied to v4 with the other
-     secrets.
+   What was done, all on yoda unless noted:
+   - `scripts/whatsapp-autoresponder-v4.service` (in git) points the existing
+     poller at `:8485`. It `Conflicts=` the 3.x unit, which is now
+     **disabled** — that also clears the reboot landmine noted on 08-26.
+   - `FUNES_SERVICE_TOKEN` generated into the v4 clone's `config/funes.local`
+     (gitignored). Deliberately not in the unit file: `WorkingDirectory` makes
+     the server and the poller read that same file, so they cannot drift into
+     a permanent 401.
+   - `WHATSAPP_WHITELIST` copied from 3.x; `funes jid-map 162590433005727@lid
+     julio`.
+   - `WHATSAPP_STATE_PATH` (new config key, `scripts/whatsapp_autoresponder.py`)
+     under `~/.funes-v4/`. It was hardcoded to `~/.funes/`, which two pollers
+     on one bridge store would have shared — and the symptom of that is not an
+     error, it is one poller silently skipping what the other consumed.
+   - `WHATSAPP_DB_PATH` set absolute. The autoresponder reads the *dedicated*
+     bridge (`store-funes`, :8091), not the personal one, and `funes.conf`
+     gives that path relative to the repo root — which the v4 clone has no
+     copy of. Left unset the poller crash-loops on "unable to open database
+     file"; this is the step that is easy to miss.
+
+   Verified: token+mapped jid resolves to `julio` (id 1) on `/api/auth/status`;
+   no token, token without a jid, token with an unmapped jid, and a wrong
+   token are all 401. The poller is `active`, `NRestarts=0`, watching the right
+   store, with its own state file and 3.x's untouched.
+
+   **Not yet verified: a real incoming message.** Nothing has actually arrived
+   over WhatsApp since the switch. That is the one thing left before calling
+   this path proven.
+
+   Still open for the household case:
+   - Both bridges run out of the 3.x clone, and v4 reaches their stores by a
+     `store` symlink plus that absolute `WHATSAPP_DB_PATH`. **Deleting
+     `~/Funes` breaks every WhatsApp read.** Moving the stores somewhere
+     install-independent is the real fix.
+   - A whitelisted but unmapped sender currently gets a refusal. For a
+     household that is probably right, but it has never been decided.
 
    Note the `whatsapp-assistant` agent (used by the cron reminder) is a
    *different* path and already works on 4.0: it reaches WhatsApp through the

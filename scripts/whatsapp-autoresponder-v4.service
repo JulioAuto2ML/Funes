@@ -24,6 +24,16 @@
 #   WHATSAPP_STATE_PATH   under ~/.funes-v4/, NOT the ~/.funes default, or the
 #                         two installs share one read-watermark
 #   FUNES_WORKSPACE_DIR   /home/julio/.funes-v4/workspace
+#   WHATSAPP_DB_PATH      absolute path to the DEDICATED bridge's messages.db
+#
+# That last one is the easy one to miss. The autoresponder reads the dedicated
+# bridge (store-funes, :8091), not the personal one, and funes.conf gives that
+# path *relative to the repo root* — but the v4 clone has no store-funes of its
+# own, only a `store` symlink for the MCP server. Left unset the poller crash-
+# loops on "unable to open database file". It is set absolute rather than
+# symlinked so the coupling to the 3.x clone is visible in config instead of
+# hidden in the filesystem; moving both bridge stores somewhere
+# install-independent is the real fix and is still outstanding.
 #
 # A service token says the caller is trusted; it does not say who for. Each
 # sender's jid has to be mapped to an account before Funes will answer:

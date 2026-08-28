@@ -52,7 +52,7 @@ Features:
 | File | Purpose |
 |---|---|
 | `whatsapp-autoresponder.service` | systemd user service for the autoresponder script, against 3.x on :8484 |
-| `whatsapp-autoresponder-v4.service` | the same script against the 4.0 install on :8485. **Only one of the two may be enabled** — they `Conflicts=` each other, but that stops the running one rather than warning you. Needs `FUNES_SERVICE_TOKEN` and `WHATSAPP_WHITELIST` in the v4 clone's `config/funes.local`, plus a `funes jid-map` per sender |
+| `whatsapp-autoresponder-v4.service` | the same script against the 4.0 install on :8485. **Only one of the two may be enabled** — they `Conflicts=` each other, but that stops the running one rather than warning you. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST`, `FUNES_API_URL`, `WHATSAPP_STATE_PATH` and `WHATSAPP_DB_PATH` in the v4 clone's `config/funes.local`, plus a `funes jid-map` per sender |
 | `whatsapp-bridge.service` | systemd user service for the personal WhatsApp bridge (port 8090) |
 | `whatsapp-bridge-funes.service` | systemd user service for the dedicated Funes WhatsApp bridge (port 8091) |
 | `funes-v4.service` | systemd user service for the Funes 4.0 install, deliberately separate from 3.x's `funes.service` — every path and port is set explicitly so a config file can never point it at the 3.x database. See [docs/deploy-v4-yoda.md](../docs/deploy-v4-yoda.md) |
@@ -77,3 +77,15 @@ An unmapped jid resolves to nobody, never to a default account — so adding a
 number to `WHATSAPP_WHITELIST` without mapping it gets a refusal, not somebody
 else's memories. `funes jid-unmap` reverses it. Neither the token nor the jid
 authenticates anything on its own.
+
+Two paths have to be overridden for a second install, and both fail in ways
+that do not look like configuration:
+
+- **`WHATSAPP_STATE_PATH`** — the read-watermark. Shared between two pollers,
+  one silently skips messages the other consumed. No error is logged.
+- **`WHATSAPP_DB_PATH`** — the autoresponder reads the *dedicated* bridge
+  (`store-funes`, :8091), not the personal one, and `funes.conf` gives that
+  path relative to the repo root. A second clone has no `store-funes`, so the
+  poller crash-loops on "unable to open database file" until it is set to an
+  absolute path. Both bridges still run out of the original clone; moving
+  their stores somewhere install-independent is the outstanding fix.
