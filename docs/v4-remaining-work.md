@@ -60,6 +60,23 @@ Being explicit, because "tested" has meant two different things here.
 - **Real use of the yoda install**, 2026-08-28: Julio used it and reported it
   working. That closes the "deployed but nobody has talked to it" gap; it is
   not a substitute for the bench, which last ran on 2026-08-26.
+- **The WhatsApp service-token path, end to end**, 2026-08-28. A real message
+  ("Hola") from the whitelisted number, answered 2 seconds later. It had only
+  ever been curl-tested before.
+
+  The reply happening is the weaker half. What matters is where it landed, and
+  it was checked in the database rather than inferred: the turn is owned by
+  `user_id = 1` under session `whatsapp_162590433005727_lid` with agent
+  `whatsapp-autoresponder` — an identity *resolved from the jid*, not a
+  default. The auto-memory it wrote is filed under `agent = funes`, which is
+  `memory_scope: funes` doing its job: a WhatsApp conversation feeds the same
+  pool as the web UI rather than a separate empty one. v4's poller state
+  advanced; 3.x's is still dated 2026-08-26, so the two watermarks are
+  genuinely independent.
+
+  Every negative case is covered too, by curl against the live server: no
+  token, a token with no jid, a token naming an unmapped jid, and a wrong
+  token are all 401.
 - **Concurrency.** Six simultaneous chats, two accounts, deliberately sharing
   one session name. Neither account sees the other's turns, and the test
   fails if the requests merely queue rather than overlap.
@@ -83,10 +100,8 @@ Being explicit, because "tested" has meant two different things here.
 - **`web_search` / `web_fetch`.** Every bench run so far used `--skip-web`.
   See "Deferred by decision" below — this is now a design task, not just an
   untested path.
-- **The WhatsApp service-token path end to end.** Wired up and running on 4.0
-  since 2026-08-28 (see "Deferred by decision" below), and every negative case
-  is curl-tested, but **no real incoming message has arrived since the
-  switch**. That is the last unproven step.
+- ~~The WhatsApp service-token path end to end.~~ **Proven 2026-08-28** — see
+  "Verified against real data" above. This was the last item on this list.
 - **Anything from 2026-08-28.** All of it is covered by `ctest` and
   `integration.sh` against the mock LLM, and each new assertion was checked
   against a deliberate mutation of the code it covers. None of it has run on
@@ -135,9 +150,9 @@ model forces, and both were deliberately left for a later pass.
    token are all 401. The poller is `active`, `NRestarts=0`, watching the right
    store, with its own state file and 3.x's untouched.
 
-   **Not yet verified: a real incoming message.** Nothing has actually arrived
-   over WhatsApp since the switch. That is the one thing left before calling
-   this path proven.
+   **Proven with a real message the same day** — see "Verified against real
+   data" above for what was checked in the database, not just observed in the
+   chat.
 
    Still open for the household case:
    - Both bridges run out of the 3.x clone, and v4 reaches their stores by a
