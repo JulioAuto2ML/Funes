@@ -101,11 +101,15 @@ Being explicit, because "tested" has meant two different things here.
   See "Deferred by decision" below — this is now a design task, not just an
   untested path.
 - ~~The WhatsApp service-token path end to end.~~ **Proven 2026-08-28** — see
-  "Verified against real data" above. This was the last item on this list.
-- **Anything from 2026-08-28.** All of it is covered by `ctest` and
-  `integration.sh` against the mock LLM, and each new assertion was checked
-  against a deliberate mutation of the code it covers. None of it has run on
-  yoda, and none of it has been near the real model.
+  "Verified against real data" above. `web_search` above is now the only
+  untested path left here.
+- **The bench, since 2026-08-28's changes.** `scripts/funes_bench.py` last ran
+  on 08-26. The code is covered by `ctest` and `integration.sh` against the
+  mock LLM, with every new assertion checked against a deliberate mutation of
+  what it covers, and it is deployed and serving on yoda. The real model has
+  exercised the agent loop through it since — the WhatsApp reply went through
+  `/api/chat` on Qwen3.5-9B — but nobody has re-run the 6-case bench, so the
+  tool-calling paths specifically are unmeasured on this build.
 
 ---
 
