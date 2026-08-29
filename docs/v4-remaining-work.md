@@ -63,6 +63,23 @@ Being explicit, because "tested" has meant two different things here.
   identically, had no `execute_shell`, and said so. The figure matched the
   real `df`, so the admin path genuinely executed and the member's refusal
   was the permission, not a broken server.
+- **The over-length post fix, in production, 2026-08-29.** The morning run had
+  failed and sent nothing. After the fix, a manual re-run hit the same class of
+  problem and shipped anyway: item 1 came in at 368 characters, was rejected
+  with a ready-made 208-character replacement, and the model came back with
+  **340** — it genuinely tried to shorten and still missed. The trim then
+  applied the shorter text and the issue sent (10 items, 3 recipients,
+  `status: sent`).
+
+  That the model wrote its own 340-char attempt rather than copying the
+  supplied one is the finding worth keeping: **the suggestion alone would not
+  have been enough.** "Suggest only, still reject" — the option that leaves the
+  tool never editing copy — would have looped exactly as the 09:00 run did. The
+  deterministic trim is what makes the difference between an issue and no
+  issue.
+
+  The same run confirmed the `read_more` change: zero `result_id` mix-ups,
+  against eight out of eight in the failing run.
 - **The full newsletter pipeline on 4.0.** The Daily AI Newsletter cron fired
   at 09:04 on 2026-08-28 from the 4.0 install and sent a ten-story issue:
   `harvest_candidates` searched Tavily with the operator key, fetched and
