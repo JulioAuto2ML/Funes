@@ -445,7 +445,14 @@ nlohmann::json pool_for_model(const std::string& publication,
             {"source",    c.source},
             {"published", c.published},
             {"excerpt",   excerpt(c.text, excerpt_bytes)},
-            {"result_id", c.result_id}
+            // The call, not a bare number. `id` and `result_id` sitting side
+            // by side as two integers is what produced 2026-08-29's wasted
+            // round trip: every one of eight items came back naming the
+            // result_id, because read_result is what had most recently
+            // associated a number with that candidate. Publishing resolves a
+            // result_id anyway, but the pool should not offer a second
+            // integer that looks like an alternative id in the first place.
+            {"read_more", "read_result(result_id=" + std::to_string(c.result_id) + ")"}
         });
     }
     return {{"publication", publication},
@@ -740,10 +747,10 @@ void register_harvest_tool(ToolRegistry& reg, MemoryStore& memory,
         "items, fetches every survivor (anything that fails to fetch is dropped here, so "
         "every candidate you are offered is one whose link resolves), and returns them "
         "numbered with an excerpt each. "
-        "Pick items from this pool by their `id` — you never need to copy a URL, and "
-        "publishing resolves ids against the pool rather than against anything you type. "
-        "Use `read_result` with a candidate's `result_id` to read more of its page before "
-        "deciding.",
+        "Pick items from this pool by their `id` — the only number you ever pass to "
+        "publish_issue. You never need to copy a URL, and publishing resolves ids against "
+        "the pool rather than against anything you type. To read more of a candidate's "
+        "page before deciding, run the call in its `read_more` field verbatim.",
         {
             {"type", "object"},
             {"properties", {

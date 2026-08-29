@@ -449,7 +449,7 @@ int test_excerpt() {
 
 int test_pool_for_model_hides_page_text() {
     // The pool has to fit in the context window; whole articles do not. The
-    // full text is reachable through result_id and is in the pool file.
+    // full text is reachable through read_result and is in the pool file.
     Candidate c;
     c.id = 1;
     c.title = "A story";
@@ -464,7 +464,11 @@ int test_pool_for_model_hides_page_text() {
     CHECK(j["candidates"].size() == 1);
     const auto& item = j["candidates"][0];
     CHECK(item["id"] == 1);
-    CHECK(item["result_id"] == 42);
+    // `id` must be the only bare number on a candidate. The result_id is
+    // offered as the call to make, so it cannot be mistaken for a second id —
+    // which is exactly what happened on 2026-08-29, for all eight items.
+    CHECK(!item.contains("result_id"));
+    CHECK(item["read_more"] == "read_result(result_id=42)");
     CHECK(!item.contains("text"));
     CHECK(item["excerpt"].get<std::string>().size() < 700);
     CHECK(j.dump().size() < 2000);

@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <unordered_set>
@@ -56,12 +57,6 @@ std::string trim(const std::string& s) {
 
 // Characters, not bytes — the limit that matters is what a reader sees, and a
 // post full of emoji would otherwise be rejected for being two lines long.
-size_t utf8_length(const std::string& s) {
-    size_t n = 0;
-    for (unsigned char c : s)
-        if ((c & 0xC0) != 0x80) ++n;
-    return n;
-}
 
 std::string two(int n) { return (n < 10 ? "0" : "") + std::to_string(n); }
 
@@ -256,11 +251,65 @@ std::string headline_from_title(const std::string& title, size_t max_chars) {
     return trim(cut) + "…";
 }
 
+size_t utf8_length(const std::string& s) {
+    size_t n = 0;
+    for (unsigned char c : s)
+        if ((c & 0xC0) != 0x80) ++n;
+    return n;
+}
+
+// Which publication+date have already had a post rejected for length. A
+// function-local static rather than a global so there is no initialization
+// order to reason about, and so the mutex and the set cannot be separated.
+static std::set<std::string>& length_retries() {
+    static std::set<std::string> s;
+    return s;
+}
+static std::mutex& length_retry_mu() {
+    static std::mutex m;
+    return m;
+}
+
+std::string shorten_post(const std::string& text, size_t max_chars) {
+    std::string clean = trim(text);
+    if (utf8_length(clean) <= max_chars) return clean;
+
+    // Leave room for the ellipsis up front, so the word-boundary branch cannot
+    // land back over the limit by adding it.
+    const size_t budget = max_chars > 1 ? max_chars - 1 : max_chars;
+
+    std::string cut = clean;
+    funes::truncate_utf8_safe(cut, budget * 4);
+    while (utf8_length(cut) > budget) cut.pop_back();
+    while (!cut.empty() && (static_cast<unsigned char>(cut.back()) & 0xC0) == 0x80)
+        cut.pop_back();
+
+    // A sentence boundary is the only cut that reads as deliberate. Require it
+    // to be past the halfway mark, or "trimming" a long first sentence would
+    // throw away most of the post.
+    const size_t floor = utf8_length(cut) / 2;
+    size_t best = std::string::npos;
+    for (size_t i = 0; i < cut.size(); ++i) {
+        if (cut[i] != '.' && cut[i] != '!' && cut[i] != '?') continue;
+        // Not a decimal point or an ellipsis mid-sentence.
+        if (i + 1 < cut.size() && cut[i + 1] != ' ') continue;
+        if (utf8_length(cut.substr(0, i + 1)) < floor) continue;
+        best = i + 1;
+    }
+    if (best != std::string::npos) return trim(cut.substr(0, best));
+
+    const size_t space = cut.find_last_of(' ');
+    if (space != std::string::npos && utf8_length(cut.substr(0, space)) >= floor)
+        cut.resize(space);
+    return trim(cut) + "…";
+}
+
 std::string build_issue(const nlohmann::json& pool,
                         const std::vector<Selection>& selection,
                         nlohmann::json& out,
                         int min_items,
-                        std::vector<std::string>* dropped) {
+                        std::vector<std::string>* dropped,
+                        bool trim_over_length) {
     if (!pool.contains("candidates") || !pool["candidates"].is_array())
         return "the candidate pool is unreadable — run harvest_candidates again";
     if (selection.empty())
@@ -279,30 +328,44 @@ std::string build_issue(const nlohmann::json& pool,
         const std::string where = "item " + std::to_string(n) + " (id " +
                                   std::to_string(sel.candidate_id) + "): ";
 
+        // Pool id first, always: if a number is both a valid pool id and some
+        // other candidate's result_id, the pool id is what was meant.
         const nlohmann::json* candidate = nullptr;
+        int effective_id = sel.candidate_id;
         for (const auto& c : pool["candidates"])
             if (c.value("id", 0) == sel.candidate_id) { candidate = &c; break; }
         if (!candidate) {
-            bool found_as_result_id = false;
+            // A result_id names exactly one candidate in this pool, so the
+            // intent is unambiguous — accept it and carry on rather than
+            // spending a round trip telling the model a number it already
+            // gave us. This used to be a rejection listing the right id for
+            // each item; on 2026-08-29 all eight items came back as
+            // result_ids, the model applied all eight corrections perfectly,
+            // and the only thing the round trip bought was one more chance to
+            // run out of steps. read_result is what puts these numbers in
+            // front of it in the first place.
             for (const auto& c : pool["candidates"]) {
                 if (c.value("result_id", static_cast<int64_t>(0)) ==
                     static_cast<int64_t>(sel.candidate_id)) {
-                    errors.push_back(where + "that is a result_id (from read_result), not a "
-                                  "candidate id. The candidate you read has pool id " +
-                                  std::to_string(c.value("id", 0)) + " — use that instead.");
-                    found_as_result_id = true;
+                    candidate = &c;
+                    effective_id = c.value("id", 0);
+                    std::cerr << "[publish_issue] item " << n << ": id "
+                              << sel.candidate_id << " is a result_id; using pool id "
+                              << effective_id << "\n";
                     break;
                 }
             }
-            if (!found_as_result_id)
-                errors.push_back(where + "there is no candidate with that id in today's pool "
-                               "(pool ids run 1 to " +
-                       std::to_string(pool["candidates"].size()) +
-                       "). Use only the small `id` field from the candidate list, "
-                       "never a result_id");
+        }
+        if (!candidate) {
+            errors.push_back(where + "there is no candidate with that id in today's pool "
+                           "(pool ids run 1 to " +
+                   std::to_string(pool["candidates"].size()) +
+                   "). Use only the small `id` field from the candidate list");
             continue;
         }
-        const auto [taken, is_new] = used.emplace(sel.candidate_id, n);
+        // Keyed on the resolved id, so naming one candidate twice — once by
+        // pool id and once by result_id — is still caught as a duplicate.
+        const auto [taken, is_new] = used.emplace(effective_id, n);
         if (!is_new) {
             errors.push_back(where + "that candidate is already item " +
                    std::to_string(taken->second) +
@@ -314,18 +377,43 @@ std::string build_issue(const nlohmann::json& pool,
             errors.push_back(where + "the post text is empty");
             continue;
         }
-        const size_t length = utf8_length(sel.text);
+        // Over-length is the one violation the model has proved it cannot fix
+        // from a description (see the header). So: name the problem *and* hand
+        // it the fixed text, and if it comes back over the limit again, apply
+        // that text ourselves rather than lose the issue.
+        std::string post_text = sel.text;
+        const size_t length = utf8_length(post_text);
         if (length > kMaxPostChars) {
-            errors.push_back(where + "the post text is " + std::to_string(length) +
-                   " characters; the limit is " + std::to_string(kMaxPostChars));
-            continue;
+            if (length > kMaxTrimmablePostChars) {
+                // Far past the limit is not a long post, it is the wrong text
+                // in the field. Trimming would publish a stub, so refuse.
+                errors.push_back(where + "the post text is " + std::to_string(length) +
+                       " characters, far past the " + std::to_string(kMaxPostChars) +
+                       " limit — that looks like the article rather than a post. "
+                       "Write one or two sentences about this story.");
+                continue;
+            }
+            const std::string shorter = shorten_post(post_text, kMaxPostChars);
+            if (!trim_over_length) {
+                errors.push_back(where + "the post text is " + std::to_string(length) +
+                       " characters; the limit is " + std::to_string(kMaxPostChars) +
+                       ". Use exactly this text instead, or write your own shorter "
+                       "one: " + shorter);
+                continue;
+            }
+            std::cerr << "[publish_issue] item " << n << " (id " << effective_id
+                      << "): post text was " << length << " characters after a second "
+                         "attempt; trimmed to " << utf8_length(shorter) << "\n";
+            post_text = shorter;
         }
         if (trim(sel.emoji).empty()) {
             errors.push_back(where + "no emoji was given");
             continue;
         }
 
-        auto extraction = extract_evidence(sel.text, funes::json_string(*candidate, "text"));
+        // post_text, not sel.text: if it was trimmed above, the trimmed
+        // version is what ships, so that is what has to be grounded.
+        auto extraction = extract_evidence(post_text, funes::json_string(*candidate, "text"));
         std::string evidence = extraction.first;
         std::string problem = extraction.second;
 
@@ -343,8 +431,8 @@ std::string build_issue(const nlohmann::json& pool,
             std::string substitute_evidence;
             for (const auto& c : pool["candidates"]) {
                 const int cid = c.value("id", 0);
-                if (cid == sel.candidate_id || used.count(cid)) continue;
-                auto alt = extract_evidence(sel.text, funes::json_string(c, "text"));
+                if (cid == effective_id || used.count(cid)) continue;
+                auto alt = extract_evidence(post_text, funes::json_string(c, "text"));
                 if (alt.second.empty()) {
                     substitute = &c;
                     substitute_evidence = alt.first;
@@ -361,14 +449,14 @@ std::string build_issue(const nlohmann::json& pool,
                 const std::string reason = where + problem;
                 std::cerr << "[publish_issue] dropped " << reason << "\n";
                 drops.push_back(reason);
-                used.erase(sel.candidate_id);
+                used.erase(effective_id);
                 continue;
             }
             std::cerr << "[publish_issue] item " << n << ": candidate "
-                      << sel.candidate_id << " didn't support the text; "
+                      << effective_id << " didn't support the text; "
                       << "substituted candidate " << substitute->value("id", 0)
                       << " instead\n";
-            used.erase(sel.candidate_id);
+            used.erase(effective_id);
             used.emplace(substitute->value("id", 0), n);
             candidate = substitute;
             evidence = substitute_evidence;
@@ -377,7 +465,7 @@ std::string build_issue(const nlohmann::json& pool,
         items.push_back({
             {"n",            n},
             {"emoji",        trim(sel.emoji)},
-            {"text",         trim(sel.text)},
+            {"text",         trim(post_text)},
             {"url",          funes::json_string(*candidate, "url")},
             {"headline",     headline_from_title(funes::json_string(*candidate, "title"))},
             {"source",       funes::json_string(*candidate, "source")},
@@ -550,9 +638,32 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
 
     nlohmann::json issue;
     std::vector<std::string> dropped;
-    const std::string problem = build_issue(pool, selection, issue, min_items, &dropped);
+    // One chance to shorten its own prose, then the tool does it. See
+    // build_issue's `trim_over_length` in issue.h for why the second attempt
+    // is not left to the model. Keyed per publication+date because that is the
+    // unit being published; in-process because the alternative is filesystem
+    // state for something whose worst failure mode is granting one extra
+    // attempt after a restart.
+    const std::string attempt_key = publication + "|" + date;
+    bool trim_over_length = false;
+    {
+        std::lock_guard<std::mutex> lock(length_retry_mu());
+        trim_over_length = length_retries().count(attempt_key) > 0;
+    }
+
+    const std::string problem = build_issue(pool, selection, issue, min_items, &dropped,
+                                            trim_over_length);
     if (!problem.empty()) {
         std::cerr << "[publish_issue] rejected: " << problem << "\n";
+        // Only a length rejection arms the trim: any other reason is one the
+        // model can actually act on, and arming it there would let a single
+        // unrelated rejection silently license editing the copy later.
+        if (problem.find("the limit is " + std::to_string(kMaxPostChars)) != std::string::npos) {
+            std::lock_guard<std::mutex> lock(length_retry_mu());
+            length_retries().insert(attempt_key);
+            std::cerr << "[publish_issue] a further over-length post for " << attempt_key
+                      << " will be trimmed rather than rejected\n";
+        }
         write_blocked_record(run_path, publication, date, problem);
         return {"Not published — " + problem + "\nNothing was sent.", true};
     }

@@ -54,6 +54,23 @@ struct Selection {
 // Posts go to X and LinkedIn, so the limit is X's.
 constexpr size_t kMaxPostChars = 280;
 
+// Past this, an over-long post is not a post that needs trimming — it is the
+// model having misunderstood the field (pasting the article, or the whole
+// issue, into one item). Trimming that produces a stub with a link, so it is
+// still rejected outright.
+constexpr size_t kMaxTrimmablePostChars = kMaxPostChars * 2;
+
+// Characters, not bytes — the post limit is a character limit, and an accented
+// word must not count double against it. Exposed because shorten_post's
+// contract is stated in these units.
+size_t utf8_length(const std::string& s);
+
+// Cuts `text` to at most `max_chars`, at a sentence boundary if there is a
+// usable one and a word boundary otherwise (with an ellipsis). Exposed for
+// testing, and because build_issue both *suggests* its output to the model and
+// — on a second attempt — applies it.
+std::string shorten_post(const std::string& text, size_t max_chars = kMaxPostChars);
+
 // Resolves `selection` against a pool record (harvest::pool_record) and builds
 // the issue. Empty return = `out` is the issue, ready to publish. Otherwise the
 // violations and `out` is untouched.
@@ -75,11 +92,24 @@ constexpr size_t kMaxPostChars = 280;
 // rejected after all and the reasons are in the returned string. `dropped` may
 // be null if the caller does not care, but publish_issue wants it for the run
 // record and for telling the model what it lost.
+// `trim_over_length` is what the caller sets once it has already rejected this
+// publication+date for a post that was too long. The first rejection hands the
+// model a ready-made shorter version to copy; if it comes back over the limit
+// anyway, the second call trims deterministically and publishes.
+//
+// That split is not timidity, it is what the 2026-08-29 failure showed. Told
+// its post was "329 characters; the limit is 280", the model resubmitted the
+// same text byte-for-byte and the loop detector killed the run — no newsletter.
+// In the very same run it had corrected eight wrong ids without a single
+// mistake, because for those the tool named the right value instead of only
+// naming the problem. Supplying the answer is what works; asking for prose
+// arithmetic is not.
 std::string build_issue(const nlohmann::json& pool,
                         const std::vector<Selection>& selection,
                         nlohmann::json& out,
                         int min_items = 1,
-                        std::vector<std::string>* dropped = nullptr);
+                        std::vector<std::string>* dropped = nullptr,
+                        bool trim_over_length = false);
 
 // Which pool publish_issue resolves ids against.
 //

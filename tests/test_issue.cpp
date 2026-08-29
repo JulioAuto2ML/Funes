@@ -234,13 +234,135 @@ int test_build_issue_rejects_an_unknown_id() {
     return 0;
 }
 
-int test_build_issue_names_a_result_id_mixup() {
+// A result_id names exactly one candidate, so it is accepted and resolved
+// rather than sent back for correction. It used to be a rejection that told
+// the model the right id for each item; on 2026-08-29 all eight items came
+// back as result_ids, the model fixed all eight perfectly on the next call,
+// and the round trip bought nothing but one more chance to run out of steps.
+// read_result is what puts these numbers in front of it in the first place.
+int test_build_issue_accepts_a_result_id() {
     Selection s = good_selection();
-    s.candidate_id = 514;
+    s.candidate_id = 514;               // the pool's result_id for candidate 4
     json out;
     const std::string why = build_issue(pool_with_one_candidate(), {s}, out);
-    CHECK(why.find("result_id") != std::string::npos);
-    CHECK(why.find("pool id 4") != std::string::npos);
+    CHECK(why.empty());
+    CHECK(!out.is_null());
+    CHECK(out["items"].size() == 1);
+    // Resolved to the pool id, and the URL comes from that candidate — the
+    // whole point is that the right story ships, not merely that nothing errored.
+    CHECK(out["items"][0]["candidate_id"] == 4);
+    CHECK(out["items"][0]["url"] == "https://reuters.com/tech/anthropic-claude");
+    return 0;
+}
+
+// Naming one candidate twice — once by pool id, once by its result_id — is
+// still a duplicate. The dedup key has to be the *resolved* id or this slips
+// through and the issue runs the same story twice.
+int test_build_issue_catches_a_pool_id_and_result_id_duplicate() {
+    Selection a = good_selection();          // id 4
+    Selection b = good_selection();
+    b.candidate_id = 514;                    // same candidate, other number
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(), {a, b}, out);
+    CHECK(why.find("already item 1") != std::string::npos);
+    CHECK(out.is_null());
+    return 0;
+}
+
+// An id that is neither a pool id nor a result_id is still an error.
+int test_build_issue_rejects_a_number_that_is_neither() {
+    Selection s = good_selection();
+    s.candidate_id = 9999;
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(), {s}, out);
+    CHECK(why.find("no candidate with that id") != std::string::npos);
+    CHECK(out.is_null());
+    return 0;
+}
+
+static std::string repeat_to_length(const std::string& sentence, size_t times) {
+    std::string out;
+    for (size_t i = 0; i < times; ++i) out += sentence;
+    return out;
+}
+
+int test_shorten_post() {
+    // Already short: returned untouched, no ellipsis bolted on.
+    const std::string ok = "Anthropic says Claude hacked three organisations.";
+    CHECK(funes::issue::shorten_post(ok, 280) == ok);
+
+    // Cuts at a sentence boundary when there is a usable one, and the result
+    // reads as a finished thought rather than a truncation.
+    const std::string two = "Anthropic says Claude hacked three organisations during a "
+                            "safety test that ran for several weeks. " +
+                            repeat_to_length("The report goes into considerable detail. ", 6);
+    const std::string cut = funes::issue::shorten_post(two, 140);
+    CHECK(funes::issue::utf8_length(cut) <= 140);
+    CHECK(cut.back() == '.');
+    CHECK(cut.find("\u2026") == std::string::npos);
+
+    // No sentence boundary in range: word boundary plus an ellipsis, and the
+    // ellipsis must not push it back over the limit.
+    const std::string one_long = repeat_to_length("word ", 100);
+    const std::string cut2 = funes::issue::shorten_post(one_long, 60);
+    CHECK(funes::issue::utf8_length(cut2) <= 60);
+    CHECK(cut2.size() >= 3);
+    return 0;
+}
+
+// The failure of 2026-08-29: told "329 characters; the limit is 280", the model
+// resubmitted byte-identical text and the loop detector killed the run. The
+// first rejection now carries a ready-made replacement, because in that same
+// run the model corrected eight wrong ids flawlessly when handed the values.
+int test_build_issue_suggests_a_shorter_post() {
+    Selection s = good_selection();
+    s.text = "Anthropic says Claude hacked three organisations during a safety test. " +
+             repeat_to_length("The company published a long and detailed report. ", 6);
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(), {s}, out);
+    CHECK(why.find("the limit is 280") != std::string::npos);
+    CHECK(out.is_null());
+
+    // The suggestion is present, and is itself publishable — a suggestion over
+    // the limit would send the model round the same loop.
+    const std::string marker = "instead, or write your own shorter one: ";
+    const size_t at = why.find(marker);
+    CHECK(at != std::string::npos);
+    const std::string suggested = why.substr(at + marker.size());
+    CHECK(!suggested.empty());
+    CHECK(funes::issue::utf8_length(suggested) <= 280);
+    return 0;
+}
+
+// Second attempt: trim rather than lose the issue.
+int test_build_issue_trims_on_the_second_attempt() {
+    Selection s = good_selection();
+    s.text = "Anthropic says Claude hacked three organisations during a safety test. " +
+             repeat_to_length("The company published a long and detailed report. ", 6);
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(), {s}, out, 1, nullptr,
+                                        /*trim_over_length=*/true);
+    CHECK(why.empty());
+    CHECK(!out.is_null());
+    const std::string published = out["items"][0]["text"].get<std::string>();
+    CHECK(funes::issue::utf8_length(published) <= 280);
+    // The trimmed text is what ships — not the original, and not something
+    // that lost the story: it still has to be grounded in the candidate page,
+    // which is checked against the trimmed version.
+    CHECK(published.find("Anthropic") != std::string::npos);
+    CHECK(!out["items"][0]["evidence"].get<std::string>().empty());
+    return 0;
+}
+
+// Far past the limit is the wrong text in the field, not a long post. Trimming
+// would publish a stub with a link, so it is refused even on a second attempt.
+int test_build_issue_refuses_to_trim_an_article() {
+    Selection s = good_selection();
+    s.text = repeat_to_length("Anthropic says Claude hacked three organisations. ", 40);
+    json out;
+    const std::string why = build_issue(pool_with_one_candidate(), {s}, out, 1, nullptr,
+                                        /*trim_over_length=*/true);
+    CHECK(why.find("far past the 280 limit") != std::string::npos);
     CHECK(out.is_null());
     return 0;
 }
@@ -522,7 +644,13 @@ int main() {
     rc |= test_build_issue_takes_the_url_from_the_pool();
     rc |= test_build_issue_ignores_any_url_the_model_supplies();
     rc |= test_build_issue_rejects_an_unknown_id();
-    rc |= test_build_issue_names_a_result_id_mixup();
+    rc |= test_build_issue_accepts_a_result_id();
+    rc |= test_build_issue_catches_a_pool_id_and_result_id_duplicate();
+    rc |= test_build_issue_rejects_a_number_that_is_neither();
+    rc |= test_shorten_post();
+    rc |= test_build_issue_suggests_a_shorter_post();
+    rc |= test_build_issue_trims_on_the_second_attempt();
+    rc |= test_build_issue_refuses_to_trim_an_article();
     rc |= test_build_issue_rejects_a_repeated_id();
     rc |= test_build_issue_rejects_bad_post_text();
     rc |= test_build_issue_rejects_ungrounded_post();
