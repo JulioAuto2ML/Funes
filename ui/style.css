@@ -730,6 +730,14 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   color: var(--text-dim);
 }
 
+/* Same trap as .auth-gate[hidden] above, and the reason the sign-in form used
+   to show a stray "DISPLAY NAME" and "REPEAT PASSWORD" with no field under
+   them: `display: block` on the label wins over the user agent's
+   `[hidden] { display: none }`, so toggling .hidden in JS moved the inputs and
+   left the labels behind. Scoped to the card rather than the label so anything
+   else hidden in here is covered too. */
+.auth-card [hidden] { display: none; }
+
 .auth-card input {
   width: 100%;
   margin-bottom: 16px;
