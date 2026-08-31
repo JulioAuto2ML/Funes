@@ -650,6 +650,33 @@ to say, and even that only reaches a chat that already passed the whitelist
 check in plain Python before the model saw anything. Run it as its own
 systemd `--user` service — see `scripts/whatsapp-autoresponder.service`.
 
+That restriction is right for a contact and wrong for you. Funes has its own
+number, so a message *you* send it reaches the poller looking exactly like a
+stranger's, and got the same declawed agent: asked to go find an email it
+answered — truthfully, for that agent — that it had no Gmail access, while
+`agents/gmail-assistant.yaml` sat loaded one delegation away. So the agent is
+now chosen by the sender's role, which 4.0 already resolves from their jid:
+an **admin** gets `WHATSAPP_ADMIN_AGENT` (`funes` by default), the
+orchestrator with `delegate_to_agent`; every other role keeps
+`whatsapp-autoresponder` unchanged. Map your own number with
+`funes jid-map <jid> <username>` to be recognized.
+
+Routing is not permission, and this deliberately does not become one. The
+jid is resolved server-side and every call still runs as that user, under
+that user's own agent and tool allowlists — `Permissions::allows_agent`,
+enforced in `/api/chat`, the delegation roster, `delegate_to_agent` and cron.
+Pointing a member at `funes` would simply be refused, and narrowing what an
+admin can reach over WhatsApp is a `funes user permissions` change, not a
+routing one. What the poller decides is only *which agent is asked first*.
+
+Attachments follow the same split, because a path is only meaningful relative
+to the workspace its reader is confined to. `whatsapp-autoresponder` declares
+`workspace_dir: whatsapp-uploads`, so the upload folder is its root and it
+gets a bare `<chat>/<file>`; an admin agent declaring no `workspace_dir` is
+rooted one level up at the user's workspace, so it gets
+`whatsapp-uploads/<chat>/<file>`. Same file on disk, in the same per-user
+workspace, spelled for whoever is allowed to read it.
+
 It does, though, share `funes`'s own memory rather than starting a separate,
 empty pool — via `memory_scope: funes` in its yaml. Every agent normally has
 fully isolated memory (`recall`/`remember` are scoped by agent name — see

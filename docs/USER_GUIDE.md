@@ -455,6 +455,28 @@ python3 scripts/whatsapp_whitelist.py remove "Mom"
 The autoresponder shares funes's memory pool, so it knows everything you've
 told funes.
 
+### Messaging Funes yourself
+
+Funes has its own number, so when *you* message it the poller sees what it
+sees for anyone else. Which agent answers is decided by your role, which
+Funes resolves from your jid — so map your own number to your admin account
+first:
+
+```bash
+funes jid-map <your chat_jid> <your username>
+```
+
+Admins then get the full `funes` agent, which can delegate to
+`gmail-assistant`, `researcher`, `operator` and the rest — the same
+assistant as the web UI, over WhatsApp. Everyone else keeps the restricted
+`whatsapp-autoresponder`: memory and file reading, no delegation.
+
+Nothing here grants access on its own. The server applies your account's
+agent and tool allowlists either way, so if you want an admin to reach less
+over WhatsApp, narrow it with `funes user permissions` rather than by
+changing the routing. `WHATSAPP_ADMIN_AGENT` picks a different agent for
+admins (for example one told to keep replies phone-sized).
+
 ---
 
 ## Gmail integration

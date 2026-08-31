@@ -14,6 +14,18 @@ script is the only thing that ever calls the bridge's /api/send, and only for
 chat_jids already on WHATSAPP_WHITELIST, always replying into the exact chat
 the incoming message came from. The LLM never chooses a recipient.
 
+Which agent answers depends on the sender's role. Funes has its own number, so
+an admin messaging their own assistant arrives here looking exactly like a
+contact, and used to get the same declawed agent a stranger gets — one that
+truthfully reports it cannot read your email while gmail-assistant sits loaded
+one delegation away. Admins get WHATSAPP_ADMIN_AGENT (`funes` by default)
+instead; everyone else keeps whatsapp-autoresponder. That is a routing choice
+only. It cannot widen anyone's reach: Funes resolves the user from the jid
+server-side and applies that user's own agent and tool allowlists
+(Permissions::allows_agent, enforced in /api/chat, the delegation roster,
+delegate_to_agent and cron), so a member routed at a fuller agent would simply
+be refused it.
+
 Documents ("document" attachments — PDFs, plain text files, etc.) and photos
 ("image" attachments) sent by a whitelisted contact are downloaded via the
 bridge's /api/download and copied into the sending contact's own Funes
@@ -73,6 +85,16 @@ DB_PATH = CFG.get(
 FUNES_API_URL = CFG.get("FUNES_API_URL", "http://localhost:8484")
 BRIDGE_API_URL = CFG.get("WHATSAPP_BRIDGE_URL", "http://localhost:8090")
 AGENT_NAME = CFG.get("WHATSAPP_AUTORESPONDER_AGENT", "whatsapp-autoresponder")
+# Funes has its own number, so an admin messaging their own assistant arrives
+# here looking exactly like a contact, and got AGENT_NAME too: recall/remember/
+# read_file, no delegate_to_agent. Asked to check an email it answered — truly,
+# for that agent — that it had no Gmail access, with gmail-assistant loaded one
+# delegation away. Admins get a general-purpose agent instead. This is only a
+# routing choice: 4.0 resolves the user server-side and enforces that user's
+# own agent and tool allowlists (Permissions::allows_agent, applied in
+# /api/chat, the roster, delegate_to_agent and cron), so naming a fuller agent
+# here cannot widen what anyone is permitted to reach.
+ADMIN_AGENT = CFG.get("WHATSAPP_ADMIN_AGENT", "funes")
 # Shared secret that lets this script authenticate to Funes 4.0's API. Empty
 # means the calls go out unauthenticated, which only works against a pre-4.0
 # server — 4.0 answers 401 and ask_funes() logs what to fix.
@@ -195,7 +217,8 @@ def download_media(message_id: str, chat_jid: str) -> dict:
 
 
 def handle_incoming_media(msg_id: str, chat_jid: str, media_type: str, filename: str,
-                           file_length: int, caption: str, user_id: int) -> str:
+                           file_length: int, caption: str, user_id: int,
+                           agent: str) -> str:
     """Download a WhatsApp "document" or "image" attachment and copy it into
     the sending contact's own Funes workspace, returning the text to hand to
     Funes (a `[Document received:
@@ -244,7 +267,8 @@ def handle_incoming_media(msg_id: str, chat_jid: str, media_type: str, filename:
         note = f"[The user sent a {label} but it could not be saved for reading: {e}]"
         return f"{note} {caption}".strip()
 
-    note = f"[{label.capitalize()} received: {dest.relative_to(upload_dir)}]"
+    note = (f"[{label.capitalize()} received: "
+            f"{dest.relative_to(marker_base_for(user_id, agent))}]")
     return f"{note} {caption}".strip()
 
 
@@ -305,21 +329,23 @@ def fetch_new_messages(state):
     return fresh
 
 
-# chat_jid -> user_id, resolved by Funes (never guessed here). Cached because
-# it only changes when an admin runs `funes jid-map`, and a failed lookup is
-# not cached so a mapping added later is picked up without a restart.
-_USER_ID_CACHE: dict[str, int] = {}
+# chat_jid -> (user_id, role), resolved by Funes (never guessed here). Cached
+# because it only changes when an admin runs `funes jid-map`, and a failed
+# lookup is not cached so a mapping added later is picked up without a restart.
+_USER_CACHE: dict[str, tuple[int, str]] = {}
 
 
-def resolve_user_id(chat_jid: str) -> int | None:
-    """Ask Funes which user this WhatsApp number acts as.
+def resolve_user(chat_jid: str) -> tuple[int, str] | None:
+    """Ask Funes which user this WhatsApp number acts as, and in what role.
 
     Identity resolution stays server-side: this sends the jid and reads back
-    the id Funes assigned it. Returning None means the number is not mapped,
-    which is also what makes /api/chat refuse the message.
+    the id and role Funes assigned it. Returning None means the number is not
+    mapped, which is also what makes /api/chat refuse the message. The role is
+    read here only to pick which agent answers — never to grant anything. Every
+    permission decision is still made by Funes from the same resolved user.
     """
-    if chat_jid in _USER_ID_CACHE:
-        return _USER_ID_CACHE[chat_jid]
+    if chat_jid in _USER_CACHE:
+        return _USER_CACHE[chat_jid]
     if not SERVICE_TOKEN:
         return None
     req = urllib.request.Request(
@@ -341,16 +367,37 @@ def resolve_user_id(chat_jid: str) -> int | None:
         log(f"WhatsApp number {chat_jid} is not mapped to a Funes user. "
             f"Map it with: funes jid-map {chat_jid} <username>")
         return None
-    _USER_ID_CACHE[chat_jid] = uid
-    return uid
+    # An unrecognized role is not an admin — the fuller agent is opt-in by
+    # exact match, so a future role name cannot quietly inherit it.
+    role = user.get("role") if isinstance(user.get("role"), str) else ""
+    _USER_CACHE[chat_jid] = (uid, role)
+    return uid, role
 
 
 def upload_dir_for(user_id: int) -> Path:
     return WORKSPACE_ROOT / str(user_id) / UPLOAD_SUBDIR
 
 
-def ask_funes(session: str, message: str, chat_jid: str) -> str | None:
-    payload = json.dumps({"agent": AGENT_NAME, "session": session, "message": message}).encode()
+def agent_for(role: str) -> str:
+    return ADMIN_AGENT if role == "admin" else AGENT_NAME
+
+
+def marker_base_for(user_id: int, agent: str) -> Path:
+    """What an attachment's `[Document received: <path>]` marker is written
+    relative to — the answering agent's own workspace root, so its read_file
+    resolves the path verbatim instead of refusing it.
+
+    AGENT_NAME declares `workspace_dir: whatsapp-uploads` (see its yaml), which
+    makes the upload folder its root. A general-purpose agent declares none and
+    is rooted at the user's workspace, one level up, so it needs the
+    `whatsapp-uploads/` prefix that the autoresponder must not have.
+    """
+    upload_dir = upload_dir_for(user_id)
+    return upload_dir if agent == AGENT_NAME else upload_dir.parent
+
+
+def ask_funes(session: str, message: str, chat_jid: str, agent: str) -> str | None:
+    payload = json.dumps({"agent": agent, "session": session, "message": message}).encode()
     headers = {"Content-Type": "application/json"}
     # Funes 4.0 authenticates every /api/ call. This script is a service, not a
     # browser: the token says the caller is trusted, and the jid says who the
@@ -453,27 +500,38 @@ def main():
                                       "remember about you is still there.")
                 continue
 
+            # Resolve who this number is before doing anything else: an
+            # attachment has to land in that user's workspace, and the user's
+            # role picks which agent answers. Resolving up front rather than
+            # only for media costs nothing — the result is cached per jid —
+            # and an unmapped number is one /api/chat would refuse anyway.
+            resolved = resolve_user(chat_jid)
+            if resolved is None and SERVICE_TOKEN:
+                log(f"Ignoring message from unmapped number {chat_jid}.")
+                continue
+            # No service token means a pre-4.0 server that authenticates
+            # nothing: there is no user to resolve and no per-user workspace,
+            # so fall back to the contact agent exactly as before.
+            user_id, role = resolved if resolved else (None, "")
+            agent = agent_for(role)
+
             if media_type in ("document", "image"):
-                # Resolve who this number is before writing anything: the file
-                # has to land in that user's workspace, and an unmapped number
-                # has no workspace to write into (and /api/chat would refuse
-                # the message anyway).
-                user_id = resolve_user_id(chat_jid)
                 if user_id is None:
                     log(f"Ignoring {media_type} from unmapped number {chat_jid}.")
                     continue
                 message_text = handle_incoming_media(
                     msg_id, chat_jid, media_type, filename, file_length,
-                    message_text, user_id)
+                    message_text, user_id, agent)
             elif not message_text:
                 continue  # other media types or empty message, nothing to reply to
 
             if not message_text:
                 continue
 
-            log(f"New message from {sender} in {chat_jid}: {message_text[:80]!r}")
+            log(f"New message from {sender} in {chat_jid} "
+                f"(-> {agent}): {message_text[:80]!r}")
             session = sanitize_session(chat_jid, session_generation(state, chat_jid))
-            reply = ask_funes(session, message_text, chat_jid)
+            reply = ask_funes(session, message_text, chat_jid, agent)
             if reply is None or not reply.strip():
                 log("No reply generated, skipping send.")
                 continue
