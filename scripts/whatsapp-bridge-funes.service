@@ -28,10 +28,10 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge
+WorkingDirectory=/home/julio/whatsapp-bridge
 Environment=WHATSAPP_STORE_DIR=store-funes
 Environment=WHATSAPP_BRIDGE_PORT=8091
-ExecStart=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+ExecStart=/home/julio/whatsapp-bridge/whatsapp-bridge
 Restart=on-failure
 RestartSec=5
 

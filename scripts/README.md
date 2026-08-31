@@ -51,11 +51,10 @@ Features:
 
 | File | Purpose |
 |---|---|
-| `whatsapp-autoresponder.service` | systemd user service for the autoresponder script, against 3.x on :8484 |
-| `whatsapp-autoresponder-v4.service` | the same script against the 4.0 install on :8485. **Only one of the two may be enabled** — they `Conflicts=` each other, but that stops the running one rather than warning you. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST`, `FUNES_API_URL`, `WHATSAPP_STATE_PATH` and `WHATSAPP_DB_PATH` in the v4 clone's `config/funes.local`, plus a `funes jid-map` per sender |
-| `whatsapp-bridge.service` | systemd user service for the personal WhatsApp bridge (port 8090) |
-| `whatsapp-bridge-funes.service` | systemd user service for the dedicated Funes WhatsApp bridge (port 8091) |
-| `funes-v4.service` | systemd user service for the Funes 4.0 install, deliberately separate from 3.x's `funes.service` — every path and port is set explicitly so a config file can never point it at the 3.x database. See [docs/deploy-v4-yoda.md](../docs/deploy-v4-yoda.md) |
+| `whatsapp-autoresponder-v4.service` | the autoresponder script against the 4.0 install on :8485. The 3.x counterpart was removed on 2026-08-31 when 3.x was retired, so there is no longer a second unit to conflict with. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST`, `FUNES_API_URL`, `WHATSAPP_STATE_PATH` and `WHATSAPP_DB_PATH` in the v4 clone's `config/funes.local`, plus a `funes jid-map` per sender |
+| `whatsapp-bridge.service` | systemd user service for the personal WhatsApp bridge (port 8090). Runs from `~/whatsapp-bridge/`, deliberately outside either clone |
+| `whatsapp-bridge-funes.service` | systemd user service for the dedicated Funes WhatsApp bridge (port 8091). Same directory, `WHATSAPP_STORE_DIR=store-funes` |
+| `funes-v4.service` | systemd user service for Funes on yoda — since 3.x was retired on 2026-08-31 this is the only install. Every path and port is still set explicitly so a config file can never point it at the dormant 3.x database. See [docs/deploy-v4-yoda.md](../docs/deploy-v4-yoda.md) |
 
 Two WhatsApp numbers, two bridge instances: the personal number is used by
 `whatsapp-assistant` (interactive, delegated from funes), and the dedicated

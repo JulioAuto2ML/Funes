@@ -56,7 +56,10 @@ After=network.target funes-v4.service whatsapp-bridge.service
 Wants=funes-v4.service whatsapp-bridge.service
 # Refuses to run alongside the 3.x poller even if both were enabled by
 # mistake. systemd stops the other one rather than starting two.
-Conflicts=whatsapp-autoresponder.service
+# The 3.x counterpart (whatsapp-autoresponder.service) was removed on
+# 2026-08-31 when 3.x was retired. The Conflicts= that used to be here is
+# gone with it: one bridge store must never have two pollers, but there is
+# no second poller left to exclude.
 
 [Service]
 Type=simple

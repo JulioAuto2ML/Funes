@@ -1,9 +1,16 @@
 # systemd --user unit for the Funes 4.0 install.
 #
-# This is a SECOND, INDEPENDENT install. It must never touch the 3.x one at
-# /home/julio/Funes (~/.funes/memory.db, ~/.funes/workspace, port 8484,
-# funes.service). The only things the two share are the LLM on :8080 and the
-# embedding model on :8081.
+# This is now the ONLY Funes install on yoda. The 3.x install was retired on
+# 2026-08-31: funes.service and whatsapp-autoresponder.service were disabled
+# and their unit files moved to ~/retired-3x/systemd/, and the tree was
+# archived to ~/funes-3x-archive-20260831.zip.
+#
+# /home/julio/Funes still exists and must NOT be deleted: both WhatsApp
+# bridges run out of it, and this install reads their stores through
+# third-party/whatsapp-mcp/whatsapp-bridge/store (a symlink) and the absolute
+# WHATSAPP_DB_PATH in config/funes.local. Its database ~/.funes/memory.db is
+# dormant, and was migrated to the 4.0 schema on 2026-08-31, so a 3.x binary
+# can no longer open it.
 #
 # Every path and port below is set explicitly, and that is the point rather
 # than verbosity. Funes loads ./config/funes.conf and ~/.funes/config into the
@@ -52,18 +59,20 @@ Environment=FUNES_VISION_URL=
 # funes.conf ships FUNES_ALLOW_SHELL=1. This install has no business running
 # shell commands or scheduled shell jobs.
 Environment=FUNES_ALLOW_SHELL=0
-# FUNES_SERVICE_TOKEN is deliberately NOT set here: it is a secret, and this
-# file is in git. It comes from config/funes.local, which WorkingDirectory
-# above makes resolve to the v4 clone's — the same file the v4 autoresponder
-# (scripts/whatsapp-autoresponder-v4.service) reads, so the two cannot drift
-# apart into a permanent 401. Absent entirely means service authentication is
-# off, not open.
-# The migrated database carries 3.x's scheduled jobs, and jobs are just rows:
-# nothing about copying a database says "do not run these". Without this the
-# newsletter publishes twice and the daily WhatsApp reminder reaches a real
-# person twice. The rows stay (so this install can take over if 3.x is ever
-# retired); the runner does not start.
-Environment=FUNES_CRON_ENABLED=0
+# No service token: the WhatsApp autoresponder is not run against this
+# install (one bridge store, two pollers, both answering). Absent means
+# service authentication is off, not open.
+# 3.x was retired on 2026-08-31 (units removed, install archived to
+# ~/funes-3x-archive-20260831.zip), so this install owns the schedule and the
+# runner starts. This began as a cron.conf drop-in on 2026-08-26, back when
+# both installs existed and either would have fired the same jobs; it is
+# folded in here now that there is no second install to double up with.
+#
+# config/funes.local sets FUNES_CRON_ENABLED=0 so that a hand-run of
+# ./bin/funes does NOT fire the schedule. This line still wins for the
+# service, because the real environment beats the config file
+# (load_config uses setenv with overwrite=0).
+Environment=FUNES_CRON_ENABLED=1
 
 Restart=on-failure
 RestartSec=5

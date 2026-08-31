@@ -1,8 +1,22 @@
-# Deploying Funes 4.0 to yoda, alongside 3.x
+# Deploying Funes to yoda
 
-Funes 4.0 runs as a **completely independent install**. The 3.x install is not
-modified in any way. The two share exactly two things: the LLM on `:8080` and
-the embedding model on `:8081`.
+> **Status, 2026-08-31: 3.x is retired and 4.0 is the only install.**
+> `funes.service` and `whatsapp-autoresponder.service` were disabled and their
+> unit files moved to `~/retired-3x/systemd/`; the tree was archived to
+> `~/funes-3x-archive-20260831.zip`. Both WhatsApp bridges were moved out of
+> `~/Funes` to `~/whatsapp-bridge/`, so they belong to no install and survived
+> the move without a QR re-scan. `~/Funes` and `~/.funes` still exist but
+> nothing reads them; `~/.funes/memory.db` was migrated to the 4.0 schema by
+> accident on 2026-08-31 and a 3.x binary can no longer open it.
+>
+> Everything below describes the original side-by-side deployment. It is kept
+> because the per-path reasoning still explains why each value is set
+> explicitly, but the "two installs" framing is now history: the port stayed
+> at 8485 and 4.0 owns the schedule and WhatsApp outright.
+
+Funes 4.0 was installed as a **completely independent install** alongside 3.x.
+The 3.x install was not modified. The two shared exactly two things: the LLM on
+`:8080` and the embedding model on `:8081`.
 
 | | 3.x (existing) | 4.0 (new) |
 |---|---|---|

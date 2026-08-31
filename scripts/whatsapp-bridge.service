@@ -1,4 +1,5 @@
-# systemd --user unit for the WhatsApp bridge (third-party/whatsapp-mcp's
+# systemd --user unit for the WhatsApp bridge (built from
+# third-party/whatsapp-mcp's
 # Go/whatsmeow process). This keeps the actual WhatsApp Web connection alive
 # continuously and writes incoming messages to its local SQLite store — it is
 # NOT spawned by Funes itself, unlike the Python MCP server side
@@ -25,8 +26,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge
-ExecStart=/home/julio/Funes/third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+WorkingDirectory=/home/julio/whatsapp-bridge
+ExecStart=/home/julio/whatsapp-bridge/whatsapp-bridge
 Restart=on-failure
 RestartSec=5
 
