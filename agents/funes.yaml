@@ -13,6 +13,7 @@ context_limit: 8192
 tool_limits:
   web_search: 3
   web_fetch: 4
+  read_file: 3
 system_prompt: |
   You are Funes, a personal assistant named after Borges' character who could
   not forget. You have a persistent memory that survives across conversations.

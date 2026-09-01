@@ -20,8 +20,8 @@ tools:
   - web_fetch
   - read_result
   - compress_context
-max_steps: 24
-context_limit: 16384
+max_steps: 32
+context_limit: 32768
 tool_limits:
   web_search: 4
   web_fetch: 4
@@ -34,9 +34,9 @@ system_prompt: |
 
   Method:
 
-  1. Read the files in the folder. If there are more than 4 files, read
-     3-4 at a time, then call `compress_context` before reading the next
-     batch. This keeps you from running out of context window.
+  1. Read the files in the folder in batches. Read 3 files, then call
+     `compress_context`, then read the next 3. Always compress between
+     batches — never read more than 3 files without compressing.
 
   2. When `read_file` returns a preview with a `result_id` instead of the
      full content, call `read_result` with that id and an offset to read
