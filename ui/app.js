@@ -595,7 +595,8 @@ async function doBatchUpload(files, folder) {
       : '';
     state.batchContext = '[Uploaded ' + data.files.length + ' files to ' +
       data.folder + '/: ' + names.join(', ') +
-      '. Use read_file ' + data.folder + '/<filename> to access them.]';
+      '. These are workspace files. For tasks involving multiple files,' +
+      ' delegate to the file-reviewer agent with the folder path and task.]';
     addChip('info', '📁',
       'Uploaded ' + data.files.length + ' files to ' + data.folder + '/',
       preview + skippedNote + '\nUse read_file ' + data.folder + '/<filename> to access them.');
