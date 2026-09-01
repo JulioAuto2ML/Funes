@@ -93,7 +93,9 @@
         <div id="attachments" class="attachments" hidden></div>
         <form id="composer" class="composer" autocomplete="off">
           <input id="file-input" type="file" multiple hidden>
+          <input id="folder-input" type="file" webkitdirectory hidden>
           <button id="attach-btn" type="button" class="ghost" title="Attach a file">📎</button>
+          <button id="folder-btn" type="button" class="ghost" title="Upload a folder">📁</button>
           <textarea id="input" rows="1" placeholder="Say something to Funes…"
                     spellcheck="false"></textarea>
           <button id="send" type="submit" title="Send">↑</button>

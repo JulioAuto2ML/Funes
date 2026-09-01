@@ -26,6 +26,9 @@
 //                                       account's jobs with their owner [admin]
 //   POST   /api/upload               — multipart 'file' → saved into the workspace,
 //                                       returns a text preview for the UI to embed
+//   POST   /api/upload-batch         — multipart 'file' (multiple) + optional 'folder'
+//                                       → saves files to a named subfolder, returns a
+//                                       manifest (no content inlined)
 //   GET    /*                       — static web UI
 //
 // Every route above except the four marked [public] requires authentication.

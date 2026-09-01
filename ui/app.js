@@ -34,6 +34,8 @@ const els = {
   attachments:  $('attachments'),
   attachBtn:    $('attach-btn'),
   fileInput:    $('file-input'),
+  folderBtn:    $('folder-btn'),
+  folderInput:  $('folder-input'),
   authGate:     $('auth-gate'),
   authForm:     $('auth-form'),
   authIntro:    $('auth-intro'),
@@ -545,6 +547,59 @@ function renderAttachments() {
   });
 }
 
+/* ── batch (folder) upload ───────────────────────────────────────────────── */
+
+function showBatchConfirm(files) {
+  const existing = document.querySelector('.batch-confirm');
+  if (existing) existing.remove();
+
+  const folderGuess = files[0]?.webkitRelativePath?.split('/')[0] || 'uploads';
+  const strip = document.createElement('div');
+  strip.className = 'batch-confirm';
+  strip.innerHTML =
+    `<span>Upload <strong>${files.length}</strong> file${files.length === 1 ? '' : 's'} to </span>` +
+    `<input type="text" class="batch-folder-name" value="${folderGuess}">` +
+    `<button type="button" class="ghost batch-go">Upload</button>` +
+    `<button type="button" class="ghost batch-cancel">Cancel</button>`;
+
+  els.attachments.parentElement.insertBefore(strip, els.attachments);
+
+  strip.querySelector('.batch-cancel').addEventListener('click', () => strip.remove());
+  strip.querySelector('.batch-go').addEventListener('click', async () => {
+    const folder = strip.querySelector('.batch-folder-name').value.trim() || 'uploads';
+    strip.querySelector('.batch-go').disabled = true;
+    strip.querySelector('.batch-go').textContent = 'Uploading…';
+    await doBatchUpload(files, folder);
+    strip.remove();
+  });
+}
+
+async function doBatchUpload(files, folder) {
+  const fd = new FormData();
+  fd.append('folder', folder);
+  for (const f of files) fd.append('file', f);
+  try {
+    const resp = await fetch('/api/upload-batch', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!data.ok) {
+      addChip('error', '⚠️', 'Batch upload failed: ' + (data.error || 'unknown'));
+      return;
+    }
+    const names = data.files.map(f => f.filename);
+    const preview = names.length <= 3
+      ? names.join(', ')
+      : names.slice(0, 3).join(', ') + ' and ' + (names.length - 3) + ' more';
+    const skippedNote = data.skipped.length
+      ? '\nSkipped: ' + data.skipped.map(s => s.filename + ' (' + s.reason + ')').join(', ')
+      : '';
+    addChip('info', '📁',
+      'Uploaded ' + data.files.length + ' files to ' + data.folder + '/',
+      preview + skippedNote + '\nUse read_file ' + data.folder + '/<filename> to access them.');
+  } catch (e) {
+    addChip('error', '⚠️', 'Batch upload failed: ' + e.message);
+  }
+}
+
 // What the user sees in their own chat bubble — just the filenames, not the
 // (possibly huge) file content that actually gets sent.
 function buildDisplayText(text, attachments) {
@@ -912,6 +967,15 @@ els.fileInput.addEventListener('change', async () => {
   const files = Array.from(els.fileInput.files);
   els.fileInput.value = '';
   for (const file of files) await uploadFile(file);
+});
+
+els.folderBtn.addEventListener('click', () => els.folderInput.click());
+
+els.folderInput.addEventListener('change', () => {
+  const files = Array.from(els.folderInput.files);
+  els.folderInput.value = '';
+  if (files.length === 0) return;
+  showBatchConfirm(files);
 });
 
 els.input.addEventListener('keydown', (e) => {

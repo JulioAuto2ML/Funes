@@ -33,6 +33,30 @@ constexpr size_t MAX_IMAGE_BASE64_BYTES = 8 * 1024 * 1024;  // ~6 MB raw
 constexpr size_t MAX_IMAGES_PER_MESSAGE = 4;
 constexpr int    PDF_UPLOAD_TIMEOUT_S   = 15;
 
+constexpr size_t MAX_BATCH_BYTES        = 50 * 1024 * 1024;  // total per batch request
+constexpr size_t MAX_BATCH_FILES        = 100;
+
+std::string sanitize_filename(const std::string& raw) {
+    std::string name = fs::path(raw).filename().string();
+    if (name.empty() || name[0] == '.')
+        return {};
+    for (auto& c : name) {
+        if (c == ' ') c = '_';
+    }
+    return name;
+}
+
+std::string sanitize_folder(const std::string& raw) {
+    std::string name = fs::path(raw).filename().string();
+    if (name.empty() || name == "." || name == "..")
+        return "uploads";
+    for (auto& c : name) {
+        if (c == ' ') c = '_';
+    }
+    if (name[0] == '.') return "uploads";
+    return name;
+}
+
 bool looks_like_pdf(const std::string& content) {
     return content.rfind("%PDF", 0) == 0;
 }
@@ -741,6 +765,89 @@ void FunesApi::mount(httplib::Server& srv) {
             arr.push_back(std::move(entry));
         }
         json_reply(res, 200, {{"ok", true}, {"jobs", arr}, {"scope", all ? "all" : "mine"}});
+    });
+
+    // ── batch upload (save files to a named workspace folder) ─────────────────
+    srv.Post("/api/upload-batch", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        // Collect all files from the multipart request.
+        const auto file_entries = req.get_file_values("file");
+        if (file_entries.empty())
+            return json_error(res, 400, "No files in the request");
+        if (file_entries.size() > MAX_BATCH_FILES)
+            return json_error(res, 400, "Too many files (max " + std::to_string(MAX_BATCH_FILES) + ")");
+
+        // Total size check.
+        size_t total = 0;
+        for (const auto& f : file_entries) total += f.content.size();
+        if (total > MAX_BATCH_BYTES)
+            return json_error(res, 400, "Total upload too large (max 50 MB)");
+
+        // Folder name: explicit field, or derived from the first file.
+        std::string folder = "uploads";
+        if (req.has_file("folder")) {
+            folder = sanitize_folder(req.get_file_value("folder").content);
+        } else if (!file_entries.empty()) {
+            const std::string first = sanitize_filename(file_entries[0].filename);
+            if (!first.empty()) {
+                const auto dot = first.rfind('.');
+                folder = (dot != std::string::npos) ? first.substr(0, dot) : first;
+            }
+        }
+
+        const fs::path workspace =
+            funes::fsguard::workspace_for(workspace_dir_, user->id, "");
+        const fs::path dest_dir = workspace / folder;
+
+        std::error_code ec;
+        fs::create_directories(dest_dir, ec);
+        if (ec)
+            return json_error(res, 500, "Could not create folder: " + ec.message());
+
+        json files_arr = json::array();
+        json skipped_arr = json::array();
+
+        for (const auto& f : file_entries) {
+            std::string name = sanitize_filename(f.filename);
+            if (name.empty()) {
+                skipped_arr.push_back({{"filename", f.filename}, {"reason", "invalid filename"}});
+                continue;
+            }
+            if (f.content.size() > MAX_UPLOAD_BYTES) {
+                skipped_arr.push_back({{"filename", name}, {"reason", "exceeds 5 MB limit"}});
+                continue;
+            }
+
+            const fs::path dest = dest_dir / name;
+            std::ofstream out(dest, std::ios::binary | std::ios::trunc);
+            if (!out) {
+                skipped_arr.push_back({{"filename", name}, {"reason", "could not write"}});
+                continue;
+            }
+            out << f.content;
+            out.close();
+
+            const std::string mime = funes::detect_image_mime(f.content);
+            const bool is_image = !mime.empty();
+            const bool is_text  = !is_image && (looks_like_pdf(f.content)
+                                                || funes::looks_like_text(f.content));
+
+            files_arr.push_back({
+                {"filename", name},
+                {"size", f.content.size()},
+                {"is_text", is_text},
+                {"is_image", is_image}
+            });
+        }
+
+        json_reply(res, 200, {
+            {"ok", true},
+            {"folder", folder},
+            {"files", files_arr},
+            {"skipped", skipped_arr}
+        });
     });
 
     // ── upload (attach a file to the chat from the UI) ────────────────────────

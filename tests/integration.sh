@@ -614,6 +614,27 @@ check "non-image mime_type rejected" "$OUT" "'mime_type'"
 OUT=$(curl -s -F "notfile=nope" "$BASE/api/upload")
 check "upload missing file rejected" "$OUT" '"ok":false'
 
+echo "— batch upload"
+BATCH_A=$(mktemp /tmp/funes_it_batch_XXXX.txt)
+BATCH_B=$(mktemp /tmp/funes_it_batch_XXXX.txt)
+echo "chapter one content" > "$BATCH_A"
+echo "chapter two content" > "$BATCH_B"
+OUT=$(curl -s -F "file=@$BATCH_A" -F "file=@$BATCH_B" -F "folder=book" "$BASE/api/upload-batch")
+check "batch upload ok"       "$OUT" '"ok":true'
+check "batch upload folder"   "$OUT" '"folder":"book"'
+check "batch upload files"    "$OUT" '"files":'
+rm -f "$BATCH_A" "$BATCH_B"
+
+OUT=$(curl -s -F "notfile=nope" "$BASE/api/upload-batch")
+check "batch upload no files rejected" "$OUT" '"ok":false'
+
+OVERSIZE=$(mktemp /tmp/funes_it_batch_big_XXXX.bin)
+dd if=/dev/zero of="$OVERSIZE" bs=1M count=6 2>/dev/null
+OUT=$(curl -s -F "file=@$OVERSIZE" -F "folder=test" "$BASE/api/upload-batch")
+check "batch upload skips oversize file" "$OUT" '"skipped":'
+check "batch upload oversize reason"     "$OUT" 'exceeds 5 MB'
+rm -f "$OVERSIZE"
+
 echo "— admin-only routes (a member must not reach them)"
 # A second, non-admin account. Created through the CLI against the same
 # database file the running server holds open — WAL plus busy_timeout makes
