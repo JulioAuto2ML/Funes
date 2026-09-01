@@ -62,6 +62,7 @@ const state = {
   // Text: {kind:'text', filename, content, isText, truncated}
   // Image: {kind:'image', filename, mimeType, data (base64)}
   attachments: [],
+  batchContext: null,
 };
 localStorage.setItem('funes.session', state.session);
 
@@ -592,6 +593,9 @@ async function doBatchUpload(files, folder) {
     const skippedNote = data.skipped.length
       ? '\nSkipped: ' + data.skipped.map(s => s.filename + ' (' + s.reason + ')').join(', ')
       : '';
+    state.batchContext = '[Uploaded ' + data.files.length + ' files to ' +
+      data.folder + '/: ' + names.join(', ') +
+      '. Use read_file ' + data.folder + '/<filename> to access them.]';
     addChip('info', '📁',
       'Uploaded ' + data.files.length + ' files to ' + data.folder + '/',
       preview + skippedNote + '\nUse read_file ' + data.folder + '/<filename> to access them.');
@@ -614,6 +618,10 @@ function buildDisplayText(text, attachments) {
 // into future turns, since images themselves aren't persisted in history).
 function buildFullText(text, attachments) {
   let out = '';
+  if (state.batchContext) {
+    out += state.batchContext + '\n\n';
+    state.batchContext = null;
+  }
   for (const a of attachments) {
     if (a.kind === 'image') {
       out += '[Attached image: ' + a.filename + ']\n\n';
@@ -949,7 +957,7 @@ els.composer.addEventListener('submit', (e) => {
     return;
   }
   const text = els.input.value.trim();
-  if (!text && state.attachments.length === 0) return;
+  if (!text && state.attachments.length === 0 && !state.batchContext) return;
 
   const displayText = buildDisplayText(text, state.attachments);
   const fullText = buildFullText(text, state.attachments);
