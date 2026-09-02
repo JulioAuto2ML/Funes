@@ -180,6 +180,8 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 
     try {
         json result = mcp_clients_[it->second]->call_tool(name, args);
+        const bool is_error = result.contains("isError")
+            && result["isError"].is_boolean() && result["isError"].get<bool>();
         // MCP result format: {content: [{type: "text", text: "..."}]}. The
         // server is a separate process over the wire — its "text" isn't
         // guaranteed valid UTF-8, so it goes through dump_safe rather than a
@@ -187,8 +189,8 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
         if (result.contains("content") && result["content"].is_array()
             && !result["content"].empty() && result["content"][0].contains("text")
             && result["content"][0]["text"].is_string())
-            return {result["content"][0]["text"].get<std::string>()};
-        return {funes::dump_safe(result)};
+            return {result["content"][0]["text"].get<std::string>(), is_error};
+        return {funes::dump_safe(result), is_error};
     } catch (const std::exception& e) {
         return {std::string("MCP tool '") + name + "' failed: " + e.what(), true};
     }
