@@ -100,6 +100,17 @@ Without embeddings Funes still works — memory falls back to keyword search,
 and missing vectors are backfilled automatically once an embedding endpoint
 appears.
 
+**Optional — MCP-based agents.** `gmail-assistant` and `whatsapp-assistant`
+talk to external services via MCP servers that need their own dependencies.
+Run once per host:
+
+```bash
+cd third-party/imap-email-mcp-patched && npm install   # gmail-assistant
+```
+
+See the Agents section below for credentials (`IMAP_USER`/`IMAP_PASSWORD` in
+`config/funes.local`) and the WhatsApp setup.
+
 **Run it:**
 
 ```bash
