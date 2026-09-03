@@ -61,6 +61,9 @@
         <button id="toggle-jobs" class="ghost" title="Show scheduled cron jobs">
           Jobs
         </button>
+        <button id="toggle-files" class="ghost" title="Browse workspace files">
+          Files
+        </button>
         <span id="context-gauge" class="context-gauge" title="Context usage" hidden>
           <span class="bar"><span id="context-bar-fill" class="bar-fill"></span></span>
           <span id="context-pct">0%</span>
@@ -121,6 +124,14 @@
           <h3>Scheduled jobs</h3>
         </div>
         <div id="jobs-list" class="jobs-list"></div>
+      </aside>
+
+      <aside class="files-pane" id="files-pane" hidden>
+        <div class="files-head">
+          <h3>Workspace files</h3>
+        </div>
+        <div id="files-breadcrumb" class="files-breadcrumb"></div>
+        <div id="files-list" class="files-list"></div>
       </aside>
 
     </main>

@@ -36,6 +36,10 @@ const els = {
   fileInput:    $('file-input'),
   folderBtn:    $('folder-btn'),
   folderInput:  $('folder-input'),
+  toggleFiles:  $('toggle-files'),
+  filesPane:    $('files-pane'),
+  filesList:    $('files-list'),
+  filesBreadcrumb: $('files-breadcrumb'),
   authGate:     $('auth-gate'),
   authForm:     $('auth-form'),
   authIntro:    $('auth-intro'),
@@ -806,6 +810,95 @@ async function refreshJobs() {
   } catch (e) { /* server down — status dot will show it */ }
 }
 
+/* ── files pane ─────────────────────────────────────────────────────────── */
+
+let filesCurrentPath = '';
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function refreshFiles(path) {
+  if (path === undefined) path = filesCurrentPath;
+  filesCurrentPath = path;
+
+  try {
+    const url = '/api/files' + (path ? '?path=' + encodeURIComponent(path) : '');
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.ok) return;
+
+    // breadcrumb
+    els.filesBreadcrumb.innerHTML = '';
+    const parts = path ? path.split('/').filter(Boolean) : [];
+    const root = document.createElement('span');
+    root.className = 'crumb';
+    root.textContent = '~';
+    root.addEventListener('click', () => refreshFiles(''));
+    els.filesBreadcrumb.appendChild(root);
+    let accumulated = '';
+    for (const p of parts) {
+      const sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = ' / ';
+      els.filesBreadcrumb.appendChild(sep);
+      accumulated += (accumulated ? '/' : '') + p;
+      const crumb = document.createElement('span');
+      crumb.className = 'crumb';
+      crumb.textContent = p;
+      const target = accumulated;
+      crumb.addEventListener('click', () => refreshFiles(target));
+      els.filesBreadcrumb.appendChild(crumb);
+    }
+
+    // file list
+    els.filesList.innerHTML = '';
+    if (data.files.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'files-empty';
+      empty.textContent = 'No files here yet.';
+      els.filesList.appendChild(empty);
+      return;
+    }
+
+    for (const f of data.files) {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+
+      const icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.textContent = f.type === 'directory' ? '📁' : '📄';
+      item.appendChild(icon);
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = f.name;
+      item.appendChild(name);
+
+      if (f.type === 'file' && f.size !== undefined) {
+        const size = document.createElement('span');
+        size.className = 'size';
+        size.textContent = formatFileSize(f.size);
+        item.appendChild(size);
+      }
+
+      if (f.type === 'directory') {
+        const subpath = path ? path + '/' + f.name : f.name;
+        item.addEventListener('click', () => refreshFiles(subpath));
+      } else {
+        const dlPath = path ? path + '/' + f.name : f.name;
+        item.addEventListener('click', () => {
+          window.open('/api/files/download?path=' + encodeURIComponent(dlPath), '_blank');
+        });
+      }
+
+      els.filesList.appendChild(item);
+    }
+  } catch (e) { /* server down — status dot will show it */ }
+}
+
 /* ── status ──────────────────────────────────────────────────────────────── */
 
 async function refreshStatus() {
@@ -1022,6 +1115,11 @@ els.toggleChats.addEventListener('click', () => {
 els.toggleJobs.addEventListener('click', () => {
   els.jobsPane.hidden = !els.jobsPane.hidden;
   if (!els.jobsPane.hidden) refreshJobs();
+});
+
+els.toggleFiles.addEventListener('click', () => {
+  els.filesPane.hidden = !els.filesPane.hidden;
+  if (!els.filesPane.hidden) refreshFiles();
 });
 
 els.memorySearch.addEventListener('input', () => {

@@ -693,6 +693,87 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   margin-top: 24px;
 }
 
+/* ── files pane ──────────────────────────────────────────────────────────── */
+
+.files-pane[hidden] { display: none; }
+
+.files-pane {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 4px;
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  overflow: hidden;
+}
+
+.files-head { display: flex; align-items: center; gap: 8px; }
+.files-head h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.files-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.files-breadcrumb .crumb {
+  cursor: pointer;
+  color: var(--accent);
+}
+.files-breadcrumb .crumb:hover { text-decoration: underline; }
+.files-breadcrumb .sep { color: var(--text-dim); }
+
+.files-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 2px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .12s;
+}
+.file-item:hover { border-color: var(--accent); }
+.file-item .icon { flex-shrink: 0; font-size: 15px; }
+.file-item .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-item .size {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.files-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 24px;
+}
+
 /* ── authentication gate ─────────────────────────────────────────────────── */
 
 .auth-gate {
@@ -824,7 +905,7 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
 /* ── responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 860px) {
-  .memory-pane, .jobs-pane {
+  .memory-pane, .jobs-pane, .files-pane {
                  position: fixed; right: 0; top: 0; bottom: 0;
                  background: var(--bg); z-index: 10; box-shadow: -12px 0 30px rgba(0,0,0,.5); }
   .chats-pane { position: fixed; left: 0; top: 0; bottom: 0;
