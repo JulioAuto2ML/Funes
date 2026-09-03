@@ -858,6 +858,37 @@ void FunesApi::mount(httplib::Server& srv) {
         res.set_content(content, mime);
     });
 
+    // ── workspace file/folder deletion ────────────────────────────────────────
+    srv.Delete("/api/files", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        const std::string subpath = req.get_param_value("path");
+        if (subpath.empty())
+            return json_error(res, 400, "Missing 'path' parameter");
+
+        const fs::path workspace =
+            funes::fsguard::workspace_for(workspace_dir_, user->id, "");
+        auto resolved = funes::fsguard::resolve(workspace, subpath);
+        if (!resolved)
+            return json_error(res, 400, "Invalid path");
+
+        if (fs::weakly_canonical(*resolved) == fs::weakly_canonical(workspace))
+            return json_error(res, 400, "Cannot delete the workspace root");
+
+        std::error_code ec;
+        if (fs::is_directory(*resolved, ec)) {
+            fs::remove_all(*resolved, ec);
+        } else if (fs::is_regular_file(*resolved, ec)) {
+            fs::remove(*resolved, ec);
+        } else {
+            return json_error(res, 404, "Not found");
+        }
+
+        if (ec) return json_error(res, 500, "Delete failed: " + ec.message());
+        json_reply(res, 200, {{"ok", true}});
+    });
+
     // ── batch upload (save files to a named workspace folder) ─────────────────
     srv.Post("/api/upload-batch", [this](const httplib::Request& req, httplib::Response& res) {
         auto user = require_auth(req, res);

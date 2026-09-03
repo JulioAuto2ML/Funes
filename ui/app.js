@@ -820,6 +820,17 @@ function formatFileSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+async function deleteFile(path) {
+  if (!confirm('Delete "' + path.split('/').pop() + '"?')) return;
+  try {
+    const resp = await fetch('/api/files?path=' + encodeURIComponent(path), {
+      method: 'DELETE',
+    });
+    const data = await resp.json();
+    if (data.ok) refreshFiles();
+  } catch (e) { /* swallowed */ }
+}
+
 async function refreshFiles(path) {
   if (path === undefined) path = filesCurrentPath;
   filesCurrentPath = path;
@@ -855,7 +866,26 @@ async function refreshFiles(path) {
 
     // file list
     els.filesList.innerHTML = '';
-    if (data.files.length === 0) {
+
+    // ".." parent entry when inside a subfolder
+    if (path) {
+      const up = document.createElement('div');
+      up.className = 'file-item';
+      const upIcon = document.createElement('span');
+      upIcon.className = 'icon';
+      upIcon.textContent = '⬆';
+      up.appendChild(upIcon);
+      const upName = document.createElement('span');
+      upName.className = 'name';
+      upName.textContent = '..';
+      up.appendChild(upName);
+      const parentParts = parts.slice(0, -1);
+      const parentPath = parentParts.join('/');
+      up.addEventListener('click', () => refreshFiles(parentPath));
+      els.filesList.appendChild(up);
+    }
+
+    if (data.files.length === 0 && !path) {
       const empty = document.createElement('div');
       empty.className = 'files-empty';
       empty.textContent = 'No files here yet.';
@@ -884,13 +914,23 @@ async function refreshFiles(path) {
         item.appendChild(size);
       }
 
+      const filePath = path ? path + '/' + f.name : f.name;
+
+      const del = document.createElement('button');
+      del.className = 'file-delete';
+      del.textContent = '×';
+      del.title = 'Delete';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteFile(filePath);
+      });
+      item.appendChild(del);
+
       if (f.type === 'directory') {
-        const subpath = path ? path + '/' + f.name : f.name;
-        item.addEventListener('click', () => refreshFiles(subpath));
+        item.addEventListener('click', () => refreshFiles(filePath));
       } else {
-        const dlPath = path ? path + '/' + f.name : f.name;
         item.addEventListener('click', () => {
-          window.open('/api/files/download?path=' + encodeURIComponent(dlPath), '_blank');
+          window.open('/api/files/download?path=' + encodeURIComponent(filePath), '_blank');
         });
       }
 

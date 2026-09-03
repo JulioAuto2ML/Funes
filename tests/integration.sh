@@ -664,6 +664,29 @@ check "list files rejects traversal" "$OUT" '"ok":false'
 OUT=$(curl -s "$BASE/api/files/download?path=../../etc/passwd")
 check "download rejects traversal"   "$OUT" '"ok":false'
 
+echo "— workspace file deletion"
+# Create a file to delete.
+echo "temp" > "$WORKSPACE/1/deleteme.txt"
+OUT=$(curl -s -X DELETE "$BASE/api/files?path=deleteme.txt")
+check "delete file ok"         "$OUT" '"ok":true'
+# Verify it's gone.
+OUT=$(curl -s "$BASE/api/files")
+check_absent "deleted file gone" "$OUT" 'deleteme.txt'
+
+# Delete a folder (the "book" dir from batch upload).
+OUT=$(curl -s -X DELETE "$BASE/api/files?path=book")
+check "delete folder ok"       "$OUT" '"ok":true'
+OUT=$(curl -s "$BASE/api/files")
+check_absent "deleted folder gone" "$OUT" '"name":"book"'
+
+# Path traversal must be rejected.
+OUT=$(curl -s -X DELETE "$BASE/api/files?path=../../etc")
+check "delete rejects traversal" "$OUT" '"ok":false'
+
+# Missing path param must be rejected.
+OUT=$(curl -s -X DELETE "$BASE/api/files")
+check "delete requires path"   "$OUT" '"ok":false'
+
 echo "— admin-only routes (a member must not reach them)"
 # A second, non-admin account. Created through the CLI against the same
 # database file the running server holds open — WAL plus busy_timeout makes

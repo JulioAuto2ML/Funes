@@ -765,6 +765,20 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   font-size: 11px;
   color: var(--text-dim);
 }
+.file-item .file-delete {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s, color .12s;
+}
+.file-item:hover .file-delete { opacity: 1; }
+.file-item .file-delete:hover { color: var(--error); }
 
 .files-empty {
   color: var(--text-dim);
