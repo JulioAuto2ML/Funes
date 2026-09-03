@@ -116,7 +116,7 @@ void register_tool_builder(ToolRegistry& reg,
 void register_agent_builder(ToolRegistry& reg, const std::string& agents_dir,
                             std::function<void()> reload_agents);  // create_agent
 void register_file_tools(ToolRegistry& reg,
-                         const std::string& workspace_dir);        // read_file, write_file
+                         const std::string& workspace_dir);        // read_file, write_file, list_files
 void register_shell_tool(ToolRegistry& reg,
                          const std::string& workspace_dir);        // execute_shell
 void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,

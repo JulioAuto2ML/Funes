@@ -14,6 +14,7 @@ tool_choice: auto
 tools:
   - read_file
   - write_file
+  - list_files
   - recall
   - remember
   - web_search

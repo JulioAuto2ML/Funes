@@ -2,7 +2,7 @@ name: funes
 description: The default assistant. Remembers everything you tell it and uses that memory in every answer.
 model: default
 tool_choice: auto
-tools: [remember, recall, web_search, web_fetch, compress_context, read_file, write_file, delegate_to_agent, read_result]
+tools: [remember, recall, web_search, web_fetch, compress_context, read_file, write_file, list_files, delegate_to_agent, read_result]
 max_steps: 8
 context_limit: 8192
 # The orchestrator answers or delegates; researching at length is what

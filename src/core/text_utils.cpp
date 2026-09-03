@@ -78,6 +78,19 @@ std::string detect_image_mime(const std::string& data) {
 }
 
 
+std::string detect_image_mime_by_ext(const std::string& filename) {
+    auto dot = filename.rfind('.');
+    if (dot == std::string::npos) return "";
+    std::string ext = filename.substr(dot);
+    for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (ext == ".png")                return "image/png";
+    if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
+    if (ext == ".gif")                return "image/gif";
+    if (ext == ".webp")               return "image/webp";
+    if (ext == ".svg")                return "image/svg+xml";
+    return "";
+}
+
 std::string json_string(const nlohmann::json& obj, const char* key,
                         const std::string& def) {
     if (!obj.is_object()) return def;

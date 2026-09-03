@@ -226,10 +226,41 @@ int test_pdf_no_text_extraction() {
     return 0;
 }
 
+int test_list_files() {
+    fs::path ws = fs::temp_directory_path() / "funes_test_list_files";
+    fs::remove_all(ws);
+    fs::create_directories(ws / "1" / "subdir");
+    std::ofstream(ws / "1" / "a.txt") << "hello";
+    std::ofstream(ws / "1" / "b.txt") << "world";
+    std::ofstream(ws / "1" / ".hidden") << "skip";
+
+    ToolRegistry reg;
+    register_file_tools(reg, ws.string());
+    ToolContext ctx{"funes", "s1"};
+
+    auto r = reg.call("list_files", json::object(), ctx);
+    CHECK(!r.error);
+    CHECK(r.text.find("subdir/") != std::string::npos);
+    CHECK(r.text.find("a.txt") != std::string::npos);
+    CHECK(r.text.find("b.txt") != std::string::npos);
+    CHECK(r.text.find(".hidden") == std::string::npos);
+
+    auto r2 = reg.call("list_files", {{"path", "subdir"}}, ctx);
+    CHECK(!r2.error);
+    CHECK(r2.text.find("empty") != std::string::npos || r2.text.find("No files") != std::string::npos);
+
+    auto r3 = reg.call("list_files", {{"path", "../../etc"}}, ctx);
+    CHECK(r3.error);
+
+    fs::remove_all(ws);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_fs_guard();
     rc |= test_read_write_file();
+    rc |= test_list_files();
     rc |= test_pdf_extraction();
     rc |= test_pdf_no_text_extraction();
     if (rc == 0) std::cout << "test_file_tools: all tests passed\n";

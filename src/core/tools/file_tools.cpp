@@ -135,6 +135,60 @@ ToolResult write_file_handler(const fs::path& default_workspace, const json& arg
             std::to_string(content.size()) + " bytes to " + resolved->string()};
 }
 
+ToolResult list_files_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
+    const std::string dir_path = args.value("path", "");
+    const fs::path workspace = effective_workspace(default_workspace, ctx);
+
+    fs::path target = workspace;
+    if (!dir_path.empty()) {
+        auto resolved = funes::fsguard::resolve(workspace, dir_path);
+        if (!resolved)
+            return {"Refusing to list outside the workspace (" + workspace.string() + ")", true};
+        target = *resolved;
+    }
+
+    std::error_code ec;
+    if (!fs::is_directory(target, ec))
+        return {"Not a directory: " + dir_path, true};
+
+    json entries = json::array();
+    for (const auto& entry : fs::directory_iterator(target, ec)) {
+        const auto& p = entry.path();
+        const std::string name = p.filename().string();
+        if (name.empty() || name[0] == '.') continue;
+
+        json item = {{"name", name}};
+        if (entry.is_directory(ec)) {
+            item["type"] = "directory";
+        } else if (entry.is_regular_file(ec)) {
+            item["type"] = "file";
+            item["size"] = entry.file_size(ec);
+        } else {
+            continue;
+        }
+        entries.push_back(std::move(item));
+    }
+
+    std::sort(entries.begin(), entries.end(), [](const json& a, const json& b) {
+        if (a["type"] != b["type"]) return a["type"] == "directory";
+        return a["name"] < b["name"];
+    });
+
+    if (entries.empty())
+        return {dir_path.empty() ? "Workspace is empty." : ("No files in " + dir_path)};
+
+    std::string out;
+    for (const auto& e : entries) {
+        if (e["type"] == "directory") {
+            out += e["name"].get<std::string>() + "/\n";
+        } else {
+            out += e["name"].get<std::string>() + "  (" +
+                   std::to_string(e["size"].get<uintmax_t>()) + " bytes)\n";
+        }
+    }
+    return {out};
+}
+
 } // namespace
 
 void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
@@ -182,6 +236,23 @@ void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
         },
         [workspace](const json& args, const ToolContext& ctx) {
             return write_file_handler(workspace, args, ctx);
+        }
+    });
+
+    reg.add({
+        "list_files",
+        "List files and subdirectories in this agent's workspace directory. "
+        "Pass a relative path to list a subdirectory, or omit it to list the "
+        "workspace root. Directories sort first, then files with their sizes.",
+        {
+            {"type", "object"},
+            {"properties", {
+                {"path", {{"type", "string"}, {"description",
+                    "Subdirectory to list (relative to workspace). Omit for the root."}}}
+            }}
+        },
+        [workspace](const json& args, const ToolContext& ctx) {
+            return list_files_handler(workspace, args, ctx);
         }
     });
 }

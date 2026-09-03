@@ -24,6 +24,8 @@
 //                                       schedule_job/cancel_job/run_job_now tools — see
 //                                       core/tools/cron_tool.cpp). ?all=1 lists every
 //                                       account's jobs with their owner [admin]
+//   GET    /api/files                 — ?path= → list files in the user's workspace
+//   GET    /api/files/download       — ?path= → download a file from the workspace
 //   POST   /api/upload               — multipart 'file' → saved into the workspace,
 //                                       returns a text preview for the UI to embed
 //   POST   /api/upload-batch         — multipart 'file' (multiple) + optional 'folder'

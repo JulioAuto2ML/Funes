@@ -767,6 +767,97 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {{"ok", true}, {"jobs", arr}, {"scope", all ? "all" : "mine"}});
     });
 
+    // ── workspace file listing ─────────────────────────────────────────────────
+    srv.Get("/api/files", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        const std::string subpath = req.get_param_value("path");
+        const fs::path workspace =
+            funes::fsguard::workspace_for(workspace_dir_, user->id, "");
+
+        fs::path target = workspace;
+        if (!subpath.empty()) {
+            auto resolved = funes::fsguard::resolve(workspace, subpath);
+            if (!resolved)
+                return json_error(res, 400, "Invalid path");
+            target = *resolved;
+        }
+
+        std::error_code ec;
+        if (!fs::is_directory(target, ec))
+            return json_error(res, 404, "Not a directory");
+
+        json entries = json::array();
+        for (const auto& entry : fs::directory_iterator(target, ec)) {
+            const auto& p = entry.path();
+            const std::string name = p.filename().string();
+            if (name.empty() || name[0] == '.') continue;
+
+            json item = {{"name", name}};
+            if (entry.is_directory(ec)) {
+                item["type"] = "directory";
+            } else if (entry.is_regular_file(ec)) {
+                item["type"] = "file";
+                item["size"] = entry.file_size(ec);
+                const std::string mime = funes::detect_image_mime_by_ext(name);
+                if (!mime.empty()) item["mime"] = mime;
+            } else {
+                continue;
+            }
+            entries.push_back(std::move(item));
+        }
+
+        std::sort(entries.begin(), entries.end(), [](const json& a, const json& b) {
+            if (a["type"] != b["type"]) return a["type"] == "directory";
+            return a["name"] < b["name"];
+        });
+
+        json_reply(res, 200, {
+            {"ok", true},
+            {"path", subpath.empty() ? std::string(".") : subpath},
+            {"files", entries}
+        });
+    });
+
+    // ── workspace file download ──────────────────────────────────────────────
+    srv.Get("/api/files/download", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        const std::string subpath = req.get_param_value("path");
+        if (subpath.empty())
+            return json_error(res, 400, "Missing 'path' parameter");
+
+        const fs::path workspace =
+            funes::fsguard::workspace_for(workspace_dir_, user->id, "");
+        auto resolved = funes::fsguard::resolve(workspace, subpath);
+        if (!resolved)
+            return json_error(res, 400, "Invalid path");
+
+        std::error_code ec;
+        if (!fs::is_regular_file(*resolved, ec))
+            return json_error(res, 404, "Not a file");
+
+        std::ifstream f(*resolved, std::ios::binary);
+        if (!f) return json_error(res, 500, "Could not read file");
+        std::ostringstream ss;
+        ss << f.rdbuf();
+        const std::string content = ss.str();
+
+        const std::string filename = resolved->filename().string();
+        res.set_header("Content-Disposition",
+            "attachment; filename=\"" + filename + "\"");
+
+        std::string mime = "application/octet-stream";
+        const std::string ext_mime = funes::detect_image_mime_by_ext(filename);
+        if (!ext_mime.empty()) mime = ext_mime;
+        else if (funes::looks_like_text(content)) mime = "text/plain; charset=utf-8";
+        else if (looks_like_pdf(content)) mime = "application/pdf";
+
+        res.set_content(content, mime);
+    });
+
     // ── batch upload (save files to a named workspace folder) ─────────────────
     srv.Post("/api/upload-batch", [this](const httplib::Request& req, httplib::Response& res) {
         auto user = require_auth(req, res);

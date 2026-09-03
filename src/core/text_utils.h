@@ -27,6 +27,11 @@ void truncate_utf8_safe(std::string& s, size_t max_bytes);
 // for a recognized image format, or "" if `data` isn't one.
 std::string detect_image_mime(const std::string& data);
 
+// Extension-based image mime type — returns "" for non-image extensions.
+// Used where reading the file content just to sniff magic bytes is too
+// expensive (e.g. directory listings).
+std::string detect_image_mime_by_ext(const std::string& filename);
+
 // json::dump() throws on invalid UTF-8 by default (json::type_error.316).
 // Most values built from the model's own output are already guaranteed
 // valid (they came from a successful json::parse upstream), but anything

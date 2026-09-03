@@ -635,6 +635,35 @@ check "batch upload skips oversize file" "$OUT" '"skipped":'
 check "batch upload oversize reason"     "$OUT" 'exceeds 5 MB'
 rm -f "$OVERSIZE"
 
+echo "— workspace file listing and download"
+# The batch upload above put files into the "book" folder. List them.
+OUT=$(curl -s "$BASE/api/files?path=book")
+check "list files ok"           "$OUT" '"ok":true'
+check "list files has entries"  "$OUT" '"files":'
+check "list files path"         "$OUT" '"path":"book"'
+
+# List the workspace root — should show the "book" directory at least.
+OUT=$(curl -s "$BASE/api/files")
+check "list root ok"            "$OUT" '"ok":true'
+check "list root has book dir"  "$OUT" '"name":"book"'
+
+# Download one of the batch-uploaded files.
+# The batch upload used sanitize_filename which strips to basename only.
+FIRST_FILE=$(curl -s "$BASE/api/files?path=book" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['name'])" 2>/dev/null)
+if [ -n "$FIRST_FILE" ]; then
+    OUT=$(curl -s "$BASE/api/files/download?path=book/$FIRST_FILE")
+    check "download file content" "$OUT" 'chapter'
+else
+    echo "  SKIP: could not extract filename from listing"
+fi
+
+# Path traversal must be rejected.
+OUT=$(curl -s "$BASE/api/files?path=../../etc")
+check "list files rejects traversal" "$OUT" '"ok":false'
+
+OUT=$(curl -s "$BASE/api/files/download?path=../../etc/passwd")
+check "download rejects traversal"   "$OUT" '"ok":false'
+
 echo "— admin-only routes (a member must not reach them)"
 # A second, non-admin account. Created through the CLI against the same
 # database file the running server holds open — WAL plus busy_timeout makes
