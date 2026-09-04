@@ -763,8 +763,14 @@ POST   /api/memories                  {text, agent?} — teach a fact
 DELETE /api/memories/<id>             forget
 GET    /api/history?session=          a session's turns
 GET    /api/sessions?limit=           conversation list: preview + last activity + turn count
-POST   /api/upload                    multipart 'file' → saved to the workspace, plus a text
+GET    /api/jobs                      scheduled cron jobs (admin: ?all=1 for every account's)
+GET    /api/files?path=              list files in the user's workspace
+GET    /api/files/download?path=     download a workspace file
+DELETE /api/files?path=              delete a workspace file or folder
+POST   /api/upload                   multipart 'file' → saved to the workspace, plus a text
                                        preview (text/PDF) or base64 (image) for the UI to send on
+POST   /api/upload-batch             multipart 'file' (multiple) + optional 'folder' → saves
+                                       files to a named subfolder, returns a manifest
 ```
 
 Everything except the public routes above is scoped to the signed-in user:
