@@ -533,7 +533,12 @@ std::string today_local() {
 // same math as before, 25 candidates at ~1200 chars is ~10K tokens, still well
 // under curator's 32768 context_limit.
 constexpr size_t kExcerptBytes         = 1200;
-constexpr size_t kMinPageBytes         = 2000;
+// 1200, not 2000: a genuine 900-1900-byte article (a wire brief, a release
+// note) is still enough to write one post from, and the 2000 floor was
+// dropping several such candidates every run — see 2026-09-06's starved pool.
+// The garbage this filter really targets (login walls, JS stubs) comes back
+// at 80-150 bytes and is still caught.
+constexpr size_t kMinPageBytes         = 1200;
 constexpr size_t kMaxPageBytes         = 64 * 1024;
 
 ToolResult harvest_handler(MemoryStore& memory, const std::string& default_workspace,

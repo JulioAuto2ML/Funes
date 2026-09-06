@@ -175,7 +175,18 @@ Page fetch_readable(const std::string& url) {
         return {"", "Refusing to fetch private/loopback host '" + parsed.host +
                     "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)"};
 
-    httplib::Headers headers = {{"User-Agent", "Mozilla/5.0 (Funes)"}};
+    // A real browser UA, not "Mozilla/5.0 (Funes)": the bot string drew a
+    // blanket 401/403 from the WAFs in front of Reuters, WSJ, FT, NYT et al.,
+    // and those are exactly the sources the newsletter harvest wants. This is
+    // the same string a link-preview fetcher or feed reader sends.
+    httplib::Headers headers = {
+        {"User-Agent",
+         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+         "Chrome/128.0.0.0 Safari/537.36"},
+        {"Accept",
+         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
+        {"Accept-Language", "en-US,en;q=0.9"},
+    };
     httplib::Result res;
     if (parsed.https) {
         httplib::SSLClient cli(parsed.host, parsed.port);

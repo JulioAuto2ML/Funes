@@ -34,20 +34,28 @@ sources:
   # (issue.cpp) — swapping in whichever pool candidate a post's text actually
   # matches, when the model names the wrong id for an otherwise-accurate
   # post — only has candidates to work with if the pool is wider than
-  # `select.count`. Caps are 20/40 (harvest.cpp); this stays well under both.
-  per_query: 12
-  max_candidates: 30
-  max_age_days: 2
-  # Don't run the same story twice in a week.
-  dedup_against_last_issues: 7
+  # `select.count`. Caps are 20/40 (harvest.cpp). Raised again 2026-09-06
+  # after a slow-news Sunday starved the pool to 4-6 candidates.
+  per_query: 16
+  max_candidates: 40
+  # 4, not 2: a weekend / slow news day needs the extra reach, and the
+  # curator's fallback of re-running with time_range="week" is pointless
+  # while this cap throws the wider results straight back out (2026-09-06:
+  # second harvest kept 4 vs the first call's 6).
+  max_age_days: 4
+  # Don't run the same story twice in four days. Was 7 — combined with the
+  # 2-day age cap and the daily paywall fetch failures it starved the pool.
+  dedup_against_last_issues: 4
   # Added to the global social-platform exclusions in tavily.cpp.
   exclude_domains: []
 
 selection:
-  count: 10
+  count: 9
   # A quiet news day may run short rather than pad. Below this the issue is
   # refused and the run record says so — see docs/dev-plan-publications.md §8.4.
-  min_count: 8
+  # Dropped 8 -> 6 on 2026-09-06: an 8-item floor turned every thin pool into
+  # a total failure (nothing sent) instead of a short issue.
+  min_count: 6
   max_per_source: 2
   # Two takes on one story is a choice of outlet; three is a thin issue.
   max_per_story: 2

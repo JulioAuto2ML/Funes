@@ -14,7 +14,7 @@ max_steps: 24
 context_limit: 32768
 require_tools: [harvest_candidates, publish_issue]
 tool_limits:
-  harvest_candidates: 2
+  harvest_candidates: 3
   read_result: 8
   publish_issue: 4
 
@@ -47,6 +47,14 @@ system_prompt: |
       call it once more with a wider `time_range` ("week"), or with your own
       `queries` for angles the configured ones missed. Do not go looking
       elsewhere — you have no other way to find stories, by design.
+
+      A thin pool is normal on a quiet day. If after widening the pool still
+      has fewer than `select.min_count` candidates, do NOT keep retrying and
+      do NOT invent material: go straight to `publish_issue` with exactly the
+      candidates the pool contains (their real `id`s, nothing else). If it is
+      refused as below the floor, stop and report the thin day in step 4.
+      Only ever pass an `id` that appears in the pool you were handed —
+      there is never an item to publish that harvest did not return.
 
   Step 2 — read what you need.
       The excerpt is usually enough to write from. When it isn't — when you need

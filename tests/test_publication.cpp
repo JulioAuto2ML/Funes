@@ -114,8 +114,9 @@ int test_the_shipped_ai_pulse_config_loads() {
     CHECK(pub.title == "AI Pulse");
     CHECK(pub.subject.find("{date}") != std::string::npos);
     CHECK(pub.queries.size() >= 3);
-    CHECK(pub.min_count == 8);
-    CHECK(pub.count == 10);
+    CHECK(pub.min_count == 6);
+    CHECK(pub.count == 9);
+    CHECK(pub.min_count <= pub.count);
     CHECK(pub.artifacts.size() == 2);
     CHECK(pub.channels.size() == 1);
     CHECK(pub.channels[0].kind == "email");
