@@ -46,9 +46,12 @@ Environment=FUNES_WORKSPACE_DIR=/home/julio/.funes-v4/workspace
 Environment=FUNES_PORT=8485
 Environment=FUNES_HOST=0.0.0.0
 
-# ── shared with 3.x, and only these ──────────────────────────────────────────
-Environment=FUNES_LLM_URL=http://yoda:8080
-Environment=FUNES_EMBED_URL=http://yoda:8081
+# ── LLM backends (always local) ──────────────────────────────────────────────
+# 127.0.0.1, not the hostname: llama-server binds 0.0.0.0 (IPv4 only), and
+# when the wired interface is down the hostname resolves to IPv6 first,
+# which times out silently — broke every cron job on 2026-09-05.
+Environment=FUNES_LLM_URL=http://127.0.0.1:8080
+Environment=FUNES_EMBED_URL=http://127.0.0.1:8081
 
 # ── deliberately off ─────────────────────────────────────────────────────────
 # Empty, not absent: an empty value still blocks config/funes.conf (which sets
