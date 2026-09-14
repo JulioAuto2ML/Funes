@@ -1,5 +1,7 @@
 name: whatsapp-assistant
 description: Searches, reads, and summarizes WhatsApp chats/messages via a local WhatsApp Web bridge (whatsapp-mcp), and can send a text reply on request. No file/audio sending, no media download.
+shared_identity: >
+  the installation's WhatsApp connection (one phone number, one bridge)
 model: default
 tool_choice: auto
 tools: [search_contacts, list_messages, list_chats, get_chat, get_direct_chat_by_contact, get_contact_chats, get_last_interaction, get_message_context, send_message, recall, remember]

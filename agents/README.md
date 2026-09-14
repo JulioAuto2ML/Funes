@@ -74,6 +74,14 @@ same account the caller is acting for.
   agent-creation to `operator` -- it can write files but cannot register them.
 - `curator` runs 30+ tool calls per newsletter issue. Funes must never attempt
   to do the same work in parallel.
+- `gmail-assistant`, `whatsapp-assistant` and `curator` declare
+  `shared_identity`. Their tools authenticate as the installation — one IMAP
+  account, one phone number, one subscriber list — so granting one to a second
+  account hands over the first account's data, however well Funes isolates its
+  own. The field grants and restricts nothing by itself (the agent allowlist
+  still decides); it changes what a caller is *told* when the agent is
+  unavailable, because "ask an administrator" is good advice for an allowlist
+  and bad advice for this. See `src/core/agent_roster.h`.
 - `council-panelist` has no tools at all. That is the point: three independent
   opinions are only independent if none of them can look at what the others
   saw. Its `answer_schema` is what makes its reply mergeable by a tool.
@@ -100,6 +108,8 @@ answer_schema:                    # JSON shape enforcement
   required: [answer]
 
 # Optional infrastructure
+shared_identity: >                # this agent's tools authenticate as the
+  the installation's Gmail mailbox # *installation*, not as the caller
 workspace_dir: subfolder          # nested inside the caller's own workspace
                                   # (<root>/<user_id>/subfolder). An absolute
                                   # path is honoured verbatim and is then

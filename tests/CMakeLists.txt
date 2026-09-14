@@ -83,6 +83,10 @@ add_test(NAME publication COMMAND test_publication
 
 # Runs from the project root for the same reason test_publication does: one of
 # its cases loads pipelines/voc.yaml, the config the five VoC agents run on.
+add_executable(test_agent_roster test_agent_roster.cpp)
+target_link_libraries(test_agent_roster PRIVATE funes_core)
+add_test(NAME agent_roster COMMAND test_agent_roster)
+
 add_executable(test_lang_detect test_lang_detect.cpp)
 target_link_libraries(test_lang_detect PRIVATE funes_core)
 add_test(NAME lang_detect COMMAND test_lang_detect)

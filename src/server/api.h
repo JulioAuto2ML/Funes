@@ -96,12 +96,14 @@ public:
     // by name. Feeds AgentDefaults::agent_roster (see agent.h) so a
     // delegating agent's system prompt always reflects agents/*.yaml as
     // currently loaded, without hardcoding names in any one agent's prompt.
-    std::string agent_roster(const std::string& exclude) const;
+    funes::Roster agent_roster(const std::string& exclude,
+                               const funes::Permissions& perms) const;
 
     // Lets main() inject the AgentDefaults::agent_roster callback into the
     // AgentDefaults copy FunesApi holds internally, once `api` (the roster's
     // own data source) exists. See main.cpp.
-    void set_agent_roster(std::function<std::string(const std::string&)> fn) {
+    void set_agent_roster(
+            std::function<funes::Roster(const std::string&, const funes::Permissions&)> fn) {
         defaults_.agent_roster = std::move(fn);
     }
 

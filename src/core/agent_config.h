@@ -72,6 +72,22 @@ struct AgentConfig {
     // baking agent-specific routing into the orchestrator's own prompt.
     std::string delegation_notes;
 
+    // Set when this agent's tools authenticate as the *installation* rather
+    // than as the caller — an MCP server holding one mailbox's credentials,
+    // a bridge connected to one phone number, a publish directory with one
+    // subscriber list. The value is the prose reason a person reads
+    // ("the installation's Gmail mailbox").
+    //
+    // Funes isolates its own data — memories, turns, stored results,
+    // workspace files — in SQL and in fs_guard. It cannot isolate an account
+    // on somebody else's system reached with credentials the whole install
+    // shares, so an agent that carries one is not a thing an admin can
+    // safely grant per-account. Declaring it here lets the runtime say that,
+    // instead of leaving a member to read "you do not have access" and guess
+    // whether asking an admin would help. It grants nothing and restricts
+    // nothing by itself: the agent allowlist is still what decides.
+    std::string shared_identity;
+
     // Which agent's memory pool recall()/remember() read and write for this
     // agent — both the pre-injected recall in FunesAgent::run and the
     // recall/remember tools. Defaults to this agent's own name (i.e. every

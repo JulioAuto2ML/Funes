@@ -24,6 +24,7 @@
 
 #pragma once
 #include "agent_config.h"
+#include "agent_roster.h"
 #include "context_compressor.h"
 #include "llm_client.h"
 #include "memory.h"
@@ -48,12 +49,19 @@ struct AgentDefaults {
     int         memory_recall_k = 4;    // memories injected per run
     bool        auto_memory  = true;    // store each exchange as a memory
 
-    // Returns a "- name: description" line per other loaded agent, excluding
-    // the caller (by name). Wired up in main.cpp once FunesApi owns the agent
-    // table, so an agent with the delegate_to_agent tool learns its roster
-    // from agents/*.yaml at request time instead of a hardcoded prompt list.
+    // The caller's view of the other loaded agents, excluding itself: the ones
+    // it may delegate to, and the ones it may not with the reason why. Wired
+    // up in main.cpp once FunesApi owns the agent table, so an agent with the
+    // delegate_to_agent tool learns its roster from agents/*.yaml at request
+    // time instead of from a hardcoded prompt list.
+    //
+    // Takes the caller's permissions because an unfiltered roster is worse
+    // than no roster: the model reads about an agent it cannot use, delegates
+    // to it, is refused, and then has to explain a failure whose cause is not
+    // in its context — so it invents one. See core/agent_roster.h.
+    //
     // Left unset in contexts without an agent table (e.g. tests).
-    std::function<std::string(const std::string&)> agent_roster;
+    std::function<funes::Roster(const std::string&, const funes::Permissions&)> agent_roster;
 
     // 5.0: the locale of the account a run is acting for ("es", "pt-BR"), or
     // "" when it cannot be resolved. Wired in main.cpp from UserStore, the

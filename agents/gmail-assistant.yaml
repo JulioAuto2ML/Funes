@@ -3,6 +3,8 @@ description: Searches, reads, and drafts Gmail via IMAP/SMTP (imap-email-mcp), r
 delegation_notes: >
   When the user says "draft" or "borrador" about an email, delegate here
   to create a real Gmail Draft — don't use write_file for it.
+shared_identity: >
+  the installation's Gmail mailbox (one IMAP account, shared by the whole install)
 model: default
 tool_choice: auto
 tools: [search_emails, list_emails, get_email, list_folders, list_drafts, get_draft, create_draft, update_draft, recall, remember]

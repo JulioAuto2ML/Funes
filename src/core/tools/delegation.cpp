@@ -21,6 +21,7 @@
 // result_id it can dereference with read_result. Nothing to plumb here.
 
 #include "../agent.h"
+#include "../agent_roster.h"
 #include "../tools.h"
 #include "../run_outcome.h"
 #include <iostream>
@@ -71,9 +72,7 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
     if (!ctx.permissions.allows_agent(target.name)) {
         std::cerr << "[delegate] REFUSED: user " << ctx.user_id
                   << " not permitted to use agent '" << target.name << "'\n";
-        return {"You do not have access to the agent '" + target.name +
-                "'. Answer with what you can do yourself, or tell the user "
-                "this needs an account with access to it.", true};
+        return {funes::delegation_refusal(target.name, target.shared_identity), true};
     }
 
     if (g_delegation_depth >= kMaxDelegationDepth) {

@@ -322,7 +322,9 @@ int main(int argc, char** argv) {
     // construction and applied to both copies of `defaults` in play: the
     // one FunesApi already copied into itself (used for top-level turns),
     // and main's local one (used for delegated sub-agents below).
-    auto agent_roster = [&api](const std::string& exclude) { return api.agent_roster(exclude); };
+    auto agent_roster = [&api](const std::string& exclude, const funes::Permissions& perms) {
+        return api.agent_roster(exclude, perms);
+    };
     api.set_agent_roster(agent_roster);
     defaults.agent_roster = agent_roster;
 

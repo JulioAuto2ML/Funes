@@ -263,7 +263,14 @@ in four places, and all four are load-bearing: `/api/agents` filters,
 `dispatch_tool` re-checks — because a model that can't *see* a tool will
 sometimes write the call as prose, which `llm_client` rescues into a real
 call. `delegate_to_agent` checks the agent allowlist too, or the restriction
-is theatre. Permissions only restrict: `filter_tools` intersects with the
+is theatre. The roster an orchestrator sees is filtered by the caller's
+permissions and split in two (`src/core/agent_roster.h`): available agents, and
+denied ones named with the reason. An unfiltered roster was worse than none —
+the model read about an agent it could not use, delegated, was refused, and
+then improvised an explanation, usually blaming a server setting. The two
+reasons need opposite advice: an allowlist denial an admin can grant, while an
+agent declaring `shared_identity` (one mailbox, one phone number, one
+subscriber list) is not something an admin *can* grant per account. Permissions only restrict: `filter_tools` intersects with the
 agent's own list and expands an empty agent list first.
 
 ### Workspaces

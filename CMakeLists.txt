@@ -77,6 +77,7 @@ target_link_libraries(mcp PUBLIC
 add_library(funes_core STATIC
     src/core/llm_client.cpp
     src/core/agent_config.cpp
+    src/core/agent_roster.cpp
     src/core/publication.cpp
     src/core/pipeline.cpp
     src/core/context_compressor.cpp

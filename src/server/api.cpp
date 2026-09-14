@@ -286,16 +286,20 @@ std::vector<std::string> FunesApi::agent_names() const {
     return names;
 }
 
-std::string FunesApi::agent_roster(const std::string& exclude) const {
-    std::lock_guard<std::mutex> lock(agents_mu_);
-    std::ostringstream oss;
-    for (const auto& [name, cfg] : agents_) {  // agents_ is a std::map: sorted by name
-        if (name == exclude) continue;
-        oss << "- " << name << ": " << cfg.description << "\n";
-        if (!cfg.delegation_notes.empty())
-            oss << "  Note: " << cfg.delegation_notes << "\n";
+funes::Roster FunesApi::agent_roster(const std::string& exclude,
+                                     const funes::Permissions& perms) const {
+    std::vector<funes::RosterEntry> entries;
+    {
+        std::lock_guard<std::mutex> lock(agents_mu_);
+        for (const auto& [name, cfg] : agents_) {  // agents_ is a std::map: sorted by name
+            entries.push_back({name, cfg.description, cfg.delegation_notes,
+                               cfg.shared_identity});
+        }
     }
-    return oss.str();
+    // The split itself is a pure function over the table and the caller's
+    // permissions — see core/agent_roster.h for why it lives there and not in
+    // this class.
+    return funes::build_roster(entries, perms, exclude);
 }
 
 // ── routes ────────────────────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ delegation_notes: >
   send an issue by hand, and never route the job to a research agent
   instead. The URLs in a published issue are resolved from a fetched pool
   precisely so no model ever types one.
+shared_identity: >
+  the installation's publication working directory, subscriber list and sending account
 model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]

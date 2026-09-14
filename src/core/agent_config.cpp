@@ -48,6 +48,7 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     cfg.tool_choice   = root["tool_choice"]   ? root["tool_choice"].as<std::string>()   : "auto";
     cfg.workspace_dir    = root["workspace_dir"]    ? root["workspace_dir"].as<std::string>()    : "";
     cfg.delegation_notes = root["delegation_notes"] ? root["delegation_notes"].as<std::string>() : "";
+    cfg.shared_identity  = root["shared_identity"]  ? root["shared_identity"].as<std::string>()  : "";
     cfg.memory_scope     = root["memory_scope"]     ? root["memory_scope"].as<std::string>()     : cfg.name;
 
     if (root["context_limit"])

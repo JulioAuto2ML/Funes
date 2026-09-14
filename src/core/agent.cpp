@@ -294,23 +294,31 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
             const bool has_schedule =
                 std::find(cfg_.tools.begin(), cfg_.tools.end(), "schedule_job") != cfg_.tools.end();
             if (has_delegate || has_schedule) {
-                std::string roster = defaults_.agent_roster(cfg_.name);
-                if (!roster.empty()) {
+                const funes::Roster roster = defaults_.agent_roster(cfg_.name, perms);
+                if (!roster.available.empty()) {
                     if (has_delegate) {
-                        sys += "\n\n## Available specialist agents (delegate_to_agent)\n" + roster
+                        sys += "\n\n## Available specialist agents (delegate_to_agent)\n"
+                             + roster.available
                              + "Delegate to whichever of these fits the task; this list reflects "
-                               "whatever agents are currently loaded.";
+                               "whatever agents are currently loaded and this account may use.";
                     }
                     if (has_schedule) {
-                        sys += "\n\n## Available agents for schedule_job(kind=\"agent\")\n" + roster
+                        sys += "\n\n## Available agents for schedule_job(kind=\"agent\")\n"
+                             + roster.available
                              + "When scheduling a recurring task that needs one of these agents' "
                                "capabilities, use schedule_job with kind=\"agent\" and that "
                                "agent's name — don't write shell scripts to replicate what an "
                                "agent already does.";
                     }
                 }
+                // Named, not omitted. An agent the model has never heard of
+                // produces "Funes cannot do that"; a named one it may not use
+                // produces "this account cannot do that", which is the true
+                // answer and the one somebody can act on.
+                sys += funes::denied_agents_block(roster.denied);
             }
         }
+
         // Why a tool is missing, not just that it is. A withheld tool is
         // simply absent from the schema, so the model explains the gap from
         // whatever its own prompt says — and every prompt written before
