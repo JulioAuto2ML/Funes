@@ -224,8 +224,47 @@ int test_reopen_persists() {
     return 0;
 }
 
+int test_locale_is_a_preference_not_a_free_text_field() {
+    const std::string db = temp_db("locale");
+    UserStore users(db);
+    const int64_t id = users.create_user("julio", "pw", "Julio", UserStore::ROLE_ADMIN);
+    CHECK(id > 0);
+
+    // Every pre-5.0 account is English: everything before 5.0 was hardcoded
+    // English, and a migration that silently switched somebody's assistant
+    // into another language is a worse surprise than the wrong default.
+    auto u = users.find_by_id(id);
+    CHECK(u && u->locale == "en");
+
+    CHECK(users.set_locale(id, "es"));
+    CHECK(users.find_by_id(id)->locale == "es");
+    CHECK(users.set_locale(id, "pt-BR"));
+    CHECK(users.find_by_id(id)->locale == "pt-BR");
+
+    // The string reaches a model prompt and an i18n filename, so anything not
+    // obviously a language tag is refused rather than escaped on the way out.
+    CHECK(!users.set_locale(id, ""));
+    CHECK(!users.set_locale(id, "english"));
+    CHECK(!users.set_locale(id, "ES"));
+    CHECK(!users.set_locale(id, "es_ES"));
+    CHECK(!users.set_locale(id, "../en"));
+    CHECK(!users.set_locale(id, "es-br"));
+    CHECK(users.find_by_id(id)->locale == "pt-BR");   // none of them landed
+
+    // No such user is a refusal, not a silent success.
+    CHECK(!users.set_locale(99999, "es"));
+
+    CHECK(funes::language_name("es") == "Spanish");
+    CHECK(funes::language_name("pt-BR") == "Portuguese");
+    // An unlisted code comes back as itself: a slightly awkward instruction
+    // beats silently dropping the user's language.
+    CHECK(funes::language_name("sv") == "sv");
+    return 0;
+}
+
 int main() {
     int rc = 0;
+    rc |= test_locale_is_a_preference_not_a_free_text_field();
     rc |= test_create_and_find();
     rc |= test_duplicate_username_rejected();
     rc |= test_verify_login();

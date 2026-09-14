@@ -9,7 +9,7 @@ Current release: **4.0** (multi-user, `project(Funes VERSION 4.0.0)`).
 |---------|-------|-------------|--------|
 | **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | in progress |
 | **4.2** | Generic channel adapter + self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 | deferred (demand-driven) |
-| **5.0** | Connected memories + localization | v5 plan (8 phases) | in progress |
+| **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
 | **6.0** | Voice: STT + TTS sidecars | v6 voice research | researched |
 
 ## Why this order
@@ -55,10 +55,15 @@ voice work is tested against the recall behaviour it will live with.
 | 2 | `link_memories` / `unlink_memories` / `links_of` / `count_links` | done |
 | 3 | Recall widening: one-hop expansion + term-match fill, append-only | done |
 | 4 | `backfill_links()` + the background pass that feeds it | done |
-| 5 | UI string tables (`ui/i18n/*.json`), `t(key)`, `data-i18n` | next |
-| 6 | `users.locale`, detected from `navigator.language` with override | next |
-| 7 | Agent reply locale — a runtime instruction in `agent.cpp`, not per-YAML | next |
-| 8 | `memories.lang`, detected at `remember()` time; cross-lingual recall | next |
+| 5 | UI string tables (`ui/i18n/*.json`), `t(key)`, `data-i18n` | done |
+| 6 | `users.locale` + `PUT /api/me/locale`, detected from `navigator.language` | done |
+| 7 | Agent reply locale — a runtime instruction in `agent.cpp`, not per-YAML | done |
+| 8 | `memories.lang`, detected at `remember()` time (`lang_detect.h`) | done |
+
+Cross-lingual recall needs no code: a multilingual embedding model already
+matches a Spanish query to an English memory, and `memories.lang` is
+descriptive — nothing filters on it, so a misdetection costs a wrong label
+rather than a lost memory.
 
 Phases 1–4 are additive and safe by construction: with no links and no term
 matches, recall returns exactly what 4.x returned. The link backfill is the

@@ -5,6 +5,7 @@
 #include "users.h"
 #include "password.h"
 #include "sqlite3.h"
+#include <cctype>
 #include <iostream>
 #include <stdexcept>
 
@@ -52,11 +53,11 @@ void exec_or_throw(sqlite3* db, const char* sql) {
     }
 }
 
-// The seven columns of `users`, in the order read_user() expects. The password
-// hash is deliberately absent: it is only ever selected by the one query that
-// needs it (verify_login), so it cannot leak into a User handed to the API.
+// The columns of `users`, in the order read_user() expects. The password hash
+// is deliberately absent: it is only ever selected by the one query that needs
+// it (verify_login), so it cannot leak into a User handed to the API.
 const char USER_COLUMNS[] =
-    "id, username, display_name, role, permissions, created_at";
+    "id, username, display_name, role, permissions, created_at, locale";
 
 UserStore::User read_user(Stmt& s) {
     UserStore::User u;
@@ -66,7 +67,22 @@ UserStore::User read_user(Stmt& s) {
     u.role         = s.col_text(3);
     u.permissions  = s.col_text(4);
     u.created_at   = s.col_text(5);
+    u.locale       = s.col_text(6);
+    if (u.locale.empty()) u.locale = "en";
     return u;
+}
+
+// ALTER TABLE ADD COLUMN is not idempotent and SQLite has no IF NOT EXISTS for
+// it, so check the current shape first. Same helper as memory.cpp's, kept
+// local rather than shared: these are two independent connections to one file
+// and neither should have to include the other's header to migrate itself.
+void add_column_if_missing(sqlite3* db, const char* table, const char* column,
+                           const char* decl) {
+    Stmt s(db, ("PRAGMA table_info(" + std::string(table) + ")").c_str());
+    while (s.step())
+        if (s.col_text(1) == column) return;
+    exec_or_throw(db, ("ALTER TABLE " + std::string(table) + " ADD COLUMN " +
+                       column + " " + decl + ";").c_str());
 }
 
 } // namespace
@@ -117,6 +133,59 @@ void UserStore::migrate() {
             user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
         );
     )sql");
+
+    // 5.0: the language this account is addressed in. Defaults to 'en' so an
+    // existing install keeps the behaviour it had — everything up to 5.0 was
+    // hardcoded English, and a migration that silently switched somebody's
+    // assistant into another language would be a worse surprise than the
+    // wrong default.
+    add_column_if_missing(db_, "users", "locale", "TEXT NOT NULL DEFAULT 'en'");
+}
+
+namespace funes {
+
+// "es", "pt-BR" — a language subtag, optionally a region. Deliberately narrow:
+// this string is read back out into a model prompt and into an i18n filename,
+// so anything that is not obviously a locale is refused rather than escaped.
+bool valid_locale(const std::string& s) {
+    if (s.size() < 2 || s.size() > 5) return false;
+    if (!std::islower(static_cast<unsigned char>(s[0])) ||
+        !std::islower(static_cast<unsigned char>(s[1]))) return false;
+    if (s.size() == 2) return true;
+    if (s.size() != 5 || s[2] != '-') return false;
+    return std::isupper(static_cast<unsigned char>(s[3])) &&
+           std::isupper(static_cast<unsigned char>(s[4]));
+}
+
+// The language a locale names, for a sentence a model reads. Unknown codes
+// come back as the code itself: "Reply in pt-BR" is worse English than "Reply
+// in Portuguese" but it is still an instruction the model can act on, which
+// beats silently dropping the locale of a language nobody listed here.
+std::string language_name(const std::string& locale) {
+    const std::string lang = locale.substr(0, 2);
+    if (lang == "en") return "English";
+    if (lang == "es") return "Spanish";
+    if (lang == "pt") return "Portuguese";
+    if (lang == "fr") return "French";
+    if (lang == "de") return "German";
+    if (lang == "it") return "Italian";
+    if (lang == "ca") return "Catalan";
+    if (lang == "nl") return "Dutch";
+    if (lang == "gl") return "Galician";
+    if (lang == "eu") return "Basque";
+    return locale;
+}
+
+} // namespace funes
+
+bool UserStore::set_locale(int64_t user_id, const std::string& locale) {
+    if (!funes::valid_locale(locale)) return false;
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE users SET locale = ? WHERE id = ?");
+    s.bind_text(1, locale);
+    s.bind_int64(2, user_id);
+    s.step();
+    return sqlite3_changes(db_) > 0;
 }
 
 // ── accounts ──────────────────────────────────────────────────────────────────

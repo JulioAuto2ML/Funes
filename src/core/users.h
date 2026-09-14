@@ -30,6 +30,15 @@
 
 struct sqlite3;
 
+namespace funes {
+// "es", "pt-BR". Narrow on purpose: the string reaches a model prompt and an
+// i18n filename, so anything not obviously a locale is refused, not escaped.
+bool valid_locale(const std::string& s);
+// "Spanish" for "es". An unlisted code comes back as itself — a slightly
+// awkward instruction beats silently dropping the user's language.
+std::string language_name(const std::string& locale);
+} // namespace funes
+
 class UserStore {
 public:
     // Roles. `admin` may manage users and use every agent and tool; `member`
@@ -45,6 +54,13 @@ public:
         std::string role;         // ROLE_ADMIN | ROLE_MEMBER
         std::string permissions;  // JSON blob, "{}" until phase 4
         std::string created_at;   // UTC "YYYY-MM-DD HH:MM:SS"
+        // 5.0: the language this account is addressed in ("en", "es",
+        // "pt-BR"). Drives the UI string table and the reply-language
+        // instruction the agent runtime appends. 'en' for every pre-5.0 row:
+        // everything before 5.0 was hardcoded English, and a migration that
+        // switched somebody's assistant into another language would be a
+        // worse surprise than the wrong default.
+        std::string locale = "en";
 
         bool is_admin() const { return role == ROLE_ADMIN; }
     };
@@ -55,6 +71,9 @@ public:
 
     UserStore(const UserStore&)            = delete;
     UserStore& operator=(const UserStore&) = delete;
+
+    // False if the locale is not a well-formed language tag, or no such user.
+    bool set_locale(int64_t user_id, const std::string& locale);
 
     // ── accounts ──────────────────────────────────────────────────────────────
 

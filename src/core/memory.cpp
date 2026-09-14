@@ -16,6 +16,7 @@
 #include "memory.h"
 #include "sqlite3.h"
 #include "sqlite-vec.h"
+#include "lang_detect.h"
 #include "text_utils.h"
 #include <algorithm>
 #include <cctype>
@@ -286,6 +287,20 @@ void MemoryStore::migrate() {
             ON tool_results(user_id, session);
     )sql");
 
+    // ── 5.0 ───────────────────────────────────────────────────────────────────
+    // Which language a memory is written in. Nullable with no default: NULL is
+    // "not known", which is the truthful state for every row that predates the
+    // detector and is distinct from any language it might have been. Nothing
+    // filters recall on it — see lang_detect.h.
+    //
+    // Added here rather than beside the other add_column_if_missing calls
+    // above, and the position is load-bearing: the 4.0 `schema_user_scoped`
+    // rebuild between them recreates `memories` from an explicit column list,
+    // so a column added before it is silently dropped by it. On a fresh
+    // database that turns into "table memories has no column named lang" at
+    // the first remember(), which is exactly how this was found.
+    add_column_if_missing(db_, "memories", "lang", "TEXT");
+
     // ── 5.0: connected memories ───────────────────────────────────────────────
     // Links between memories. ON DELETE CASCADE matters more than it looks:
     // memory ids are recycled by SQLite, so a dangling link does not merely
@@ -476,12 +491,21 @@ int64_t MemoryStore::remember(int64_t user_id, const std::string& agent,
     std::lock_guard<std::mutex> lock(mu_);
 
     {
-        Stmt s(db_, "INSERT OR IGNORE INTO memories(user_id, agent, text, source) "
-                    "VALUES(?,?,?,?)");
+        // NULL, not "", when the text does not say which language it is: the
+        // column means "this is what language it is in", and an empty string
+        // would make "unlabelled" a value that sorts and groups alongside
+        // real ones. Detected on the write path because it is a word-list
+        // scan over one sentence — see lang_detect.h for why it is not a
+        // model call.
+        const std::string lang = funes::detect_language(text);
+        Stmt s(db_, "INSERT OR IGNORE INTO memories(user_id, agent, text, source, lang) "
+                    "VALUES(?,?,?,?,?)");
         s.bind_int64(1, user_id);
         s.bind_text(2, agent);
         s.bind_text(3, text);
         s.bind_text(4, source);
+        if (lang.empty()) sqlite3_bind_null(s.p, 5);
+        else              s.bind_text(5, lang);
         s.step();
     }
 

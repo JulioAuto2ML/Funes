@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Funes — an assistant that remembers</title>
+  <title data-i18n="app.title">Funes — an assistant that remembers</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128024;</text></svg>">
 </head>
@@ -16,29 +16,29 @@
   <div id="auth-gate" class="auth-gate" hidden>
     <div class="auth-card">
       <h1>Funes</h1>
-      <p class="tagline" id="auth-tagline">an assistant that remembers</p>
+      <p class="tagline" id="auth-tagline" data-i18n="app.tagline">an assistant that remembers</p>
 
       <form id="auth-form" autocomplete="on">
         <p id="auth-intro" class="auth-intro"></p>
 
-        <label for="auth-username">Username</label>
+        <label for="auth-username" data-i18n="auth.username">Username</label>
         <input id="auth-username" name="username" type="text" autocomplete="username"
                autocapitalize="none" spellcheck="false" required>
 
-        <label for="auth-display" id="auth-display-label" hidden>Display name</label>
+        <label for="auth-display" id="auth-display-label" data-i18n="auth.displayName" hidden>Display name</label>
         <input id="auth-display" name="display_name" type="text"
                autocomplete="name" hidden>
 
-        <label for="auth-password">Password</label>
+        <label for="auth-password" data-i18n="auth.password">Password</label>
         <input id="auth-password" name="password" type="password"
                autocomplete="current-password" required>
 
-        <label for="auth-password2" id="auth-password2-label" hidden>Repeat password</label>
+        <label for="auth-password2" id="auth-password2-label" data-i18n="auth.repeatPassword" hidden>Repeat password</label>
         <input id="auth-password2" name="password2" type="password"
                autocomplete="new-password" hidden>
 
         <p id="auth-error" class="auth-error" hidden></p>
-        <button id="auth-submit" type="submit">Sign in</button>
+        <button id="auth-submit" type="submit" data-i18n="auth.signIn">Sign in</button>
       </form>
     </div>
   </div>
@@ -48,30 +48,33 @@
     <header class="topbar">
       <div class="brand">
         <h1>Funes</h1>
-        <span class="tagline">an assistant that remembers</span>
+        <span class="tagline" data-i18n="app.tagline">an assistant that remembers</span>
       </div>
       <div class="controls">
-        <button id="new-chat" class="ghost" title="Start a new conversation">New chat</button>
-        <button id="toggle-chats" class="ghost" title="Browse past conversations">
-          Chats
-        </button>
-        <button id="toggle-memory" class="ghost" title="Show what Funes remembers">
-          Memory <span id="memory-count" class="pill">0</span>
-        </button>
-        <button id="toggle-jobs" class="ghost" title="Show scheduled cron jobs">
-          Jobs
-        </button>
-        <button id="toggle-files" class="ghost" title="Browse workspace files">
-          Files
-        </button>
-        <span id="context-gauge" class="context-gauge" title="Context usage" hidden>
+        <button id="new-chat" class="ghost" data-i18n="nav.newChat" data-i18n-title="nav.newChatTitle" title="Start a new conversation">New chat</button>
+        <button id="toggle-chats" class="ghost" data-i18n="nav.chats"
+                data-i18n-title="nav.chatsTitle" title="Browse past conversations">Chats</button>
+        <button id="toggle-memory" class="ghost" data-i18n-title="nav.memoryTitle"
+                title="Show what Funes remembers"><span data-i18n="nav.memory">Memory</span>
+          <span id="memory-count" class="pill">0</span></button>
+        <button id="toggle-jobs" class="ghost" data-i18n="nav.jobs"
+                data-i18n-title="nav.jobsTitle" title="Show scheduled cron jobs">Jobs</button>
+        <button id="toggle-files" class="ghost" data-i18n="nav.files"
+                data-i18n-title="nav.filesTitle" title="Browse workspace files">Files</button>
+        <span id="context-gauge" class="context-gauge" data-i18n-title="nav.contextTitle" title="Context usage" hidden>
           <span class="bar"><span id="context-bar-fill" class="bar-fill"></span></span>
           <span id="context-pct">0%</span>
         </span>
-        <span id="status-dot" class="dot" title="Checking…"></span>
+        <span id="status-dot" class="dot" data-i18n-title="nav.statusChecking" title="Checking…"></span>
         <span id="user-chip" class="user-chip" hidden>
           <span id="user-name"></span>
-          <button id="logout" class="ghost" title="Sign out">Sign out</button>
+          <select id="locale-select" class="locale-select" data-i18n-title="nav.language"
+                  title="Language">
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+          </select>
+          <button id="logout" class="ghost" data-i18n="nav.signOut"
+                  data-i18n-title="nav.signOut" title="Sign out">Sign out</button>
         </span>
       </div>
     </header>
@@ -80,7 +83,7 @@
 
       <aside class="chats-pane" id="chats-pane" hidden>
         <div class="chats-head">
-          <h3>Conversations</h3>
+          <h3 data-i18n="chats.heading">Conversations</h3>
         </div>
         <div id="chats-list" class="chats-list"></div>
       </aside>
@@ -88,47 +91,48 @@
       <section class="chat-pane">
         <div id="messages" class="messages">
           <div class="welcome" id="welcome">
-            <h2>“I have more memories than all mankind…”</h2>
-            <p>Tell Funes about yourself, ask it anything, come back tomorrow —
-               it will remember. Everything is stored locally in a single file.</p>
+            <h2 data-i18n="welcome.quote">“I have more memories than all mankind…”</h2>
+            <p data-i18n="welcome.body">Tell Funes about yourself, ask it anything, come back
+               tomorrow — it will remember. Everything is stored locally in a single file.</p>
           </div>
         </div>
         <div id="attachments" class="attachments" hidden></div>
         <form id="composer" class="composer" autocomplete="off">
           <input id="file-input" type="file" multiple hidden>
           <input id="folder-input" type="file" webkitdirectory hidden>
-          <button id="attach-btn" type="button" class="ghost" title="Attach a file">📎</button>
-          <button id="folder-btn" type="button" class="ghost" title="Upload a folder">📁</button>
-          <textarea id="input" rows="1" placeholder="Say something to Funes…"
-                    spellcheck="false"></textarea>
-          <button id="send" type="submit" title="Send">↑</button>
+          <button id="attach-btn" type="button" class="ghost" data-i18n-title="composer.attach" title="Attach a file">📎</button>
+          <button id="folder-btn" type="button" class="ghost" data-i18n-title="composer.folder" title="Upload a folder">📁</button>
+          <textarea id="input" rows="1" data-i18n-placeholder="composer.placeholder"
+                    placeholder="Say something to Funes…" spellcheck="false"></textarea>
+          <button id="send" type="submit" data-i18n-title="composer.send" title="Send">↑</button>
         </form>
       </section>
 
       <aside class="memory-pane" id="memory-pane">
         <div class="memory-head">
-          <h3>What Funes remembers</h3>
-          <span id="semantic-badge" class="badge" hidden>semantic</span>
+          <h3 data-i18n="memory.heading">What Funes remembers</h3>
+          <span id="semantic-badge" class="badge" data-i18n="memory.semantic" hidden>semantic</span>
         </div>
         <form id="memory-add" class="memory-add">
           <input id="memory-add-text" type="text" maxlength="2000"
+                 data-i18n-placeholder="memory.addPlaceholder"
                  placeholder="Teach Funes a fact…">
           <button type="submit" class="ghost">＋</button>
         </form>
-        <input id="memory-search" type="search" placeholder="Search memories…">
+        <input id="memory-search" type="search" data-i18n-placeholder="memory.searchPlaceholder" placeholder="Search memories…">
         <div id="memory-list" class="memory-list"></div>
       </aside>
 
       <aside class="jobs-pane" id="jobs-pane" hidden>
         <div class="jobs-head">
-          <h3>Scheduled jobs</h3>
+          <h3 data-i18n="jobs.heading">Scheduled jobs</h3>
         </div>
         <div id="jobs-list" class="jobs-list"></div>
       </aside>
 
       <aside class="files-pane" id="files-pane" hidden>
         <div class="files-head">
-          <h3>Workspace files</h3>
+          <h3 data-i18n="files.heading">Workspace files</h3>
         </div>
         <div id="files-breadcrumb" class="files-breadcrumb"></div>
         <div id="files-list" class="files-list"></div>

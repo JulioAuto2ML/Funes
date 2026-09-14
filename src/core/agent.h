@@ -54,6 +54,18 @@ struct AgentDefaults {
     // from agents/*.yaml at request time instead of a hardcoded prompt list.
     // Left unset in contexts without an agent table (e.g. tests).
     std::function<std::string(const std::string&)> agent_roster;
+
+    // 5.0: the locale of the account a run is acting for ("es", "pt-BR"), or
+    // "" when it cannot be resolved. Wired in main.cpp from UserStore, the
+    // same way agent_roster is wired from the agent table — the alternative
+    // was a UserStore reference inside FunesAgent, which would put
+    // authentication state in the loop that runs the model.
+    //
+    // A resolver rather than a field because the locale belongs to whoever
+    // the run is *for*, not to the server or the agent: delegated sub-agents
+    // and cron jobs carry the caller's user_id, so they get the right
+    // language without any of them having to pass it along.
+    std::function<std::string(int64_t)> user_locale;
 };
 
 // What a run leaves behind in the database. See FunesAgent::run.

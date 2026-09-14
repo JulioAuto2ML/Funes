@@ -326,6 +326,18 @@ int main(int argc, char** argv) {
     api.set_agent_roster(agent_roster);
     defaults.agent_roster = agent_roster;
 
+    // 5.0: the reply-language instruction the agent runtime appends. Resolved
+    // per run rather than captured, so changing an account's locale takes
+    // effect on its next message instead of at the next restart — and an
+    // account that has since been deleted resolves to no locale at all, which
+    // appends nothing.
+    auto locale_for = [&users](int64_t user_id) -> std::string {
+        auto u = users.find_by_id(user_id);
+        return u ? u->locale : std::string();
+    };
+    api.set_user_locale(locale_for);
+    defaults.user_locale = locale_for;
+
     // create_agent needs to trigger a live reload after writing a new agent
     // YAML, so it's wired up once FunesApi (which owns the agent table) exists.
     register_agent_builder(tools, agents_dir, [&api] { api.load_agents(); });

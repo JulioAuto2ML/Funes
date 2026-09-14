@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "agent.h"
+#include "users.h"   // funes::language_name
 #include "answer_schema.h"
 #include "completion_contract.h"
 #include "mcp_sse_client.h"
@@ -327,6 +328,31 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                    "blame a configuration or environment variable, and never suggest "
                    "changing one — that would send the user to fix something that is not "
                    "the cause.";
+        }
+        // 5.0: what language to answer in. Appended by the runtime rather
+        // than written into each agent's YAML, so a locale change takes
+        // effect everywhere at once and no prompt can be left behind — there
+        // are eighteen of them and they are edited by different people.
+        //
+        // English is the absence of an instruction, not an instruction to use
+        // English: every prompt in the repo is already English, so saying it
+        // again spends context to change nothing.
+        //
+        // "unless they write in another language" is the part that matters
+        // for real use. A bilingual household writes in both, and an
+        // assistant that answers a Spanish question in English because of a
+        // setting is worse than one that never knew the setting.
+        if (defaults_.user_locale) {
+            const std::string locale = defaults_.user_locale(user_id);
+            if (!locale.empty() && locale.substr(0, 2) != "en") {
+                const std::string language = funes::language_name(locale);
+                sys += "\n\n## Language\n"
+                       "The person you are talking to reads " + language + ". Reply in " +
+                       language + " unless they write to you in another language — in that "
+                       "case match the language of their message. Tool arguments, file "
+                       "paths, code and identifiers stay exactly as they are; this is about "
+                       "what you say, not what you call things.";
+            }
         }
         if (!summary.empty()) {
             sys += "\n\n## Summary of earlier conversation\n" + summary;

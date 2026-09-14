@@ -105,6 +105,14 @@ public:
         defaults_.agent_roster = std::move(fn);
     }
 
+    // Same injection, for the reply-language resolver (5.0). FunesApi holds
+    // its own AgentDefaults copy, so a resolver set only on main()'s copy
+    // would reach delegated sub-agents and cron jobs but not the top-level
+    // turn the person is actually having.
+    void set_user_locale(std::function<std::string(int64_t)> fn) {
+        defaults_.user_locale = std::move(fn);
+    }
+
 private:
     ToolRegistry& tools_;
     MemoryStore&  memory_;

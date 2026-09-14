@@ -424,10 +424,38 @@ void FunesApi::mount(httplib::Server& srv) {
                     {"authenticated", user.has_value()}};
         if (user) {
             out["user"] = {{"id", user->id}, {"username", user->username},
-                           {"display_name", user->display_name}, {"role", user->role}};
+                           {"display_name", user->display_name}, {"role", user->role},
+                           {"locale", user->locale}};
             out["permissions"] = resolved_permissions(*user);
         }
         json_reply(res, 200, out);
+    });
+
+    // The caller's own language, and only ever their own: a route that took a
+    // user id would be an admin function wearing a preference's clothes, and
+    // the CLI is where account administration lives.
+    //
+    // PUT rather than POST because it is idempotent and there is exactly one
+    // locale per account — the second call with the same value has to be a
+    // no-op, which is what the UI does on every load when the browser's
+    // language already matches.
+    srv.Put("/api/me/locale", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded() || !body.contains("locale") || !body["locale"].is_string()) {
+            json_reply(res, 400, {{"ok", false}, {"error", "locale is required"}});
+            return;
+        }
+        const std::string locale = body["locale"].get<std::string>();
+        if (!users_.set_locale(user->id, locale)) {
+            json_reply(res, 400, {{"ok", false},
+                                  {"error", "not a language tag (expected e.g. \"es\" "
+                                            "or \"pt-BR\")"}});
+            return;
+        }
+        json_reply(res, 200, {{"ok", true}, {"locale", locale}});
     });
 
     // ── status ────────────────────────────────────────────────────────────────

@@ -36,6 +36,7 @@ const els = {
   fileInput:    $('file-input'),
   folderBtn:    $('folder-btn'),
   folderInput:  $('folder-input'),
+  localeSelect: $('locale-select'),
   toggleFiles:  $('toggle-files'),
   filesPane:    $('files-pane'),
   filesList:    $('files-list'),
@@ -100,6 +101,100 @@ window.fetch = async function (input, init) {
   return resp;
 };
 
+
+/* ── i18n ────────────────────────────────────────────────────────────────────
+   String tables are plain JSON fetched at boot, and `t(key)` falls back to the
+   key's English string and then to the key itself. That chain is the whole
+   design: a missing translation shows English, a missing *key* shows the key,
+   and neither empties the button it was supposed to label. Vanilla JS with no
+   build step means there is no extraction tool to keep the tables honest, so
+   the failure mode has to be visible rather than blank.
+
+   Static markup is tagged with data-i18n / data-i18n-title /
+   data-i18n-placeholder and translated in one pass; strings built in JS go
+   through t() directly. applyTranslations() is idempotent, because it runs
+   again whenever the language changes without a reload. */
+let STRINGS = {};
+let FALLBACK = {};
+let LOCALE = 'en';
+
+async function loadStrings(locale) {
+  const lang = (locale || 'en').slice(0, 2);
+  if (!FALLBACK.__loaded) {
+    try {
+      FALLBACK = await (await fetch('i18n/en.json')).json();
+      FALLBACK.__loaded = true;
+    } catch { FALLBACK = { __loaded: true }; }
+  }
+  if (lang === 'en') { STRINGS = FALLBACK; LOCALE = 'en'; return; }
+  try {
+    STRINGS = await (await fetch('i18n/' + lang + '.json')).json();
+    LOCALE = lang;
+  } catch {
+    // An unshipped locale is not an error worth showing anybody: the UI stays
+    // in English and everything still works.
+    STRINGS = FALLBACK;
+    LOCALE = 'en';
+  }
+}
+
+// t('jobs.next', { when: 'in 5 min' }) — {name} placeholders only, because
+// every string that needs more than substitution is a string that should have
+// been two strings.
+function t(key, vars) {
+  let s = STRINGS[key] || FALLBACK[key] || key;
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split('{' + k + '}').join(v);
+  return s;
+}
+
+function applyTranslations(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  scope.querySelectorAll('[data-i18n-title]').forEach((el) => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+  scope.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.documentElement.lang = LOCALE;
+}
+
+// The account's stored locale wins; a browser default only decides what a
+// never-configured account sees. The reverse — letting navigator.language
+// win — would silently change the language of a deliberate choice every time
+// the user opened the app on a different machine.
+async function initLocale(user) {
+  const stored = user && user.locale;
+  const preferred = stored || (navigator.language || 'en').slice(0, 2);
+  await loadStrings(preferred);
+  applyTranslations();
+  if (els.localeSelect) {
+    els.localeSelect.value = LOCALE;
+    els.localeSelect.hidden = false;
+  }
+  // Persist a browser-detected language once, so the agent's reply-language
+  // instruction (server side) matches the UI the person is looking at.
+  if (!stored && LOCALE !== 'en') setLocale(LOCALE, /*silent=*/true);
+}
+
+async function setLocale(locale, silent) {
+  await loadStrings(locale);
+  applyTranslations();
+  try {
+    await fetch('/api/me/locale', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale }),
+    });
+  } catch (e) {
+    // The UI has already switched; failing to persist means the next reload
+    // starts in the old language, which is annoying rather than broken.
+    if (!silent) console.warn('could not save language preference', e);
+  }
+}
+
 // mode.needs_bootstrap switches the form between "create the first admin" and
 // a plain login. There is deliberately no third state: an install either has
 // no users at all (bootstrap is open) or it has some (an admin issues them).
@@ -110,10 +205,8 @@ function showAuthGate(mode, message) {
 
   els.authTagline.textContent = bootstrap
     ? 'first run — create your admin account'
-    : 'an assistant that remembers';
-  els.authIntro.textContent = bootstrap
-    ? 'No accounts exist yet. Create the admin account for this Funes.'
-    : '';
+    : t('app.tagline');
+  els.authIntro.textContent = bootstrap ? t('auth.bootstrap') : '';
   els.authIntro.hidden = !bootstrap;
 
   els.authDisplay.hidden = !bootstrap;
@@ -121,7 +214,7 @@ function showAuthGate(mode, message) {
   els.authPassword2.hidden = !bootstrap;
   els.authPassword2Label.hidden = !bootstrap;
   els.authPassword.autocomplete = bootstrap ? 'new-password' : 'current-password';
-  els.authSubmit.textContent = bootstrap ? 'Create admin account' : 'Sign in';
+  els.authSubmit.textContent = bootstrap ? t('auth.createAdmin') : t('auth.signIn');
   els.authForm.dataset.mode = bootstrap ? 'bootstrap' : 'login';
 
   if (message) {
@@ -181,7 +274,7 @@ els.authForm.addEventListener('submit', async (e) => {
     // Checked here as well as on the server so a typo in a password that is
     // never echoed is caught before it becomes the admin credential.
     if (password.length < 8) return authError('Password must be at least 8 characters.');
-    if (password !== els.authPassword2.value) return authError('Passwords do not match.');
+    if (password !== els.authPassword2.value) return authError(t('auth.mismatch'));
   }
 
   els.authSubmit.disabled = true;
@@ -230,8 +323,13 @@ async function startAuthFlow(message) {
     const data = await resp.json();
     if (data.authenticated && data.user) {
       hideAuthGate(data.user, data.permissions);
+      // After the gate, not before: the account's stored locale is the
+      // authority and it only exists once we know who is logged in. The
+      // login form itself stays in the browser's language.
+      await initLocale(data.user);
       return true;
     }
+    await initLocale(null);
     showAuthGate(data, message);
     return false;
   } catch (e) {
@@ -535,7 +633,7 @@ function renderAttachments() {
     } else {
       chip.className = 'attachment-chip' + (a.isText ? '' : ' binary');
       const label = document.createElement('span');
-      label.textContent = '📎 ' + a.filename + (a.truncated ? ' (truncated)' : '')
+      label.textContent = '📎 ' + a.filename + (a.truncated ? ' (' + t('composer.truncated') + ')' : '')
                          + (a.isText ? '' : ' (binary, saved only)');
       chip.appendChild(label);
     }
@@ -573,7 +671,7 @@ function showBatchConfirm(files) {
   strip.querySelector('.batch-go').addEventListener('click', async () => {
     const folder = strip.querySelector('.batch-folder-name').value.trim() || 'uploads';
     strip.querySelector('.batch-go').disabled = true;
-    strip.querySelector('.batch-go').textContent = 'Uploading…';
+    strip.querySelector('.batch-go').textContent = t('composer.uploading');
     await doBatchUpload(files, folder);
     strip.remove();
   });
@@ -751,7 +849,7 @@ async function refreshJobs() {
     if (data.jobs.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'jobs-empty';
-      empty.textContent = 'No scheduled jobs yet — ask the operator agent to schedule one.';
+      empty.textContent = t('jobs.empty');
       els.jobsList.appendChild(empty);
       return;
     }
@@ -781,7 +879,7 @@ async function refreshJobs() {
       schedule.textContent = j.schedule;
       meta.appendChild(schedule);
       const next = document.createElement('span');
-      next.textContent = 'next ' + formatEpochRelative(j.next_run_at);
+      next.textContent = t('jobs.next', { when: formatEpochRelative(j.next_run_at) });
       meta.appendChild(next);
       const status = document.createElement('span');
       status.className = 'status ' + (j.running ? 'running' : (j.last_status || ''));
@@ -821,7 +919,7 @@ function formatFileSize(bytes) {
 }
 
 async function deleteFile(path) {
-  if (!confirm('Delete "' + path.split('/').pop() + '"?')) return;
+  if (!confirm(t('files.deleteConfirm', { name: path.split('/').pop() }))) return;
   try {
     const resp = await fetch('/api/files?path=' + encodeURIComponent(path), {
       method: 'DELETE',
@@ -888,7 +986,7 @@ async function refreshFiles(path) {
     if (data.files.length === 0 && !path) {
       const empty = document.createElement('div');
       empty.className = 'files-empty';
-      empty.textContent = 'No files here yet.';
+      empty.textContent = t('files.empty');
       els.filesList.appendChild(empty);
       return;
     }
@@ -1000,7 +1098,7 @@ async function refreshChats() {
     if (data.sessions.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'chats-empty';
-      empty.textContent = 'No conversations yet.';
+      empty.textContent = t('chats.empty');
       els.chatsList.appendChild(empty);
       return;
     }
@@ -1043,15 +1141,14 @@ async function deleteSession(session, preview) {
   // Irreversible and one click away from the item you might have meant to
   // open, so it asks. Memories are not deleted, which is worth saying here:
   // people expect "delete" to mean everything it learned goes too.
-  if (!confirm('Delete ' + label + '?\n\nThe conversation is removed. Anything Funes ' +
-               'remembered from it is kept — clear those from Memories.')) return;
+  if (!confirm(t('chats.deleteConfirm', { label }))) return;
 
   try {
     const resp = await fetch('/api/sessions/' + encodeURIComponent(session),
                              { method: 'DELETE' });
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
-      alert('Could not delete: ' + (data.error || resp.status));
+      alert(t('chats.deleteFailed', { error: data.error || resp.status }));
       return;
     }
     // Deleting the conversation you are in leaves nowhere to be, so start a
@@ -1062,11 +1159,11 @@ async function deleteSession(session, preview) {
       state.attachments = [];
       renderAttachments();
       els.messages.innerHTML = '';
-      showWelcome('Nothing here yet.');
+      showWelcome(t('welcome.empty'));
     }
     refreshChats();
   } catch (e) {
-    alert('Could not delete: ' + e.message);
+    alert(t('chats.deleteFailed', { error: e.message }));
   }
 }
 
@@ -1076,9 +1173,9 @@ async function switchToSession(session) {
   localStorage.setItem('funes.session', state.session);
   state.attachments = [];
   renderAttachments();
-  showWelcome('Loading this conversation…');
+  showWelcome(t('welcome.loading'));
   await restoreHistory();
-  if (els.welcome) showWelcome('Nothing here yet.');
+  if (els.welcome) showWelcome(t('welcome.empty'));
   refreshChats();
 }
 
@@ -1137,7 +1234,7 @@ els.newChat.addEventListener('click', () => {
   localStorage.setItem('funes.session', state.session);
   state.attachments = [];
   renderAttachments();
-  showWelcome('New conversation — but Funes still remembers everything from before.');
+  showWelcome(t('welcome.newConversation'));
   els.input.focus();
   if (!els.chatsPane.hidden) refreshChats();
 });
@@ -1202,6 +1299,10 @@ async function startApp() {
     setInterval(refreshJobs, 15000);
   }
   els.input.focus();
+}
+
+if (els.localeSelect) {
+  els.localeSelect.addEventListener('change', (e) => setLocale(e.target.value));
 }
 
 (async function boot() {

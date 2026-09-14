@@ -927,3 +927,19 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   .tagline { display: none; }
   .msg { max-width: 92%; }
 }
+
+/* Language picker in the user chip. Styled as a compact sibling of the ghost
+   buttons next to it rather than as a new control: it is a two-item switch
+   that most people touch once, so it should read as part of the chip, not as
+   a feature competing with New chat. */
+.locale-select {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  font-size: .85em;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.locale-select:hover { border-color: var(--accent); }

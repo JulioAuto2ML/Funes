@@ -67,3 +67,34 @@ Responsive: at < 860px, sidebars become fixed-position overlays.
 All via `fetch()` to `/api/*` endpoints. Chat uses manual SSE line parsing
 of the chunked response. No WebSockets, no polling (except periodic status
 dot check). Session persistence via URL parameter or localStorage.
+
+## Localization (5.0)
+
+`i18n/<locale>.json` holds one flat key→string table per language; `en.json` is
+the fallback and the only one that has to be complete. `t(key, vars)` looks up
+the active table, then English, then returns the key itself — so a missing
+translation shows English and a missing key shows the key, rather than an empty
+button. `{name}` placeholders are the only substitution; a string needing more
+than that is a string that should have been two.
+
+Static markup carries `data-i18n`, `data-i18n-title` and
+`data-i18n-placeholder`; `applyTranslations()` walks them in one idempotent
+pass, so changing language re-renders without a reload. Strings built in JS
+call `t()` directly.
+
+Which language: the account's stored `locale` if it has one, otherwise
+`navigator.language`, which is then persisted once so the agent's reply
+language matches the UI. A browser default never overrides a deliberate
+choice — otherwise opening the app on a different machine would silently
+change it back.
+
+Adding a language is one file plus one `<option>` in `index.html`. Keeping the
+tables honest is a two-line check, since there is no extraction tool:
+
+```bash
+python3 -c "
+import json,re,glob
+en=set(json.load(open('ui/i18n/en.json')))
+for f in glob.glob('ui/i18n/*.json'):
+    print(f, sorted(en - set(json.load(open(f)))) or 'complete')"
+```

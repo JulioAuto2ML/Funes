@@ -283,7 +283,16 @@ are public (`/api/login`, `/api/logout` aside, `/api/auth/status`,
 `/api/auth/bootstrap`); everything else needs a session cookie or a service
 token. `bootstrap` is public but self-closing — it only works while no user
 exists, which is how a fresh install gets its first admin without shipping a
-default password. `/api/auth/status` also returns the caller's *resolved*
+default password. `PUT /api/me/locale` sets the caller's own language and nobody else's — a
+route taking a user id would be account administration wearing a preference's
+clothes, and that lives in the CLI. The agent runtime appends the
+reply-language instruction itself (`AgentDefaults::user_locale`, resolved per
+run from `UserStore`), rather than each of the eighteen agent YAMLs carrying
+it: a locale change then takes effect everywhere at once and no prompt can be
+left behind. English appends nothing — every prompt in the repo is already
+English, so saying it again spends context to change nothing.
+
+`/api/auth/status` also returns the caller's *resolved*
 permissions (allowed agents, denied tools) so a member can see why an agent is
 missing without an admin SSHing in — read-only, editing stays in the CLI. See
 `src/server/README.md` for the full route table and startup sequence
@@ -295,7 +304,15 @@ restart.
 
 ### UI
 
-`ui/` — vanilla JS, no build step, no framework. Talks to the API above. The
+`ui/` — vanilla JS, no build step, no framework. Talks to the API above.
+Localized as of 5.0: `ui/i18n/<locale>.json` string tables, a `t(key)` lookup
+that falls back key → English → the key itself (a missing translation shows
+English, a missing key shows the key, neither empties the button it was meant
+to label), and `data-i18n` / `data-i18n-title` / `data-i18n-placeholder`
+attributes translated in one idempotent pass so switching language needs no
+reload. The account's stored `locale` wins over `navigator.language` — the
+reverse would silently change a deliberate choice every time the person opened
+the app on a different machine. The
 auth gate covers the app until `/api/auth/status` resolves, switching between
 a first-run "create the admin account" form and a plain sign-in. Session
 expiry is caught by a single `window.fetch` wrapper rather than a check at
