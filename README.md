@@ -519,6 +519,44 @@ the tools, which is why a second publication needs no second agent. Every run
 leaves a record in `runs/<publication>/<date>.json`, and both the scheduler and
 the LinkedIn cron read it rather than believing anything the model said.
 
+#### The same fix, generalized (4.1)
+
+Knowing the rule and applying it are different things. The voice-of-customer
+chain — research a problem, debate it from three perspectives, write the
+article, scaffold a prototype — was built *after* the newsletter rewrite and
+repeated two of the mistakes it had just fixed.
+
+Its stages hand work to each other as files, and each of five system prompts
+carried the convention as prose: "write the topic as JSON to
+`topics/<date>-<slug>.json` with these six fields." Nothing enforced it. A slug
+that drifted by a character, a field the model dropped, an object where an
+array belonged — each produces a file that exists, so the stage reports success
+and the next stage finds nothing where it looked. You learn at the end of a
+five-step pipeline, from an empty article.
+
+And `council-chair`'s prompt asked the model to merge three panelists' rankings
+by *computing a Borda count in its head* — "for N proposals, rank 1 gets N
+points, rank 2 gets N-1, sum across all three" — while holding three JSON
+replies in an 8K context.
+
+So: a pipeline is now a YAML in `pipelines/` naming each stage's directory,
+filename template and JSON schema. `write_structured` takes a pipeline, a stage,
+a slug and content; it derives the path, fills the date, and validates against
+the stage schema — and a violation is refused with the offending field named and
+**nothing written**, because a malformed file that exists is worse than no file:
+the next stage parses it and believes it. `read_structured` answers "has this
+been done already?" and restates the shape on request. `merge_rankings` does the
+Borda count in C++, matching proposals three independent panelists inevitably
+named three different ways.
+
+The slug is sanitized rather than validated, which is the part that matters
+more than the schema: `"Local AI Compliance!"` and `local-ai-compliance` are the
+same entry, so drift stops being possible instead of being caught.
+
+Five agents lost their file-convention paragraphs and their arithmetic. None of
+them lost a judgement — which topic is worth debating, which proposal wins, what
+the article says, whether the prototype runs. That is the line.
+
 To give an agent tools from an external MCP server, over HTTP+SSE:
 
 ```yaml
@@ -821,9 +859,11 @@ Funes/
 │   │   └── tools/     # web_search/fetch, remember/recall, read_result, read/write_file
 │   │                  # (+ PDF extraction), execute_shell, compress_context,
 │   │                  # create_tool/create_agent, delegate_to_agent,
-│   │                  # harvest_candidates/publish_issue
+│   │                  # harvest_candidates/publish_issue,
+│   │                  # write_structured/read_structured/merge_rankings
 │   │                  # (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point + the admin user CLI
+├── pipelines/         # one YAML per multi-stage pipeline (stage dirs, names, schemas)
 ├── publications/      # one YAML + one voice file per publication
 ├── publishing/        # the scripts that render, send and post an issue (Python)
 ├── ui/                # web UI (vanilla JS — no build step)

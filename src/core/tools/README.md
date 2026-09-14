@@ -29,6 +29,18 @@ hop, no protocol overhead.
 | `harvest_candidates` | `harvest.cpp` | Searches, deduplicates, fetches, and builds a numbered candidate pool for a publication. |
 | `publish_issue` | `issue.cpp` | Publishes an issue: resolves IDs to URLs, runs deterministic grounding checks, renders artifacts, sends. |
 
+### Pipeline tools
+
+The same idea as the two above, generalized: a stage's path and shape come
+from `pipelines/*.yaml`, not from a paragraph in an agent prompt. See
+[../../../pipelines/README.md](../../../pipelines/README.md).
+
+| Tool | File | What it does |
+|---|---|---|
+| `write_structured` | `structured.cpp` | Writes one pipeline-stage entry. Derives the path from the config (the model supplies a slug, never a path) and validates JSON content against the stage schema — a refusal writes nothing. |
+| `read_structured` | `structured.cpp` | Reads an entry by slug, or lists a stage and restates its required shape. An empty stage is an answer, not an error. |
+| `merge_rankings` | `rankings.cpp` | Borda count over several ranked lists, matching proposals named differently and reporting lists it could not parse. Replaces arithmetic a system prompt used to ask the model for. |
+
 ### Scheduling tools
 
 | Tool | File | What it does |
@@ -53,6 +65,8 @@ hop, no protocol overhead.
 | `net_guard.h/cpp` | SSRF protection. Blocks requests to private/loopback hosts. Used by web_fetch and HTTP template tools. |
 | `process_runner.h/cpp` | Fork/exec engine with timeout, process-group kill, output cap. Used by execute_shell, read_file (PDF), publish_issue. |
 | `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search and harvest_candidates. |
+| `../pipeline.h/cpp` | Pipeline stage configuration: directory, filename template, schema. Loaded per call by the pipeline tools, so a new stage is live without a restart. |
+| `../answer_schema.h/cpp` | The JSON-Schema subset used for both an agent's `answer_schema:` and a pipeline stage's `schema:` — one validator, so the two fail identically and read identically to a small local model. |
 | `page_text.h/cpp` | URL fetching + HTML-to-text extraction. Manual scan (no regex -- avoids stack overflow on large inline scripts). |
 | `pdf_extract.h/cpp` | PDF text extraction via pdftotext, with image rendering fallback for scans. |
 | `http_tool_runtime.h/cpp` | Execution engine for generated HTTP-template tools. Resolves `{param}` from arguments (URL and body) and `${ENV_VAR}` from the environment (**header values only** — the URL is echoed back to the model on a parse failure, so a secret resolved into it becomes something the model can print). |

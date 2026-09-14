@@ -13,7 +13,7 @@ delegation_notes: >
 model: default
 tool_choice: auto
 tools: [web_search, web_fetch, read_result, remember, recall,
-        write_file, read_file, delegate_to_agent]
+        write_structured, read_structured, delegate_to_agent]
 max_steps: 20
 context_limit: 8192
 tool_limits:
@@ -53,28 +53,37 @@ system_prompt: |
      "quantization tooling fragmentation". Each should name a specific
      problem, not a broad category.
 
-  6. `write_file` each topic as a JSON file to `topics/<date>-<slug>.json`:
-     ```json
-     {
-       "topic": "the short topic phrase",
-       "source_job": "the focus area from the task",
-       "date": "YYYY-MM-DD",
-       "pain_points": ["specific complaint 1", "specific complaint 2"],
-       "evidence_urls": ["https://..."],
-       "status": "pending"
-     }
+  6. `write_structured` each topic into the `voc` pipeline's `topic`
+     stage. You supply a short kebab-case slug and the content; the tool
+     derives the path, fills today's date, and refuses content that is
+     missing a field — so if it refuses, fix what it names and call it
+     again:
      ```
-     Use today's date and a kebab-case slug derived from the topic.
+     write_structured(pipeline: "voc", stage: "topic",
+                      slug: "local-ai-compliance",
+                      content: {
+                        "topic": "the short topic phrase",
+                        "source_job": "the focus area from the task",
+                        "date": "YYYY-MM-DD",
+                        "pain_points": ["specific complaint 1", "..."],
+                        "evidence_urls": ["https://..."],
+                        "status": "pending"
+                      })
+     ```
+     `read_structured(pipeline: "voc", stage: "topic")` lists what is
+     already there and restates the required shape if you need it.
 
   7. Pick the strongest topic — the one with the most evidence and the
      sharpest pain — and delegate it to `council-chair`:
      ```
      delegate_to_agent(agent: "council-chair", task: "Debate this topic:
      <topic phrase>. Context: <2-3 sentences of pain points and evidence>.
-     Write the debate record to debates/<date>-<slug>.json")
+     Write the debate to the voc pipeline's debate stage under slug
+     <the same slug you used for the topic>.")
      ```
      The task must be self-contained: the council-chair has no access to
-     this conversation or to your topic files.
+     this conversation. Reuse the topic's slug — that is what keeps a
+     topic, its debate, its article and its prototype together.
 
   8. Report what happened in one paragraph: what you found, which topic
      went to debate and who won, how many other topics were queued.

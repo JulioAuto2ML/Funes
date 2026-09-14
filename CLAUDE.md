@@ -151,7 +151,17 @@ partly checked too: each item must carry an `evidence` quote verified
 word-for-word against the page actually fetched. One YAML per publication
 (`publications/*.yaml`) + one prose voice file; the agent never sees the
 config, only a pool and a voice note, so a second publication needs no
-second agent. See the "Agents" section of the root `README.md` for the full
+second agent.
+
+As of 4.1 that same shape is available to any multi-stage pipeline:
+`pipelines/*.yaml` declares each stage's directory, filename template and JSON
+schema, and `write_structured`/`read_structured` derive the path and enforce
+the schema — a stage contract is checked by the runtime instead of restated in
+five system prompts. `merge_rankings` is the other half of the same rule: the
+Borda count `council-chair` used to compute in-context is arithmetic, so it is
+a tool. See `pipelines/README.md`.
+
+See the "Agents" section of the root `README.md` for the full
 incident writeup and `publishing/README.md` for the script-level split
 between what's in the repo (code) and what lives on the sending host (issue
 JSON, run records, secrets, subscriber list — via `$FUNES_PUBLISH_DIR`).
@@ -281,6 +291,7 @@ failure surfaces at whichever fires first.
 ```
 agents/        agent YAML definitions (see agents/README.md)
 config/        funes.conf (committed defaults) + funes.local (gitignored secrets)
+pipelines/     one YAML per multi-stage pipeline (stage dirs, filenames, schemas)
 publications/  one YAML + one voice file per publication
 publishing/    Python scripts that render/send/post an issue
 scripts/       operational scripts + systemd units (WhatsApp bridge/autoresponder, benchmarking)
@@ -295,5 +306,7 @@ ui/            web UI (vanilla JS)
 Nearly every directory has its own `README.md` with more detail than this
 file carries — read the local one before making non-trivial changes in that
 area (`src/core/README.md`, `src/core/tools/README.md`, `src/server/README.md`,
-`agents/README.md`, `config/README.md`, `publishing/README.md`, `tests/README.md`,
-`scripts/README.md`).
+`agents/README.md`, `config/README.md`, `pipelines/README.md`,
+`publishing/README.md`, `tests/README.md`, `scripts/README.md`).
+
+`docs/ROADMAP.md` says what is being built next and in what order.

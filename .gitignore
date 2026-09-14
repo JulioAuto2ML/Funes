@@ -27,3 +27,6 @@ data/whatsapp-uploads/
 
 # ctest scratch, written when ctest is run from the repo root
 Testing/
+
+# Claude Code local scratch (agent worktrees, local settings)
+.claude/
