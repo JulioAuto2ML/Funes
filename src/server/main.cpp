@@ -178,6 +178,11 @@ int main(int argc, char** argv) {
     // One YAML per publication: queries, windows, caps, artifacts, channels.
     const std::string publications_dir = resolve_dir(funes::env("FUNES_PUBLICATIONS_DIR"),
                                                      "publications");
+    // One YAML per multi-stage pipeline: where each stage's entries go and what
+    // shape they have. Read per call by write_structured/read_structured, so a
+    // new pipeline is live without a restart — see src/core/pipeline.h.
+    const std::string pipelines_dir = resolve_dir(funes::env("FUNES_PIPELINES_DIR"),
+                                                  "pipelines");
 
     std::string db_path = funes::env("FUNES_DB");
     if (db_path.empty()) {
@@ -259,6 +264,8 @@ int main(int argc, char** argv) {
     register_harvest_tool(tools, memory, workspace_dir, publications_dir);
     register_publish_issue_tool(tools, workspace_dir, publishing_dir,
                                 publications_dir);
+    register_structured_tools(tools, workspace_dir, pipelines_dir);
+    register_ranking_tools(tools);
     funes::tools::register_all_generated_tools(tools);
     register_tool_builder(tools, generated_tools_dir);
 

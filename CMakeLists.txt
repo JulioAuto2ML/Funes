@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 4.0.0 LANGUAGES C CXX)
+project(Funes VERSION 4.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -73,6 +73,7 @@ add_library(funes_core STATIC
     src/core/llm_client.cpp
     src/core/agent_config.cpp
     src/core/publication.cpp
+    src/core/pipeline.cpp
     src/core/context_compressor.cpp
     src/core/completion_contract.cpp
     src/core/answer_schema.cpp
@@ -105,6 +106,8 @@ add_library(funes_core STATIC
     src/core/tools/tool_builder.cpp
     src/core/tools/agent_builder.cpp
     src/core/tools/file_tools.cpp
+    src/core/tools/structured.cpp
+    src/core/tools/rankings.cpp
     src/core/tools/shell_tool.cpp
     src/core/tools/delegation.cpp
     src/core/tools/cron_tool.cpp

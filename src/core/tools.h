@@ -119,6 +119,10 @@ void register_file_tools(ToolRegistry& reg,
                          const std::string& workspace_dir);        // read_file, write_file, list_files
 void register_shell_tool(ToolRegistry& reg,
                          const std::string& workspace_dir);        // execute_shell
+void register_structured_tools(ToolRegistry& reg, const std::string& workspace_dir,
+                               const std::string& pipelines_dir);
+                                                                     // write_structured, read_structured
+void register_ranking_tools(ToolRegistry& reg);                      // merge_rankings
 void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,
                               std::function<AgentConfig(const std::string&)> find_agent,
                               std::function<std::vector<std::string>()> list_agent_names);

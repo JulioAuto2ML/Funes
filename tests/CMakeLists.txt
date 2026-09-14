@@ -81,6 +81,21 @@ target_link_libraries(test_publication PRIVATE funes_core)
 add_test(NAME publication COMMAND test_publication
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Runs from the project root for the same reason test_publication does: one of
+# its cases loads pipelines/voc.yaml, the config the five VoC agents run on.
+add_executable(test_pipeline test_pipeline.cpp)
+target_link_libraries(test_pipeline PRIVATE funes_core)
+add_test(NAME pipeline COMMAND test_pipeline
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(test_structured_tools test_structured_tools.cpp)
+target_link_libraries(test_structured_tools PRIVATE funes_core)
+add_test(NAME structured_tools COMMAND test_structured_tools)
+
+add_executable(test_merge_rankings test_merge_rankings.cpp)
+target_link_libraries(test_merge_rankings PRIVATE funes_core)
+add_test(NAME merge_rankings COMMAND test_merge_rankings)
+
 add_executable(test_issue test_issue.cpp)
 target_link_libraries(test_issue PRIVATE funes_core)
 add_test(NAME issue COMMAND test_issue)
