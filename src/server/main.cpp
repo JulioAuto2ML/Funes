@@ -150,6 +150,41 @@ static std::string merge_memories(LLMClient& llm, const std::vector<std::string>
     return out;
 }
 
+// The LLM half of MemoryStore::backfill_links: one pair, one word back. The
+// store has already decided this pair is worth asking about (same account,
+// same agent, similar but not near-identical), so the only judgement left is
+// the one arithmetic cannot make — whether knowing one of these helps when the
+// other comes up.
+//
+// The closed vocabulary is the point. An open-ended "describe the
+// relationship" from a 9B model unattended produces a different phrasing every
+// time, and rel_type is a key other code groups on, not prose anybody reads.
+static std::string judge_link(LLMClient& llm, const std::string& a, const std::string& b) {
+    std::vector<ChatMessage> msgs;
+    ChatMessage sys;
+    sys.role    = "system";
+    sys.content = "You decide whether two remembered notes are connected. Reply "
+                  "with exactly one word: elaborates (one adds detail to the "
+                  "other), causes (one explains why the other is true), "
+                  "contradicts (they cannot both be true), related (connected "
+                  "some other way), or none (knowing one does not help with the "
+                  "other). One word. No explanation.";
+    msgs.push_back(std::move(sys));
+    ChatMessage user;
+    user.role    = "user";
+    user.content = "A: " + a + "\nB: " + b;
+    msgs.push_back(std::move(user));
+
+    std::string out = llm.complete(msgs).content;
+    for (char& c : out) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    // Substring rather than equality: a local model that was told "one word"
+    // still says "Related." often enough that treating it as a refusal would
+    // throw away most of the pass.
+    for (const char* verdict : {"elaborates", "contradicts", "causes", "related"})
+        if (out.find(verdict) != std::string::npos) return verdict;
+    return "";   // includes an explicit "none" and anything unparseable
+}
+
 int main(int argc, char** argv) {
     funes::load_config();
 
@@ -424,6 +459,45 @@ int main(int argc, char** argv) {
                                   << ", pruned " << report.pruned << "\n";
                 } catch (const std::exception& e) {
                     std::cerr << "[funes] consolidation run failed: " << e.what() << "\n";
+                }
+            }
+        }).detach();
+    }
+
+    // Link backfill (5.0, see MemoryStore::backfill_links): propose links
+    // between memories that are related without being duplicates. Deliberately
+    // the slowest of the background passes — it is one model call per candidate
+    // pair, and on a 271-memory pool the first full sweep is a few hours of
+    // Qwen on the local GPU. Capped per run and resumable (every verdict is
+    // recorded), so it drains over several nights instead of one long burst
+    // competing with the chat traffic it shares a GPU with.
+    //
+    // Off by default: it costs real GPU time on a machine where the chat path
+    // has to stay responsive, and an install that never turns it on keeps
+    // exactly the 4.x recall it had.
+    if (funes::env("FUNES_LINK_BACKFILL", "off") == "on") {
+        MemoryStore::LinkBackfillOptions opt;
+        opt.max_anchors = static_cast<size_t>(funes::env_int("FUNES_LINK_MAX_ANCHORS", 40));
+        const int every_hours = std::max(1, funes::env_int("FUNES_LINK_HOURS", 12));
+
+        std::thread([&memory, &defaults, opt, every_hours] {
+            LLMClient llm(defaults.llm_url, defaults.llm_api_key,
+                          defaults.llm_model, defaults.llm_provider);
+            llm.set_max_tokens(8);   // one word; anything longer is not an answer
+            for (;;) {
+                std::this_thread::sleep_for(std::chrono::hours(every_hours));
+                try {
+                    auto report = memory.backfill_links(
+                        [&llm](const std::string& a, const std::string& b) {
+                            return judge_link(llm, a, b);
+                        }, opt);
+                    if (report.judged || report.linked)
+                        std::cerr << "[funes] link backfill: " << report.anchors_seen
+                                  << " anchor(s), judged " << report.judged
+                                  << ", linked " << report.linked
+                                  << ", skipped " << report.skipped << "\n";
+                } catch (const std::exception& e) {
+                    std::cerr << "[funes] link backfill run failed: " << e.what() << "\n";
                 }
             }
         }).detach();

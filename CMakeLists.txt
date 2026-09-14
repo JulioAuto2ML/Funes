@@ -36,7 +36,12 @@ target_include_directories(funes_sqlite PUBLIC
 )
 # PUBLIC: sqlite-vec.h includes sqlite3ext.h, which expands to extension-shim
 # macros unless SQLITE_CORE is defined in the including TU as well.
-target_compile_definitions(funes_sqlite PUBLIC SQLITE_CORE)
+# SQLITE_CORE: lets sqlite-vec register statically (see above).
+# SQLITE_ENABLE_FTS5: the amalgamation ships FTS5 but compiles it out by
+# default. memories_fts (5.0) is how recall reaches a memory by its terms when
+# the embedding of the query doesn't resemble it; without this the table
+# creation fails and memory.cpp degrades to 4.x behaviour at runtime.
+target_compile_definitions(funes_sqlite PUBLIC SQLITE_CORE SQLITE_ENABLE_FTS5)
 target_link_libraries(funes_sqlite PUBLIC ${CMAKE_DL_LIBS} m)
 
 # ── cpp-mcp (vendored, MIT) ───────────────────────────────────────────────────

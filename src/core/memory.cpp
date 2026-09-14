@@ -18,6 +18,7 @@
 #include "sqlite-vec.h"
 #include "text_utils.h"
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <iostream>
 #include <set>
@@ -50,6 +51,7 @@ struct Stmt {
         sqlite3_bind_text(p, i, s.c_str(), static_cast<int>(s.size()), SQLITE_TRANSIENT);
     }
     void bind_int64(int i, int64_t v) { sqlite3_bind_int64(p, i, v); }
+    void bind_double(int i, double v)  { sqlite3_bind_double(p, i, v); }
     void bind_blob(int i, const void* data, size_t bytes) {
         sqlite3_bind_blob(p, i, data, static_cast<int>(bytes), SQLITE_TRANSIENT);
     }
@@ -284,6 +286,82 @@ void MemoryStore::migrate() {
             ON tool_results(user_id, session);
     )sql");
 
+    // ── 5.0: connected memories ───────────────────────────────────────────────
+    // Links between memories. ON DELETE CASCADE matters more than it looks:
+    // memory ids are recycled by SQLite, so a dangling link does not merely
+    // waste a join — it can eventually point at an unrelated memory that
+    // happened to be given the dead id. (PRAGMA foreign_keys=ON is set in the
+    // constructor; without it the cascade is a comment.)
+    //
+    // No user_id column. Ownership comes from the memories the link joins, and
+    // adding a third copy of it here would create a row that can *disagree*
+    // with its endpoints about who owns it. Every read joins both endpoints
+    // and filters on the owner; link_memories checks both before writing.
+    exec_or_throw(db_, R"sql(
+        CREATE TABLE IF NOT EXISTS memory_links (
+            from_id    INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            to_id      INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            rel_type   TEXT NOT NULL DEFAULT 'related',
+            weight     REAL NOT NULL DEFAULT 1.0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (from_id, to_id, rel_type)
+        );
+        CREATE INDEX IF NOT EXISTS idx_memory_links_to ON memory_links(to_id);
+
+        -- Every pair the backfill has already asked about, related or not.
+        -- Without it, a run capped at 40 anchors spends its budget re-asking
+        -- the questions the last run already answered "no" to, and the pass
+        -- never reaches the end of the pool. The negative verdicts are the
+        -- majority and they are the ones worth remembering.
+        CREATE TABLE IF NOT EXISTS memory_link_judgments (
+            lo_id      INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            hi_id      INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            related    INTEGER NOT NULL,
+            judged_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (lo_id, hi_id)
+        );
+    )sql");
+
+    // FTS5 over the memory text, as an external-content table: the index is
+    // derived from `memories` and the triggers keep it there, so there is one
+    // copy of the text and no way for the two to drift.
+    //
+    // Not fatal if it fails. A SQLite built without FTS5 should lose term
+    // matching and keep everything else, rather than refuse to open a database
+    // that is otherwise fine — recall then behaves exactly as it did in 4.x.
+    try {
+        exec_or_throw(db_, R"sql(
+            CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
+                USING fts5(text, content='memories', content_rowid='id');
+            CREATE TRIGGER IF NOT EXISTS memories_fts_ai AFTER INSERT ON memories BEGIN
+                INSERT INTO memories_fts(rowid, text) VALUES (new.id, new.text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS memories_fts_ad AFTER DELETE ON memories BEGIN
+                INSERT INTO memories_fts(memories_fts, rowid, text)
+                    VALUES('delete', old.id, old.text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS memories_fts_au AFTER UPDATE ON memories BEGIN
+                INSERT INTO memories_fts(memories_fts, rowid, text)
+                    VALUES('delete', old.id, old.text);
+                INSERT INTO memories_fts(rowid, text) VALUES (new.id, new.text);
+            END;
+        )sql");
+        // One-time population for memories that predate the index. Instant at
+        // the scale this runs at (hundreds of rows), and guarded by a marker
+        // so it is not repeated on every startup.
+        Stmt built(db_, "SELECT value FROM meta WHERE key='fts_built'");
+        if (!built.step()) {
+            exec_or_throw(db_, "INSERT INTO memories_fts(memories_fts) VALUES('rebuild');");
+            exec_or_throw(db_,
+                "INSERT OR REPLACE INTO meta(key, value) VALUES('fts_built', '1');");
+        }
+        fts_available_ = true;
+    } catch (const std::exception& e) {
+        std::cerr << "[memory] full-text index unavailable, term matching is off: "
+                  << e.what() << "\n";
+        fts_available_ = false;
+    }
+
     // Restore the vec table dimension recorded by a previous run.
     {
         Stmt s(db_, "SELECT value FROM meta WHERE key='embed_dim'");
@@ -434,26 +512,34 @@ std::vector<MemoryStore::Memory> MemoryStore::recall(int64_t user_id,
                                                      bool touch) {
     if (query.empty() || k <= 0 || user_id <= 0) return {};
 
+    // 5.0: whatever the flat search finds is the spine of the answer, and the
+    // two widening passes only ever append to it. Ordering that decision this
+    // way — rather than scoring all three sources into one pool — is what
+    // makes "connected memories cannot make recall worse" a property of the
+    // code instead of a hope about the weights.
+    auto widen = [&](std::vector<Memory> direct) {
+        expand_links(user_id, agent, direct, k);
+        fts_fill(user_id, agent, query, direct, k);
+        std::stable_sort(direct.begin(), direct.end(),
+                         [](const Memory& a, const Memory& b) { return a.score > b.score; });
+        if (static_cast<int>(direct.size()) > k) direct.resize(k);
+        if (touch) touch_recalled(direct);
+        return direct;
+    };
+
     std::vector<float> qvec;
     if (try_embed(query, qvec)) {
         std::lock_guard<std::mutex> lock(mu_);
         if (dim_ == static_cast<int>(qvec.size())) {
             auto results = recall_semantic(user_id, agent, qvec, k);
-            if (!results.empty()) {
-                if (touch) touch_recalled(results);
-                return results;
-            }
+            if (!results.empty()) return widen(std::move(results));
         }
         // No vec table yet, dimension mismatch, or empty index → keyword.
-        auto results = recall_keyword(user_id, agent, query, k);
-        if (touch) touch_recalled(results);
-        return results;
+        return widen(recall_keyword(user_id, agent, query, k));
     }
 
     std::lock_guard<std::mutex> lock(mu_);
-    auto results = recall_keyword(user_id, agent, query, k);
-    if (touch) touch_recalled(results);
-    return results;
+    return widen(recall_keyword(user_id, agent, query, k));
 }
 
 // Called with mu_ held, from every path that hands memories back to an agent.
@@ -468,6 +554,416 @@ void MemoryStore::touch_recalled(const std::vector<Memory>& hits) {
         s.bind_int64(1, m.id);
         s.step();
     }
+}
+
+// ── connected memories (5.0) ─────────────────────────────────────────────────
+
+namespace {
+
+// How much of an anchor's score a memory reached through a link inherits. The
+// property this number exists to guarantee is in the name: a memory found
+// *through* another is evidence about that other one, never a better answer
+// than it, so the product of decay and weight must stay below 1. 0.6 leaves a
+// strongly-linked memory able to displace a weak direct hit — which is the
+// feature — while keeping it under the hit it came from.
+constexpr double LINK_DECAY = 0.6;
+
+// Term matches enter below the weakest direct hit, so they can only fill slots
+// the flat search left empty. Widening recall is worth doing; silently
+// reordering what already worked is not, and this is the difference.
+constexpr double FTS_CEILING = 0.9;
+
+// The score FTS hits get when there were no direct hits at all — the "what do
+// I know about X" case, where the term index is the only thing that answered.
+constexpr double FTS_ALONE = 0.5;
+
+// FTS5 treats a bare query as a term expression, so a user's question mark or
+// quote is a syntax error rather than a search. Reduced to quoted terms, which
+// is all recall needs: the vector search handles meaning, this handles words.
+std::string fts_query(const std::string& raw) {
+    std::string out;
+    std::string term;
+    auto flush = [&] {
+        if (term.empty()) return;
+        if (!out.empty()) out += " OR ";
+        out += '"' + term + '"';
+        term.clear();
+    };
+    for (unsigned char c : raw) {
+        if (std::isalnum(c) || c >= 128) term += static_cast<char>(c);
+        else flush();
+        if (term.size() > 64) flush();
+    }
+    flush();
+    return out;
+}
+
+} // namespace
+
+bool MemoryStore::link_memories(int64_t user_id, int64_t from_id, int64_t to_id,
+                                const std::string& rel_type, double weight) {
+    if (user_id <= 0 || from_id <= 0 || to_id <= 0 || from_id == to_id) return false;
+    if (rel_type.empty()) return false;
+    if (weight <= 0.0) return false;
+    if (weight > 1.0) weight = 1.0;
+
+    std::lock_guard<std::mutex> lock(mu_);
+
+    // Both endpoints, one query, counted rather than fetched: a link whose
+    // ends belong to two different accounts is the one thing here that must be
+    // impossible, and "missing" and "not yours" have to be the same answer or
+    // the return value becomes an existence oracle for other people's ids.
+    {
+        Stmt s(db_, "SELECT COUNT(*) FROM memories WHERE user_id = ? AND id IN (?, ?)");
+        s.bind_int64(1, user_id);
+        s.bind_int64(2, from_id);
+        s.bind_int64(3, to_id);
+        if (!s.step() || s.col_int64(0) != 2) return false;
+    }
+
+    // Normalized endpoint order, so (a,b) and (b,a) are one link rather than
+    // two rows that both turn up when either end is read.
+    const int64_t lo = std::min(from_id, to_id);
+    const int64_t hi = std::max(from_id, to_id);
+
+    Stmt s(db_, "INSERT INTO memory_links(from_id, to_id, rel_type, weight) "
+                "VALUES(?,?,?,?) "
+                "ON CONFLICT(from_id, to_id, rel_type) DO UPDATE SET weight = excluded.weight");
+    s.bind_int64(1, lo);
+    s.bind_int64(2, hi);
+    s.bind_text(3, rel_type);
+    s.bind_double(4, weight);
+    s.step();
+    return true;
+}
+
+bool MemoryStore::unlink_memories(int64_t user_id, int64_t from_id, int64_t to_id,
+                                  const std::string& rel_type) {
+    if (user_id <= 0) return false;
+    std::lock_guard<std::mutex> lock(mu_);
+
+    const int64_t lo = std::min(from_id, to_id);
+    const int64_t hi = std::max(from_id, to_id);
+
+    // The ownership predicate rides on the statement, like every other
+    // destructive operation in this file: "not yours" and "not there" are the
+    // same answer, and neither deletes anything.
+    Stmt s(db_, R"sql(
+        DELETE FROM memory_links
+        WHERE from_id = ? AND to_id = ? AND rel_type = ?
+          AND from_id IN (SELECT id FROM memories WHERE user_id = ?)
+    )sql");
+    s.bind_int64(1, lo);
+    s.bind_int64(2, hi);
+    s.bind_text(3, rel_type);
+    s.bind_int64(4, user_id);
+    s.step();
+    return sqlite3_changes(db_) > 0;
+}
+
+std::vector<MemoryStore::Link> MemoryStore::links_of(int64_t user_id, int64_t id) {
+    std::vector<Link> out;
+    if (user_id <= 0 || id <= 0) return out;
+    std::lock_guard<std::mutex> lock(mu_);
+
+    // Either direction, and the joined endpoint must be the caller's too — the
+    // stored link cannot span accounts today, but a read that assumes that
+    // would be trusting a past invariant instead of checking the present one.
+    Stmt s(db_, R"sql(
+        SELECT CASE WHEN l.from_id = ?1 THEN l.to_id ELSE l.from_id END AS other_id,
+               l.rel_type, l.weight, l.created_at
+        FROM memory_links l
+        JOIN memories anchor ON anchor.id = ?1 AND anchor.user_id = ?2
+        JOIN memories other  ON other.id  = CASE WHEN l.from_id = ?1 THEN l.to_id ELSE l.from_id END
+                            AND other.user_id = ?2
+        WHERE l.from_id = ?1 OR l.to_id = ?1
+        ORDER BY l.weight DESC, other_id
+    )sql");
+    s.bind_int64(1, id);
+    s.bind_int64(2, user_id);
+    while (s.step()) {
+        Link l;
+        l.other_id   = s.col_int64(0);
+        l.rel_type   = s.col_text(1);
+        l.weight     = s.col_double(2);
+        l.created_at = s.col_text(3);
+        out.push_back(std::move(l));
+    }
+    return out;
+}
+
+int64_t MemoryStore::count_links(int64_t user_id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, R"sql(
+        SELECT COUNT(*) FROM memory_links l
+        JOIN memories m ON m.id = l.from_id
+        WHERE m.user_id = ?
+    )sql");
+    s.bind_int64(1, user_id);
+    return s.step() ? s.col_int64(0) : 0;
+}
+
+// One hop from what was already found. Appends; never reorders or drops.
+void MemoryStore::expand_links(int64_t user_id, const std::string& agent,
+                               std::vector<Memory>& hits, int k) {
+    if (hits.empty()) return;
+
+    // Snapshot the anchors before appending: expanding the memories we just
+    // expanded into is what turns one hop into a walk of the whole graph, and
+    // the far end of a chain is not what the query asked about.
+    const size_t anchor_count = hits.size();
+    std::set<int64_t> present;
+    for (const auto& m : hits) present.insert(m.id);
+
+    std::vector<Memory> found;
+    for (size_t i = 0; i < anchor_count; ++i) {
+        const Memory anchor = hits[i];
+
+        Stmt s(db_, R"sql(
+            SELECT m.id, m.agent, m.text, m.source, m.created_at, m.recall_count,
+                   m.user_id, l.weight
+            FROM memory_links l
+            JOIN memories m
+              ON m.id = CASE WHEN l.from_id = ?1 THEN l.to_id ELSE l.from_id END
+            WHERE (l.from_id = ?1 OR l.to_id = ?1)
+              AND m.user_id = ?2
+            ORDER BY l.weight DESC
+        )sql");
+        s.bind_int64(1, anchor.id);
+        s.bind_int64(2, user_id);
+
+        while (s.step()) {
+            Memory m;
+            m.id           = s.col_int64(0);
+            m.agent        = s.col_text(1);
+            if (!agent.empty() && m.agent != agent) continue;
+            if (present.count(m.id)) continue;
+            m.text         = s.col_text(2);
+            m.source       = s.col_text(3);
+            m.created_at   = s.col_text(4);
+            m.recall_count = s.col_int64(5);
+            m.user_id      = s.col_int64(6);
+            // Inherited, not computed: this memory did not match the query, so
+            // it has no similarity of its own to report. What it has is a
+            // relationship to something that did.
+            m.score        = anchor.score * s.col_double(7) * LINK_DECAY;
+            present.insert(m.id);
+            found.push_back(std::move(m));
+        }
+        if (static_cast<int>(found.size()) >= k) break;
+    }
+
+    for (auto& m : found) hits.push_back(std::move(m));
+}
+
+// Term matches for memories the vector search did not surface. Appends below
+// everything already found; see FTS_CEILING.
+void MemoryStore::fts_fill(int64_t user_id, const std::string& agent,
+                           const std::string& query, std::vector<Memory>& hits, int k) {
+    if (!fts_available_) return;
+    if (static_cast<int>(hits.size()) >= k) return;
+
+    const std::string expr = fts_query(query);
+    if (expr.empty()) return;
+
+    std::set<int64_t> present;
+    double floor_score = 0.0;
+    for (const auto& m : hits) {
+        present.insert(m.id);
+        if (floor_score == 0.0 || m.score < floor_score) floor_score = m.score;
+    }
+    const double base = hits.empty() ? FTS_ALONE : floor_score * FTS_CEILING;
+
+    // memories_fts has no user partition of its own — it indexes text and
+    // nothing else — so the scoping predicate lives entirely on this join. It
+    // is the only thing standing between one account's search terms and
+    // another account's memories.
+    std::string sql = R"sql(
+        SELECT m.id, m.agent, m.text, m.source, m.created_at, m.recall_count, m.user_id
+        FROM memories_fts f
+        JOIN memories m ON m.id = f.rowid
+        WHERE memories_fts MATCH ? AND m.user_id = ?
+    )sql";
+    if (!agent.empty()) sql += " AND m.agent = ?";
+    sql += " ORDER BY bm25(memories_fts) LIMIT ?";
+
+    try {
+        Stmt s(db_, sql.c_str());
+        int i = 1;
+        s.bind_text(i++, expr);
+        s.bind_int64(i++, user_id);
+        if (!agent.empty()) s.bind_text(i++, agent);
+        s.bind_int64(i, k * 4);
+
+        int rank = 0;
+        while (s.step() && static_cast<int>(hits.size()) < k) {
+            Memory m;
+            m.id = s.col_int64(0);
+            if (present.count(m.id)) continue;
+            m.agent        = s.col_text(1);
+            m.text         = s.col_text(2);
+            m.source       = s.col_text(3);
+            m.created_at   = s.col_text(4);
+            m.recall_count = s.col_int64(5);
+            m.user_id      = s.col_int64(6);
+            // Strictly decreasing in bm25 order, and strictly below `base`, so
+            // term matches rank among themselves without ever interleaving
+            // with the direct hits.
+            m.score = base * (1.0 - 0.01 * (++rank));
+            hits.push_back(std::move(m));
+        }
+    } catch (const std::exception& e) {
+        // A malformed MATCH expression must not take the recall with it: the
+        // caller still has its direct hits, which is the answer it had before
+        // term matching existed.
+        std::cerr << "[memory] term match skipped: " << e.what() << "\n";
+    }
+}
+
+MemoryStore::LinkBackfillReport MemoryStore::backfill_links(
+    const LinkJudgeFn& judge, const LinkBackfillOptions& opt) {
+    LinkBackfillReport report;
+    if (!judge || !semantic_available() || dim_ == 0) return report;
+
+    // One pool at a time, like consolidate(): a link between two accounts'
+    // memories is the thing this whole subsystem must not produce, and the
+    // cheapest way to guarantee it is never to hand the judge a pair that
+    // spans two of them.
+    if (opt.user_id < 0) {
+        for (int64_t uid : user_ids_with_memories()) {
+            LinkBackfillOptions per_user = opt;
+            per_user.user_id = uid;
+            LinkBackfillReport r = backfill_links(judge, per_user);
+            report.anchors_seen += r.anchors_seen;
+            report.judged       += r.judged;
+            report.linked       += r.linked;
+            report.skipped      += r.skipped;
+        }
+        return report;
+    }
+
+    // Anchors: the memories with the fewest judgements so far, so a capped run
+    // works on the part of the pool that has had the least attention rather
+    // than starting from the top every time.
+    std::vector<int64_t> anchors;
+    {
+        std::lock_guard<std::mutex> lock(mu_);
+        std::string sql = R"sql(
+            SELECT m.id FROM memories m
+            JOIN vec_memories v ON v.memory_id = m.id
+            WHERE m.user_id = ?
+        )sql";
+        if (!opt.agent.empty()) sql += " AND m.agent = ?";
+        sql += R"sql(
+            ORDER BY (SELECT COUNT(*) FROM memory_link_judgments j
+                      WHERE j.lo_id = m.id OR j.hi_id = m.id) ASC, m.id ASC
+            LIMIT ?
+        )sql";
+        Stmt s(db_, sql.c_str());
+        int i = 1;
+        s.bind_int64(i++, opt.user_id);
+        if (!opt.agent.empty()) s.bind_text(i++, opt.agent);
+        s.bind_int64(i, static_cast<int64_t>(opt.max_anchors));
+        while (s.step()) anchors.push_back(s.col_int64(0));
+    }
+
+    for (int64_t anchor_id : anchors) {
+        ++report.anchors_seen;
+
+        // Candidate pairs, chosen by arithmetic before anything is asked of a
+        // model: neighbours inside the similarity band, same agent, not
+        // already judged. This is the deterministic-over-agentic split — the
+        // model is asked one question about one pair, never to go looking.
+        struct Candidate { int64_t id; std::string text; };
+        std::string anchor_text;
+        std::vector<Candidate> candidates;
+        {
+            std::lock_guard<std::mutex> lock(mu_);
+            std::vector<float> vec;
+            {
+                Stmt s(db_, "SELECT embedding FROM vec_memories WHERE memory_id = ?");
+                s.bind_int64(1, anchor_id);
+                if (!s.step()) continue;
+                vec = s.col_floats(0);
+            }
+            if (vec.empty() || static_cast<int>(vec.size()) != dim_) continue;
+
+            std::string anchor_agent;
+            {
+                Stmt s(db_, "SELECT text, agent FROM memories WHERE id = ? AND user_id = ?");
+                s.bind_int64(1, anchor_id);
+                s.bind_int64(2, opt.user_id);
+                if (!s.step()) continue;
+                anchor_text  = s.col_text(0);
+                anchor_agent = s.col_text(1);
+            }
+
+            Stmt s(db_, R"sql(
+                SELECT m.id, m.text, m.agent, v.distance
+                FROM vec_memories v
+                JOIN memories m ON m.id = v.memory_id
+                WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = ?
+                ORDER BY v.distance
+            )sql");
+            s.bind_int64(1, opt.user_id);
+            s.bind_blob(2, vec.data(), vec.size() * sizeof(float));
+            s.bind_int64(3, opt.neighbours + 1);   // +1: the anchor matches itself
+
+            while (s.step()) {
+                const int64_t id = s.col_int64(0);
+                if (id == anchor_id) continue;
+                // Two agents' memories are not each other's context, the same
+                // way consolidate() refuses to merge across agents.
+                if (s.col_text(2) != anchor_agent) continue;
+                const double similarity = 1.0 - s.col_double(3);
+                if (similarity < opt.min_similarity) continue;
+                if (similarity > opt.max_similarity) continue;   // consolidate's job
+
+                const int64_t lo = std::min(anchor_id, id);
+                const int64_t hi = std::max(anchor_id, id);
+                Stmt seen(db_, "SELECT 1 FROM memory_link_judgments "
+                               "WHERE lo_id = ? AND hi_id = ?");
+                seen.bind_int64(1, lo);
+                seen.bind_int64(2, hi);
+                if (seen.step()) { ++report.skipped; continue; }
+
+                candidates.push_back({id, s.col_text(1)});
+            }
+        }
+
+        for (const auto& c : candidates) {
+            std::string rel;
+            try {
+                rel = judge(anchor_text, c.text);
+            } catch (const std::exception& e) {
+                // A model failure is not a verdict: leave the pair unjudged so
+                // a later run asks again, rather than recording "unrelated"
+                // because the endpoint was down.
+                std::cerr << "[memory] link judge failed: " << e.what() << "\n";
+                ++report.skipped;
+                continue;
+            }
+            ++report.judged;
+
+            // Trim: a local model says "related" with a newline more often
+            // than it says it without one.
+            while (!rel.empty() && std::isspace(static_cast<unsigned char>(rel.back())))
+                rel.pop_back();
+            const bool related = !rel.empty() && rel != "none";
+            if (related) {
+                if (link_memories(opt.user_id, anchor_id, c.id, rel, 1.0)) ++report.linked;
+            }
+
+            std::lock_guard<std::mutex> lock(mu_);
+            Stmt s(db_, "INSERT OR REPLACE INTO memory_link_judgments(lo_id, hi_id, related) "
+                        "VALUES(?,?,?)");
+            s.bind_int64(1, std::min(anchor_id, c.id));
+            s.bind_int64(2, std::max(anchor_id, c.id));
+            s.bind_int64(3, related ? 1 : 0);
+            s.step();
+        }
+    }
+    return report;
 }
 
 // A deliberate fact outranks a passive conversation log at the same raw
@@ -565,6 +1061,12 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_keyword(
         m.created_at   = s.col_text(4);
         m.recall_count = s.col_int64(5);
         m.user_id      = s.col_int64(6);
+        // Keyword mode has no similarity to report, but a hit still needs a
+        // score: link expansion inherits it (5.0), and a list of zeroes would
+        // make every expanded memory rank equal to the memory it came from.
+        // source_weight alone, so the ordering within one source is the
+        // newest-first order this query already produced.
+        m.score        = source_weight(m.source);
         out.push_back(std::move(m));
     }
     return out;

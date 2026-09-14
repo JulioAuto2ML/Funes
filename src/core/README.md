@@ -32,6 +32,7 @@ produces text and tool calls; this code decides whether to execute them.
 | File | Purpose |
 |---|---|
 | `memory.h/cpp` | `MemoryStore` -- SQLite + sqlite-vec. Long-term memories with semantic search, conversation turns, rolling summaries, tool results, cron jobs. Thread-safe, graceful degradation to keyword search. Every method takes the `user_id` it acts as -- deliberately with no default, so a new call site that forgets one fails to compile rather than writing into the admin's data. |
+| `memory.h/cpp` (5.0) | Connected memories: `memory_links` between two of one account's memories, `memories_fts` (FTS5, external content, trigger-maintained). Recall runs the flat search first and then two **append-only** widening passes -- one-hop link expansion and term-match fill. Append-only is the safety property: an expanded hit inherits `anchor.score x weight x 0.6`, so it cannot outrank the memory it was reached through, and a term match enters below the weakest direct hit. `backfill_links()` is where links come from -- capped, resumable, one model call per candidate pair, and every verdict recorded (including the negatives, or a capped run re-asks the same questions forever). |
 
 ### Safety mechanisms
 

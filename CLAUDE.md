@@ -188,6 +188,22 @@ things the person had said. Scheduled sessions (`cron-<id>-<epoch>`) are hidden
 from `list_sessions` unless asked for; `funes cron-cleanup` removes what an
 older database already holds.
 
+As of 5.0 recall is no longer a single flat similarity search. Two passes run
+after it and **only ever append** to what it found: a one-hop expansion through
+`memory_links` (an explicit "these belong together", stored between two of one
+account's memories), and an FTS5 term match (`memories_fts`, an external-content
+index kept in sync by triggers). Ordering it that way is what makes "connected
+memories cannot make recall worse" a property of the code rather than a hope
+about weights — an expanded hit inherits its anchor's score times the link
+weight times a decay below 1, so it can never outrank the memory it was reached
+through, and term matches enter below the weakest direct hit. Links come from
+`backfill_links()`, a capped, resumable background pass that asks the model
+about one candidate pair at a time (`FUNES_LINK_BACKFILL=on`; off by default
+because it is one model call per pair on a GPU the chat path needs). Every
+verdict is recorded in `memory_link_judgments`, including the negatives — a
+capped run that re-asked the questions it already answered would never reach
+the end of the pool.
+
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (used by
 `whatsapp-autoresponder` to share `funes`'s memory). That is orthogonal to

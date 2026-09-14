@@ -118,6 +118,79 @@ public:
     // True if an embedder is configured and the last embed attempt succeeded.
     bool semantic_available() const { return embedder_ != nullptr && embedder_ok_; }
 
+    // ── Connected memories (5.0) ──────────────────────────────────────────────
+    // Before 5.0 a fact was retrievable only if the query resembled its
+    // wording. Two facts about the same thing, phrased differently, never
+    // reinforced each other: ask about one and the other stayed invisible,
+    // however obviously related a person would find them.
+    //
+    // A link is an explicit "these belong together", stored alongside the
+    // memories rather than inferred at query time. recall() expands one hop
+    // through links and unions in FTS5 term matches, which gives two ways to
+    // reach a memory that do not depend on the query resembling its text.
+    //
+    // Both endpoints must belong to the caller, checked in the SQL like every
+    // other predicate here (see the class comment). A link is written directed
+    // but read symmetrically: the relation is symmetric to a person, so asking
+    // either endpoint finds it.
+
+    struct Link {
+        int64_t     other_id = 0;   // the endpoint that is not the one asked about
+        std::string rel_type;       // "related" | "elaborates" | "contradicts" | …
+        double      weight = 1.0;   // 0–1; scales the score an expanded hit inherits
+        std::string created_at;
+    };
+
+    // False if either id is missing or belongs to another account — the same
+    // answer for both, so ids cannot be probed. Calling it twice is not an
+    // error: the backfill pass proposes the same pair across runs, and the
+    // second proposal updates the weight rather than failing.
+    bool link_memories(int64_t user_id, int64_t from_id, int64_t to_id,
+                       const std::string& rel_type = "related", double weight = 1.0);
+    bool unlink_memories(int64_t user_id, int64_t from_id, int64_t to_id,
+                         const std::string& rel_type = "related");
+    // Every link touching `id`, in either direction. Empty when `id` is not
+    // this user's — indistinguishable from "no links", deliberately.
+    std::vector<Link> links_of(int64_t user_id, int64_t id);
+    int64_t count_links(int64_t user_id);
+
+    // Links have to come from somewhere, and "somewhere" is a judgement about
+    // meaning — the one thing in this file that needs a model. Same shape as
+    // MergeFn below: the store finds the candidate pairs (cheap, deterministic,
+    // vector arithmetic) and asks about each one; the caller supplies the
+    // model. Returns the relation type to record, or "" for no relation.
+    // Throwing is allowed and safe: that pair is skipped and the run goes on.
+    using LinkJudgeFn = std::function<std::string(const std::string& a,
+                                                  const std::string& b)>;
+
+    struct LinkBackfillOptions {
+        int64_t     user_id = -1;           // <0 = every user, one pool at a time
+        std::string agent;                  // empty = every agent
+        // The band a pair has to fall in to be worth asking about. Below the
+        // floor they have nothing to do with each other and the model is being
+        // asked to invent a connection; above the ceiling they are the same
+        // fact twice, which is consolidate()'s job, not a link's.
+        double      min_similarity = 0.55;
+        double      max_similarity = 0.92;
+        int         neighbours     = 5;     // candidates considered per anchor
+        size_t      max_anchors    = 40;    // cap model calls per run
+    };
+
+    struct LinkBackfillReport {
+        int anchors_seen = 0;
+        int judged       = 0;   // pairs actually put to the model
+        int linked       = 0;   // pairs it said were related
+        int skipped      = 0;   // pairs judged before, or the judge threw
+    };
+
+    // Safe to call from a background thread. Every pair the judge sees is
+    // recorded whatever the verdict, so a second run does not re-ask the same
+    // question — which is what makes a capped run resumable rather than a run
+    // that keeps redoing the cheapest work. Without an embedder there are no
+    // neighbours to propose and this does nothing.
+    LinkBackfillReport backfill_links(const LinkJudgeFn& judge,
+                                      const LinkBackfillOptions& opt);
+
     // ── Consolidation (offline reflection pass) ───────────────────────────────
     // remember() never merges and never forgets: near-duplicates accumulate and
     // recall precision decays. consolidate() is the periodic cleanup — merge
@@ -363,6 +436,18 @@ private:
                                         const std::vector<float>& qvec, int k);
     std::vector<Memory> recall_keyword(int64_t user_id, const std::string& agent,
                                        const std::string& query, int k);
+    // Both called with mu_ held, both *append* to `hits` and never reorder or
+    // drop what is already there. That is the safety property the two widening
+    // paths rest on: whatever the flat search found is still found, so the
+    // worst case of a bad link or a spurious term match is a wasted slot at
+    // the bottom of the list rather than a lost answer at the top.
+    void expand_links(int64_t user_id, const std::string& agent,
+                      std::vector<Memory>& hits, int k);
+    void fts_fill(int64_t user_id, const std::string& agent,
+                  const std::string& query, std::vector<Memory>& hits, int k);
+    // True once memories_fts exists and is usable. False on a build whose
+    // SQLite lacks FTS5, which is a degraded feature, not an error.
+    bool fts_available_ = false;
     // Every user that owns at least one memory — consolidate() iterates it
     // when no single user was named.
     std::vector<int64_t> user_ids_with_memories();
