@@ -121,15 +121,34 @@ std::string check_object(const json& schema, const json& value, const std::strin
     return "";
 }
 
+// A `minItems: 3` written in an agent's YAML arrives as a *signed* integer
+// (yaml-cpp scalars are untyped and agent_config recovers them as long long),
+// while the same schema parsed from JSON text arrives unsigned. Reading the
+// bound with is_number_unsigned() therefore enforced it in one case and
+// silently skipped it in the other — which is the case that ships:
+// council-panelist's minItems/maxItems were never applied. Any non-negative
+// number is a bound here, whichever way it was written.
+bool item_bound(const json& schema, const char* key, size_t& out) {
+    if (!schema.contains(key)) return false;
+    const json& v = schema[key];
+    if (v.is_number_unsigned()) { out = v.get<size_t>(); return true; }
+    if (v.is_number_integer()) {
+        const long long n = v.get<long long>();
+        if (n < 0) return false;
+        out = static_cast<size_t>(n);
+        return true;
+    }
+    return false;
+}
+
 std::string check_array(const json& schema, const json& value, const std::string& path) {
     if (!value.is_array()) return "";
 
-    if (schema.contains("minItems") && schema["minItems"].is_number_unsigned() &&
-        value.size() < schema["minItems"].get<size_t>())
+    size_t bound = 0;
+    if (item_bound(schema, "minItems", bound) && value.size() < bound)
         return at(path) + ": expected at least " + schema["minItems"].dump() +
                " item(s), got " + std::to_string(value.size());
-    if (schema.contains("maxItems") && schema["maxItems"].is_number_unsigned() &&
-        value.size() > schema["maxItems"].get<size_t>())
+    if (item_bound(schema, "maxItems", bound) && value.size() > bound)
         return at(path) + ": expected at most " + schema["maxItems"].dump() +
                " item(s), got " + std::to_string(value.size());
 

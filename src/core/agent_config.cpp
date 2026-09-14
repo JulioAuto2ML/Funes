@@ -6,6 +6,7 @@
 
 #include "agent_config.h"
 #include "answer_schema.h"
+#include "yaml_json.h"
 #include <yaml-cpp/yaml.h>
 #include <cstdlib>
 #include <stdexcept>
@@ -30,40 +31,6 @@ static std::string expand_env(const std::string& s) {
         out += s[i++];
     }
     return out;
-}
-
-// YAML and JSON are the same data model here, so `answer_schema:` is written
-// as ordinary YAML and converted rather than embedded as a JSON string.
-// yaml-cpp scalars are untyped, so numbers and booleans are recovered by
-// trying the narrowest type first — a schema's `minItems: 2` has to survive as
-// a number, and `"2"` would validate nothing.
-static nlohmann::json yaml_to_json(const YAML::Node& node) {
-    switch (node.Type()) {
-        case YAML::NodeType::Map: {
-            nlohmann::json obj = nlohmann::json::object();
-            for (const auto& kv : node)
-                obj[kv.first.as<std::string>()] = yaml_to_json(kv.second);
-            return obj;
-        }
-        case YAML::NodeType::Sequence: {
-            nlohmann::json arr = nlohmann::json::array();
-            for (const auto& item : node)
-                arr.push_back(yaml_to_json(item));
-            return arr;
-        }
-        case YAML::NodeType::Scalar: {
-            bool b;
-            if (YAML::convert<bool>::decode(node, b)) return b;
-            long long i;
-            if (YAML::convert<long long>::decode(node, i)) return i;
-            double d;
-            if (YAML::convert<double>::decode(node, d)) return d;
-            return node.as<std::string>();
-        }
-        case YAML::NodeType::Null:
-        default:
-            return nullptr;
-    }
 }
 
 static AgentConfig from_node(const YAML::Node& root, const std::string& source) {
@@ -105,7 +72,7 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     }
 
     if (root["answer_schema"] && root["answer_schema"].IsMap()) {
-        cfg.answer_schema = yaml_to_json(root["answer_schema"]);
+        cfg.answer_schema = funes::yaml_to_json(root["answer_schema"]);
         // The prompt half of the contract is generated, never hand-written:
         // an agent author edits one place and the model is told exactly what
         // the loop will enforce.

@@ -114,6 +114,20 @@ int test_validation() {
                                   "required": ["a"]})");
     CHECK(funes::validate_answer(exotic, json::parse(R"({"a": 1})")).empty());
 
+    // A bound the *agent YAML* wrote. json::parse turns "3" into an unsigned
+    // number; yaml-cpp hands agent_config a signed one for the identical
+    // schema, and reading the bound as unsigned-only meant council-panelist's
+    // minItems/maxItems were quietly never applied. Both spellings are a bound.
+    json signed_bounds = {{"type", "array"}, {"minItems", 3}, {"maxItems", 5}};
+    CHECK(signed_bounds["minItems"].is_number_integer() &&
+          !signed_bounds["minItems"].is_number_unsigned());   // the shape YAML produces
+    CHECK(!funes::validate_answer(signed_bounds, json::parse("[1, 2]")).empty());
+    CHECK(funes::validate_answer(signed_bounds, json::parse("[1, 2, 3]")).empty());
+    CHECK(!funes::validate_answer(signed_bounds, json::parse("[1,2,3,4,5,6]")).empty());
+    // A nonsensical negative bound is ignored rather than treated as huge.
+    json negative = {{"type", "array"}, {"minItems", -1}};
+    CHECK(funes::validate_answer(negative, json::parse("[]")).empty());
+
     // integer vs number is a real distinction; string-vs-integer is the one
     // local models get wrong ("count": "3").
     json num = json::parse(R"({"type": "object", "properties": {"n": {"type": "integer"}}})");
