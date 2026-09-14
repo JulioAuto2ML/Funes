@@ -3,14 +3,14 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **4.0** (multi-user, `project(Funes VERSION 4.0.0)`).
+Current release: **5.0** (connected memories + localization, `project(Funes VERSION 5.0.0)`).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
-| **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | in progress |
+| **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | shipped |
 | **4.2** | Generic channel adapter + self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 | deferred (demand-driven) |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
-| **6.0** | Voice: STT + TTS sidecars | v6 voice research | researched |
+| **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
 
 ## Why this order
 
