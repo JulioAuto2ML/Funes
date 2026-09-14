@@ -8,7 +8,7 @@ Current release: **5.0** (connected memories + localization, `project(Funes VERS
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
 | **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | shipped |
-| **4.2** | Generic channel adapter + self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 | deferred (demand-driven) |
+| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 + below | planned |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
 | **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
 
@@ -46,6 +46,65 @@ voice work is tested against the recall behaviour it will live with.
 | 4.1 | `book-editor`: style ruleset out of the prompt into a style file | done |
 | 4.2 | `astro-ph-summarizer`: fold into `rss-reader` as a configured feed | done |
 | 5.1 | Archetype defaults documented in `agents/README.md` | done |
+
+## 4.2 — per-user publications
+
+**Why now.** The deferred items in 4.2 were held back for want of real demand.
+This one acquired it on 2026-09-14: a second account exists (`daniela`), so
+"any user can publish their own newsletter" stopped being hypothetical. The
+other two (channel adapter, `mcp-builder`) still have no second consumer and
+stay deferred.
+
+**The goal.** `curator` loses its absolute `workspace_dir`
+(`/home/julio/Documents/X_posts`) and resolves per-user like every other
+agent, so publishing is something an account does rather than something the
+installation does.
+
+**What must not happen on the way.** Moving that directory wholesale into the
+user workspace is the obvious version of this change and it is wrong twice:
+
+1. **It would publish the credentials.** The directory holds `.env` (Gmail +
+   LinkedIn) and `subscribers.txt`. Today they sit outside every workspace, and
+   `curator` has no `read_file` — nothing the model drives can reach them.
+   Inside `<workspace>/<user_id>/`, they land in the confinement root of every
+   agent that account runs, and `funes`, `operator`, `file-reviewer` and
+   `book-editor` all have `read_file`. "Read x_posts/.env" would print live
+   credentials into a chat transcript, and `/api/upload` and the files pane
+   would reach them too.
+2. **It would split the publication.** `publications/ai-pulse.yaml` is
+   installation-global, and `dedup_against_last_issues` reads the *caller's*
+   `issues/` directory. Two accounts could each publish `ai-pulse` on the same
+   morning, with independent dedup histories, to one subscriber list. The
+   absolute path is currently what prevents that; removing it without settling
+   ownership first replaces isolation with a split brain that a subscriber
+   discovers, not a test.
+
+**Order of work.**
+
+| Step | Deliverable |
+|------|-------------|
+| 1 | Decide ownership: a publication belongs to a user (an `owner` in the YAML, or per-user publication configs) rather than to the install. Everything else follows from this. |
+| 2 | Split the publish directory by what each thing *is*: working files (harvest pools, issue JSON, run records, rendered artifacts) are per-user and model-visible; `.env` and `subscribers.txt` are publication-owned and resolved by the **tool**, never by a path the model can name — the same rule `publications/*.yaml` and `funes.local` already follow. |
+| 3 | Per-user sending identity. A second publisher either brings their own SMTP/LinkedIn credentials or sends from the owner's — a decision, not a default. |
+| 4 | Drop `workspace_dir` from `curator.yaml`. Smallest step, and last. |
+| 5 | Update `run_publication.sh` and the LinkedIn cron, which read `runs/<pub>/<date>.json` at a fixed path and will need to know whose. A live cron that publishes real things. |
+
+**A category this exposed, worth writing down.** Funes isolates its own data —
+memories, turns, stored results, workspace files — in SQL and in `fs_guard`.
+It cannot isolate a *third-party account* reached through an MCP server with
+installation-wide credentials. `gmail-assistant` (`IMAP_USER` in
+`funes.local`, one mailbox) and `whatsapp-assistant` (one bridge store, one
+phone number) are both in that class: granting either to a second account
+hands over the first account's inbox or chats, however well-isolated Funes's
+own storage is. Per-user credentials for those is its own piece of work, not
+part of this one. Until then they stay off a member's agent allowlist —
+`daniela`'s is `funes, researcher, operator, rss-reader, file-reviewer,
+book-editor`.
+
+Note `--agents` is an allowlist with no deny form, so that list freezes at
+today's roster: a newly added agent will not reach a restricted account until
+somebody grants it. That is the safer default for a member account, but it is
+a maintenance cost, not an accident.
 
 ## 5.0 breakdown
 
