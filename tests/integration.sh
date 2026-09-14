@@ -1049,6 +1049,30 @@ check "admin still resolves to everything"      "$OUT" 'every agent and every to
 
 FUNES_DB="$DB" "$FUNES_BIN" userdel itperms > /dev/null 2>&1
 
+# ── funes locale (5.0) ────────────────────────────────────────────────────────
+# An admin sets somebody else's language: PUT /api/me/locale only ever changes
+# the caller's own, so this is the only way to set up an account before its
+# owner has logged in once.
+echo
+echo "— funes locale"
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" locale itadmin 2>&1)
+check "locale defaults to English"        "$OUT" 'en (English)'
+
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" locale itadmin es 2>&1)
+check "locale can be set"                 "$OUT" 'es (Spanish)'
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" locale itadmin 2>&1)
+check "the change persisted"              "$OUT" 'es (Spanish)'
+
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" locale itadmin english 2>&1 || true)
+check "a language name is not a tag"      "$OUT" 'Not a language tag'
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" locale itadmin 2>&1)
+check "the bad value did not land"        "$OUT" 'es (Spanish)'
+
+OUT=$(FUNES_DB="$DB" "$FUNES_BIN" locale nobodyhere es 2>&1 || true)
+check "unknown user is refused"           "$OUT" 'No such user'
+
+FUNES_DB="$DB" "$FUNES_BIN" locale itadmin en > /dev/null 2>&1
+
 rm -f "$MEMBER_JAR"
 
 echo

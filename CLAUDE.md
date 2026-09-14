@@ -45,7 +45,10 @@ Create one from the web UI's first-run screen, or from the CLI:
 ```
 
 Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
-`jid-map`, `jid-unmap`, and one maintenance command, `cron-cleanup`. They run
+`locale`, `jid-map`, `jid-unmap`, and one maintenance command, `cron-cleanup`.
+(`locale` is how an admin sets *another* account's language —
+`PUT /api/me/locale` only ever changes the caller's own, so a new account
+can't be set up in its owner's language before they first log in without it.) They run
 against `FUNES_DB` and exit without starting the server or touching the LLM.
 Passwords are always prompted, never taken as arguments.
 

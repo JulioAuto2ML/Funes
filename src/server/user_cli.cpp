@@ -63,10 +63,11 @@ std::string prompt_new_password() {
 void usage() {
     std::cerr <<
         "Usage:\n"
-        "  funes useradd <username> [--admin] [--name \"Display Name\"]\n"
+        "  funes useradd <username> [--admin] [--name \"Display Name\"] [--locale xx]\n"
         "  funes userdel <username>\n"
         "  funes userlist\n"
         "  funes passwd  <username>\n"
+        "  funes locale  <username> [<locale>]        e.g. es, pt-BR\n"
         "  funes perms   <username> [--show] [--agents a,b|any]\n"
         "                           [--allow tool,...] [--deny tool,...] [--reset]\n"
         "  funes jid-map <chat_jid> <username>\n"
@@ -184,10 +185,22 @@ int cmd_useradd(UserStore& users, const std::vector<std::string>& args) {
 
     std::string role = UserStore::ROLE_MEMBER;
     std::string display = username;
+    std::string locale;
     for (size_t i = 1; i < args.size(); ++i) {
         if (args[i] == "--admin") role = UserStore::ROLE_ADMIN;
         else if (args[i] == "--name" && i + 1 < args.size()) display = args[++i];
+        else if (args[i] == "--locale" && i + 1 < args.size()) locale = args[++i];
         else { std::cerr << "Unknown option: " << args[i] << "\n"; usage(); return 2; }
+    }
+
+    // Checked before the password prompt, not after the account exists: being
+    // told the locale was wrong *after* typing a password twice, with an
+    // account already created in the default language, is the version of this
+    // error that wastes somebody's time.
+    if (!locale.empty() && !funes::valid_locale(locale)) {
+        std::cerr << "Not a language tag: '" << locale
+                  << "' (expected e.g. es, en, pt-BR).\n";
+        return 2;
     }
 
     if (users.find_by_username(username)) {
@@ -206,7 +219,35 @@ int cmd_useradd(UserStore& users, const std::vector<std::string>& args) {
         std::cerr << "Could not create user '" << username << "'.\n";
         return 1;
     }
-    std::cout << "Created " << role << " '" << username << "' (id " << id << ").\n";
+    if (!locale.empty()) users.set_locale(id, locale);
+    std::cout << "Created " << role << " '" << username << "' (id " << id << ")"
+              << (locale.empty() ? "" : ", locale " + locale) << ".\n";
+    return 0;
+}
+
+// An account's language, set by an admin. PUT /api/me/locale deliberately only
+// ever changes the caller's own — a route taking a user id would be account
+// administration wearing a preference's clothes — so setting up somebody
+// else's account, before they have ever logged in, happens here.
+int cmd_locale(UserStore& users, const std::vector<std::string>& args) {
+    if (args.empty()) { usage(); return 2; }
+    auto user = users.find_by_username(args[0]);
+    if (!user) {
+        std::cerr << "No such user: " << args[0] << "\n";
+        return 1;
+    }
+    if (args.size() == 1) {
+        std::cout << user->username << ": " << user->locale
+                  << " (" << funes::language_name(user->locale) << ")\n";
+        return 0;
+    }
+    if (!users.set_locale(user->id, args[1])) {
+        std::cerr << "Not a language tag: '" << args[1]
+                  << "' (expected e.g. es, en, pt-BR).\n";
+        return 2;
+    }
+    std::cout << user->username << ": " << args[1]
+              << " (" << funes::language_name(args[1]) << ")\n";
     return 0;
 }
 
@@ -304,7 +345,8 @@ int cmd_jid_unmap(UserStore& users, const std::vector<std::string>& args) {
 }
 
 const char* const COMMANDS[] = {
-    "useradd", "userdel", "userlist", "passwd", "perms", "jid-map", "jid-unmap"
+    "useradd", "userdel", "userlist", "passwd", "perms", "locale",
+    "jid-map", "jid-unmap"
 };
 
 } // namespace
@@ -328,6 +370,7 @@ int run_user_cli(int argc, char** argv, const std::string& db_path) {
         if (cmd == "userlist")  return cmd_userlist(users);
         if (cmd == "passwd")    return cmd_passwd(users, args);
         if (cmd == "perms")     return cmd_perms(users, args);
+        if (cmd == "locale")    return cmd_locale(users, args);
         if (cmd == "jid-map")   return cmd_jid_map(users, args);
         if (cmd == "jid-unmap") return cmd_jid_unmap(users, args);
     } catch (const std::exception& e) {
