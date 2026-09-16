@@ -29,6 +29,10 @@ sources:
     - "AI model release"
     - "AI regulation policy"
     - "AI agents enterprise"
+    - "LLM benchmark"
+    - "AI startup funding"
+    - "AI open source model"
+    - "robotics automation"
   time_range: day
   # Raised from 10/25 on 2026-08-11: build_issue's content-word substitution
   # (issue.cpp) — swapping in whichever pool candidate a post's text actually
