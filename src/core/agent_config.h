@@ -34,6 +34,18 @@ struct AgentConfig {
     // Native + MCP tools this agent may call. Empty list = all available.
     std::vector<std::string> tools;
 
+    // Scripts from the central library (FUNES_SCRIPTS_DIR, default
+    // ./scriptlib) this agent may run with run_script. **Empty means none** —
+    // the opposite of `tools:` above, and the asymmetry is the point: a tool
+    // is code compiled into this binary, while a script is a file an admin
+    // drops into a directory, and "every agent may run every file that
+    // appears there" is not a default anybody would choose deliberately.
+    //
+    // This is what an agent gets *instead of* execute_shell: the one job it
+    // actually needs to run, named, rather than the ability to run anything.
+    // See core/script_library.h.
+    std::vector<std::string> scripts;
+
     // Additional MCP servers for this agent. Their tools are merged with the
     // native registry and filtered by the allowlist above.
     std::vector<McpServerConfig> mcp_servers;

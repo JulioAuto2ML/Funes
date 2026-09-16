@@ -80,6 +80,7 @@ add_library(funes_core STATIC
     src/core/agent_roster.cpp
     src/core/publication.cpp
     src/core/pipeline.cpp
+    src/core/script_library.cpp
     src/core/context_compressor.cpp
     src/core/completion_contract.cpp
     src/core/answer_schema.cpp
@@ -116,6 +117,7 @@ add_library(funes_core STATIC
     src/core/tools/structured.cpp
     src/core/tools/rankings.cpp
     src/core/tools/shell_tool.cpp
+    src/core/tools/script_tools.cpp
     src/core/tools/delegation.cpp
     src/core/tools/cron_tool.cpp
     src/core/agent.cpp

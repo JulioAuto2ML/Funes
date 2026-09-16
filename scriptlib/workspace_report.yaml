@@ -1,0 +1,18 @@
+# Example script: a read-only look at the calling account's workspace.
+#
+# Granted to `operator` in agents/operator.yaml. Before this existed, the only
+# way to answer "how much is in my workspace?" was execute_shell — i.e. the
+# grant that also permits `rm -rf`. This is the whole feature in one file.
+description: Summarize the calling account's workspace — file count, total size, and the largest files.
+run: workspace_report.py
+interpreter: python3
+timeout_seconds: 20
+params:
+  - name: path
+    description: Subdirectory of the workspace to report on. Defaults to the whole workspace.
+    type: string
+    required: false
+  - name: details
+    description: List the largest files individually rather than only totals.
+    type: boolean
+    required: false

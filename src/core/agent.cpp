@@ -10,6 +10,7 @@
 #include "mcp_stdio_client.h"
 #include "result_store.h"
 #include "run_outcome.h"
+#include "script_library.h"
 #include "text_utils.h"
 #include "tool_budget.h"
 #include <algorithm>
@@ -235,7 +236,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     // every tool the loop dispatches — including delegate_to_agent, which
     // hands it to the sub-agent's own run().
     ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope,
-                    user_id, perms};
+                    user_id, perms, cfg_.scripts};
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
@@ -316,6 +317,33 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                 // produces "this account cannot do that", which is the true
                 // answer and the one somebody can act on.
                 sys += funes::denied_agents_block(roster.denied);
+            }
+        }
+
+        // What this agent may run, named and with its arguments. An agent's
+        // script grants are per-agent while the run_script tool schema is
+        // shared by all of them, so the schema cannot carry them; without
+        // this block the model learns the list only by calling list_scripts,
+        // and a small model that does not know a script exists reaches for
+        // execute_shell instead — which is exactly the grant this feature is
+        // meant to make unnecessary.
+        if (!cfg_.scripts.empty() && !defaults_.scripts_dir.empty()
+            && perms.allows_tool("run_script")
+            && (cfg_.tools.empty()
+                || std::find(cfg_.tools.begin(), cfg_.tools.end(), "run_script") != cfg_.tools.end())) {
+            const std::vector<funes::ScriptSpec> specs =
+                funes::load_scripts(defaults_.scripts_dir, cfg_.scripts);
+            if (!specs.empty()) {
+                sys += "\n\n## Scripts you can run (run_script)\n";
+                for (const auto& spec : specs) {
+                    sys += "- " + spec.name;
+                    if (!spec.description.empty()) sys += ": " + spec.description;
+                    sys += "\n  arguments: " + spec.usage() + "\n";
+                }
+                sys += "These are the only scripts you can run. Call run_script with a "
+                       "script's name and its declared arguments — you cannot pass a "
+                       "command line, and no other program on this machine is reachable "
+                       "this way. If a task needs something not on this list, say so.";
             }
         }
 

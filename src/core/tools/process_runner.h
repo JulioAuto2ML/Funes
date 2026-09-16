@@ -10,6 +10,7 @@
 #pragma once
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace funes::proc {
@@ -25,8 +26,15 @@ struct Result {
 // Runs argv[0] with the rest of argv as its literal arguments (no shell).
 // cwd is the child's working directory. Killed (whole process group) via
 // SIGKILL if still running after timeout_seconds.
+//
+// `extra_env` adds to (or overrides in) the environment the child inherits —
+// how a script library manifest hands a script its API key without the key
+// passing through the model's context (see core/script_library.h). The
+// merged block is built in the parent, before the fork, so the child does
+// nothing between fork and exec but assign a pointer and call execvp.
 Result run_argv(const std::vector<std::string>& argv, const std::filesystem::path& cwd,
-                int timeout_seconds, size_t max_output_bytes);
+                int timeout_seconds, size_t max_output_bytes,
+                const std::vector<std::pair<std::string, std::string>>& extra_env = {});
 
 // Runs `command` via `/bin/sh -c` — arbitrary shell execution. Same
 // timeout/capture semantics as run_argv.

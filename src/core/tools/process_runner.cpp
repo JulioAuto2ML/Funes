@@ -12,6 +12,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+extern char** environ;
+
 namespace fs = std::filesystem;
 
 namespace funes::proc {
@@ -105,14 +107,37 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
 } // namespace
 
 Result run_argv(const std::vector<std::string>& argv, const fs::path& cwd,
-                int timeout_seconds, size_t max_output_bytes) {
+                int timeout_seconds, size_t max_output_bytes,
+                const std::vector<std::pair<std::string, std::string>>& extra_env) {
     if (argv.empty()) return {-1, "run_argv: empty argv", false};
 
-    return run_forked([&argv] {
+    // Built here, in the parent: everything the child does after fork() is a
+    // pointer assignment and an exec, which is the only thing guaranteed safe
+    // in the child of a multi-threaded process (the server is one).
+    std::vector<std::string> env_strings;
+    std::vector<char*>       envp;
+    if (!extra_env.empty()) {
+        for (char** e = environ; e && *e; ++e) {
+            const std::string entry(*e);
+            const std::string key = entry.substr(0, entry.find('='));
+            const bool overridden = std::any_of(
+                extra_env.begin(), extra_env.end(),
+                [&key](const auto& kv) { return kv.first == key; });
+            if (!overridden) env_strings.push_back(entry);
+        }
+        for (const auto& kv : extra_env)
+            env_strings.push_back(kv.first + "=" + kv.second);
+        envp.reserve(env_strings.size() + 1);
+        for (auto& s : env_strings) envp.push_back(const_cast<char*>(s.c_str()));
+        envp.push_back(nullptr);
+    }
+
+    return run_forked([&argv, &envp] {
         std::vector<char*> c_argv;
         c_argv.reserve(argv.size() + 1);
         for (const auto& a : argv) c_argv.push_back(const_cast<char*>(a.c_str()));
         c_argv.push_back(nullptr);
+        if (!envp.empty()) environ = const_cast<char**>(envp.data());
         execvp(c_argv[0], c_argv.data());
     }, cwd, timeout_seconds, max_output_bytes);
 }

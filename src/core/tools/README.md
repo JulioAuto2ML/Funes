@@ -17,6 +17,8 @@ hop, no protocol overhead.
 | `read_file` | `file_tools.cpp` | Reads text, PDFs (via pdftotext, with image fallback for scans), and images (base64 for vision). Workspace-confined. |
 | `write_file` | `file_tools.cpp` | Writes or appends text. Creates parent directories. Workspace-confined. |
 | `execute_shell` | `shell_tool.cpp` | Runs a shell command. Opt-in only (`FUNES_ALLOW_SHELL=1`). Timeout, output cap. |
+| `list_scripts` | `script_tools.cpp` | Lists the scripts the calling agent is granted, with the arguments each takes. |
+| `run_script` | `script_tools.cpp` | Runs one script from the central library by name, with declared parameters passed as argv. Per-agent allowlist (`scripts:` in agent YAML); no shell, no global switch. |
 | `compress_context` | `context_tools.cpp` | Folds old conversation turns into a summary to free context space. |
 | `read_result` | `result_tools.cpp` | Reads a windowed portion of a large stored tool result. |
 | `list_tools` | `introspection.cpp` | Lists every registered tool with its description. |
@@ -67,6 +69,7 @@ from `pipelines/*.yaml`, not from a paragraph in an agent prompt. See
 | `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search and harvest_candidates. |
 | `../pipeline.h/cpp` | Pipeline stage configuration: directory, filename template, schema. Loaded per call by the pipeline tools, so a new stage is live without a restart. |
 | `../answer_schema.h/cpp` | The JSON-Schema subset used for both an agent's `answer_schema:` and a pipeline stage's `schema:` — one validator, so the two fail identically and read identically to a small local model. |
+| `../script_library.h/cpp` | The script library: manifest parsing, the `[a-z0-9_-]` name alphabet, and argv construction from declared parameters. Split from `script_tools.cpp` so the allowlist and argument rules are testable without starting a process. |
 | `page_text.h/cpp` | URL fetching + HTML-to-text extraction. Manual scan (no regex -- avoids stack overflow on large inline scripts). |
 | `pdf_extract.h/cpp` | PDF text extraction via pdftotext, with image rendering fallback for scans. |
 | `http_tool_runtime.h/cpp` | Execution engine for generated HTTP-template tools. Resolves `{param}` from arguments (URL and body) and `${ENV_VAR}` from the environment (**header values only** — the URL is echoed back to the model on a parse failure, so a secret resolved into it becomes something the model can print). |
@@ -88,6 +91,20 @@ The tool system enforces security at multiple layers:
 - **Network**: `net_guard` blocks SSRF to localhost, 10.x, 192.168.x, 169.254.x.
 - **Shell**: Disabled by default. When enabled: hard timeout (120s max), output
   cap (16 KB), process-group kill on timeout.
+- **Scripts**: the narrow alternative to shell. `run_script` starts only what
+  the calling agent's `scripts:` list names *and* the central library
+  (`FUNES_SCRIPTS_DIR`) has installed -- an empty list means none, so the grant
+  is always explicit. The model names a script and fills in declared
+  parameters; those become `--name=value` argv tokens handed to `execvp`, so no
+  shell parses them and a value containing `;` is punctuation rather than a
+  second command. The library lives outside every workspace, which is what
+  makes "installing a script" an admin action: `read_file`, `write_file` and
+  `/api/upload` cannot reach it. Same timeout/output-cap/process-group-kill
+  machinery as shell; **not** gated by `FUNES_ALLOW_SHELL`, because a reviewed
+  program granted by name is a different act from an arbitrary command line.
+  It is an allowlist, not a sandbox: a script still runs with the process's own
+  permissions, so a script that takes a command or fetches code to run gives
+  back everything the split was for.
 - **Delegation**: Self-delegation refused, depth capped at 2, failures detected
   and surfaced as errors (not content). The specialist runs as the delegating
   user, sharing its caller's session and memory pool.

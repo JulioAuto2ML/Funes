@@ -74,6 +74,16 @@ struct AgentDefaults {
     // and cron jobs carry the caller's user_id, so they get the right
     // language without any of them having to pass it along.
     std::function<std::string(int64_t)> user_locale;
+
+    // Where the central script library lives (FUNES_SCRIPTS_DIR, default
+    // ./scriptlib). The loop reads it to tell an agent, in its system prompt,
+    // which scripts it may run and what arguments they take — the same
+    // treatment the agent roster gets, and for the same reason: a capability
+    // the model has to discover with a tool call is one a small model will
+    // instead guess at, usually by reaching for execute_shell. Empty in
+    // contexts with no library (tests); run_script then has nothing to load
+    // and says so.
+    std::string scripts_dir;
 };
 
 // What a run leaves behind in the database. See FunesAgent::run.

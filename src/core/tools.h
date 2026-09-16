@@ -56,15 +56,24 @@ struct ToolContext {
     // those. Defaults to unrestricted so the many positional ToolContexts in
     // tests keep working; every path that serves a real request sets it.
     funes::Permissions permissions = funes::Permissions::unrestricted();
+    // Which library scripts run_script may start for this agent
+    // (AgentConfig::scripts). Empty means none — the opposite of an empty
+    // tool allowlist, and deliberately so: a script installed tomorrow must
+    // not become runnable by every agent that shipped today. Defaulted empty
+    // rather than unrestricted for the same reason, so a call site that
+    // doesn't know about scripts grants none instead of all.
+    std::vector<std::string> scripts;
 
     ToolContext(std::string agent_, std::string session_,
                 std::string workspace_dir_ = "", std::string memory_scope_ = "",
                 int64_t user_id_ = 1,
-                funes::Permissions permissions_ = funes::Permissions::unrestricted())
+                funes::Permissions permissions_ = funes::Permissions::unrestricted(),
+                std::vector<std::string> scripts_ = {})
         : agent(std::move(agent_)), session(std::move(session_)),
           workspace_dir(std::move(workspace_dir_)),
           memory_scope(memory_scope_.empty() ? agent : std::move(memory_scope_)),
-          user_id(user_id_), permissions(std::move(permissions_)) {}
+          user_id(user_id_), permissions(std::move(permissions_)),
+          scripts(std::move(scripts_)) {}
 };
 
 struct ToolResult {
@@ -119,6 +128,8 @@ void register_file_tools(ToolRegistry& reg,
                          const std::string& workspace_dir);        // read_file, write_file, list_files
 void register_shell_tool(ToolRegistry& reg,
                          const std::string& workspace_dir);        // execute_shell
+void register_script_tools(ToolRegistry& reg, const std::string& workspace_dir,
+                           const std::string& scripts_dir);        // list_scripts, run_script
 void register_structured_tools(ToolRegistry& reg, const std::string& workspace_dir,
                                const std::string& pipelines_dir);
                                                                      // write_structured, read_structured

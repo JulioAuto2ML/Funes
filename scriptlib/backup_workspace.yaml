@@ -1,0 +1,12 @@
+# Example script: the deterministic side effect that used to need a shell.
+#
+# No `interpreter:` — the file carries a shebang and the executable bit, the
+# other of the two forms a manifest may take.
+description: Archive the calling account's workspace into backups/<name>.tar.gz and report what was written.
+run: backup_workspace.sh
+timeout_seconds: 120
+params:
+  - name: name
+    description: Archive name without extension. Letters, digits, '-' and '_'. Defaults to the UTC timestamp.
+    type: string
+    required: false

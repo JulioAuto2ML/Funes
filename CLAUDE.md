@@ -169,6 +169,42 @@ incident writeup and `publishing/README.md` for the script-level split
 between what's in the repo (code) and what lives on the sending host (issue
 JSON, run records, secrets, subscriber list — via `$FUNES_PUBLISH_DIR`).
 
+### Scripts an agent may run
+
+`scriptlib/` (`FUNES_SCRIPTS_DIR`) is the central script library, and
+`src/core/script_library.{h,cpp}` + `src/core/tools/script_tools.cpp` are what
+reach it. One manifest (`<name>.yaml`: description, `run:`, optional
+`interpreter:`, typed `params:`, `env:`) plus one executable file per script.
+An agent gets a script the way it gets a tool — by name, in its YAML:
+
+```yaml
+tools:   [..., list_scripts, run_script]
+scripts: [workspace_report, backup_workspace]
+```
+
+Three things to keep straight when touching this:
+
+- **`scripts:` denies by default.** Empty or absent means *no scripts*, the
+  opposite of `tools:`. A file appearing in a directory must not become
+  runnable by eighteen agents; each grant is written down. `ToolContext`
+  defaults the list to empty for the same reason — a call site that doesn't
+  know about scripts grants none rather than all.
+- **The model supplies arguments, never a command.** Declared parameters
+  become `--name=value` argv tokens passed to `execvp`; there is no shell, so
+  `;` in a value is punctuation. That is the whole reason an agent can be given
+  one job to run without being given `execute_shell`, and `FUNES_ALLOW_SHELL`
+  deliberately does not gate `run_script`.
+- **The library sits outside every workspace.** `read_file`, `write_file` and
+  `/api/upload` are confined to `<workspace>/<user_id>/` by `fs_guard`, so
+  nothing the model drives can read, edit or add a script — installing one is
+  an admin editing the repo, like adding an agent. A script still runs with the
+  process's own permissions: this is an allowlist, not a sandbox.
+
+The agent loop lists an agent's granted scripts in its system prompt
+(`AgentDefaults::scripts_dir`), the way it lists the delegation roster —
+a capability a small model has to discover with a tool call is one it will
+instead guess at, usually by reaching for the shell. See `scriptlib/README.md`.
+
 ### Memory
 
 `src/core/memory.cpp` (`MemoryStore`) — SQLite + vendored sqlite-vec, one
@@ -337,6 +373,7 @@ config/        funes.conf (committed defaults) + funes.local (gitignored secrets
 pipelines/     one YAML per multi-stage pipeline (stage dirs, filenames, schemas)
 publications/  one YAML + one voice file per publication
 publishing/    Python scripts that render/send/post an issue
+scriptlib/     central script library: what agents may run by name (see scriptlib/README.md)
 scripts/       operational scripts + systemd units (WhatsApp bridge/autoresponder, benchmarking)
 src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety)
 src/core/tools/  individual tool implementations
@@ -350,6 +387,7 @@ Nearly every directory has its own `README.md` with more detail than this
 file carries — read the local one before making non-trivial changes in that
 area (`src/core/README.md`, `src/core/tools/README.md`, `src/server/README.md`,
 `agents/README.md`, `config/README.md`, `pipelines/README.md`,
-`publishing/README.md`, `tests/README.md`, `scripts/README.md`).
+`publishing/README.md`, `scriptlib/README.md`, `tests/README.md`,
+`scripts/README.md`).
 
 `docs/ROADMAP.md` says what is being built next and in what order.

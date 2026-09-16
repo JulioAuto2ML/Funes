@@ -34,6 +34,13 @@ add_executable(test_shell_tool test_shell_tool.cpp)
 target_link_libraries(test_shell_tool PRIVATE funes_core)
 add_test(NAME shell_tool COMMAND test_shell_tool)
 
+# Runs from the project root: its last case loads agents/operator.yaml and
+# checks every script that agent is granted is actually installed in scriptlib/.
+add_executable(test_script_library test_script_library.cpp)
+target_link_libraries(test_script_library PRIVATE funes_core)
+add_test(NAME script_library COMMAND test_script_library
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(test_web_fetch test_web_fetch.cpp)
 target_link_libraries(test_web_fetch PRIVATE funes_core)
 add_test(NAME web_fetch COMMAND test_web_fetch)

@@ -93,6 +93,9 @@ name: my-agent
 description: What it does (shown in the UI agent picker)
 model: default                    # or a specific model name
 tools: [remember, recall, web_search]
+scripts: [backup_workspace]       # vetted programs from scriptlib/ this agent
+                                  # may run with run_script. EMPTY OR ABSENT
+                                  # MEANS NONE -- the opposite of `tools:`
 max_steps: 8                      # tool-call budget per run
 context_limit: 8192               # token ceiling
 tool_choice: auto                 # auto | required | none
@@ -120,6 +123,34 @@ mcp_servers:
   - name: my-server
     command: npx -y my-mcp-server
 ```
+
+## `scripts:` -- what an agent may run instead of a shell
+
+`tools:` and `scripts:` are both allowlists, and they mean the opposite thing
+when empty. An empty (or absent) `tools:` means *every registered tool*; an
+empty `scripts:` means *no scripts at all*. The asymmetry is deliberate: a
+tool is code compiled into the binary and reviewed as code, while a script is a
+file that appears in a directory, and "every agent may run every file that
+turns up in `scriptlib/`" is not a default anybody would choose on purpose.
+
+The point of the field is to make `execute_shell` unnecessary in the common
+case. An agent that needs to take a backup used to need the tool that also
+runs `curl … | sh`; now it names the one script it needs, and the model
+supplies *arguments*, never a command line -- they reach the process as argv
+tokens with no shell in between. Granting a script takes both halves:
+
+```yaml
+tools:   [read_file, write_file, list_scripts, run_script]
+scripts: [workspace_report, backup_workspace]
+```
+
+`run_script` in `tools:` gives the agent the tool; the names in `scripts:`
+decide which scripts that tool can reach. Neither alone does anything, and a
+grant naming a script the library doesn't have is reported as an installation
+mistake rather than silently ignored. `agents/operator.yaml` is the shipped
+example. See [../scriptlib/README.md](../scriptlib/README.md) for the manifest
+format and [../src/core/script_library.h](../src/core/script_library.h) for
+why the library sits outside every workspace.
 
 ## Archetypes: where the numbers come from
 

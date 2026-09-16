@@ -38,6 +38,10 @@ files override earlier ones.
 - `FUNES_HOST` / `FUNES_PORT` -- bind address (default: `0.0.0.0:8484`)
 - `FUNES_DEFAULT_AGENT` -- which agent handles requests without an explicit name
 - `FUNES_ALLOW_SHELL` -- enables `execute_shell` tool and shell cron jobs (default: off)
+- `FUNES_SCRIPTS_DIR` -- the central script library (default: `./scriptlib`).
+  Scripts an agent may run by name via `run_script`, granted per agent in its
+  YAML (`scripts:`). Independent of `FUNES_ALLOW_SHELL` on purpose: running one
+  vetted, admin-installed program is not the same grant as running any command
 - `FUNES_CRON_ENABLED` -- run scheduled jobs (default: on). Set to `0` on a
   parallel install whose database is a copy of another's, or both will fire
   every job.

@@ -23,8 +23,8 @@ remembers (and lets you delete any of it).
   choice per config.
 - **Tools without the burden.** Built-in tools (`web_search`, `web_fetch`,
   `remember`, `recall`, `read_file`, `write_file`, `execute_shell`,
-  `compress_context`, and meta-tools that scaffold new tools/agents from a
-  conversation) run in-process — no protocol overhead. External
+  `run_script`, `compress_context`, and meta-tools that scaffold new
+  tools/agents from a conversation) run in-process — no protocol overhead. External
   [MCP](https://modelcontextprotocol.io) servers can be plugged in when you
   want more.
 - **A workspace it can touch.** `read_file`/`write_file` are confined to one
@@ -191,6 +191,11 @@ access is real code execution with the server's own rights; the other two
 write into the install itself and outlive the conversation that asked for
 them.
 
+`run_script` is deliberately *not* in that privileged set: what it can start is
+already limited to the scripts the agent was granted by name, and those are
+programs an admin installed. Denying it (`--deny run_script`) still takes
+scripts away from an account through every agent.
+
 Permissions only ever *restrict*. They're intersected with what the agent was
 given, so granting someone `execute_shell` does not hand it to them through an
 agent that never had it. And the agent allowlist covers delegation, not just
@@ -289,6 +294,7 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_ALLOW_LOCAL_FETCH` | `0` | Let `web_fetch` reach private/loopback hosts |
 | `FUNES_WORKSPACE_DIR` | `~/.funes/workspace` | Sandbox root for `read_file`/`write_file`/`execute_shell` and uploads |
 | `FUNES_ALLOW_SHELL` | `0` | Let `execute_shell` actually run commands (real code execution — see below) |
+| `FUNES_SCRIPTS_DIR` | `./scriptlib` | The script library `run_script` starts scripts from, granted per agent by name (does *not* need `FUNES_ALLOW_SHELL`) |
 | `FUNES_RESULT_TTL_DAYS` | `7` | Age at which stored tool results are swept at startup |
 | `FUNES_CONSOLIDATE` | `on` | `off` disables the memory consolidation pass |
 | `FUNES_CONSOLIDATE_HOURS` | `6` | How often consolidation runs |
@@ -357,6 +363,48 @@ output size.
 The `funes` agent gets `read_file`/`write_file` by default. `operator`
 (`agents/operator.yaml`) adds `execute_shell` on top, for when you want a
 single agent dedicated to workspace/shell tasks.
+
+### Scripts: the narrow version of that grant
+
+Most of the time an agent doesn't need to run *anything*, it needs to run one
+known thing — take a backup, report on the workspace, rebuild an index.
+`execute_shell` is a poor fit for that: it hands over a command line the model
+writes, so "let it take the backup" and "let it run `curl … | sh`" are the
+same grant.
+
+So scripts are declared the way tools are. `scriptlib/` (`FUNES_SCRIPTS_DIR`)
+holds one manifest plus one executable file per script; an agent names the ones
+it may run:
+
+```yaml
+tools:   [read_file, write_file, list_scripts, run_script]
+scripts: [workspace_report, backup_workspace]      # empty or absent = none
+```
+
+The model picks a script by **name** and fills in the parameters the manifest
+declares. Those become `--name=value` argv tokens passed straight to `execvp` —
+there is no shell, so a value containing `;` or `$(…)` is one argument with
+punctuation in it rather than a second command. Unknown parameters, missing
+required ones and bad types are refused before the process starts.
+
+Three consequences worth knowing:
+
+- **`scripts:` denies by default**, unlike `tools:` where an empty list means
+  everything. A file dropped into `scriptlib/` becomes runnable by nobody until
+  an agent names it.
+- **`FUNES_ALLOW_SHELL` does not gate `run_script`.** That's the point: a
+  reviewed program, installed by an admin and granted to one agent by name, is
+  a different act from an arbitrary command line. An install that needs neither
+  can leave shell off entirely.
+- **The library sits outside every workspace**, so `read_file`, `write_file`
+  and the upload endpoint cannot read a script, edit one, or add one.
+  Installing a script is an admin editing the repo, like adding an agent.
+
+It is an allowlist, not a sandbox: a script runs with the Funes process's own
+permissions, so review one before installing it exactly as you'd review an
+agent prompt — and don't install one that takes a command, a path outside the
+workspace, or a URL to fetch and run. See
+[`scriptlib/README.md`](scriptlib/README.md) for the manifest format.
 
 ---
 
@@ -857,7 +905,8 @@ Funes/
 │   │   │              # completion contract + answer schema, result store,
 │   │   │              # base64, UTF-8-safety helpers
 │   │   └── tools/     # web_search/fetch, remember/recall, read_result, read/write_file
-│   │                  # (+ PDF extraction), execute_shell, compress_context,
+│   │                  # (+ PDF extraction), execute_shell, list_scripts/run_script,
+│   │                  # compress_context,
 │   │                  # create_tool/create_agent, delegate_to_agent,
 │   │                  # harvest_candidates/publish_issue,
 │   │                  # write_structured/read_structured/merge_rankings
@@ -866,6 +915,7 @@ Funes/
 ├── pipelines/         # one YAML per multi-stage pipeline (stage dirs, names, schemas)
 ├── publications/      # one YAML + one voice file per publication
 ├── publishing/        # the scripts that render, send and post an issue (Python)
+├── scriptlib/         # the script library: what an agent may run by name, not by command
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test
 └── third-party/       # vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json)

@@ -37,6 +37,11 @@ std::string emit_agent_yaml(const std::string& name, const std::string& descript
     out << YAML::Key << "model"       << YAML::Value << model;
     out << YAML::Key << "tool_choice" << YAML::Value << tool_choice;
     out << YAML::Key << "tools" << YAML::Value << YAML::Flow << tools;
+    // No `scripts:` key, and create_agent takes no argument for one. A
+    // generated agent is granted no library scripts: the whole claim of the
+    // script allowlist is that a human wrote each grant down, and an agent
+    // that can mint agents could otherwise mint itself the grant. Adding
+    // scripts to a created agent is an edit to its YAML, by a person.
     if (!workspace_dir.empty())
         out << YAML::Key << "workspace_dir" << YAML::Value << workspace_dir;
     if (!delegation_notes.empty())

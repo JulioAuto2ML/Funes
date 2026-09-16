@@ -61,6 +61,15 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
             cfg.tools.push_back(t.as<std::string>());
     }
 
+    // scripts: [backup_db, ...] — names in the central script library. No
+    // validation against the library here: agent_config.cpp does not know
+    // where it is, and an agent must still load when one granted script is
+    // missing (the run_script call says so, naming the script).
+    if (root["scripts"] && root["scripts"].IsSequence()) {
+        for (const auto& s : root["scripts"])
+            cfg.scripts.push_back(s.as<std::string>());
+    }
+
     if (root["require_tools"] && root["require_tools"].IsSequence()) {
         for (const auto& t : root["require_tools"])
             cfg.require_tools.push_back(t.as<std::string>());

@@ -218,6 +218,13 @@ int main(int argc, char** argv) {
     // new pipeline is live without a restart — see src/core/pipeline.h.
     const std::string pipelines_dir = resolve_dir(funes::env("FUNES_PIPELINES_DIR"),
                                                   "pipelines");
+    // The script library: one manifest + one executable file per script, and
+    // the only place run_script will start anything from. Outside every
+    // workspace on purpose — no agent-driven tool can read, edit or add a
+    // script, so installing one is an admin editing the repo, the same act as
+    // adding an agent. See src/core/script_library.h.
+    const std::string scripts_dir = resolve_dir(funes::env("FUNES_SCRIPTS_DIR"),
+                                                "scriptlib");
 
     std::string db_path = funes::env("FUNES_DB");
     if (db_path.empty()) {
@@ -288,6 +295,10 @@ int main(int argc, char** argv) {
         std::cerr << "[funes] warning: FUNES_SERVICE_TOKEN is shorter than 32 "
                      "characters; generate one with `openssl rand -hex 32`\n";
 
+    // The agent loop lists an agent's granted scripts in its system prompt
+    // from here, so it must be set before FunesApi copies `defaults`.
+    defaults.scripts_dir = scripts_dir;
+
     ToolRegistry tools;
     register_web_tools(tools);
     register_memory_tools(tools, memory);
@@ -296,6 +307,7 @@ int main(int argc, char** argv) {
     register_introspection_tools(tools);
     register_file_tools(tools, workspace_dir);
     register_shell_tool(tools, workspace_dir);
+    register_script_tools(tools, workspace_dir, scripts_dir);
     register_harvest_tool(tools, memory, workspace_dir, publications_dir);
     register_publish_issue_tool(tools, workspace_dir, publishing_dir,
                                 publications_dir);

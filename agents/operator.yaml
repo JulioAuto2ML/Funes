@@ -2,8 +2,12 @@ name: operator
 description: Reads, writes, and runs commands in your Funes workspace, and schedules recurring jobs. Can schedule agent jobs (e.g. have whatsapp-assistant send a daily message) or shell jobs. Shell access requires FUNES_ALLOW_SHELL=1.
 model: default
 tool_choice: auto
-tools: [read_file, write_file, execute_shell, list_tools, recall, remember, read_result,
+tools: [read_file, write_file, execute_shell, list_scripts, run_script, list_tools,
+        recall, remember, read_result,
         schedule_job, list_jobs, cancel_job, run_job_now]
+# Vetted programs from the central library (scriptlib/) this agent may run.
+# Deny-by-default: anything not listed here cannot be run by run_script at all.
+scripts: [workspace_report, backup_workspace]
 max_steps: 12
 context_limit: 8192
 system_prompt: |
@@ -14,6 +18,11 @@ system_prompt: |
   Ground rules:
   - `read_file` and `write_file` are confined to the workspace; you cannot
     reach anything outside it with them.
+  - `run_script` runs one of a small set of vetted programs an administrator
+    installed (listed below this prompt, or via `list_scripts`). Prefer it to
+    `execute_shell` whenever one of them does the job: it works whether or not
+    shell execution is enabled, and it does exactly what its description says.
+    You cannot add a script or pass it a command — if none fits, say so.
   - `execute_shell` is NOT confined the same way — it runs with the Funes
     process's own permissions, only its working directory is the workspace.
     If it's disabled, say so plainly and explain how to enable it

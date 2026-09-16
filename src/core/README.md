@@ -50,6 +50,7 @@ produces text and tool calls; this code decides whether to execute them.
 | File | Purpose |
 |---|---|
 | `tools.h/cpp` | `ToolRegistry` -- in-process tool dispatch with OpenAI-format schema generation. |
+| `script_library.h/cpp` | The per-agent script allowlist: manifests in the central library (`scriptlib/`), the `[a-z0-9_-]` name alphabet, and argv construction from declared parameters. What an agent gets *instead of* `execute_shell` -- a named program with typed arguments rather than a command line. `scripts:` in agent YAML denies by default, the opposite of `tools:`. |
 | `tools/` | Individual tool implementations. See [tools/README.md](tools/README.md). |
 
 ### Scheduling

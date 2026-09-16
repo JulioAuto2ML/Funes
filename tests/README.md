@@ -38,6 +38,7 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 | `test_cron_tool` | schedule_job validation, CRUD roundtrip, run_job_now |
 | `test_file_tools` | fs_guard traversal prevention, read/write/append, PDF extraction, image detection |
 | `test_shell_tool` | Disabled-by-default check, enabled path |
+| `test_script_library` | The per-agent script allowlist: an ungranted script cannot be reached by any name (path, extension, case), argv construction refuses undeclared/missing/mistyped arguments, shell metacharacters stay data, manifest `run:` cannot leave the library, manifest env reaches the child, and every `scripts:` grant in `agents/` names a script that is actually installed |
 | `test_harvest` | URL stripping, dedup, stale filter, story clustering, shortlisting, pool format |
 | `test_issue` | Grounding checks, evidence extraction, candidate substitution, build_issue validation |
 | `test_publication` | Publication config loading and defaults |
