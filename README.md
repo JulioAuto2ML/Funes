@@ -194,7 +194,9 @@ them.
 `run_script` is deliberately *not* in that privileged set: what it can start is
 already limited to the scripts the agent was granted by name, and those are
 programs an admin installed. Denying it (`--deny run_script`) still takes
-scripts away from an account through every agent.
+scripts away from an account through every agent, and `--deny
+run_script:backup_workspace` takes away exactly one — a script is a capability
+in its own right, so the permission entry can name it.
 
 Permissions only ever *restrict*. They're intersected with what the agent was
 given, so granting someone `execute_shell` does not hand it to them through an
@@ -387,15 +389,37 @@ there is no shell, so a value containing `;` or `$(…)` is one argument with
 punctuation in it rather than a second command. Unknown parameters, missing
 required ones and bad types are refused before the process starts.
 
-Three consequences worth knowing:
+A script can also declare the shape of what it prints, which the runtime then
+checks — the same contract `pipelines/*.yaml` puts on a pipeline stage:
+
+```yaml
+output:
+  format: json
+  schema: {type: object, required: [archive, bytes]}
+```
+
+Exit code 0 is the script saying it worked; that block is Funes checking. A
+script that exits 0 having printed the wrong shape fails the call, worded as an
+installation fault, instead of handing the next step something it can't use.
+
+Four consequences worth knowing:
 
 - **`scripts:` denies by default**, unlike `tools:` where an empty list means
   everything. A file dropped into `scriptlib/` becomes runnable by nobody until
   an agent names it.
-- **`FUNES_ALLOW_SHELL` does not gate `run_script`.** That's the point: a
-  reviewed program, installed by an admin and granted to one agent by name, is
-  a different act from an arbitrary command line. An install that needs neither
-  can leave shell off entirely.
+- **Budgets, contracts and permissions can name one script.**
+  `tool_limits: {run_script:backup_workspace: 1}`,
+  `require_tools: [run_script:publish_issue]`, and
+  `funes perms marta --deny run_script:backup_workspace` all work, because one
+  tool standing in for several programs would otherwise share one ceiling, one
+  contract slot and one grant between them.
+- **`FUNES_ALLOW_SHELL` does not gate `run_script`** — including on a
+  schedule: `schedule_job(kind="script")` puts a library script on a cron
+  expression without shell access, and re-checks both the agent's grant and
+  the account's permissions when the job fires, so revoking either stops the
+  timer. That's the point: a reviewed program, installed by an admin and
+  granted to one agent by name, is a different act from an arbitrary command
+  line. An install that needs neither can leave shell off entirely.
 - **The library sits outside every workspace**, so `read_file`, `write_file`
   and the upload endpoint cannot read a script, edit one, or add one.
   Installing a script is an admin editing the repo, like adding an agent.

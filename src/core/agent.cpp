@@ -166,11 +166,18 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
     // the schema stops the model seeing it; it does not stop the model
     // writing the call out as prose, which llm_client will rescue into a real
     // call. This is where that becomes a refusal instead of an execution.
-    if (!ctx.permissions.allows_tool(name)) {
+    //
+    // Checked per call key, so a permissions blob may deny `run_script`
+    // wholesale or one script by name (`run_script:backup_workspace`) — a
+    // script is a capability in its own right, and an account that may run two
+    // of an agent's three scripts is a real thing to want.
+    for (const auto& key : funes::call_keys(name, args)) {
+        if (ctx.permissions.allows_tool(key)) continue;
         std::cerr << "[agent:" << ctx.agent << "] user " << ctx.user_id
-                  << " denied tool '" << name << "' by permissions\n";
-        return {"You do not have permission to use the tool '" + name +
-                "'. Continue without it.", /*error=*/true};
+                  << " denied tool '" << key << "' by permissions\n";
+        return {"You do not have permission to use " +
+                (key == name ? "the tool '" + name + "'" : "'" + key + "'") +
+                ". Continue without it.", /*error=*/true};
     }
 
     if (tools_.has(name))
@@ -331,14 +338,22 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
             && perms.allows_tool("run_script")
             && (cfg_.tools.empty()
                 || std::find(cfg_.tools.begin(), cfg_.tools.end(), "run_script") != cfg_.tools.end())) {
+            // Filtered by the caller's permissions as well as the agent's
+            // grant: a script this account may not run must not be listed as
+            // one it can, or the model plans around a capability it will be
+            // refused halfway through.
+            std::vector<std::string> permitted;
+            for (const auto& name : cfg_.scripts)
+                if (perms.allows_tool("run_script:" + name)) permitted.push_back(name);
             const std::vector<funes::ScriptSpec> specs =
-                funes::load_scripts(defaults_.scripts_dir, cfg_.scripts);
+                funes::load_scripts(defaults_.scripts_dir, permitted);
             if (!specs.empty()) {
                 sys += "\n\n## Scripts you can run (run_script)\n";
                 for (const auto& spec : specs) {
                     sys += "- " + spec.name;
                     if (!spec.description.empty()) sys += ": " + spec.description;
-                    sys += "\n  arguments: " + spec.usage() + "\n";
+                    sys += "\n  arguments: " + spec.usage() +
+                           "\n  returns: " + spec.returns() + "\n";
                 }
                 sys += "These are the only scripts you can run. Call run_script with a "
                        "script's name and its declared arguments — you cannot pass a "
@@ -753,6 +768,11 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             const std::string call_sig = tc.name + "|" + tc.arguments.dump();
             const int sig_calls  = ++sig_counts[call_sig];
             const int name_calls = ++name_counts[tc.name];
+            // Every key this call counts against: the tool name, plus
+            // "run_script:<script>" for a script call (core/tool_budget.h).
+            // One tool standing in for n programs would otherwise share one
+            // budget and one contract slot between all of them.
+            const std::vector<std::string> keys = funes::call_keys(tc.name, tc.arguments);
 
             // A declared ceiling (core/tool_budget.h) outranks the loop
             // detectors below. Both stop the same behaviour, but a refusal is
@@ -761,7 +781,17 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // the agent's author has said how many calls are reasonable, that
             // answer wins; max_steps remains the backstop if the model spends
             // the rest of its budget asking anyway.
-            const bool refused = funes::over_budget(cfg_.tool_limits, tc.name, name_calls);
+            std::string refused_key;
+            int         refused_limit = 0;
+            for (const auto& key : keys) {
+                const int key_calls = (key == tc.name) ? name_calls : ++name_counts[key];
+                if (funes::over_budget(cfg_.tool_limits, key, key_calls)) {
+                    refused_key   = key;
+                    refused_limit = cfg_.tool_limits.at(key);
+                    break;   // the aggregate ceiling is checked first and wins
+                }
+            }
+            const bool refused = !refused_key.empty();
 
             if (!refused) {
                 // Neither of these used to say so: both opened with "Done." and
@@ -782,14 +812,19 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
             if (refused) {
-                std::cerr << "[agent:" << cfg_.name << "] " << tc.name
-                          << " refused: budget of " << cfg_.tool_limits.at(tc.name)
-                          << " call(s) used up — removing from schema\n";
-                exhausted_tools.insert(tc.name);
+                std::cerr << "[agent:" << cfg_.name << "] " << refused_key
+                          << " refused: budget of " << refused_limit
+                          << " call(s) used up\n";
+                // Only an exhausted *tool* can leave the schema — there is one
+                // run_script entry for every script, so withholding it over
+                // one spent script would take away the other two the agent was
+                // granted. A spent script keeps being refused at this point
+                // instead, with a message naming it.
+                if (refused_key == tc.name) exhausted_tools.insert(tc.name);
             }
 
             ToolResult result = refused
-                ? ToolResult{funes::budget_message(tc.name, cfg_.tool_limits.at(tc.name)), true}
+                ? ToolResult{funes::budget_message(refused_key, refused_limit), true}
                 : dispatch_tool(tc.name, tc.arguments, ctx);
 
             if (emit) {
@@ -818,8 +853,13 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // its own prose instead of the framework forcing a retry or a
             // hard FAILED — the cron job then recorded "ok" for a newsletter
             // that never sent, because nothing downstream saw the marker.
-            if (!result.error) satisfied.insert(tc.name);
-            else                satisfied.erase(tc.name);
+            //
+            // Recorded per key, so `require_tools: [run_script:publish_issue]`
+            // means that script succeeded and not merely that some script did.
+            for (const auto& key : keys) {
+                if (!result.error) satisfied.insert(key);
+                else               satisfied.erase(key);
+            }
 
             // Large results go to the store and the transcript carries a
             // preview instead (see core/result_store.h). Errors are left alone:

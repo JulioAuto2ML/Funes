@@ -8,7 +8,9 @@
 // could become a second command, would make the allowlist decorative.
 
 #include "agent_config.h"
+#include "completion_contract.h"
 #include "script_library.h"
+#include "tool_budget.h"
 #include "tools.h"
 #include <algorithm>
 #include <cstdlib>
@@ -72,6 +74,46 @@ void build_library() {
                "description: Sleeps past its budget.\nrun: slow.sh\ntimeout_seconds: 1\n");
 
     write_file(dir / "ghost.yaml", "description: Points at nothing.\nrun: ghost.sh\n");
+
+    // Declares a JSON shape and keeps to it.
+    write_file(dir / "shaped.sh",
+               "#!/bin/sh\n"
+               "echo 'a warning nobody asked for' >&2\n"
+               "echo '{\"archive\": \"backups/x.tar.gz\", \"bytes\": 12}'\n",
+               true);
+    write_file(dir / "shaped.yaml",
+               "description: Prints a declared JSON shape.\n"
+               "run: shaped.sh\n"
+               "output:\n"
+               "  format: json\n"
+               "  schema:\n"
+               "    type: object\n"
+               "    required: [archive, bytes]\n"
+               "    properties:\n"
+               "      archive: {type: string}\n"
+               "      bytes: {type: number}\n");
+
+    // Declares the same shape and breaks it — an installation fault.
+    write_file(dir / "misshaped.sh", "#!/bin/sh\necho '{\"archive\": 7}'\n", true);
+    write_file(dir / "misshaped.yaml",
+               "description: Breaks its own contract.\n"
+               "run: misshaped.sh\n"
+               "output:\n"
+               "  format: json\n"
+               "  schema:\n"
+               "    type: object\n"
+               "    required: [archive, bytes]\n"
+               "    properties:\n"
+               "      archive: {type: string}\n"
+               "      bytes: {type: number}\n");
+
+    // Declares JSON and prints prose.
+    write_file(dir / "chatty.sh", "#!/bin/sh\necho 'done!'\n", true);
+    write_file(dir / "chatty.yaml",
+               "description: Prints prose where JSON was promised.\n"
+               "run: chatty.sh\n"
+               "output:\n"
+               "  format: json\n");
 
     // Reachable through the filesystem, granted to nobody.
     write_file(dir / "secret.sh", "#!/bin/sh\necho ran-the-ungranted-script\n", true);
@@ -304,6 +346,147 @@ int test_execution_details() {
     return 0;
 }
 
+// ── the declared output shape ────────────────────────────────────────────────
+
+// A script that exits 0 having printed the wrong thing is the failure a
+// pipeline stage cannot see: the stage reports success and the *next* stage
+// finds nothing where it looked. Same contract pipelines/*.yaml puts on a
+// stage, enforced by the runtime rather than by a paragraph in a prompt.
+int test_declared_output() {
+    build_library();
+    const fs::path ws = fs::temp_directory_path() / "funes_test_scriptlib_ws4";
+    fs::remove_all(ws);
+
+    ToolRegistry reg;
+    register_script_tools(reg, ws.string(), lib_dir().string());
+    ToolContext ctx{"operator", "s1", "", "", 1, funes::Permissions::unrestricted(),
+                    {"shaped", "misshaped", "chatty", "greet"}};
+
+    // Matching output comes back as the JSON itself, with no "exit_code: 0"
+    // banner in front of it — the next step consumes the shape, and a prefix
+    // is something exactly one consumer forgets to strip.
+    auto ok = reg.call("run_script", {{"name", "shaped"}}, ctx);
+    CHECK(!ok.error);
+    CHECK(ok.text.find("exit_code") == std::string::npos);
+    const json returned = json::parse(ok.text, nullptr, false);
+    CHECK(!returned.is_discarded());
+    CHECK(returned["archive"] == "backups/x.tar.gz");
+    // …with the script's stderr kept out of it. A deprecation warning from
+    // some library must not fail a schema the script itself satisfied.
+    CHECK(ok.text.find("a warning nobody asked for") == std::string::npos);
+
+    // Wrong shape is an error, and says whose fault it is — a model told only
+    // "failed" retries with different arguments against a script that cannot
+    // satisfy it.
+    auto wrong = reg.call("run_script", {{"name", "misshaped"}}, ctx);
+    CHECK(wrong.error);
+    CHECK(wrong.text.find("does not match") != std::string::npos);
+    CHECK(wrong.text.find("installed script") != std::string::npos);
+
+    // Not JSON at all is the same kind of fault.
+    auto prose = reg.call("run_script", {{"name", "chatty"}}, ctx);
+    CHECK(prose.error);
+    CHECK(prose.text.find("not JSON") != std::string::npos);
+
+    // A script that declares nothing is unaffected: text is text.
+    auto text = reg.call("run_script", {{"name", "greet"}, {"arguments", {{"who", "x"}}}}, ctx);
+    CHECK(!text.error);
+    CHECK(text.text.find("exit_code: 0") != std::string::npos);
+
+    // The shape is advertised, not just enforced: a model that knows what
+    // comes back can plan the next step instead of calling to find out.
+    auto listed = reg.call("list_scripts", json::object(), ctx);
+    CHECK(listed.text.find("returns: JSON object with keys: archive, bytes") != std::string::npos);
+
+    // The manifest rules for the block itself.
+    funes::ScriptSpec spec;
+    write_file(lib_dir() / "badout.yaml",
+               "description: x\nrun: greet.sh\noutput:\n  format: yaml\n");
+    CHECK(!funes::load_script(lib_dir().string(), "badout", spec).empty());
+    write_file(lib_dir() / "schemaless.yaml",
+               "description: x\nrun: greet.sh\noutput:\n  format: text\n"
+               "  schema:\n    type: object\n");
+    CHECK(!funes::load_script(lib_dir().string(), "schemaless", spec).empty());
+
+    fs::remove_all(ws);
+    return 0;
+}
+
+// ── per-script keys: budgets, contracts, permissions ─────────────────────────
+
+// One tool standing in for n programs. Keying a budget or a contract on the
+// tool name alone would share one ceiling between every script an agent has,
+// and let `require_tools: [run_script]` be satisfied by whichever script
+// happened to run — a contract that looks enforced and isn't.
+int test_per_script_keys() {
+    CHECK(funes::call_keys("web_search", json::object()) == std::vector<std::string>{"web_search"});
+
+    const auto keys = funes::call_keys("run_script", {{"name", "backup_workspace"}});
+    CHECK(keys.size() == 2);
+    CHECK(keys[0] == "run_script");                      // the aggregate ceiling
+    CHECK(keys[1] == "run_script:backup_workspace");     // and the per-script one
+
+    // A name the library would refuse never becomes a key nobody could write
+    // a limit for.
+    CHECK(funes::call_keys("run_script", {{"name", "../secret"}}).size() == 1);
+    CHECK(funes::call_keys("run_script", json::object()).size() == 1);
+    CHECK(funes::call_keys("run_script", {{"name", 7}}).size() == 1);
+
+    // Budgets: either key can carry the ceiling.
+    const funes::ToolLimits limits{{"run_script", 4}, {"run_script:backup_workspace", 1}};
+    CHECK(!funes::over_budget(limits, "run_script:backup_workspace", 1));
+    CHECK(funes::over_budget(limits, "run_script:backup_workspace", 2));
+    CHECK(!funes::over_budget(limits, "run_script:workspace_report", 3));  // no entry, free
+    CHECK(funes::over_budget(limits, "run_script", 5));
+    // The refusal names the script, not the tool: "run_script is used up"
+    // would stop a model from trying the other scripts it was granted.
+    CHECK(funes::budget_message("run_script:backup_workspace", 1)
+              .find("run_script:backup_workspace") != std::string::npos);
+
+    // Contracts: a qualified requirement is satisfied only by that script.
+    const funes::CompletionContract contract{{"run_script:publish"}};
+    CHECK(contract.active());
+    CHECK(contract.missing({"run_script", "run_script:other"}).size() == 1);
+    CHECK(contract.missing({"run_script", "run_script:publish"}).empty());
+    return 0;
+}
+
+// An account may be denied one script through every agent that has it.
+int test_per_script_permissions() {
+    build_library();
+    const fs::path ws = fs::temp_directory_path() / "funes_test_scriptlib_ws5";
+    fs::remove_all(ws);
+
+    ToolRegistry reg;
+    register_script_tools(reg, ws.string(), lib_dir().string());
+
+    const funes::Permissions perms = funes::Permissions::parse(
+        R"({"tools": {"run_script:secret": false}})", /*is_admin=*/false);
+    CHECK(perms.allows_tool("run_script"));
+    CHECK(perms.allows_tool("run_script:greet"));
+    CHECK(!perms.allows_tool("run_script:secret"));
+
+    // The denied script is not offered, so the model doesn't plan around a
+    // capability it will be refused halfway through.
+    ToolContext ctx{"operator", "s1", "", "", 5, perms, {"greet", "secret"}};
+    auto listed = reg.call("list_scripts", json::object(), ctx);
+    CHECK(listed.text.find("greet") != std::string::npos);
+    CHECK(listed.text.find("secret") == std::string::npos);
+
+    // The tool itself is not the boundary — FunesAgent::dispatch_tool checks
+    // the same key before dispatching, which is what stops a call written out
+    // as prose. Here the agent's grant still holds, so the call is reached:
+    // what this asserts is that the two lists differ, not that the tool
+    // enforces permissions on its own.
+    ToolContext admin{"operator", "s1", "", "", 5, funes::Permissions::unrestricted(),
+                      {"greet", "secret"}};
+    auto both = reg.call("list_scripts", json::object(), admin);
+    CHECK(both.text.find("secret") != std::string::npos);
+
+    fs::remove_all(ws);
+    return 0;
+}
+
 // ── the YAML field ───────────────────────────────────────────────────────────
 
 int test_agent_yaml() {
@@ -328,6 +511,47 @@ int test_agent_yaml() {
     return 0;
 }
 
+// The shipped library, actually run — a manifest that loads is not the same as
+// a script that works, and backup_workspace declares a JSON contract its own
+// shell code has to keep.
+int test_shipped_scripts_run() {
+    const fs::path ws = fs::temp_directory_path() / "funes_test_scriptlib_shipped";
+    fs::remove_all(ws);
+    fs::create_directories(ws / "1");
+    { std::ofstream f(ws / "1" / "note.txt"); f << "something to archive\n"; }
+
+    ToolRegistry reg;
+    register_script_tools(reg, ws.string(), "scriptlib");
+    ToolContext ctx{"operator", "s1", "", "", 1, funes::Permissions::unrestricted(),
+                    {"workspace_report", "backup_workspace"}};
+
+    auto report = reg.call("run_script",
+        {{"name", "workspace_report"}, {"arguments", {{"details", true}}}}, ctx);
+    CHECK(!report.error);
+    CHECK(report.text.find("note.txt") != std::string::npos);
+
+    // Declared JSON: the tool returns the object itself, having checked it.
+    auto backup = reg.call("run_script",
+        {{"name", "backup_workspace"}, {"arguments", {{"name", "unit-test"}}}}, ctx);
+    CHECK(!backup.error);
+    const json parsed = json::parse(backup.text, nullptr, false);
+    CHECK(!parsed.is_discarded());
+    CHECK(parsed.contains("archive") && parsed["archive"].is_string());
+    CHECK(parsed.contains("bytes") && parsed["bytes"].is_number());
+    CHECK(fs::exists(ws / "1" / parsed["archive"].get<std::string>()));
+
+    // Its own refusal to overwrite comes back as a tool error, with the
+    // script's stderr attached — a failing JSON script whose diagnosis lives
+    // in the other stream would otherwise be an exit code and nothing else.
+    auto again = reg.call("run_script",
+        {{"name", "backup_workspace"}, {"arguments", {{"name", "unit-test"}}}}, ctx);
+    CHECK(again.error);
+    CHECK(again.text.find("refusing to overwrite") != std::string::npos);
+
+    fs::remove_all(ws);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_allowlist_is_what_decides();
@@ -335,7 +559,11 @@ int main() {
     rc |= test_arguments();
     rc |= test_manifest_rules();
     rc |= test_execution_details();
+    rc |= test_declared_output();
+    rc |= test_per_script_keys();
+    rc |= test_per_script_permissions();
     rc |= test_agent_yaml();
+    rc |= test_shipped_scripts_run();
     if (rc == 0) std::cout << "test_script_library: all tests passed\n";
     return rc;
 }

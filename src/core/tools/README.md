@@ -18,7 +18,7 @@ hop, no protocol overhead.
 | `write_file` | `file_tools.cpp` | Writes or appends text. Creates parent directories. Workspace-confined. |
 | `execute_shell` | `shell_tool.cpp` | Runs a shell command. Opt-in only (`FUNES_ALLOW_SHELL=1`). Timeout, output cap. |
 | `list_scripts` | `script_tools.cpp` | Lists the scripts the calling agent is granted, with the arguments each takes. |
-| `run_script` | `script_tools.cpp` | Runs one script from the central library by name, with declared parameters passed as argv. Per-agent allowlist (`scripts:` in agent YAML); no shell, no global switch. |
+| `run_script` | `script_tools.cpp` | Runs one script from the central library by name, with declared parameters passed as argv, and checks its output against the shape the manifest declares. Per-agent allowlist (`scripts:` in agent YAML); no shell, no global switch. |
 | `compress_context` | `context_tools.cpp` | Folds old conversation turns into a summary to free context space. |
 | `read_result` | `result_tools.cpp` | Reads a windowed portion of a large stored tool result. |
 | `list_tools` | `introspection.cpp` | Lists every registered tool with its description. |
@@ -47,7 +47,7 @@ from `pipelines/*.yaml`, not from a paragraph in an agent prompt. See
 
 | Tool | File | What it does |
 |---|---|---|
-| `schedule_job` | `cron_tool.cpp` | Creates a recurring cron job (agent task or shell command). |
+| `schedule_job` | `cron_tool.cpp` | Creates a recurring cron job: an agent task, a library script (`kind="script"` — no shell access needed, grant re-checked at fire time), or a shell command. |
 | `list_jobs` | `cron_tool.cpp` | Lists all scheduled jobs with status and last run. |
 | `cancel_job` | `cron_tool.cpp` | Deletes a scheduled job. |
 | `run_job_now` | `cron_tool.cpp` | Fires a job immediately for testing. |
@@ -65,7 +65,7 @@ from `pipelines/*.yaml`, not from a paragraph in an agent prompt. See
 |---|---|
 | `fs_guard.h/cpp` | Filesystem path confinement plus `workspace_for`, the single resolver for which directory a call operates in (`<root>/<user_id>`, with an agent's own `workspace_dir` nested inside when relative). Catches `..` traversal, symlinks, absolute escapes. Used by read/write_file, shell, and /api/upload -- keep it the only resolver, or the confinement check ends up guarding a different root than the one being written to. |
 | `net_guard.h/cpp` | SSRF protection. Blocks requests to private/loopback hosts. Used by web_fetch and HTTP template tools. |
-| `process_runner.h/cpp` | Fork/exec engine with timeout, process-group kill, output cap. Used by execute_shell, read_file (PDF), publish_issue. |
+| `process_runner.h/cpp` | Fork/exec engine with timeout, process-group kill, output cap. Used by execute_shell, read_file (PDF), publish_issue, run_script. Optionally passes extra environment (a script manifest's `env:`, so a credential never enters the model's context) and optionally keeps stderr separate — a script whose stdout is a declared JSON contract must not have it corrupted by a library's deprecation warning. |
 | `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search and harvest_candidates. |
 | `../pipeline.h/cpp` | Pipeline stage configuration: directory, filename template, schema. Loaded per call by the pipeline tools, so a new stage is live without a restart. |
 | `../answer_schema.h/cpp` | The JSON-Schema subset used for both an agent's `answer_schema:` and a pipeline stage's `schema:` — one validator, so the two fail identically and read identically to a small local model. |
@@ -101,7 +101,13 @@ The tool system enforces security at multiple layers:
   makes "installing a script" an admin action: `read_file`, `write_file` and
   `/api/upload` cannot reach it. Same timeout/output-cap/process-group-kill
   machinery as shell; **not** gated by `FUNES_ALLOW_SHELL`, because a reviewed
-  program granted by name is a different act from an arbitrary command line.
+  program granted by name is a different act from an arbitrary command line —
+  including on a schedule (`schedule_job(kind="script")`), where the agent's
+  grant and the owner's permissions are re-resolved when the job fires rather
+  than trusted from when it was written. Budgets, completion contracts and
+  permission entries accept a per-script key (`run_script:<name>`), so the one
+  tool does not collapse n programs into one ceiling, one contract slot and
+  one grant.
   It is an allowlist, not a sandbox: a script still runs with the process's own
   permissions, so a script that takes a command or fetches code to run gives
   back everything the split was for.

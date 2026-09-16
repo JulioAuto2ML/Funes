@@ -26,13 +26,33 @@
 // a refusal — see force_no_tools in agent.cpp. Being told to conclude and
 // having nothing else available are different things; only the second worked.
 
+#include "json.hpp"
 #include <map>
 #include <string>
+#include <vector>
 
 namespace funes {
 
 // tool name → maximum calls per run. Declared in YAML as `tool_limits:`.
+// A key may also be a *qualified* call key (see call_keys below), e.g.
+// `run_script:backup_workspace`.
 using ToolLimits = std::map<std::string, int>;
+
+// The keys one tool call counts against, least specific first.
+//
+// For nearly every tool that is just its name: one `web_search` call is like
+// any other, so the ceiling and the completion contract can both key on
+// "web_search". `run_script` is the exception — it is one tool standing in
+// for n programs, so keying on the name alone would collapse them: an agent
+// granted three scripts would share one budget between them, and
+// `require_tools: [run_script]` would accept *any* script having succeeded in
+// place of the one the contract meant. Both are the kind of contract that
+// looks enforced and isn't.
+//
+// So a script call also counts against "run_script:<script>", and a budget,
+// a contract or a permission entry may name either. Callers apply every key:
+// the plain one is the aggregate ceiling, the qualified one is per script.
+std::vector<std::string> call_keys(const std::string& tool, const nlohmann::json& args);
 
 // True if this call must be refused. `calls_including_this` counts the call
 // being considered, so a limit of 5 permits calls 1-5 and refuses the 6th.
@@ -46,7 +66,8 @@ bool over_budget(const ToolLimits& limits, const std::string& tool,
 
 // What the model is told in place of the tool result. Must read as final —
 // a model that takes it for a transient error retries and burns its steps.
-std::string budget_message(const std::string& tool, int limit);
+// `key` is whichever key ran out, so an exhausted script says which script.
+std::string budget_message(const std::string& key, int limit);
 
 // Injected as a user turn on any completion where tools are withheld — after a
 // refusal, and on the last step. Dropping the schema is necessary but not

@@ -39,7 +39,7 @@ produces text and tool calls; this code decides whether to execute them.
 | File | Purpose |
 |---|---|
 | `completion_contract.h/cpp` | Tools that must succeed before an answer is accepted. Prevents "described the work" from passing as "did the work." |
-| `tool_budget.h/cpp` | Per-tool call ceilings. Refuses over-budget calls and withholds tool schemas to force synthesis. |
+| `tool_budget.h/cpp` | Per-tool call ceilings. Refuses over-budget calls and withholds tool schemas to force synthesis. Also owns `call_keys`: the keys a call counts against, which for `run_script` include `run_script:<script>` so a budget, a completion contract or a permission entry can name one program rather than the tool that runs all of them. |
 | `run_outcome.h/cpp` | Structured failure signals (`FAILED -- ...`) detectable by delegation. Prevents raw tool dumps from becoming answers. |
 | `answer_schema.h/cpp` | JSON shape validation on final answers. Extraction handles fenced blocks, wrapped JSON, bare objects. |
 | `context_compressor.h/cpp` | Folds old conversation turns into a rolling summary when approaching context limits. |
@@ -50,14 +50,14 @@ produces text and tool calls; this code decides whether to execute them.
 | File | Purpose |
 |---|---|
 | `tools.h/cpp` | `ToolRegistry` -- in-process tool dispatch with OpenAI-format schema generation. |
-| `script_library.h/cpp` | The per-agent script allowlist: manifests in the central library (`scriptlib/`), the `[a-z0-9_-]` name alphabet, and argv construction from declared parameters. What an agent gets *instead of* `execute_shell` -- a named program with typed arguments rather than a command line. `scripts:` in agent YAML denies by default, the opposite of `tools:`. |
+| `script_library.h/cpp` | The per-agent script allowlist: manifests in the central library (`scriptlib/`), the `[a-z0-9_-]` name alphabet, argv construction from declared parameters, and `validate_output` -- the pipeline-stage shape contract applied to a script's stdout. What an agent gets *instead of* `execute_shell`: a named program with typed arguments and a checked result, rather than a command line. `scripts:` in agent YAML denies by default, the opposite of `tools:`. |
 | `tools/` | Individual tool implementations. See [tools/README.md](tools/README.md). |
 
 ### Scheduling
 
 | File | Purpose |
 |---|---|
-| `cron_runner.h/cpp` | Background poll thread that fires due cron jobs (agent tasks or shell commands). |
+| `cron_runner.h/cpp` | Background poll thread that fires due cron jobs: agent tasks, library scripts (`kind="script"`, dispatched through the `run_script` tool so a scheduled run passes exactly the checks an interactive one does, with the grant and the owner's permissions re-resolved at fire time), or shell commands. |
 | `cron_schedule.h/cpp` | Pure-function cron expression parser and next-run calculator. |
 
 ### Publishing

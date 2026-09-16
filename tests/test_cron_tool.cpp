@@ -14,6 +14,7 @@
 #include "tools/cron_tool.h"
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 
 namespace fs = std::filesystem;
@@ -181,11 +182,103 @@ int test_run_job_now() {
     return 0;
 }
 
+// ── kind="script" ────────────────────────────────────────────────────────────
+// Unattended deterministic work used to mean kind="shell", so a nightly backup
+// script cost the install FUNES_ALLOW_SHELL — and everything else a shell job
+// can do came with it. A script job runs one granted program instead, through
+// the same run_script path an interactive call takes, with the grant
+// re-checked when it fires rather than trusted from when it was scheduled.
+int test_script_jobs() {
+    unsetenv("FUNES_ALLOW_SHELL");   // the point: none of this needs it
+
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_script.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+    AgentDefaults defaults;
+    fs::path workspace = fs::temp_directory_path() / "funes_test_cron_script_ws";
+    fs::remove_all(workspace);
+
+    fs::path lib = fs::temp_directory_path() / "funes_test_cron_scriptlib";
+    fs::remove_all(lib);
+    fs::create_directories(lib);
+    { std::ofstream f(lib / "hello.sh"); f << "#!/bin/sh\necho scheduled-hello\n"; }
+    fs::permissions(lib / "hello.sh", fs::perms::owner_all, fs::perm_options::replace);
+    { std::ofstream f(lib / "hello.yaml"); f << "description: Says hello.\nrun: hello.sh\n"; }
+
+    // The agent table the runner re-resolves the grant against. `granted`
+    // flips to simulate an admin editing the YAML after the job exists.
+    static bool granted = true;
+    auto find = [](const std::string& name) {
+        AgentConfig cfg;
+        if (name == "operator") {
+            cfg.name = "operator";
+            if (granted) cfg.scripts = {"hello"};
+        }
+        return cfg;
+    };
+
+    ToolRegistry reg;
+    register_script_tools(reg, workspace.string(), lib.string());
+    register_cron_tool(reg, memory, defaults, workspace.string(), find);
+
+    // Scheduling is refused for a script this agent was not granted — the
+    // scheduler is not a way around the allowlist.
+    ToolContext ungranted{"operator", "s1"};
+    auto refused = reg.call("schedule_job",
+        {{"name", "nope"}, {"schedule", "0 3 * * *"}, {"kind", "script"},
+         {"script", "hello"}}, ungranted);
+    CHECK(refused.error);
+    CHECK(refused.text.find("not available to this agent") != std::string::npos);
+
+    ToolContext ctx{"operator", "s1", "", "", 1, funes::Permissions::unrestricted(), {"hello"}};
+    auto missing_script = reg.call("schedule_job",
+        {{"name", "j"}, {"schedule", "0 3 * * *"}, {"kind", "script"}}, ctx);
+    CHECK(missing_script.error);
+
+    auto scheduled = reg.call("schedule_job",
+        {{"name", "nightly"}, {"schedule", "0 3 * * *"}, {"kind", "script"},
+         {"script", "hello"}}, ctx);
+    CHECK(!scheduled.error);
+    const int64_t id = std::stoll(scheduled.text.substr(scheduled.text.find('#') + 1));
+
+    auto listed = reg.call("list_jobs", json::object(), ctx);
+    CHECK(listed.text.find("(script)") != std::string::npos);
+    CHECK(listed.text.find("script=hello") != std::string::npos);
+
+    // It runs, with no shell enabled anywhere.
+    auto ran = reg.call("run_job_now", {{"id", id}}, ctx);
+    CHECK(!ran.error);
+    CHECK(ran.text.find("scheduled-hello") != std::string::npos);
+
+    // Revoking the agent's grant stops the timer too: the runner re-resolves
+    // it rather than trusting what was true when the job was written.
+    granted = false;
+    auto after_revoke = reg.call("run_job_now", {{"id", id}}, ctx);
+    CHECK(after_revoke.error);
+    CHECK(after_revoke.text.find("no longer granted") != std::string::npos);
+    granted = true;
+
+    // So does denying the account the script, through the same key
+    // FunesAgent::dispatch_tool checks.
+    ToolContext denied{"operator", "s1", "", "",
+                       1, funes::Permissions::parse(R"({"tools": {"run_script:hello": false}})",
+                                                    false),
+                       {"hello"}};
+    auto after_deny = reg.call("run_job_now", {{"id", id}}, denied);
+    CHECK(after_deny.error);
+    CHECK(after_deny.text.find("no longer permitted") != std::string::npos);
+
+    fs::remove_all(lib);
+    fs::remove_all(workspace);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_schedule_job_validation();
     rc |= test_schedule_list_cancel_roundtrip();
     rc |= test_run_job_now();
+    rc |= test_script_jobs();
     if (rc == 0) std::cout << "test_cron_tool: all tests passed\n";
     return rc;
 }

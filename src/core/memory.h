@@ -384,10 +384,17 @@ public:
         // a scheduled agent's remember() calls would land in nobody's pool.
         int64_t     user_id = ADMIN_USER_ID;
         std::string name;
-        std::string kind;      // "agent" | "shell"
-        std::string agent;     // kind=agent
+        std::string kind;      // "agent" | "shell" | "script"
+        std::string agent;     // kind=agent; also kind=script, see below
         std::string task;      // kind=agent
         std::string command;   // kind=shell
+        // kind=script: a program from the central library (core/script_library.h)
+        // and the JSON arguments object it is called with. `agent` carries the
+        // agent whose `scripts:` grant authorized it, because the grant is
+        // re-checked when the job fires, not only when it was scheduled — an
+        // agent that loses a script must stop running it on a timer too.
+        std::string script;
+        std::string script_args;
         std::string schedule;  // 5-field cron expression
         bool        running = false;
         int64_t     next_run_at = 0;  // unix time

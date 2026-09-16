@@ -269,6 +269,28 @@ int test_cron_jobs_survive_and_are_owned() {
     CHECK(jobs[0].schedule == "0 7 * * *");
     CHECK(jobs[0].user_id == ADMIN);
     CHECK(store.list_cron_jobs(BOB).empty());
+
+    // The script library added script/script_args to this table. An agent job written before
+    // they existed reads back with them empty rather than failing the SELECT,
+    // and a script job can be written to the migrated table.
+    CHECK(jobs[0].kind == "agent");
+    CHECK(jobs[0].script.empty());
+    CHECK(jobs[0].script_args.empty());
+
+    MemoryStore::CronJob job;
+    job.name = "nightly-backup";
+    job.kind = "script";
+    job.agent = "operator";
+    job.script = "backup_workspace";
+    job.script_args = R"({"name":"nightly"})";
+    job.schedule = "0 3 * * *";
+    job.user_id = ADMIN;
+    const int64_t id = store.create_cron_job(job);
+    CHECK(id > 0);
+    auto after = store.list_cron_jobs(ADMIN);
+    CHECK(after.size() == 2);
+    CHECK(after[0].script == "backup_workspace");
+    CHECK(after[0].script_args == R"({"name":"nightly"})");
     return 0;
 }
 

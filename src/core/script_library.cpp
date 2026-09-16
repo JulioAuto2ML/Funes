@@ -4,6 +4,8 @@
 // See scriptlib/README.md for the manifest schema by example.
 
 #include "script_library.h"
+#include "answer_schema.h"
+#include "yaml_json.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -98,6 +100,56 @@ std::string ScriptSpec::usage() const {
     return oss.str();
 }
 
+std::string ScriptSpec::returns() const {
+    if (output_format != "json") return "text";
+    std::string out = "JSON";
+    if (output_schema.is_object()) {
+        const auto type = output_schema.value("type", std::string());
+        if (!type.empty()) out += " " + type;
+        if (output_schema.contains("required") && output_schema["required"].is_array()) {
+            out += " with keys: ";
+            const auto& req = output_schema["required"];
+            for (size_t i = 0; i < req.size(); ++i)
+                if (req[i].is_string())
+                    out += (i ? ", " : "") + req[i].get<std::string>();
+        }
+    }
+    return out;
+}
+
+std::string validate_output(const ScriptSpec& spec, const std::string& stdout_text,
+                            nlohmann::json& parsed) {
+    if (spec.output_format != "json") return {};
+
+    // Strict, unlike an agent's final answer: extract_answer_json is generous
+    // because a model writes prose around its JSON, and a script does not get
+    // that latitude — it is a program, and "print exactly one JSON value" is a
+    // thing a program can do every time. Being lenient here would let a stray
+    // debug line decide which of two JSON objects the next stage reads.
+    std::string trimmed = stdout_text;
+    const auto first = trimmed.find_first_not_of(" \t\r\n");
+    const auto last  = trimmed.find_last_not_of(" \t\r\n");
+    if (first == std::string::npos)
+        return "Script '" + spec.name + "' declares JSON output but printed nothing. "
+               "This is a fault in the installed script, not in how it was called.";
+    trimmed = trimmed.substr(first, last - first + 1);
+
+    parsed = nlohmann::json::parse(trimmed, nullptr, /*allow_exceptions=*/false);
+    if (parsed.is_discarded())
+        return "Script '" + spec.name + "' declares JSON output but printed something "
+               "that is not JSON. This is a fault in the installed script, not in how "
+               "it was called — report it rather than retrying with other arguments.";
+
+    if (spec.output_schema.is_object() && !spec.output_schema.empty()) {
+        const std::string err = validate_answer(spec.output_schema, parsed);
+        if (!err.empty())
+            return "Script '" + spec.name + "' printed JSON that does not match the "
+                   "shape its manifest declares (" + spec.returns() + "): " + err +
+                   ". This is a fault in the installed script, not in how it was called.";
+    }
+    return {};
+}
+
 std::string load_script(const std::string& dir, const std::string& name, ScriptSpec& out) {
     const std::string id = safe_script_name(name);
     if (id.empty() || id != name)
@@ -168,6 +220,20 @@ std::string load_script(const std::string& dir, const std::string& name, ScriptS
                 return "Script '" + id + "', parameter '" + p.name + "': type must be "
                        "string, number or boolean (got '" + p.type + "').";
             spec.params.push_back(std::move(p));
+        }
+    }
+
+    // output: { format: json, schema: {...} }
+    if (root["output"] && root["output"].IsMap()) {
+        spec.output_format = str_or(root["output"]["format"], "text");
+        if (spec.output_format != "text" && spec.output_format != "json")
+            return "Script '" + id + "': output.format must be text or json (got '" +
+                   spec.output_format + "').";
+        if (root["output"]["schema"] && root["output"]["schema"].IsMap()) {
+            if (spec.output_format != "json")
+                return "Script '" + id + "': output.schema needs output.format: json — "
+                       "a schema on text output would never be checked.";
+            spec.output_schema = yaml_to_json(root["output"]["schema"]);
         }
     }
 

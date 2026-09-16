@@ -42,6 +42,8 @@ files override earlier ones.
   Scripts an agent may run by name via `run_script`, granted per agent in its
   YAML (`scripts:`). Independent of `FUNES_ALLOW_SHELL` on purpose: running one
   vetted, admin-installed program is not the same grant as running any command
+  -- including on a schedule, since `schedule_job(kind="script")` needs no
+  shell access either
 - `FUNES_CRON_ENABLED` -- run scheduled jobs (default: on). Set to `0` on a
   parallel install whose database is a copy of another's, or both will fire
   every job.

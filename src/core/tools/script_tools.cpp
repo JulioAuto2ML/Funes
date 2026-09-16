@@ -41,10 +41,20 @@ bool granted(const ToolContext& ctx, const std::string& name) {
     return std::find(ctx.scripts.begin(), ctx.scripts.end(), name) != ctx.scripts.end();
 }
 
-std::string granted_list(const ToolContext& ctx) {
+// The agent's grant narrowed by the caller's own permissions. A per-script
+// entry ("run_script:backup_workspace": false) denies one script to one
+// account through every agent that has it; the agent loop re-checks the same
+// key at dispatch, so this list is what the model is *told*, not the boundary.
+std::vector<std::string> available(const ToolContext& ctx) {
+    std::vector<std::string> out;
+    for (const auto& name : ctx.scripts)
+        if (ctx.permissions.allows_tool("run_script:" + name)) out.push_back(name);
+    return out;
+}
+
+std::string name_list(const std::vector<std::string>& names) {
     std::ostringstream oss;
-    for (size_t i = 0; i < ctx.scripts.size(); ++i)
-        oss << (i ? ", " : "") << ctx.scripts[i];
+    for (size_t i = 0; i < names.size(); ++i) oss << (i ? ", " : "") << names[i];
     return oss.str();
 }
 
@@ -55,10 +65,17 @@ ToolResult list_scripts_handler(const std::string& scripts_dir, const ToolContex
                 "administrator in the script library; there is nothing here you can "
                 "enable yourself.", false};
 
-    std::vector<funes::ScriptSpec> specs = funes::load_scripts(scripts_dir, ctx.scripts);
-    if (specs.empty())
+    const std::vector<std::string> names = available(ctx);
+    if (names.empty())
         return {"This agent is granted " + std::to_string(ctx.scripts.size()) +
-                " script(s) (" + granted_list(ctx) + ") but none of them is installed "
+                " script(s), but this account's permissions deny all of them. An "
+                "administrator can grant them; there is nothing to work around here.",
+                false};
+
+    std::vector<funes::ScriptSpec> specs = funes::load_scripts(scripts_dir, names);
+    if (specs.empty())
+        return {"This agent is granted " + std::to_string(names.size()) +
+                " script(s) (" + name_list(names) + ") but none of them is installed "
                 "in the script library. Tell the user: the grant and the library "
                 "disagree, which an administrator has to fix.", true};
 
@@ -68,6 +85,7 @@ ToolResult list_scripts_handler(const std::string& scripts_dir, const ToolContex
         oss << "- " << s.name;
         if (!s.description.empty()) oss << ": " << s.description;
         oss << "\n  arguments: " << s.usage() << "\n";
+        oss << "  returns: " << s.returns() << "\n";
     }
     return {oss.str(), false};
 }
@@ -86,7 +104,7 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
                 "than looking for another way to run it.", true};
     if (!granted(ctx, name))
         return {"Script '" + name + "' is not available to this agent. Available: " +
-                granted_list(ctx) + ".", true};
+                name_list(available(ctx)) + ".", true};
 
     funes::ScriptSpec spec;
     const std::string load_err = funes::load_script(scripts_dir, name, spec);
@@ -107,12 +125,45 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     const fs::path workspace = funes::fsguard::workspace_for(default_workspace, ctx.user_id,
                                                              ctx.workspace_dir);
 
+    // A JSON script's stdout is its contract, so its stderr is kept out of it:
+    // one deprecation warning from a library would otherwise fail a schema the
+    // script itself satisfied. A text script keeps the merged stream, which is
+    // what a person reading a run wants.
+    const bool json_out = (spec.output_format == "json");
     funes::proc::Result r = funes::proc::run_argv(argv, workspace, spec.timeout_seconds,
-                                                  MAX_OUTPUT_BYTES, spec.env);
+                                                  MAX_OUTPUT_BYTES, spec.env, json_out);
 
     if (!funes::looks_like_text(r.output))
         r.output = "[" + std::to_string(r.output.size()) +
                    " bytes of output omitted — not valid UTF-8 text]";
+
+    // A script that declares JSON output has its stdout checked against that
+    // shape before the model ever sees it — the pipeline-stage contract
+    // (pipelines/*.yaml, write_structured) applied to a script, so a stage
+    // cannot report success while handing the next stage the wrong shape.
+    // Only on a clean exit: a failing script's stderr is the diagnosis, and
+    // demanding JSON of it would replace the error with a complaint about the
+    // error's format.
+    json parsed;
+    if (!r.timed_out && r.exit_code == 0) {
+        const std::string shape_err = funes::validate_output(spec, r.output, parsed);
+        if (!shape_err.empty()) {
+            // The script's own stderr goes with the complaint: it is usually
+            // the traceback that explains why stdout was wrong, and an admin
+            // reading "printed something that is not JSON" needs it.
+            std::string text = shape_err;
+            if (!r.stderr_output.empty()) text += "\nstderr:\n" + r.stderr_output;
+            return {text, true};
+        }
+    }
+
+    // A script whose output is a declared shape returns that shape and nothing
+    // else — no "exit_code: 0" banner in front of it. The contract exists so
+    // the next step can consume the result (hand it to write_structured, read
+    // a field out of it); a prefix would mean every consumer has to strip one,
+    // which is the kind of thing exactly one of them will forget.
+    if (json_out && !r.timed_out && r.exit_code == 0)
+        return {parsed.dump(2), false};
 
     std::string text;
     if (r.timed_out)
@@ -128,6 +179,11 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
                "installation problem, not something the arguments can fix.\n" + r.output;
     else
         text = "exit_code: " + std::to_string(r.exit_code) + "\n" + r.output;
+
+    // Split capture means a failing JSON script's diagnosis lives in the other
+    // stream; without this the model gets an exit code and an empty body.
+    if (!r.stderr_output.empty() && (r.timed_out || r.exit_code != 0))
+        text += "\nstderr:\n" + r.stderr_output;
 
     return {text, r.timed_out || r.exit_code != 0};
 }

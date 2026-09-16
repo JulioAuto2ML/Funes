@@ -180,6 +180,8 @@ void MemoryStore::migrate() {
             agent       TEXT NOT NULL DEFAULT '',
             task        TEXT NOT NULL DEFAULT '',
             command     TEXT NOT NULL DEFAULT '',
+            script      TEXT NOT NULL DEFAULT '',
+            script_args TEXT NOT NULL DEFAULT '',
             schedule    TEXT NOT NULL,
             running     INTEGER NOT NULL DEFAULT 0,
             created_at  INTEGER NOT NULL,
@@ -205,6 +207,14 @@ void MemoryStore::migrate() {
     add_column_if_missing(db_, "session_summaries", "user_id", USER_ID_DECL);
     add_column_if_missing(db_, "tool_results",      "user_id", USER_ID_DECL);
     add_column_if_missing(db_, "cron_jobs",         "user_id", USER_ID_DECL);
+
+    // kind="script" (script library): a library script on a schedule, so unattended work
+    // no longer has to go through kind="shell" and therefore no longer needs
+    // FUNES_ALLOW_SHELL. Added as columns rather than by overloading `command`
+    // — a row whose meaning depends on its kind is how a scheduler starts
+    // running the wrong thing.
+    add_column_if_missing(db_, "cron_jobs", "script",      "TEXT NOT NULL DEFAULT ''");
+    add_column_if_missing(db_, "cron_jobs", "script_args", "TEXT NOT NULL DEFAULT ''");
 
     // The pre-4.0 unique constraint was UNIQUE(agent, text), which would make
     // one user storing a fact block every other user from storing it — and
@@ -1752,30 +1762,38 @@ MemoryStore::CronJob cron_job_from_row(Stmt& s) {
     job.last_status = s.col_text(10);
     job.last_output = s.col_text(11);
     job.user_id     = s.col_int64(12);
+    job.script      = s.col_text(13);
+    job.script_args = s.col_text(14);
     return job;
 }
 
+// Order matters: cron_job_from_row reads by index. New columns go on the end,
+// because an older database gets them from add_column_if_missing and SQLite
+// appends there too.
 constexpr const char* kCronJobColumns =
     "id, name, kind, agent, task, command, schedule, running, "
-    "next_run_at, last_run_at, last_status, last_output, user_id";
+    "next_run_at, last_run_at, last_status, last_output, user_id, "
+    "script, script_args";
 
 } // namespace
 
 int64_t MemoryStore::create_cron_job(const CronJob& job) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, R"sql(
-        INSERT INTO cron_jobs(name, kind, agent, task, command, schedule,
-                              created_at, next_run_at, user_id)
-        VALUES (?,?,?,?,?,?,strftime('%s','now'),?,?)
+        INSERT INTO cron_jobs(name, kind, agent, task, command, script, script_args,
+                              schedule, created_at, next_run_at, user_id)
+        VALUES (?,?,?,?,?,?,?,?,strftime('%s','now'),?,?)
     )sql");
     s.bind_text(1, job.name);
     s.bind_text(2, job.kind);
     s.bind_text(3, job.agent);
     s.bind_text(4, job.task);
     s.bind_text(5, job.command);
-    s.bind_text(6, job.schedule);
-    s.bind_int64(7, job.next_run_at);
-    s.bind_int64(8, job.user_id);
+    s.bind_text(6, job.script);
+    s.bind_text(7, job.script_args);
+    s.bind_text(8, job.schedule);
+    s.bind_int64(9, job.next_run_at);
+    s.bind_int64(10, job.user_id);
     s.step();
     return sqlite3_last_insert_rowid(db_);
 }

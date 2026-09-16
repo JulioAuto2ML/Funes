@@ -7,6 +7,7 @@
 #include "../cron_runner.h"
 #include "../cron_schedule.h"
 #include "../funes_config.h"
+#include <algorithm>
 #include <ctime>
 #include <sstream>
 
@@ -31,13 +32,13 @@ ToolResult schedule_job_handler(MemoryStore& memory,
         || args["schedule"].get<std::string>().empty())
         return {"Missing 'schedule' argument", true};
     if (!args.contains("kind") || !args["kind"].is_string())
-        return {"Missing 'kind' argument (must be 'agent' or 'shell')", true};
+        return {"Missing 'kind' argument (must be 'agent', 'script' or 'shell')", true};
 
     const std::string name     = args["name"].get<std::string>();
     const std::string schedule = args["schedule"].get<std::string>();
     const std::string kind     = args["kind"].get<std::string>();
-    if (kind != "agent" && kind != "shell")
-        return {"'kind' must be 'agent' or 'shell', got '" + kind + "'", true};
+    if (kind != "agent" && kind != "script" && kind != "shell")
+        return {"'kind' must be 'agent', 'script' or 'shell', got '" + kind + "'", true};
 
     funes::cron::CronExpr expr;
     try {
@@ -64,6 +65,24 @@ ToolResult schedule_job_handler(MemoryStore& memory,
             return {"Unknown agent '" + agent + "'", true};
         job.agent = agent;
         job.task  = task;
+    } else if (kind == "script") {
+        const std::string script = args.value("script", "");
+        if (script.empty()) return {"kind='script' requires 'script' (a name from list_scripts)", true};
+        // Scheduled or not, a script runs only where it was granted. Checked
+        // here against the scheduling agent's own grant so the refusal happens
+        // while somebody is reading, and re-checked when the job fires
+        // (cron_runner.cpp) so revoking the grant also stops the timer.
+        if (std::find(ctx.scripts.begin(), ctx.scripts.end(), script) == ctx.scripts.end())
+            return {"Script '" + script + "' is not available to this agent, so it cannot "
+                    "be scheduled either. Call list_scripts to see what is.", true};
+        // Arguments are validated now, against the manifest, rather than at
+        // 3am on the first firing: a job whose arguments were never going to
+        // work should fail while the person who wrote them is still here.
+        const json script_args = args.contains("arguments") && args["arguments"].is_object()
+            ? args["arguments"] : json::object();
+        job.agent       = ctx.agent;   // whose grant authorized it
+        job.script      = script;
+        job.script_args = script_args.dump();
     } else {
         const std::string command = args.value("command", "");
         if (command.empty()) return {"kind='shell' requires 'command'", true};
@@ -88,7 +107,9 @@ ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext
     for (const auto& j : jobs) {
         out << "#" << j.id << " '" << j.name << "' (" << j.kind << ") — schedule '"
             << j.schedule << "'";
-        if (j.kind == "agent") out << ", agent=" << j.agent;
+        if (j.kind == "agent")  out << ", agent=" << j.agent;
+        if (j.kind == "script") out << ", script=" << j.script
+                                    << (j.script_args == "{}" ? "" : " " + j.script_args);
         out << (j.running ? ", running now" : "") << "\n"
             << "  next run: " << format_epoch(j.next_run_at) << "\n"
             << "  last run: " << format_epoch(j.last_run_at);
@@ -143,9 +164,11 @@ void register_cron_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefau
         "schedule_job",
         "Schedule a recurring job using a standard 5-field cron expression "
         "(minute hour day-of-month month day-of-week — e.g. '0 9 * * *' for 9am daily, "
-        "'*/15 * * * *' for every 15 minutes). Two kinds: 'agent' runs a task through a "
+        "'*/15 * * * *' for every 15 minutes). Three kinds: 'agent' runs a task through a "
         "named agent (for anything needing judgment or generation, like curating a "
-        "newsletter); 'shell' runs a command directly with no LLM involved, for "
+        "newsletter); 'script' runs one of the scripts this agent is allowed to run "
+        "(see list_scripts) with its declared arguments — prefer it over 'shell' for "
+        "deterministic work, it needs no shell access; 'shell' runs a command directly, for "
         "deterministic scripts — requires FUNES_ALLOW_SHELL=1. Returns the job's id.",
         {
             {"type", "object"},
@@ -153,12 +176,16 @@ void register_cron_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefau
                 {"name",     {{"type", "string"}, {"description", "A short label for the job"}}},
                 {"schedule", {{"type", "string"},
                              {"description", "5-field cron expression, e.g. '0 9 * * *'"}}},
-                {"kind",     {{"type", "string"}, {"enum", json::array({"agent", "shell"})},
-                             {"description", "'agent' or 'shell'"}}},
+                {"kind",     {{"type", "string"}, {"enum", json::array({"agent", "script", "shell"})},
+                             {"description", "'agent', 'script' or 'shell'"}}},
                 {"agent",    {{"type", "string"},
                              {"description", "kind='agent': the target agent's name"}}},
                 {"task",     {{"type", "string"},
                              {"description", "kind='agent': the task to give it, each run"}}},
+                {"script",   {{"type", "string"},
+                             {"description", "kind='script': the script's name, as list_scripts gives it"}}},
+                {"arguments",{{"type", "object"},
+                             {"description", "kind='script': the script's declared parameters, same as run_script"}}},
                 {"command",  {{"type", "string"},
                              {"description", "kind='shell': the command to run, each run"}}}
             }},

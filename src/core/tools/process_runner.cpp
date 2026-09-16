@@ -21,34 +21,46 @@ namespace funes::proc {
 namespace {
 
 // Runs whatever `exec_in_child` execs into (it must chdir + exec and never
-// return on success; _exit on failure). Captures stdout+stderr, enforces
-// the timeout, and cleans up the truncation boundary.
+// return on success; _exit on failure). Captures stdout and stderr — merged
+// into one stream, or apart when `split` is set — enforces the timeout, and
+// cleans up the truncation boundary.
 Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cwd,
-                  int timeout_seconds, size_t max_output_bytes) {
+                  int timeout_seconds, size_t max_output_bytes, bool split = false) {
     Result result;
 
-    int pipefd[2];
-    if (pipe(pipefd) != 0) {
+    // outfd carries stdout; errfd carries stderr only when the caller asked
+    // for them apart, and is otherwise the same pipe (one fd, two dup2s).
+    int outfd[2];
+    if (pipe(outfd) != 0) {
+        result.output = "pipe() failed";
+        return result;
+    }
+    int errfd[2] = {outfd[0], outfd[1]};
+    if (split && pipe(errfd) != 0) {
+        close(outfd[0]);
+        close(outfd[1]);
         result.output = "pipe() failed";
         return result;
     }
 
     const pid_t pid = fork();
     if (pid < 0) {
-        close(pipefd[0]);
-        close(pipefd[1]);
+        close(outfd[0]);
+        close(outfd[1]);
+        if (split) { close(errfd[0]); close(errfd[1]); }
         result.output = "fork() failed";
         return result;
     }
 
     if (pid == 0) {
         // Child: own process group so a timeout can kill the whole tree,
-        // stdout+stderr both go to the pipe, cwd is set before exec.
+        // stdout and stderr go to their pipe(s), cwd is set before exec.
         setpgid(0, 0);
-        dup2(pipefd[1], STDOUT_FILENO);
-        dup2(pipefd[1], STDERR_FILENO);
-        close(pipefd[0]);
-        close(pipefd[1]);
+        dup2(outfd[1], STDOUT_FILENO);
+        dup2(errfd[1], STDERR_FILENO);
+        close(outfd[0]);
+        close(outfd[1]);
+        if (split) { close(errfd[0]); close(errfd[1]); }
         if (::chdir(cwd.c_str()) != 0) _exit(126);
         exec_in_child();
         _exit(127);  // only reached if exec_in_child's exec call failed
@@ -56,17 +68,25 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
 
     // Parent.
     setpgid(pid, pid);  // avoid a race with the child's own setpgid call
-    close(pipefd[1]);
-    const int flags = fcntl(pipefd[0], F_GETFL, 0);
-    fcntl(pipefd[0], F_SETFL, flags | O_NONBLOCK);
+    close(outfd[1]);
+    if (split) close(errfd[1]);
+    for (int fd : {outfd[0], split ? errfd[0] : -1}) {
+        if (fd < 0) continue;
+        const int flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
 
-    auto drain = [&] {
+    auto drain_one = [&](int fd, std::string& into) {
         char buf[4096];
         ssize_t n;
-        while ((n = read(pipefd[0], buf, sizeof(buf))) > 0) {
-            if (result.output.size() < max_output_bytes)
-                result.output.append(buf, static_cast<size_t>(n));
+        while ((n = read(fd, buf, sizeof(buf))) > 0) {
+            if (into.size() < max_output_bytes)
+                into.append(buf, static_cast<size_t>(n));
         }
+    };
+    auto drain = [&] {
+        drain_one(outfd[0], result.output);
+        if (split) drain_one(errfd[0], result.stderr_output);
     };
 
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_seconds);
@@ -85,21 +105,23 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
             break;
         }
 
-        struct pollfd pfd{pipefd[0], POLLIN, 0};
+        struct pollfd pfds[2] = {{outfd[0], POLLIN, 0}, {errfd[0], POLLIN, 0}};
         const int wait_ms = static_cast<int>(std::min<std::chrono::milliseconds::rep>(
             std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count(), 200));
-        poll(&pfd, 1, std::max(wait_ms, 0));
+        poll(pfds, split ? 2 : 1, std::max(wait_ms, 0));
     }
 
     drain();
-    close(pipefd[0]);
+    close(outfd[0]);
+    if (split) close(errfd[0]);
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
-    if (result.output.size() >= max_output_bytes) {
-        // The byte cap above can land mid-character; trim back to a clean
-        // UTF-8 boundary before the caller ever sees this text.
-        funes::truncate_utf8_safe(result.output, max_output_bytes);
-        result.output += "\n[output truncated at " + std::to_string(max_output_bytes / 1024) + " KB]";
+    // The byte cap above can land mid-character; trim back to a clean UTF-8
+    // boundary before the caller ever sees this text.
+    for (std::string* stream : {&result.output, &result.stderr_output}) {
+        if (stream->size() < max_output_bytes) continue;
+        funes::truncate_utf8_safe(*stream, max_output_bytes);
+        *stream += "\n[output truncated at " + std::to_string(max_output_bytes / 1024) + " KB]";
     }
     return result;
 }
@@ -108,8 +130,9 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
 
 Result run_argv(const std::vector<std::string>& argv, const fs::path& cwd,
                 int timeout_seconds, size_t max_output_bytes,
-                const std::vector<std::pair<std::string, std::string>>& extra_env) {
-    if (argv.empty()) return {-1, "run_argv: empty argv", false};
+                const std::vector<std::pair<std::string, std::string>>& extra_env,
+                bool separate_stderr) {
+    if (argv.empty()) return {-1, "run_argv: empty argv", {}, false};
 
     // Built here, in the parent: everything the child does after fork() is a
     // pointer assignment and an exec, which is the only thing guaranteed safe
@@ -139,7 +162,7 @@ Result run_argv(const std::vector<std::string>& argv, const fs::path& cwd,
         c_argv.push_back(nullptr);
         if (!envp.empty()) environ = const_cast<char**>(envp.data());
         execvp(c_argv[0], c_argv.data());
-    }, cwd, timeout_seconds, max_output_bytes);
+    }, cwd, timeout_seconds, max_output_bytes, separate_stderr);
 }
 
 Result run_shell_command(const std::string& command, const fs::path& cwd,

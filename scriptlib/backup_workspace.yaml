@@ -5,6 +5,18 @@
 description: Archive the calling account's workspace into backups/<name>.tar.gz and report what was written.
 run: backup_workspace.sh
 timeout_seconds: 120
+# A side effect whose result the next step needs: the archive's path. Declared
+# as JSON so the runtime checks the shape instead of the model parsing prose —
+# the same contract pipelines/*.yaml puts on a stage. A script that exits 0 and
+# prints the wrong shape is a failed call here, not a silent one.
+output:
+  format: json
+  schema:
+    type: object
+    required: [archive, bytes]
+    properties:
+      archive: {type: string}
+      bytes:   {type: number}
 params:
   - name: name
     description: Archive name without extension. Letters, digits, '-' and '_'. Defaults to the UTC timestamp.

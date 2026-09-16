@@ -31,4 +31,9 @@ fi
 
 # --exclude=./backups: a backup of the backups doubles the directory every run.
 tar --exclude=./backups -czf "$target" . 2>/dev/null
-echo "wrote $target ($(du -h "$target" | cut -f1))"
+
+# One JSON object on stdout and nothing else — the manifest declares
+# output.format: json, so anything before or after this line fails the call.
+# Progress chatter, if you ever want it, goes to stderr.
+bytes="$(wc -c < "$target" | tr -d ' ')"
+printf '{"archive": "%s", "bytes": %s}\n' "$target" "$bytes"

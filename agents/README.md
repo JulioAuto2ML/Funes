@@ -145,10 +145,22 @@ scripts: [workspace_report, backup_workspace]
 ```
 
 `run_script` in `tools:` gives the agent the tool; the names in `scripts:`
-decide which scripts that tool can reach. Neither alone does anything, and a
+decide which scripts that tool can reach. `tool_limits` and `require_tools`
+can name a single script rather than the tool, because one tool standing in
+for n programs would otherwise share one budget and one contract slot:
+
+```yaml
+tool_limits:
+  run_script: 6                            # all scripts together
+  run_script:backup_workspace: 1           # this one, once per run
+require_tools: [run_script:publish_issue]  # that script must have succeeded
+``` Neither alone does anything, and a
 grant naming a script the library doesn't have is reported as an installation
-mistake rather than silently ignored. `agents/operator.yaml` is the shipped
-example. See [../scriptlib/README.md](../scriptlib/README.md) for the manifest
+mistake rather than silently ignored. A script can also be put on a schedule —
+`schedule_job(kind="script", ...)`, which needs no shell access — and its
+`output:` block can declare a JSON shape the runtime checks, the same contract
+`pipelines/*.yaml` puts on a pipeline stage. `agents/operator.yaml` is the
+shipped example. See [../scriptlib/README.md](../scriptlib/README.md) for the manifest
 format and [../src/core/script_library.h](../src/core/script_library.h) for
 why the library sits outside every workspace.
 

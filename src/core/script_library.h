@@ -63,12 +63,31 @@ struct ScriptSpec {
     std::string file;          // resolved absolute path of the executable file
     std::string interpreter;   // "python3", "bash", … empty = exec the file itself
     int         timeout_seconds = 30;
+
+    // What the script prints. "text" (the default) is prose for a person or
+    // for the model to read; "json" means its stdout is one JSON value, and
+    // `output_schema` — the answer_schema.h subset, the same validator an
+    // agent's `answer_schema:` and a pipeline stage's `schema:` use — is the
+    // shape it must have.
+    //
+    // This is the pipeline-stage contract applied to a script. Without it a
+    // stage that "succeeded" can still hand the next stage an object where an
+    // array was expected, and the failure surfaces three stages later, in the
+    // stage that found nothing where it looked. Exit code 0 is the script
+    // saying it worked; this is the runtime checking.
+    std::string    output_format = "text";
+    nlohmann::json output_schema;
     std::vector<ScriptParam> params;
     // Extra environment for the child process, already expanded from ${VAR}.
     std::vector<std::pair<std::string, std::string>> env;
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;
+
+    // One line on what the script prints back, for the same audience: "text",
+    // or "JSON object with keys: archive, bytes". A model that knows the shape
+    // before it calls can plan the next step; one that doesn't calls to find out.
+    std::string returns() const;
 };
 
 // Sanitized script name: [a-z0-9_-] only. A name reaches this from the model
@@ -92,6 +111,18 @@ std::vector<std::string> list_script_names(const std::string& dir);
 // other scripts down with it.
 std::vector<ScriptSpec> load_scripts(const std::string& dir,
                                      const std::vector<std::string>& allowed);
+
+// Checks a finished script's stdout against `output_format`/`output_schema`.
+// Returns an error string (empty = fine) and, for a JSON script, the parsed
+// value in `parsed`. A text script always passes: there is nothing declared to
+// check it against.
+//
+// A failure here is an *installation* fault, not a bad call — the script the
+// admin installed did not print what its own manifest promises — so the
+// message says so, or the model spends its remaining steps trying different
+// arguments against a script that cannot satisfy it.
+std::string validate_output(const ScriptSpec& spec, const std::string& stdout_text,
+                            nlohmann::json& parsed);
 
 // Turns a tool call's arguments into the child's argv:
 // [interpreter,] <file>, then one `--name=value` token per supplied

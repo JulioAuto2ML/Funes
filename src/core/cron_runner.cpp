@@ -8,7 +8,9 @@
 #include "funes_config.h"
 #include "run_outcome.h"
 #include "text_utils.h"
+#include "tool_budget.h"
 #include "tools/process_runner.h"
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <iostream>
@@ -112,6 +114,60 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
     }
 }
 
+// Runs a script-kind job: one program from the central library, by name, with
+// the arguments the job was scheduled with. No LLM, and — the point of the
+// kind existing — no shell: before it, unattended deterministic work had to be
+// kind="shell", so a nightly backup script cost the install FUNES_ALLOW_SHELL
+// and every agent that could reach a shell job got arbitrary execution with it.
+//
+// It goes through the run_script tool rather than calling proc::run_argv
+// directly, so a scheduled run and an interactive one pass the *same* checks:
+// the agent's grant, the caller's permissions, argument validation against the
+// manifest, the workspace cwd, the declared output shape. A second code path
+// here would be a second set of rules, and the one nobody watches is the one
+// that drifts.
+//
+// Both grants are re-resolved now rather than trusted from scheduling time: an
+// agent that loses a script in its YAML, or an account that has it denied,
+// stops running it on a timer too.
+std::pair<bool, std::string> run_script_job(const MemoryStore::CronJob& job,
+                                            ToolRegistry& tools,
+                                            const FindAgentFn& find_agent,
+                                            const FindPermissionsFn& find_permissions) {
+    AgentConfig owner = find_agent(job.agent);
+    if (owner.name.empty())
+        return {false, "FAILED — the agent '" + job.agent + "' that authorized this "
+                       "script no longer exists"};
+    if (std::find(owner.scripts.begin(), owner.scripts.end(), job.script) == owner.scripts.end())
+        return {false, "FAILED — the agent '" + job.agent + "' is no longer granted the "
+                       "script '" + job.script + "'"};
+
+    const funes::Permissions perms = find_permissions
+        ? find_permissions(job.user_id)
+        : funes::Permissions::unrestricted();
+    for (const auto& key : funes::call_keys("run_script", json{{"name", job.script}}))
+        if (!perms.allows_tool(key))
+            return {false, "FAILED — the job's owner is no longer permitted to use '" +
+                           key + "'"};
+
+    json arguments = json::object();
+    if (!job.script_args.empty()) {
+        arguments = json::parse(job.script_args, nullptr, /*allow_exceptions=*/false);
+        if (arguments.is_discarded() || !arguments.is_object())
+            return {false, "FAILED — this job's stored arguments are not a JSON object"};
+    }
+
+    ToolContext ctx{owner.name, std::string(MemoryStore::CRON_SESSION_PREFIX)
+                                 + std::to_string(job.id),
+                    owner.workspace_dir, owner.memory_scope, job.user_id, perms,
+                    owner.scripts};
+    ToolResult r = tools.call("run_script",
+                              {{"name", job.script}, {"arguments", arguments}}, ctx);
+    std::string out = r.text;
+    bound_preview(out);
+    return {!r.error, out};
+}
+
 // Runs a shell-kind job directly, no LLM involved — for deterministic
 // scripts, the same job the crontab lines in publishing/README.md do today.
 std::pair<bool, std::string> run_shell_job(const MemoryStore::CronJob& job,
@@ -143,6 +199,8 @@ std::pair<bool, std::string> execute_and_record(const MemoryStore::CronJob& job,
         if (job.kind == "agent")
             std::tie(ok, output) = run_agent_job(job, tools, memory, defaults,
                                                  find_agent, find_permissions);
+        else if (job.kind == "script")
+            std::tie(ok, output) = run_script_job(job, tools, find_agent, find_permissions);
         else
             std::tie(ok, output) = run_shell_job(job, workspace_dir);
     } catch (const std::exception& e) {

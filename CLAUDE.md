@@ -200,10 +200,35 @@ Three things to keep straight when touching this:
   an admin editing the repo, like adding an agent. A script still runs with the
   process's own permissions: this is an allowlist, not a sandbox.
 
+Three things compose with the layers above rather than sitting beside them:
+
+- **Qualified call keys** (`funes::call_keys`, `tool_budget.h`). `run_script`
+  is one tool standing in for n programs, so a call also counts against
+  `run_script:<script>`. `tool_limits`, `require_tools` and a user's
+  `permissions` blob all accept either form — without it three granted scripts
+  would share one budget and `require_tools: [run_script]` would be satisfied
+  by whichever script happened to run. The aggregate key withdraws the tool
+  from the schema when spent; a spent script is refused by name so the others
+  stay callable.
+- **A declared output shape** (`output:` in the manifest, `validate_output`).
+  The pipeline-stage contract applied to a script: `format: json` plus the
+  `answer_schema.h` subset, checked before the model sees the result, with the
+  error worded as an installation fault so the model reports it instead of
+  retrying. A JSON script's stderr is captured separately
+  (`run_argv(..., separate_stderr)`) — otherwise one library warning fails a
+  schema the script satisfied.
+- **`schedule_job(kind="script")`** (`cron_runner.cpp`). Unattended work no
+  longer has to be `kind: "shell"` and so no longer needs `FUNES_ALLOW_SHELL`.
+  It dispatches through the same `run_script` tool an interactive call uses —
+  one set of rules, not a second path nobody watches — and re-resolves both the
+  agent's grant and the owner's permissions *at fire time*, so revoking either
+  stops the timer.
+
 The agent loop lists an agent's granted scripts in its system prompt
-(`AgentDefaults::scripts_dir`), the way it lists the delegation roster —
-a capability a small model has to discover with a tool call is one it will
-instead guess at, usually by reaching for the shell. See `scriptlib/README.md`.
+(`AgentDefaults::scripts_dir`), filtered by the caller's permissions, the way
+it lists the delegation roster — a capability a small model has to discover
+with a tool call is one it will instead guess at, usually by reaching for the
+shell. See `scriptlib/README.md`.
 
 ### Memory
 
