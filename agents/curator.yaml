@@ -12,13 +12,13 @@ model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
 workspace_dir: /home/julio/Documents/X_posts
-max_steps: 24
+max_steps: 28
 context_limit: 32768
 require_tools: [harvest_candidates, publish_issue]
 tool_limits:
   harvest_candidates: 3
   read_result: 8
-  publish_issue: 4
+  publish_issue: 6
 
 system_prompt: |
   You put together one issue of a daily publication. Everything mechanical is
