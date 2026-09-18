@@ -14,7 +14,7 @@
 namespace funes {
 namespace {
 
-// OWASP's 2023 floor for PBKDF2-HMAC-SHA256. Roughly 200ms on yoda-class
+// OWASP's 2023 floor for PBKDF2-HMAC-SHA256. Roughly 200ms on desktop-class
 // hardware — deliberately slow, and only paid on login, not per request
 // (that's what the token table is for).
 constexpr int  DEFAULT_ITERATIONS = 600000;

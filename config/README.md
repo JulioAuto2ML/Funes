@@ -21,7 +21,7 @@ files override earlier ones.
 ## Key settings
 
 ### LLM backend
-- `FUNES_LLM_URL` -- OpenAI-compatible endpoint (default: `http://yoda:8080`)
+- `FUNES_LLM_URL` -- OpenAI-compatible endpoint (default: `http://localhost:8080`)
 - `FUNES_LLM_PROVIDER` -- `openai` (llama.cpp, Groq, OpenAI) or `anthropic`
 - `FUNES_LLM_MODEL` -- model name, or `default` (auto-detected from `/v1/models`)
 - `FUNES_VISION_URL` -- separate endpoint for image-bearing turns
@@ -35,7 +35,8 @@ files override earlier ones.
 - `FUNES_MEMORY_RECALL_K` -- memories injected per answer (default: 6)
 
 ### Server
-- `FUNES_HOST` / `FUNES_PORT` -- bind address (default: `0.0.0.0:8484`)
+- `FUNES_HOST` / `FUNES_PORT` -- bind address (default: `127.0.0.1:8484`, i.e.
+  this machine only; set `0.0.0.0` in `funes.local` to expose it on the LAN)
 - `FUNES_DEFAULT_AGENT` -- which agent handles requests without an explicit name
 - `FUNES_ALLOW_SHELL` -- enables `execute_shell` tool and shell cron jobs (default: off)
 - `FUNES_SCRIPTS_DIR` -- the central script library (default: `./scriptlib`).
@@ -49,22 +50,22 @@ files override earlier ones.
   every job.
 
 ### Users & authentication (4.0)
-- `FUNES_SERVICE_TOKEN` -- shared secret for non-browser callers (the WhatsApp
-  autoresponder), sent with the sender's jid so Funes can resolve the account.
-  Unset means service authentication is off, not open. `openssl rand -hex 32`
+- `FUNES_SERVICE_TOKEN` -- shared secret for non-browser callers (a messaging
+  bridge, a script), sent with the caller's jid so Funes can resolve the
+  account. Unset means service authentication is off, not open.
+  `openssl rand -hex 32`
 - `FUNES_COOKIE_SECURE` -- add `; Secure` to the session cookie. Off by
   default: the usual deployment is plain HTTP on a LAN, where setting it would
   make login silently fail. Turn it on behind an HTTPS proxy
 - Accounts are CLI-managed: `funes useradd/userdel/userlist/passwd`, plus
-  `funes jid-map <jid> <username>` to let a WhatsApp number act as a user.
+  `funes jid-map <jid> <username>` to let an external identity act as a user.
   There is no self-registration and no user-CRUD API
 
-### Email (Gmail SMTP)
-- `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD` -- shared by newsletter sending and IMAP MCP
-
-### WhatsApp
-- Two bridge instances: personal (port 8090) and dedicated Funes number (port 8091)
-- `WHATSAPP_WHITELIST` -- comma-separated JIDs for autoresponder
+### Extensions
+An out-of-tree extension (`-DFUNES_EXTENSIONS`) reads its own settings from
+this same pair of files, but documents them in its own repository -- mail
+accounts, message bridges, publishing credentials and the like are an
+installation's, not the harness's, and none of them appear in `funes.conf`.
 
 ### Search
 - `FUNES_TAVILY_API_KEY` -- Tavily Search API key

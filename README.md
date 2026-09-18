@@ -100,16 +100,12 @@ Without embeddings Funes still works — memory falls back to keyword search,
 and missing vectors are backfilled automatically once an embedding endpoint
 appears.
 
-**Optional — MCP-based agents.** `gmail-assistant` and `whatsapp-assistant`
-talk to external services via MCP servers that need their own dependencies.
-Run once per host:
-
-```bash
-cd third-party/imap-email-mcp-patched && npm install   # gmail-assistant
-```
-
-See the Agents section below for credentials (`IMAP_USER`/`IMAP_PASSWORD` in
-`config/funes.local`) and the WhatsApp setup.
+**Optional — MCP-based agents.** An agent can reach an external service
+through an MCP server it spawns or connects to; nothing of the sort ships
+here, because an MCP server is a credential and an account, not a feature of
+the harness. See *External tools (MCP)* below for how to wire one up, and
+[funes-julio](../funes-julio) for a worked example of a repository that adds
+its own servers, agents and tools to this binary without forking it.
 
 **Run it:**
 
@@ -156,11 +152,11 @@ Two front doors, one identity model:
   httpOnly session cookie. Passwords are stored as PBKDF2-HMAC-SHA256 — via
   OpenSSL, which Funes already links for HTTPS, so this cost no new
   dependency.
-- **WhatsApp** authenticates by number. The autoresponder sends a service
-  token proving the *caller* is trusted plus the sender's jid saying *who
-  for*; Funes maps that jid to an account. Neither half authenticates
-  anything on its own, and an unmapped number is ignored exactly as it was
-  before. Map one with `funes jid-map <jid> <username>`.
+- **A non-browser caller** authenticates by service token plus an identity
+  claim. A messaging bridge, say, sends `FUNES_SERVICE_TOKEN` proving the
+  *caller* is trusted plus the sender's jid saying *who for*; Funes maps that
+  jid to an account. Neither half authenticates anything on its own, and an
+  unmapped jid is ignored. Map one with `funes jid-map <jid> <username>`.
 
 Accounts are admin-managed by design — `funes useradd` / `userdel` /
 `userlist` / `passwd`, with passwords always prompted rather than passed as
@@ -205,9 +201,9 @@ which agent you can open — otherwise it would be decorative, since `funes` is
 reachable by everyone and would happily pass the task along on your behalf.
 
 What stays shared: the LLM backend, the agent definitions in `agents/`, and
-the credentials in `funes.local` (one Gmail account, one Tavily key, one
-WhatsApp bridge). Per-user credential vaults are SaaS territory and this is a
-household appliance.
+the credentials in `funes.local` — one search key, one mail account, one of
+whatever else the install talks to. Per-user credential vaults are SaaS
+territory and this is a household appliance.
 
 Upgrading from 3.x is in-place. Existing memories, turns and files are
 attributed to the admin account, and the vector index is rebuilt once with a
@@ -302,11 +298,11 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_CONSOLIDATE_HOURS` | `6` | How often consolidation runs |
 | `FUNES_CONSOLIDATE_PRUNE_DAYS` | `30` | Age at which never-recalled `auto` memories are pruned |
 | `FUNES_CONSOLIDATE_MAX_CLUSTERS` | `20` | Merge calls per run, so a backlog can't hog a local model |
-| `FUNES_SERVICE_TOKEN` | *(empty)* | Shared secret for non-browser callers (the WhatsApp autoresponder). Unset = service authentication is off, not open. Generate with `openssl rand -hex 32` |
+| `FUNES_SERVICE_TOKEN` | *(empty)* | Shared secret for non-browser callers (a messaging bridge, a script). Unset = service authentication is off, not open. Generate with `openssl rand -hex 32` |
 | `FUNES_COOKIE_SECURE` | `0` | Add `; Secure` to the session cookie. Leave off for plain-HTTP LAN use — the browser would refuse to store it and login would silently fail; set to `1` behind an HTTPS proxy |
 
-Consolidation (`docs/nooa-comparison.md` item 4, from NVIDIA's NOOA paper —
-arXiv 2607.20709) targets *bloat*: it merges near-duplicate memories and
+Consolidation (after item 4 of NVIDIA's NOOA paper, arXiv 2607.20709)
+targets *bloat*: it merges near-duplicate memories and
 prunes stale never-recalled ones, but doesn't change how recall ranks what's
 left. `recall_semantic` separately weights by `Memory::source` — a
 deliberately taught `user`/`tool` fact outranks a passive `auto`
@@ -619,9 +615,10 @@ mcp_servers:
       SOME_API_KEY: value   # optional, passed to the subprocess's environment
 ```
 
-`agents/rss-reader.yaml` wires this up end to end against a real third-party
-server ([rss-reader-mcp](https://www.npmjs.com/package/rss-reader-mcp),
-`fetch_feed_entries`/`fetch_article_content`) as a working example. Every MCP
+The example above is a real third-party server
+([rss-reader-mcp](https://www.npmjs.com/package/rss-reader-mcp),
+`fetch_feed_entries`/`fetch_article_content`); drop those four lines into an
+agent's YAML and its tools appear alongside the built-ins. Every MCP
 server, SSE or stdio, is reconnected fresh per agent instance (i.e. per
 request) — for a stdio server that means a new subprocess each time, so
 expect its startup cost (e.g. `npx`'s package resolution) on every call, not
@@ -717,9 +714,9 @@ Funes/
 ├── tests/             # unit tests + mock-LLM integration test
 └── third-party/       # vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json)
 
-Julio's own agents, tools and pipelines (newsletter, VoC council, WhatsApp,
-Gmail, book editor) live in a separate repository, funes-julio, built in as an
-extension — see "Extensions" above.
+One operator's own agents, tools and pipelines — a newsletter, a debate
+pipeline, WhatsApp, Gmail, a manuscript editor — live in a separate
+repository built in as an extension, not here. See "Extensions" above.
 ```
 
 ## Lineage

@@ -2,7 +2,7 @@
 // src/core/permissions.h — what one account is allowed to do
 // =============================================================================
 //
-// Phase 4 of docs/dev-plan-users-permissions.md. Deliberately not RBAC: two
+// Deliberately not RBAC: two
 // roles, plus an optional per-user allowlist of agents and tools, stored as
 // JSON in users.permissions.
 //

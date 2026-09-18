@@ -46,11 +46,11 @@ int test_it_refuses_when_the_text_does_not_say() {
 
     // Content words only — this is the common case for a stored fact, and the
     // one where a detector most wants to guess.
-    CHECK(funes::detect_language("FUNES_LINK_BACKFILL=off default yoda GPU").empty());
+    CHECK(funes::detect_language("FUNES_LINK_BACKFILL=off default gpu-box GPU").empty());
 
     // A URL and a path are not a language.
     CHECK(funes::detect_language("https://example.com/very/long/path/to/a/page").empty());
-    CHECK(funes::detect_language("/home/julio/Funes-v4/build/bin/funes --help").empty());
+    CHECK(funes::detect_language("/opt/funes/build/bin/funes --help").empty());
 
     // A language the lists do not cover must come back unlabelled rather than
     // as whichever listed language it happens to share letters with.

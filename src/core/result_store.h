@@ -56,7 +56,7 @@ constexpr const char* kDereferenceTool = "read_result";
 //   the window, not the note. Size can't be the guard here, so the tool is.
 //
 //   Any tool registered with NativeTool::inline_result. The original case was
-//   a newsletter's harvest_candidates: ~25 numbered candidates sized to fit the
+//   a harvest-style tool: ~25 numbered candidates sized to fit the
 //   context on purpose, the model's next act being to pick by number. Stored,
 //   it would see two candidates and a byte count and have to page the rest
 //   back through read_result — reintroducing the walk the pool was built to

@@ -40,12 +40,11 @@ namespace fs = std::filesystem;
 // Always returns an absolute path. A bare relative string used to come back
 // from the first branch, which was harmless for agents_dir/ui_dir/
 // generated_tools_dir — read by this same process, whose cwd never changes —
-// but broke publishing_dir: publish_issue embeds it into an argv for a
-// subprocess spawned with cwd = the workspace directory (X_posts, not this
-// process's cwd), so a relative "publishing" resolved against the wrong
-// directory and python3 could not find the script. Found on 2026-07-31 via a
-// live curator run that got all the way to `publish_issue.py exit 2: No such
-// file or directory`.
+// but broke a directory embedded into an argv for a subprocess: that child
+// is spawned with cwd = the workspace directory, not this process's cwd, so a
+// relative path resolved against the wrong directory and the interpreter
+// could not find the script. Found on 2026-07-31 in a live run that got all
+// the way to `exit 2: No such file or directory`.
 static std::string resolve_dir(const std::string& configured, const std::string& relative) {
     if (!configured.empty()) return fs::absolute(configured).string();
     if (fs::exists(relative)) return fs::absolute(relative).string();

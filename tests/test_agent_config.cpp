@@ -111,12 +111,12 @@ llm_provider: ${TEST_FUNES_MISSING_VAR}
     unsetenv("TEST_FUNES_URL");
 
     // Env-var expansion with surrounding text.
-    setenv("TEST_FUNES_HOST", "yoda", 1);
+    setenv("TEST_FUNES_HOST", "gpu-box", 1);
     AgentConfig env_mixed = AgentConfig::from_string(R"yaml(
 name: env-mixed
 llm_url: http://${TEST_FUNES_HOST}:8080/v1
 )yaml");
-    CHECK(env_mixed.llm_url == "http://yoda:8080/v1");
+    CHECK(env_mixed.llm_url == "http://gpu-box:8080/v1");
     unsetenv("TEST_FUNES_HOST");
 
     // Literal ${...} without a closing brace is kept as-is.

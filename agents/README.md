@@ -16,12 +16,11 @@ allowlist, and a handful of knobs, not an independent binary or container.
 | `tool-builder` | Scaffolds new HTTP-template tools via interview. | create_tool | 8 |
 | `file-reviewer` | Reviews an uploaded document and reports on it. | read_file, remember | 10 |
 
-Eleven more — the newsletter `curator`, the VoC council (`voc-researcher`,
-`council-chair`, `council-panelist`, `content-writer`, `mvp-builder`), and the
-WhatsApp, Gmail, RSS and book-editor agents — live in the `funes-julio`
-extension repository and load from its `agents/` when `FUNES_AGENTS_DIR` names
-it (colon-separated). They run on this same runtime; they are simply one
-person's, not the product's.
+That is the whole shipped roster, and it is meant to be. An agent that needs
+a mailbox, a phone number or a subscriber list is one installation's, not the
+product's, so it belongs in an extension repository: drop its YAML in a second
+directory and name that directory in `FUNES_AGENTS_DIR` (colon-separated). It
+runs on this same runtime, with no rebuild.
 
 ## Architecture: hub and spoke
 
@@ -57,8 +56,8 @@ same account the caller is acting for.
   restricts nothing by itself (the agent allowlist still decides); it changes
   what a caller is *told* when the agent is unavailable, because "ask an
   administrator" is good advice for an allowlist and bad advice for this. See
-  `src/core/agent_roster.h`. None of the seven shipped agents needs it; the
-  extension's Gmail, WhatsApp and newsletter agents all do.
+  `src/core/agent_roster.h`. None of the seven shipped agents needs it; an
+  agent wired to one mailbox, one phone number or one subscriber list does.
 
 ## YAML format
 
@@ -86,7 +85,7 @@ answer_schema:                    # JSON shape enforcement
 
 # Optional infrastructure
 shared_identity: >                # this agent's tools authenticate as the
-  the installation's Gmail mailbox # *installation*, not as the caller
+  the installation's mailbox      # *installation*, not as the caller
 workspace_dir: subfolder          # nested inside the caller's own workspace
                                   # (<root>/<user_id>/subfolder). An absolute
                                   # path is honoured verbatim and is then
@@ -153,9 +152,9 @@ when you can say what went wrong at the old value.
 | Archetype | Shape | `max_steps` | `tool_limits` | `tool_choice` | Notes |
 |---|---|---|---|---|---|
 | **Orchestrator** | Talks to the user, delegates the work. `funes`, `agent-doctor`. | 8 | `delegate_to_agent: 3`, `web_search: 2` | auto | Low on purpose: an orchestrator that searches is an orchestrator doing the specialist's job badly. |
-| **Researcher** | Gathers from the outside world, then synthesizes. `researcher` (and the extension's `voc-researcher`, `content-writer`). | 16-20 | `web_search: 4-6`, `web_fetch: 6-8` | auto | The cap exists because a model that hasn't found the answer searches again rather than concluding. Leave room after the cap for the synthesis step. |
-| **Pipeline worker** | Reads a stage, produces the next one. The extension's `curator`, `mvp-builder`, `council-chair`. | 12-24 | Per tool, sized to the stage | auto | Prefer `require_tools` over a high ceiling: say what must succeed, don't just allow more attempts. `write_structured` needs no cap -- a schema refusal is recoverable and retrying it is the correct behaviour. |
-| **Stateless sub-agent** | One judgement, no side effects. The extension's `council-panelist`. | 4 | none needed | auto | Give it an `answer_schema` and few or no tools. Its output is consumed by a tool or another agent, so shape matters more than length. |
+| **Researcher** | Gathers from the outside world, then synthesizes. `researcher`, `file-reviewer`. | 16-20 | `web_search: 4-6`, `web_fetch: 6-8` | auto | The cap exists because a model that hasn't found the answer searches again rather than concluding. Leave room after the cap for the synthesis step. |
+| **Pipeline worker** | Reads a stage, produces the next one. None ship here -- this is the shape an extension's multi-stage work takes. | 12-24 | Per tool, sized to the stage | auto | Prefer `require_tools` over a high ceiling: say what must succeed, don't just allow more attempts. A tool whose refusal is recoverable (a schema rejection, say) needs no cap -- retrying it is the correct behaviour. |
+| **Stateless sub-agent** | One judgement, no side effects. `file-reviewer` run under a parent. | 4 | none needed | auto | Give it an `answer_schema` and few or no tools. Its output is consumed by a tool or another agent, so shape matters more than length. |
 
 Two rules that apply to all four:
 
@@ -175,11 +174,11 @@ appears in the UI and in `funes`'s delegation roster immediately.
 Before writing a new agent, check whether the thing you want is config: a
 different **feed**, **contact list** or **habit** is usually a remembered fact,
 taught once; a different instance of a pipeline is usually one more YAML for
-the tools that pipeline already has. The extension repository has the worked
-examples (a publication is a YAML plus a voice file; a manuscript is a copy of
-`book-editor.yaml` with another `workspace_dir`). Its `astro-ph-summarizer` was
-an agent until it was noticed that it was `rss-reader` plus one URL; it is now
-something the user tells `rss-reader` once. A near-duplicate agent is the
-cheapest thing to create and the most expensive thing to keep.
+the tools that pipeline already has. The pattern worth internalising, from an
+extension that hit it: an agent existed to summarise one arXiv feed until
+someone noticed it was the generic feed-reading agent plus one URL, which is
+something the user says once rather than a file anyone has to maintain. A
+near-duplicate agent is the cheapest thing to create and the most expensive
+thing to keep.
 
 For the full YAML reference, see the root [README.md](../README.md).

@@ -7,8 +7,8 @@ Current release: **5.1** (security fixes + the core/extension split, `project(Fu
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
-| **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | shipped |
-| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 + below | moved to funes-julio |
+| **4.1** | Generalization: config over prose, tools over model arithmetic | generalization plan, phases 1, 4, 5 (moved to funes-julio with the pipelines it analysed) | shipped |
+| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | same plan, phases 2, 3 | moved to funes-julio |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
 | **5.0.1** | Security: shell-job permission bypass, child env allowlist, resolving SSRF guard, hashed tokens, login throttle, body cap | review of 2026-09-18 | done |
 | **5.1** | Split: the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
@@ -32,8 +32,9 @@ requests that have not arrived: a second chat channel and a third tool author.
 Building either now is speculative generality, which is the same mistake the
 plan is about, pointed the other way.
 
-**5.0 before 6.0.** Voice is additive and independent, but it needs CPU
-headroom on yoda that the memory backfill also wants, and connected memories
+**5.0 before 6.0.** Voice is additive and independent, but on a single-host
+install it needs CPU headroom the memory backfill also wants, and connected
+memories
 change what a voice session recalls. Shipping recall changes first means the
 voice work is tested against the recall behaviour it will live with.
 
@@ -98,15 +99,11 @@ conversation log with vector search is the product's claim or its weakest part
 
 ## 4.1 breakdown
 
-| Step | Deliverable | State |
-|------|-------------|-------|
-| 1.1 | `pipelines/*.yaml` config + loader (`src/core/pipeline.{h,cpp}`) | done |
-| 1.2 | `write_structured` / `read_structured` tools, schema-enforced | done |
-| 1.3 | `merge_rankings` tool (Borda count in code, not in-context) | done |
-| 1.4 | Retrofit the five VoC-pipeline agents onto 1.1–1.3 | done |
-| 4.1 | `book-editor`: style ruleset out of the prompt into a style file | done |
-| 4.2 | `astro-ph-summarizer`: fold into `rss-reader` as a configured feed | done |
-| 5.1 | Archetype defaults documented in `agents/README.md` | done |
+Shipped, then moved out in 5.1: the pipeline primitive, `write_structured` /
+`read_structured`, `merge_rankings` and the agents retrofitted onto them were
+all built for one operator's pipelines and live in funes-julio. What stayed is
+the part that was never pipeline-specific — the archetype defaults in
+[agents/README.md](../agents/README.md).
 
 ## 4.2 — per-user publications
 
