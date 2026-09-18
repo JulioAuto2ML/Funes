@@ -3,6 +3,10 @@ __pycache__/
 .pytest_cache/
 node_modules/
 third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+# The bridge's paired session, or a symlink to it. Machine-local, and
+# committing it would publish a logged-in WhatsApp session.
+third-party/whatsapp-mcp/whatsapp-bridge/store
+third-party/whatsapp-mcp/whatsapp-bridge/store-funes
 data/whatsapp-uploads/
 *.db
 *.db-journal
