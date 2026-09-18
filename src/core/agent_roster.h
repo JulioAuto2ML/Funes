@@ -7,7 +7,7 @@
 // became a bug the moment one could not.
 //
 // An unfiltered roster fails in a specific, expensive way. The model reads
-// "gmail-assistant: reads and drafts your mail", delegates to it, and gets back
+// "mail-assistant: reads and drafts your mail", delegates to it, and gets back
 // a refusal. It now has to explain a failure whose cause is not in its context,
 // so it improvises: it blames a configuration, tells the person to set an
 // environment variable, or simply tries again. That is the same failure the

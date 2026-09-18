@@ -27,8 +27,8 @@ namespace funes::fsguard {
 // into a folder every account shares. Prefer a relative path, which stays
 // inside the caller's own workspace.
 //
-// No shipped agent uses it. The one that did — a newsletter curator, now in
-// the funes-julio extension — pointed at a publication working directory
+// No shipped agent uses it. The one that did — a newsletter curator, in an
+// extension repository — pointed at a publication working directory
 // outside the Funes tree, so that one pool of harvested candidates and one set
 // of issue files served the installation rather than a copy per account. The
 // consequence to know before writing such an agent: every account that runs

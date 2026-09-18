@@ -522,7 +522,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // the model can't see or call them, but other tools stay available.
     // Replaces the old force_no_tools flag which nuked ALL tools on any
     // single refusal — that prevented the model from transitioning to the
-    // next phase of a multi-tool pipeline (e.g. voc-researcher burning its
+    // next phase of a multi-tool pipeline (e.g. a research stage burning its
     // web_search budget, then needing web_fetch + delegate_to_agent).
     std::set<std::string> exhausted_tools;
 

@@ -126,7 +126,7 @@ std::string check_object(const json& schema, const json& value, const std::strin
 // while the same schema parsed from JSON text arrives unsigned. Reading the
 // bound with is_number_unsigned() therefore enforced it in one case and
 // silently skipped it in the other — which is the case that ships:
-// council-panelist's minItems/maxItems were never applied. Any non-negative
+// an agent's minItems/maxItems were never applied. Any non-negative
 // number is a bound here, whichever way it was written.
 bool item_bound(const json& schema, const char* key, size_t& out) {
     if (!schema.contains(key)) return false;

@@ -116,7 +116,7 @@ int test_validation() {
 
     // A bound the *agent YAML* wrote. json::parse turns "3" into an unsigned
     // number; yaml-cpp hands agent_config a signed one for the identical
-    // schema, and reading the bound as unsigned-only meant council-panelist's
+    // schema, and reading the bound as unsigned-only meant the agent's
     // minItems/maxItems were quietly never applied. Both spellings are a bound.
     json signed_bounds = {{"type", "array"}, {"minItems", 3}, {"maxItems", 5}};
     CHECK(signed_bounds["minItems"].is_number_integer() &&

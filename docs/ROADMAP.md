@@ -83,11 +83,10 @@ What the core gained to make that possible, and nothing more:
 | `config/funes.conf` loses the Gmail/WhatsApp/publishing sections | → `funes-julio/config/funes.conf.example` |
 
 What moved, verbatim apart from include paths: the six modules above and
-their six tests; `publishing/`, `publications/`, `pipelines/`, `scripts/`;
-`third-party/whatsapp-mcp` and `imap-email-mcp-patched`; the agents `curator`,
-`voc-researcher`, `council-chair`, `council-panelist`, `content-writer`,
-`mvp-builder`, `whatsapp-assistant`, `whatsapp-autoresponder`,
-`gmail-assistant`, `rss-reader`, `book-editor` and `agents/templates/`.
+their six tests; the publishing, publication, pipeline and deployment-script
+directories; the two vendored MCP servers; and eleven agents — a newsletter
+curator, a five-agent debate pipeline, a WhatsApp pair, a mail assistant, a
+feed reader and a manuscript editor — with their prompt templates.
 
 The test that the split is clean: a core build with no extension passes all
 28 tests and `integration.sh`; a build with the extension passes those plus
