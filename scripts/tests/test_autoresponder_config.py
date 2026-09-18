@@ -44,12 +44,12 @@ class ConfigDirTest(unittest.TestCase):
     def test_the_working_directory_wins_over_the_script_s_own_repo(self):
         """The systemd unit's WorkingDirectory is the Funes checkout; that is
         the whole mechanism by which the moved script still finds funes.local."""
-        funes = self._checkout("Funes-v4", "funes.conf", "funes.local")
+        funes = self._checkout("Funes", "funes.conf", "funes.local")
         os.chdir(funes)
         self.assertEqual(wa.config_dir(), funes / "config")
 
     def test_funes_config_dir_overrides_everything(self):
-        funes = self._checkout("Funes-v4", "funes.local")
+        funes = self._checkout("Funes", "funes.local")
         elsewhere = self._checkout("elsewhere", "funes.local")
         os.chdir(funes)
         os.environ["FUNES_CONFIG_DIR"] = str(elsewhere / "config")

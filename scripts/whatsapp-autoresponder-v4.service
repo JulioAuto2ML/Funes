@@ -14,7 +14,7 @@
 # running out of the 3.x clone. Stopping it loses the authenticated WhatsApp
 # session and costs a QR re-scan, so it is deliberately not duplicated.
 #
-# Configuration lives in /home/julio/Funes-v4/config/funes.local (gitignored),
+# Configuration lives in /home/julio/Funes/config/funes.local (gitignored),
 # which this unit's WorkingDirectory makes the script read:
 #
 #   FUNES_SERVICE_TOKEN   shared secret; the SAME value authenticates the
@@ -38,7 +38,7 @@
 # A service token says the caller is trusted; it does not say who for. Each
 # sender's jid has to be mapped to an account before Funes will answer:
 #
-#   cd ~/Funes-v4 && FUNES_DB=~/.funes-v4/memory.db \
+#   cd ~/Funes && FUNES_DB=~/.funes-v4/memory.db \
 #       ./bin/funes jid-map '<chat_jid>' <username>
 #
 # An unmapped jid resolves to nobody, never to a default account.
@@ -70,7 +70,7 @@ Type=simple
 # WorkingDirectory stays the Funes checkout: it is what makes the script
 # read config/funes.local (see the note above). The script itself moved
 # here with the rest of scripts/ in the 5.1 split.
-WorkingDirectory=/home/julio/Funes-v4
+WorkingDirectory=/home/julio/Funes
 ExecStart=/usr/bin/python3 /home/julio/funes-julio/scripts/whatsapp_autoresponder.py
 
 Restart=on-failure

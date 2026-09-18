@@ -37,8 +37,8 @@ Type=simple
 
 # The v4 clone. Also where ./config/funes.local is read from, so this must
 # not be the 3.x checkout.
-WorkingDirectory=/home/julio/Funes-v4
-ExecStart=/home/julio/Funes-v4/bin/funes
+WorkingDirectory=/home/julio/Funes
+ExecStart=/home/julio/Funes/bin/funes
 
 # ── isolation: separate from the 3.x install ─────────────────────────────────
 Environment=FUNES_DB=/home/julio/.funes-v4/memory.db
@@ -48,7 +48,7 @@ Environment=FUNES_WORKSPACE_DIR=/home/julio/.funes-v4/workspace
 # and the rest simply do not exist, and both cron jobs fail to resolve their
 # agent. The extension's *tools* need no path here — extension.cmake baked
 # this checkout in at build time (-DFUNES_EXTENSIONS).
-Environment=FUNES_AGENTS_DIR=/home/julio/Funes-v4/agents:/home/julio/funes-julio/agents
+Environment=FUNES_AGENTS_DIR=/home/julio/Funes/agents:/home/julio/funes-julio/agents
 Environment=FUNES_PORT=8485
 Environment=FUNES_HOST=0.0.0.0
 

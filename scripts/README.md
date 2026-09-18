@@ -3,6 +3,14 @@
 Operational scripts and systemd service files for running Funes and its
 companion services.
 
+
+The units are still named `funes-v4.service` and `whatsapp-autoresponder-v4.service`
+while the checkout they point at is `~/Funes` running 5.1. The directory was
+renamed because its name was actively misleading; the unit names were left
+alone because renaming a unit means disable/enable and a window where nothing
+starts at boot, for no gain beyond tidiness. Read `-v4` as "the install that
+replaced 3.x", not as a version number.
+
 ## Scripts
 
 | Script | Purpose |
@@ -68,7 +76,7 @@ is trusted; it does not say who the message is *for*. The script sends the
 sender's `chat_jid` alongside it, and Funes maps that jid to an account:
 
 ```bash
-cd ~/Funes-v4 && FUNES_DB=~/.funes-v4/memory.db \
+cd ~/Funes && FUNES_DB=~/.funes-v4/memory.db \
     ./bin/funes jid-map '<chat_jid>' <username>
 ```
 
