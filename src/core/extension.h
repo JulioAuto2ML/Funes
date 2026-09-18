@@ -11,7 +11,7 @@
 //
 // An *extension* is a directory outside this tree that the build pulls in:
 //
-//     cmake -B build -DFUNES_EXTENSIONS=/path/to/funes-julio
+//     cmake -B build -DFUNES_EXTENSIONS=/path/to/my-extension
 //
 // The directory provides `extension.cmake`, which adds its sources to the
 // `funes` executable (target_sources) and, if it likes, its tests. Each source
