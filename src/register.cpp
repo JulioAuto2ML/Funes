@@ -12,6 +12,7 @@
 #include "harvest.h"
 #include "issue.h"
 #include "tools.h"
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 
@@ -32,7 +33,21 @@ std::string dir_of(const char* env_var, const char* relative) {
     return (std::filesystem::path(FUNES_JULIO_ROOT) / relative).string();
 }
 
+// The MCP servers the gmail/whatsapp agents spawn live in this checkout, and
+// their agent YAML names them as ${FUNES_JULIO_DIR}/third-party/... — a path
+// that differs between a dev box and the deployment host, so it cannot be
+// committed literally without one machine hand-editing it back after a pull.
+// Publishing it from the path the build already baked in means neither machine
+// configures anything; funes.local still wins if it sets the variable itself.
+// Safe to do here: register_all_extensions() runs before FunesApi is
+// constructed, and that constructor is what first parses the agent YAMLs.
+void publish_checkout_root() {
+    if (!funes::env("FUNES_JULIO_DIR").empty()) return;   // an override stands
+    ::setenv("FUNES_JULIO_DIR", FUNES_JULIO_ROOT, 0);
+}
+
 void register_julio_tools(const funes::ext::Services& s) {
+    publish_checkout_root();
     const std::string publications_dir = dir_of("FUNES_PUBLICATIONS_DIR", "publications");
     const std::string publishing_dir   = dir_of("FUNES_PUBLISHING_DIR",   "publishing");
     const std::string pipelines_dir    = dir_of("FUNES_PIPELINES_DIR",    "pipelines");
@@ -43,7 +58,8 @@ void register_julio_tools(const funes::ext::Services& s) {
     register_ranking_tools(s.tools);
 
     std::cerr << "[funes-julio] tools registered (publications: " << publications_dir
-              << ", pipelines: " << pipelines_dir << ")\n";
+              << ", pipelines: " << pipelines_dir
+              << ", FUNES_JULIO_DIR: " << funes::env("FUNES_JULIO_DIR") << ")\n";
 }
 
 const bool registered = (funes::ext::register_extension(&register_julio_tools), true);

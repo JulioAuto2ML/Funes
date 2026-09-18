@@ -24,7 +24,9 @@ mcp_servers:
   # so a bare `uv` would fail to spawn even though it resolves fine in an
   # interactive shell. Same absolute path on both local dev and yoda (same
   # $HOME layout, both installed via astral.sh/uv/install.sh).
-  - command: /home/julio/.local/bin/uv --directory /home/julio/Documents/GitHub/funes-julio/third-party/whatsapp-mcp/whatsapp-mcp-server run main.py
+  # ${FUNES_JULIO_DIR} is this checkout's root, set per machine in
+  # config/funes.local; it is not the same directory on dev and on yoda.
+  - command: /home/julio/.local/bin/uv --directory ${FUNES_JULIO_DIR}/third-party/whatsapp-mcp/whatsapp-mcp-server run main.py
     name: whatsapp-mcp
 system_prompt: |
   You manage the user's WhatsApp, using tools from an external MCP server

@@ -2,9 +2,20 @@
 # config/funes.local (secrets) or funes.conf (defaults); the core's loader is
 # what puts them in the environment. Nothing here is read by the core itself.
 #
+# Where this checkout lives. agents/gmail-assistant.yaml and
+# agents/whatsapp-assistant.yaml name their MCP servers as
+# ${FUNES_JULIO_DIR}/third-party/... — a path that differs between a dev box and
+# the deployment host, so it must not be committed literally. You do not
+# normally set this: src/register.cpp publishes it at startup from the path
+# extension.cmake baked into the binary, so a `git pull && cmake --build` is
+# enough on either machine. Set it only to point somewhere else.
+# FUNES_JULIO_DIR=/home/me/funes-julio
+#
 # Where the extension's own files live. Defaults are relative to this
 # repository's checkout (baked in at build time by extension.cmake), so these
 # are only needed to point somewhere else.
+# (Spelled out: this file is read as plain key=value, ${...} is not expanded
+# here. Expansion happens in agent YAML, not in funes.conf/funes.local.)
 # FUNES_PUBLICATIONS_DIR=/home/me/funes-julio/publications
 # FUNES_PIPELINES_DIR=/home/me/funes-julio/pipelines
 # FUNES_PUBLISHING_DIR=/home/me/funes-julio/publishing
@@ -39,7 +50,7 @@
 #   Dedicated Funes number → whatsapp-bridge-funes.service → port 8091, store-funes/
 #     Used only by scripts/whatsapp_autoresponder.py (not by the funes
 #     binary itself), via the two settings below.
-WHATSAPP_DB_PATH=/home/julio/Documents/GitHub/funes-julio/third-party/whatsapp-mcp/whatsapp-bridge/store-funes/messages.db
+WHATSAPP_DB_PATH=/home/me/funes-julio/third-party/whatsapp-mcp/whatsapp-bridge/store-funes/messages.db
 WHATSAPP_BRIDGE_URL=http://localhost:8091
 
 # WHATSAPP_WHITELIST is a comma-separated list of chat_jid values (NOT phone
