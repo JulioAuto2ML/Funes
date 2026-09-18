@@ -1073,6 +1073,31 @@ check "unknown user is refused"           "$OUT" 'No such user'
 
 FUNES_DB="$DB" "$FUNES_BIN" locale itadmin en > /dev/null 2>&1
 
+echo "— login throttle: repeated failures get a 429 before the hash is even computed"
+# Five free failures, then a doubling delay. The sixth attempt is refused with
+# 429 and a Retry-After, and — the part that matters — the correct password is
+# refused too while the lock holds: the throttle is on the (address, username),
+# not on the guess. Run last: it locks 'itmember' for a second or two.
+for i in 1 2 3 4 5; do
+    command curl -s -o /dev/null -X POST "$BASE/api/login" \
+        -d '{"username":"itmember","password":"wrong-'$i'"}'
+done
+CODE=$(command curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/login" \
+       -d '{"username":"itmember","password":"member-test-pw"}')
+check "sixth attempt is throttled even with the right password" "$CODE" '429'
+HDR=$(command curl -s -D - -o /dev/null -X POST "$BASE/api/login" \
+      -d '{"username":"itmember","password":"member-test-pw"}')
+check "throttled reply carries Retry-After" "$HDR" 'Retry-After'
+# An unrelated account from the same address is throttled too (per-address
+# key) — that is deliberate: the scanner is the address.
+CODE=$(command curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/login" \
+       -d '{"username":"itadmin","password":"whatever"}')
+check "same address, other user: also throttled" "$CODE" '429'
+sleep 3
+OUT=$(command curl -s -c "$MEMBER_JAR" -X POST "$BASE/api/login" \
+      -d '{"username":"itmember","password":"member-test-pw"}')
+check "lock expires; a correct login succeeds and clears it" "$OUT" '"ok":true'
+
 rm -f "$MEMBER_JAR"
 
 echo

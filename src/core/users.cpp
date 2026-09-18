@@ -303,9 +303,13 @@ std::string UserStore::create_token(int64_t user_id, int ttl_days) {
     std::lock_guard<std::mutex> lock(mu_);
     // Expiry is computed by SQLite rather than in C++ so it is written in the
     // same clock and format resolve_token() compares against.
+    // The row holds the hash, the caller gets the token (see sha256_hex in
+    // password.h). A pre-5.0.1 database holds plain tokens in this column;
+    // they simply stop resolving, which costs every browser one sign-in and
+    // is the right outcome for a credential that was sitting in the clear.
     Stmt s(db_, "INSERT INTO auth_tokens(token, user_id, expires_at) "
                 "VALUES(?, ?, datetime('now', ?))");
-    s.bind_text(1, token);
+    s.bind_text(1, funes::sha256_hex(token));
     s.bind_int64(2, user_id);
     s.bind_text(3, std::to_string(ttl_days) + " days");
     s.step();
@@ -325,7 +329,7 @@ std::optional<UserStore::User> UserStore::resolve_token(const std::string& token
                  "u.permissions, u.created_at "
                  "FROM auth_tokens t JOIN users u ON u.id = t.user_id "
                  "WHERE t.token = ? AND t.expires_at > datetime('now')").c_str());
-    s.bind_text(1, token);
+    s.bind_text(1, funes::sha256_hex(token));
     if (!s.step()) return std::nullopt;
     return read_user(s);
 }
@@ -334,7 +338,7 @@ bool UserStore::revoke_token(const std::string& token) {
     if (token.empty()) return false;
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, "DELETE FROM auth_tokens WHERE token = ?");
-    s.bind_text(1, token);
+    s.bind_text(1, funes::sha256_hex(token));
     s.step();
     return sqlite3_changes(db_) > 0;
 }

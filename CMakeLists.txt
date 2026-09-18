@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 5.0.0 LANGUAGES C CXX)
+project(Funes VERSION 5.0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -123,6 +123,9 @@ add_library(funes_core STATIC
     src/core/agent.cpp
 )
 target_include_directories(funes_core PUBLIC src/core)
+# One source of truth for the version string /api/status reports: project()
+# above. It had drifted — the binary said "4.0.0" through all of 5.0.
+target_compile_definitions(funes_core PUBLIC FUNES_VERSION="${PROJECT_VERSION}")
 target_link_libraries(funes_core PUBLIC mcp funes_sqlite ${YAML_CPP_LIB})
 
 # ── funes binary ──────────────────────────────────────────────────────────────

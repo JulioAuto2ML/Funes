@@ -17,6 +17,8 @@
 #include "tools/harvest.h"
 #include "tools/http_tool_runtime.h"
 #include "tools/issue.h"
+#include "tools/process_runner.h"
+#include "mcp_stdio_client.h"
 #include "maint_cli.h"
 #include "user_cli.h"
 #include "users.h"
@@ -299,6 +301,20 @@ int main(int argc, char** argv) {
     // from here, so it must be set before FunesApi copies `defaults`.
     defaults.scripts_dir = scripts_dir;
 
+    // Every process Funes starts — a library script, a shell command, an MCP
+    // stdio server — gets the filtered environment from
+    // proc::child_environment(), never this process's own block. The config
+    // loader above put funes.local into that block, so "inherit everything"
+    // would hand the service token and every API key to any program a model
+    // can start. The MCP client is vendored code that knows nothing about
+    // Funes; it takes the filter as a hook (see mcp_stdio_client.h).
+    mcp::stdio_client::set_environment_filter([](const json& env_vars) {
+        std::vector<std::pair<std::string, std::string>> extra;
+        for (const auto& [k, v] : env_vars.items())
+            extra.emplace_back(k, v.is_string() ? v.get<std::string>() : v.dump());
+        return funes::proc::child_environment(extra);
+    });
+
     ToolRegistry tools;
     register_web_tools(tools);
     register_memory_tools(tools, memory);
@@ -533,6 +549,12 @@ int main(int argc, char** argv) {
     httplib::Server srv;
     srv.set_read_timeout(60);
     srv.set_write_timeout(1200);   // SSE chat responses can be slow on local LLMs
+    // httplib reads the whole body into memory *before* the pre-routing auth
+    // gate runs, so without a cap an unauthenticated client could hand the
+    // process a multi-gigabyte request. The largest legitimate body is an
+    // upload-batch (50 MB, api.cpp); anything past that is refused at the
+    // socket with a 413.
+    srv.set_payload_max_length(64ull * 1024 * 1024);
     api.mount(srv);
 
     std::cout << "\n"

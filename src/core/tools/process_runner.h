@@ -53,4 +53,27 @@ Result run_argv(const std::vector<std::string>& argv, const std::filesystem::pat
 Result run_shell_command(const std::string& command, const std::filesystem::path& cwd,
                          int timeout_seconds, size_t max_output_bytes);
 
+// The environment a child process gets. An *allowlist* over the server's own
+// environment, not a copy of it, because funes_config.h loads config/funes.local
+// into the process environment at startup: every secret the operator wrote
+// down — FUNES_SERVICE_TOKEN, FUNES_LLM_KEY, an IMAP password, a Tavily key —
+// used to reach every script, every `execute_shell` command (`env` printed
+// them into the transcript) and every MCP stdio server, which is somebody
+// else's code. Nothing a model can start should be handed the credential
+// that authenticates the model's own server.
+//
+// What passes: the variables a program needs to run at all (PATH, HOME, the
+// locale and timezone, a temp dir, proxies, the Python/CA plumbing — see the
+// list in process_runner.cpp), plus whatever the operator names in
+// FUNES_CHILD_ENV (comma-separated), for the one deployment that really does
+// want a child to read a credential from the environment. Everything else,
+// FUNES_* included, is dropped. `extra_env` (a script manifest's `env:`, an
+// MCP server's `env:`) is added last and wins — that is the intended way to
+// hand one program one secret.
+//
+// Returned as "KEY=value" strings: the caller builds envp from them in the
+// parent, so the child does nothing between fork and exec but exec.
+std::vector<std::string> child_environment(
+    const std::vector<std::pair<std::string, std::string>>& extra_env = {});
+
 } // namespace funes::proc

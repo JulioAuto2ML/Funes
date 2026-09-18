@@ -124,4 +124,19 @@ bool constant_time_equals(const std::string& a, const std::string& b) {
     return diff == 0;
 }
 
+std::string sha256_hex(const std::string& data) {
+    unsigned char digest[EVP_MAX_MD_SIZE];
+    unsigned int  len = 0;
+    if (EVP_Digest(data.data(), data.size(), digest, &len, EVP_sha256(), nullptr) != 1)
+        throw std::runtime_error("EVP_Digest(sha256) failed");
+    static const char* hex = "0123456789abcdef";
+    std::string out;
+    out.reserve(len * 2);
+    for (unsigned int i = 0; i < len; ++i) {
+        out += hex[digest[i] >> 4];
+        out += hex[digest[i] & 0x0f];
+    }
+    return out;
+}
+
 } // namespace funes

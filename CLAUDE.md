@@ -139,6 +139,25 @@ infrastructure tools build on: `fs_guard` (workspace path confinement),
 output cap). See `src/core/tools/README.md` for the full inventory and the
 security model.
 
+Two rules there that are easy to undo by accident:
+
+- **Children get an allowlisted environment, never this process's.**
+  `funes_config.h` loads `funes.local` into the environment, so "inherit
+  everything" hands `FUNES_SERVICE_TOKEN` and every API key to any script,
+  shell command or MCP stdio server a model starts. `proc::child_environment()`
+  is the one place that decides what passes (PATH, HOME, locale, proxies,
+  Python/CA plumbing, plus `FUNES_CHILD_ENV`); `run_argv`, `run_shell_command`
+  and the vendored `mcp::stdio_client` (via `set_environment_filter`, wired in
+  `main.cpp`) all go through it. A secret a program needs goes in the script
+  manifest's `env:` or the MCP server's `env:` — one program, one secret.
+- **`net_guard::is_private_host` resolves the name and judges the addresses.**
+  A regex over the host literal stopped `127.0.0.1` and nothing else that
+  meant it (`127.0.0.1.nip.io`, `0x7f000001`, `[::ffff:127.0.0.1]`, a domain
+  pointed at the LAN). Unresolvable names are refused, not waved through.
+  Redirects are followed by hand (`page_text.cpp`, `net::resolve_location`)
+  so every hop is checked — httplib's own `set_follow_location` skips the
+  guard, and is off everywhere.
+
 ### The newsletter/publishing pipeline is deliberately mostly deterministic
 
 `curator` (agent) + `harvest_candidates`/`publish_issue` (tools) +
@@ -222,7 +241,12 @@ Three things compose with the layers above rather than sitting beside them:
   It dispatches through the same `run_script` tool an interactive call uses —
   one set of rules, not a second path nobody watches — and re-resolves both the
   agent's grant and the owner's permissions *at fire time*, so revoking either
-  stops the timer.
+  stops the timer. `kind="shell"` follows the same rule since 5.0.1: it is
+  `execute_shell` deferred, so it needs the owner to be permitted
+  `execute_shell` both when scheduled and when fired, on top of the global
+  switch. Before that it checked only the switch — a member denied the shell
+  could schedule one anyway (`tests/test_cron_tool.cpp`,
+  `test_shell_jobs_need_execute_shell_permission`).
 
 The agent loop lists an agent's granted scripts in its system prompt
 (`AgentDefaults::scripts_dir`), filtered by the caller's permissions, the way
@@ -307,6 +331,13 @@ the vec table is rebuilt during `migrate()` rather than lazily, because
 `recall_semantic` names `v.user_id` and a recall usually happens before the
 first write; and vec0 with a partition key rejects `INSERT OR REPLACE` on an
 existing row, so `insert_vector` deletes then inserts.
+
+Session tokens are stored hashed (`sha256_hex`, `password.h`): the cookie
+value is the credential, the row is its digest, and a copy of `memory.db` is
+not a set of live sessions. `/api/login` throttles per address and per
+username after five failures (429 + `Retry-After`, doubling to five minutes)
+before the PBKDF2 work is done, and the server caps request bodies at 64 MB
+because httplib reads the body before the auth gate runs.
 
 Identity reaches non-browser callers by service token: the WhatsApp
 autoresponder sends `FUNES_SERVICE_TOKEN` plus the sender's jid, and Funes

@@ -3,13 +3,14 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **5.0** (connected memories + localization, `project(Funes VERSION 5.0.0)`).
+Current release: **5.0.1** (security fixes on 5.0, `project(Funes VERSION 5.0.1)`).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
 | **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | shipped |
 | **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 + below | planned |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
+| **5.0.1** | Security: shell-job permission bypass, child env allowlist, resolving SSRF guard, hashed tokens, login throttle, body cap | review of 2026-09-18 | done |
 | **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
 
 ## Why this order
@@ -34,6 +35,30 @@ plan is about, pointed the other way.
 headroom on yoda that the memory backfill also wants, and connected memories
 change what a voice session recalls. Shipping recall changes first means the
 voice work is tested against the recall behaviour it will live with.
+
+## 5.0.1 — what was wrong and what changed
+
+Found in a code review of the whole tree, all verified against the code, none
+previously covered by a test. Fixed before any new surface (6.0 voice) on the
+principle that a privilege escalation open in the current release outranks a
+feature in the next one.
+
+| # | Defect | Fix | Test |
+|---|--------|-----|------|
+| 1 | `schedule_job(kind="shell")` checked only `FUNES_ALLOW_SHELL`, never the owner's `execute_shell` permission — a member (denied the shell by default) could schedule any command and the runner executed it as the process, from the workspace *root*. `funes.conf` shipped the switch **on**. | Permission checked at schedule time (`cron_tool.cpp`) and re-resolved at fire time (`cron_runner.cpp`); cwd is the owner's workspace; `FUNES_ALLOW_SHELL` defaults to `0` in `funes.conf` (enable in `funes.local`). | `test_cron_tool: test_shell_jobs_need_execute_shell_permission` |
+| 2 | Every child process inherited the server's whole environment, into which `funes_config.h` had loaded `funes.local`: service token, LLM key, IMAP password, Tavily key — reachable by `env` in `execute_shell`, by any library script, by any MCP stdio server. | `proc::child_environment()` allowlist; `run_argv`, `run_shell_command` and the vendored `mcp::stdio_client` (new `set_environment_filter` hook) all use it. `FUNES_CHILD_ENV` names extra pass-throughs. | `test_shell_tool: test_child_environment_is_an_allowlist` |
+| 3 | `net_guard::is_private_host` was a regex over the host literal: `127.0.0.1.nip.io`, `0x7f000001`, `2130706433`, `[::ffff:127.0.0.1]`, IPv6 ULA/link-local and any attacker-controlled domain pointed at the LAN all passed. httplib followed redirects to any host without re-checking. | Resolve with `getaddrinfo`, refuse if any address is private (v4 and v6, incl. 169.254/16 and 100.64/10); unresolvable = refused. Redirects followed manually, guard per hop, 5 max; `set_follow_location` off in generated HTTP tools. | `test_web_fetch: test_private_host_guard_resolves`, `test_redirect_to_private_host_is_refused` |
+| 4 | Session tokens stored in clear in `auth_tokens`. | Store `sha256(token)`; existing sessions invalidate once (one re-login). | `test_users` (unchanged API), `integration.sh` expiry section |
+| 5 | No throttle on `/api/login`; each guess cost the server ~200 ms of PBKDF2. | Per-address and per-username lock after 5 failures, doubling to 300 s, 429 + `Retry-After`, checked before hashing. | `integration.sh` "login throttle" |
+| 6 | No request body cap; httplib buffers the body before the auth gate. | `set_payload_max_length(64 MB)`. | — |
+| 7 | `/api/status` said `4.0.0`. | `FUNES_VERSION` from `project()`. | — |
+| 8 | Recalled memories injected into the system prompt with no framing; `remember` stores model-chosen text from web pages verbatim. | Prompt frames them as records, not instructions. **Mitigation only** — the design fix (don't store tool-sourced text verbatim) is open. | — |
+
+Still open from the same review, deliberately not done here: one httplib
+worker thread per chat for the whole run (concurrency ceiling ≈ pool size);
+MCP stdio servers spawned per request; DNS rebinding between the guard's
+lookup and httplib's connect (needs address pinning httplib does not offer);
+memory design (auto-memory is a conversation log, not fact extraction).
 
 ## 4.1 breakdown
 

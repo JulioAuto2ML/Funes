@@ -166,20 +166,13 @@ std::string rewrite_reddit(const std::string& url) {
 }
 
 Page fetch_readable(const std::string& url) {
-    const std::string effective_url = rewrite_reddit(url);
-    ParsedUrl parsed;
-    if (!funes::net::parse_http_url(effective_url, parsed))
-        return {"", "Invalid URL (only http:// and https:// are supported): " + url};
-
-    if (funes::net::is_private_host(parsed.host) && !funes::net::local_fetch_allowed())
-        return {"", "Refusing to fetch private/loopback host '" + parsed.host +
-                    "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)"};
+    std::string effective_url = rewrite_reddit(url);
 
     // A real browser UA, not "Mozilla/5.0 (Funes)": the bot string drew a
     // blanket 401/403 from the WAFs in front of Reuters, WSJ, FT, NYT et al.,
     // and those are exactly the sources the newsletter harvest wants. This is
     // the same string a link-preview fetcher or feed reader sends.
-    httplib::Headers headers = {
+    const httplib::Headers headers = {
         {"User-Agent",
          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
          "Chrome/128.0.0.0 Safari/537.36"},
@@ -187,19 +180,46 @@ Page fetch_readable(const std::string& url) {
          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
         {"Accept-Language", "en-US,en;q=0.9"},
     };
+
+    // Redirects are followed here, not by httplib, so that every hop goes
+    // through the same private-host check as the first URL. See
+    // net_guard.h::resolve_location for the hole this closes.
     httplib::Result res;
-    if (parsed.https) {
-        httplib::SSLClient cli(parsed.host, parsed.port);
-        cli.set_connection_timeout(10);
-        cli.set_read_timeout(20);
-        cli.set_follow_location(true);
-        res = cli.Get(parsed.path.c_str(), headers);
-    } else {
-        httplib::Client cli(parsed.host, parsed.port);
-        cli.set_connection_timeout(10);
-        cli.set_read_timeout(20);
-        cli.set_follow_location(true);
-        res = cli.Get(parsed.path.c_str(), headers);
+    ParsedUrl parsed;
+    for (int hop = 0; ; ++hop) {
+        if (!funes::net::parse_http_url(effective_url, parsed))
+            return {"", "Invalid URL (only http:// and https:// are supported): " + effective_url};
+
+        if (funes::net::is_private_host(parsed.host) && !funes::net::local_fetch_allowed())
+            return {"", "Refusing to fetch private/loopback host '" + parsed.host +
+                        "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)"};
+
+        if (parsed.https) {
+            httplib::SSLClient cli(parsed.host, parsed.port);
+            cli.set_connection_timeout(10);
+            cli.set_read_timeout(20);
+            cli.set_follow_location(false);
+            res = cli.Get(parsed.path.c_str(), headers);
+        } else {
+            httplib::Client cli(parsed.host, parsed.port);
+            cli.set_connection_timeout(10);
+            cli.set_read_timeout(20);
+            cli.set_follow_location(false);
+            res = cli.Get(parsed.path.c_str(), headers);
+        }
+
+        if (!res) break;
+        const int st = res->status;
+        const bool redirect = st == 301 || st == 302 || st == 303 || st == 307 || st == 308;
+        if (!redirect) break;
+        if (hop >= funes::net::kMaxRedirects)
+            return {"", "Fetch failed: too many redirects for " + url};
+        const std::string next =
+            funes::net::resolve_location(parsed, res->get_header_value("Location"));
+        if (next.empty())
+            return {"", "Fetch failed: HTTP " + std::to_string(st) + " with no usable Location for " +
+                        effective_url};
+        effective_url = next;
     }
 
     if (!res)

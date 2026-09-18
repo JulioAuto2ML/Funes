@@ -25,7 +25,22 @@
 #include <iostream>
 #include <chrono>
 
+#if !defined(_WIN32)
+extern char** environ;
+#endif
+
 namespace mcp {
+
+namespace {
+stdio_client::environment_filter& env_filter() {
+    static stdio_client::environment_filter f;
+    return f;
+}
+} // namespace
+
+void stdio_client::set_environment_filter(environment_filter filter) {
+    env_filter() = std::move(filter);
+}
 
 stdio_client::stdio_client(const std::string& command, const json& env_vars, const json& capabilities)
     : command_(command), capabilities_(capabilities), env_vars_(env_vars) {
@@ -342,6 +357,21 @@ bool stdio_client::start_server_process() {
         return false;
     }
     
+    // Funes patch: with a filter installed, the child's environment is built
+    // here, in the parent, and swapped in with one pointer assignment after
+    // fork() — nothing else is safe to do in the child of a multi-threaded
+    // process, and inheriting the parent's block wholesale is what leaked the
+    // server's own credentials to every MCP server it started.
+    std::vector<std::string> filtered_env;
+    std::vector<char*>       filtered_envp;
+    const bool use_filter = static_cast<bool>(env_filter());
+    if (use_filter) {
+        filtered_env = env_filter()(env_vars_);
+        filtered_envp.reserve(filtered_env.size() + 1);
+        for (auto& e : filtered_env) filtered_envp.push_back(const_cast<char*>(e.c_str()));
+        filtered_envp.push_back(nullptr);
+    }
+
     // Create child process
     process_id_ = fork();
     
@@ -362,7 +392,9 @@ bool stdio_client::start_server_process() {
         // given, and a std::string local to this loop body is destroyed at
         // the end of each iteration, leaving environ pointing at freed
         // stack memory by the time execvp() runs below.
-        if (!env_vars_.empty()) {
+        if (use_filter) {
+            environ = filtered_envp.data();
+        } else if (!env_vars_.empty()) {
             for (const auto& [key, value] : env_vars_.items()) {
                 std::string env_var_value = convert_to_string(value);
                 if (setenv(key.c_str(), env_var_value.c_str(), 1) != 0) {

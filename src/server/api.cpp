@@ -16,6 +16,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <mutex>
 #include <regex>
 #include <sstream>
 
@@ -88,6 +90,59 @@ bool sse_write(httplib::DataSink& sink, const std::string& type, const json& dat
 
 constexpr const char* COOKIE_NAME    = "funes_session";
 constexpr int         SESSION_TTL_DAYS = 30;
+
+// Login throttling. PBKDF2 makes each guess cost ~200ms of the server's CPU,
+// which slows an attacker down but also makes /api/login the cheapest way to
+// pin a core: one client, no credentials, all day. So after a few failures
+// from one address (or against one username, so a distributed guess still
+// meets a wall) the endpoint answers 429 without touching the hash at all,
+// for a delay that doubles per failure up to five minutes. In memory, per
+// process: a restart forgets it, which is fine — the point is to make a
+// guess expensive per second, not to keep a ledger.
+struct LoginThrottle {
+    struct Entry {
+        int failures = 0;
+        std::chrono::steady_clock::time_point locked_until{};
+    };
+    static constexpr int  kFreeFailures = 5;
+    static constexpr int  kMaxDelaySecs = 300;
+
+    std::mutex mu;
+    std::map<std::string, Entry> by_key;
+
+    // Seconds the caller must still wait, or 0 if the attempt may proceed.
+    int blocked_for(const std::string& key) {
+        std::lock_guard<std::mutex> lock(mu);
+        auto it = by_key.find(key);
+        if (it == by_key.end()) return 0;
+        const auto now = std::chrono::steady_clock::now();
+        if (it->second.locked_until <= now) return 0;
+        return static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(
+                   it->second.locked_until - now).count()) + 1;
+    }
+    void failed(const std::string& key) {
+        std::lock_guard<std::mutex> lock(mu);
+        Entry& e = by_key[key];
+        ++e.failures;
+        if (e.failures >= kFreeFailures) {
+            const int exp   = std::min(e.failures - kFreeFailures, 8);
+            const int delay = std::min(kMaxDelaySecs, 1 << exp);
+            e.locked_until  = std::chrono::steady_clock::now() + std::chrono::seconds(delay);
+        }
+        // Bound the table: a scan across many usernames must not grow it
+        // without limit. Dropping the oldest lock is the cheap answer; the
+        // per-address key still catches the scanner.
+        if (by_key.size() > 10000) by_key.erase(by_key.begin());
+    }
+    void succeeded(const std::string& key) {
+        std::lock_guard<std::mutex> lock(mu);
+        by_key.erase(key);
+    }
+};
+LoginThrottle& login_throttle() {
+    static LoginThrottle t;
+    return t;
+}
 
 // Pull one cookie out of a Cookie header. Hand-parsed rather than regexed
 // because the header is attacker-controlled and a backtracking regex over it
@@ -374,14 +429,31 @@ void FunesApi::mount(httplib::Server& srv) {
         const std::string username = body.value("username", "");
         const std::string password = body.value("password", "");
 
+        // Checked before the hash is computed — that is the whole point.
+        const std::string addr_key = "addr:" + req.remote_addr;
+        const std::string user_key = "user:" + username;
+        const int wait = std::max(login_throttle().blocked_for(addr_key),
+                                  login_throttle().blocked_for(user_key));
+        if (wait > 0) {
+            std::cerr << "[auth] throttled login for '" << username << "' from "
+                      << req.remote_addr << " (" << wait << "s)\n";
+            res.set_header("Retry-After", std::to_string(wait));
+            return json_error(res, 429, "Too many failed sign-in attempts — try again in " +
+                                        std::to_string(wait) + "s");
+        }
+
         auto user = users_.verify_login(username, password);
         if (!user) {
             // One message for both "no such user" and "wrong password", so the
             // endpoint can't be used to enumerate accounts.
+            login_throttle().failed(addr_key);
+            login_throttle().failed(user_key);
             std::cerr << "[auth] failed login for '" << username << "' from "
                       << req.remote_addr << "\n";
             return json_error(res, 401, "Invalid username or password");
         }
+        login_throttle().succeeded(addr_key);
+        login_throttle().succeeded(user_key);
 
         std::string token = users_.create_token(user->id, SESSION_TTL_DAYS);
         if (token.empty()) return json_error(res, 500, "Could not start a session");
@@ -477,7 +549,7 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
-            {"version",  "4.0.0"},
+            {"version",  FUNES_VERSION},
             {"agents",   agent_count()},
             {"memories", memory_.count(user->id)},
             {"semantic_memory", memory_.semantic_available()},

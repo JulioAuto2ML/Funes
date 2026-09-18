@@ -7,6 +7,7 @@ separate file: the assertion it supports is that an *expired* token stops
 authenticating, which is a different failure from a *deleted* one, and doing
 this inline in the shell script would have hidden the difference.
 """
+import hashlib
 import sqlite3
 import sys
 
@@ -16,6 +17,8 @@ def main() -> int:
         print("usage: expire_token.py <db> <token>", file=sys.stderr)
         return 2
     db, token = sys.argv[1], sys.argv[2]
+    # auth_tokens stores sha256(token), never the token (users.cpp).
+    token = hashlib.sha256(token.encode()).hexdigest()
 
     # The server holds this database open in WAL mode; the timeout covers the
     # moment a request is mid-write.

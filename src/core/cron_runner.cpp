@@ -9,7 +9,9 @@
 #include "run_outcome.h"
 #include "text_utils.h"
 #include "tool_budget.h"
+#include "tools/fs_guard.h"
 #include "tools/process_runner.h"
+#include <filesystem>
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -170,14 +172,38 @@ std::pair<bool, std::string> run_script_job(const MemoryStore::CronJob& job,
 
 // Runs a shell-kind job directly, no LLM involved — for deterministic
 // scripts, the same job the crontab lines in publishing/README.md do today.
+//
+// Two gates, both re-checked at fire time, matching what execute_shell asks of
+// an interactive call: the operator's switch, and the owner's own permission.
+// The second was missing until 5.0.1 — schedule_job checked only the switch,
+// and this function checked only the switch, so a member denied execute_shell
+// (the default: it is privileged) could schedule a shell command and have it
+// run with the process's privileges. The permission is resolved *now*, not at
+// schedule time, so revoking it cancels the timer's effect the same way it
+// does for kind="script".
+//
+// The working directory is the owner's own workspace, not the shared root:
+// a shell command is unconfined either way, but a relative path in it should
+// at least land where the same account's read_file would find it.
 std::pair<bool, std::string> run_shell_job(const MemoryStore::CronJob& job,
-                                           const std::string& workspace_dir) {
+                                           const std::string& workspace_dir,
+                                           const FindPermissionsFn& find_permissions) {
     if (!funes::shell_allowed())
         return {false, "Shell execution is disabled (set FUNES_ALLOW_SHELL=1 to enable it)"};
 
+    const funes::Permissions perms = find_permissions
+        ? find_permissions(job.user_id)
+        : funes::Permissions::unrestricted();
+    if (!perms.allows_tool("execute_shell"))
+        return {false, "FAILED — the job's owner is not permitted to use 'execute_shell', "
+                       "so this shell job did not run"};
+
+    const std::filesystem::path cwd =
+        funes::fsguard::workspace_for(workspace_dir, job.user_id, "");
+
     const int timeout = funes::env_int("FUNES_CRON_SHELL_TIMEOUT", 120);
     funes::proc::Result r = funes::proc::run_shell_command(
-        job.command, workspace_dir, timeout, kMaxShellOutputBytes);
+        job.command, cwd, timeout, kMaxShellOutputBytes);
 
     std::string out = r.output;
     if (r.timed_out) out += "\n[timed out after " + std::to_string(timeout) + "s]";
@@ -202,7 +228,7 @@ std::pair<bool, std::string> execute_and_record(const MemoryStore::CronJob& job,
         else if (job.kind == "script")
             std::tie(ok, output) = run_script_job(job, tools, find_agent, find_permissions);
         else
-            std::tie(ok, output) = run_shell_job(job, workspace_dir);
+            std::tie(ok, output) = run_shell_job(job, workspace_dir, find_permissions);
     } catch (const std::exception& e) {
         ok = false;
         output = std::string("cron job crashed: ") + e.what();

@@ -37,6 +37,14 @@ bool verify_password(const std::string& password, const std::string& encoded);
 // characters). Used for session cookies and the service token.
 std::string random_token(std::size_t bytes = 32);
 
+// SHA-256 of `data`, hex-encoded (64 chars). What auth_tokens stores instead
+// of the token itself: the cookie value is a bearer credential, and a table
+// of bearer credentials in a SQLite file that backups, `cp` and `read_file`
+// mistakes all reach is a table of ready-made sessions. Hashing is enough
+// here — the token is 256 random bits, so there is nothing to brute-force
+// and no salt to need. Lookup is by hash; the plain token never touches disk.
+std::string sha256_hex(const std::string& data);
+
 // Length-aware, content-constant-time comparison. Used for secrets compared
 // on every request (tokens), where an early-exit strcmp leaks position.
 bool constant_time_equals(const std::string& a, const std::string& b);

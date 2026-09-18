@@ -86,9 +86,21 @@ ToolResult schedule_job_handler(MemoryStore& memory,
     } else {
         const std::string command = args.value("command", "");
         if (command.empty()) return {"kind='shell' requires 'command'", true};
+        // A shell job *is* execute_shell, deferred. It has to clear the same
+        // two gates: the operator's server-wide switch, and the caller's own
+        // permission to run a shell. Without the second, an account that was
+        // denied execute_shell (the default for every member — it is
+        // privileged in permissions.cpp) could schedule the same command for
+        // 03:00 and have it run with the process's privileges anyway. The
+        // owner's permission is re-resolved at fire time too (cron_runner.cpp),
+        // so revoking it stops a job already on the calendar.
         if (!funes::shell_allowed())
             return {"Shell execution is disabled. Set FUNES_ALLOW_SHELL=1 to enable scheduled "
                     "shell jobs — they then run with the Funes process's own permissions.", true};
+        if (!ctx.permissions.allows_tool("execute_shell"))
+            return {"This account is not permitted to use execute_shell, so it cannot "
+                    "schedule a shell job either. Use kind='script' with one of the scripts "
+                    "this agent is granted (list_scripts), or ask an administrator.", true};
         job.command = command;
     }
 

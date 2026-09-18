@@ -9,6 +9,7 @@
 
 #include "httplib.h"
 #include "tools.h"
+#include "tools/net_guard.h"
 #include "tools/page_text.h"
 #include <cstdlib>
 #include <iostream>
@@ -180,12 +181,103 @@ int test_reddit_url_rewrite() {
     return 0;
 }
 
+// net_guard decides on resolved addresses, not on how the host is spelled.
+// Regression for the literal-matching guard that 5.0 shipped with: it stopped
+// "127.0.0.1" and passed every other spelling of it.
+int test_private_host_guard_resolves() {
+    using funes::net::is_private_host;
+    // Literals in every notation.
+    CHECK(is_private_host("127.0.0.1"));
+    CHECK(is_private_host("127.1"));            // inet_aton short form
+    CHECK(is_private_host("2130706433"));       // decimal
+    CHECK(is_private_host("0x7f000001"));       // hex
+    CHECK(is_private_host("0.0.0.0"));
+    CHECK(is_private_host("10.1.2.3"));
+    CHECK(is_private_host("172.31.255.1"));
+    CHECK(!is_private_host("172.32.0.1"));
+    CHECK(is_private_host("192.168.0.9"));
+    CHECK(is_private_host("169.254.169.254"));  // cloud metadata
+    CHECK(is_private_host("100.64.0.1"));       // CGNAT / tailnet
+    CHECK(is_private_host("[::1]"));
+    CHECK(is_private_host("::1"));
+    CHECK(is_private_host("[::ffff:127.0.0.1]"));
+    CHECK(is_private_host("[fd00::1]"));
+    CHECK(is_private_host("[fe80::1]"));
+    // Names.
+    CHECK(is_private_host("localhost"));
+    CHECK(is_private_host("LOCALHOST."));
+    CHECK(is_private_host("anything.localhost"));
+    // Unresolvable: refused, not waved through.
+    CHECK(is_private_host("no-such-host.invalid"));
+    // Public literals pass (no DNS involved, so this holds offline).
+    CHECK(!is_private_host("8.8.8.8"));
+    CHECK(!is_private_host("[2001:4860:4860::8888]"));
+    return 0;
+}
+
+// A redirect is a second URL the model did not choose and the server did;
+// it goes through the same guard as the first.
+int test_redirect_to_private_host_is_refused() {
+    using funes::net::ParsedUrl;
+    using funes::net::resolve_location;
+    ParsedUrl base;
+    funes::net::parse_http_url("https://example.com:8443/a/b/page.html?x=1", base);
+    CHECK(resolve_location(base, "http://127.0.0.1:8080/") == "http://127.0.0.1:8080/");
+    CHECK(resolve_location(base, "//evil.test/p") == "https://evil.test/p");
+    CHECK(resolve_location(base, "/root") == "https://example.com:8443/root");
+    CHECK(resolve_location(base, "next.html") == "https://example.com:8443/a/b/next.html");
+    CHECK(resolve_location(base, "").empty());
+
+    // End to end, for the manual redirect loop itself: a hop is followed, a
+    // loop is cut off. The per-hop guard call cannot be exercised against a
+    // local server — FUNES_ALLOW_LOCAL_FETCH is global, so the allowance that
+    // lets the first hop through also lets the redirect target through — which
+    // is why is_private_host and resolve_location are unit-tested above and
+    // fetch_readable is read to call both on every iteration.
+    setenv("FUNES_ALLOW_LOCAL_FETCH", "1", 1);
+    httplib::Server srv;
+    srv.Get("/loop", [](const httplib::Request&, httplib::Response& res) {
+        res.set_redirect("/loop");
+    });
+    srv.Get("/ok", [](const httplib::Request&, httplib::Response& res) {
+        res.set_redirect("/landed");
+    });
+    srv.Get("/landed", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content("landed here", "text/plain");
+    });
+    const int port = srv.bind_to_any_port("127.0.0.1");
+    std::thread th([&] { srv.listen_after_bind(); });
+    for (int i = 0; i < 50 && !srv.is_running(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    struct ServerGuard {
+        httplib::Server& srv;
+        std::thread& th;
+        ~ServerGuard() { srv.stop(); if (th.joinable()) th.join(); }
+    } guard{srv, th};
+
+    ToolRegistry reg;
+    register_web_tools(reg);
+    ToolContext ctx{"funes", "s1"};
+    const std::string b = "http://127.0.0.1:" + std::to_string(port);
+
+    auto loop = reg.call("web_fetch", {{"url", b + "/loop"}}, ctx);
+    CHECK(loop.error);
+    CHECK(loop.text.find("too many redirects") != std::string::npos);
+
+    auto ok = reg.call("web_fetch", {{"url", b + "/ok"}}, ctx);
+    CHECK(!ok.error);
+    CHECK(ok.text.find("landed here") != std::string::npos);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_non_utf8_response_does_not_crash();
     rc |= test_large_inline_script_does_not_crash();
     rc |= test_boilerplate_landmarks_are_dropped();
     rc |= test_reddit_url_rewrite();
+    rc |= test_private_host_guard_resolves();
+    rc |= test_redirect_to_private_host_is_refused();
     if (rc == 0) std::cout << "test_web_fetch: all tests passed\n";
     return rc;
 }

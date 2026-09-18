@@ -11,6 +11,8 @@
 
 #include "agent.h"
 #include "memory.h"
+#include "cron_runner.h"
+#include "permissions.h"
 #include "tools/cron_tool.h"
 #include <cstdlib>
 #include <filesystem>
@@ -273,12 +275,80 @@ int test_script_jobs() {
     return 0;
 }
 
+// ── kind="shell" is execute_shell, deferred ──────────────────────────────────
+// Regression for a privilege escalation found in 5.0: schedule_job checked only
+// FUNES_ALLOW_SHELL, and run_shell_job checked only FUNES_ALLOW_SHELL, so a
+// member account — denied execute_shell by default — could schedule any command
+// and have the runner execute it with the process's privileges. Both ends now
+// ask the owner's permissions, and the fire-time check is the one that counts:
+// a job scheduled while permitted must stop running once the permission goes.
+int test_shell_jobs_need_execute_shell_permission() {
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_shell_perm.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+    AgentDefaults defaults;
+    fs::path workspace = fs::temp_directory_path() / "funes_test_cron_ws4";
+    fs::create_directories(workspace);
+
+    ToolRegistry reg;
+    register_cron_tool(reg, memory, defaults, workspace.string(), find_agent);
+    setenv("FUNES_ALLOW_SHELL", "1", 1);
+
+    // A member with no permissions blob: execute_shell is privileged, so it is
+    // denied — and so must be scheduling a shell job.
+    const funes::Permissions member = funes::Permissions::parse("{}", /*is_admin=*/false);
+    CHECK(!member.allows_tool("execute_shell"));
+    ToolContext denied{"operator", "s1", "", "", 1, member, {}};
+    auto refused = reg.call("schedule_job",
+        {{"name", "escalate"}, {"schedule", "0 0 1 1 *"}, {"kind", "shell"},
+         {"command", "true"}}, denied);
+    CHECK(refused.error);
+    CHECK(refused.text.find("execute_shell") != std::string::npos);
+    CHECK(memory.list_cron_jobs(1).empty());
+
+    // Granted explicitly: scheduling works, and the job runs.
+    const funes::Permissions granted =
+        funes::Permissions::parse(R"({"tools": {"execute_shell": true}})", false);
+    ToolContext allowed{"operator", "s1", "", "", 1, granted, {}};
+    auto scheduled = reg.call("schedule_job",
+        {{"name", "ok"}, {"schedule", "0 0 1 1 *"}, {"kind", "shell"},
+         {"command", "true"}}, allowed);
+    CHECK(!scheduled.error);
+    const int64_t id = std::stoll(scheduled.text.substr(scheduled.text.find('#') + 1));
+
+    auto ran = reg.call("run_job_now", {{"id", id}}, allowed);
+    CHECK(!ran.error);
+
+    // The same row, fired by an owner whose permission has since been revoked:
+    // the runner re-resolves and refuses. run_cron_job_now with the member's
+    // permissions is exactly what the poll loop does with find_permissions.
+    auto [ok, output] = funes::cron::run_cron_job_now(
+        memory, reg, defaults, workspace.string(), find_agent,
+        [&member](int64_t) { return member; }, id);
+    CHECK(!ok);
+    CHECK(output.find("execute_shell") != std::string::npos);
+
+    // And the shell's working directory is the owner's workspace, not the root.
+    auto pwd = reg.call("schedule_job",
+        {{"name", "pwd"}, {"schedule", "0 0 1 1 *"}, {"kind", "shell"},
+         {"command", "pwd"}}, allowed);
+    const int64_t pwd_id = std::stoll(pwd.text.substr(pwd.text.find('#') + 1));
+    auto pwd_ran = reg.call("run_job_now", {{"id", pwd_id}}, allowed);
+    CHECK(!pwd_ran.error);
+    CHECK(pwd_ran.text.find((workspace / "1").string()) != std::string::npos);
+
+    unsetenv("FUNES_ALLOW_SHELL");
+    fs::remove_all(workspace);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_schedule_job_validation();
     rc |= test_schedule_list_cancel_roundtrip();
     rc |= test_run_job_now();
     rc |= test_script_jobs();
+    rc |= test_shell_jobs_need_execute_shell_permission();
     if (rc == 0) std::cout << "test_cron_tool: all tests passed\n";
     return rc;
 }

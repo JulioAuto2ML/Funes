@@ -91,7 +91,10 @@ ToolResult perform_request(const std::string& method, const net::ParsedUrl& url,
     auto run = [&](auto& cli) {
         cli.set_connection_timeout(10);
         cli.set_read_timeout(20);
-        cli.set_follow_location(true);
+        // Not followed: httplib would hop to whatever host the Location
+        // header names without re-running the private-host check above. An
+        // API that answers a redirect is reported as the 3xx it sent.
+        cli.set_follow_location(false);
         if (method == "GET")         return cli.Get(url.path.c_str(), headers);
         else if (method == "DELETE") return cli.Delete(url.path.c_str(), headers);
         else if (method == "POST")   return cli.Post(url.path.c_str(), headers, body, content_type);

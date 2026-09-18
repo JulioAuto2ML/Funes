@@ -42,6 +42,18 @@ namespace mcp {
 class stdio_client : public client {
 public:
     /**
+     * @brief Optional filter for the environment the spawned server inherits.
+     *
+     * Funes patch. When set, the child gets exactly the "KEY=value" strings
+     * this returns (built in the parent, before fork) instead of the parent's
+     * whole environment plus env_vars. The argument is the env_vars this
+     * client was given, so the filter can merge them in. When unset, the
+     * upstream behaviour applies: inherit everything, then setenv() env_vars.
+     */
+    using environment_filter = std::function<std::vector<std::string>(const json& env_vars)>;
+    static void set_environment_filter(environment_filter filter);
+
+    /**
      * @brief Constructor
      * @param command The command to execute to start the server
      * @param env_vars Optional environment variables to set for the server process
