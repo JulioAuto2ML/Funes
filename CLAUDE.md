@@ -52,6 +52,13 @@ can't be set up in its owner's language before they first log in without it.) Th
 against `FUNES_DB` and exit without starting the server or touching the LLM.
 Passwords are always prompted, never taken as arguments.
 
+`funes --version` (or `version`) prints the version and exits; `--help` lists
+the subcommands. **An argument that isn't one of the above is refused with exit
+2, not run.** Before 5.1 anything unrecognised fell through to "start the
+server", so `funes --version` answered a harmless question by opening the
+default port and creating a fresh database at `~/.funes/memory.db` — the flags
+are handled before `load_config()` precisely so a refusal touches nothing.
+
 ## Tests
 
 ```bash

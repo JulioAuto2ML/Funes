@@ -186,7 +186,46 @@ static std::string judge_link(LLMClient& llm, const std::string& a, const std::s
     return "";   // includes an explicit "none" and anything unparseable
 }
 
+namespace {
+
+void print_usage(std::ostream& out) {
+    out << "funes " FUNES_VERSION "\n\n"
+           "  funes                       start the server (see config/funes.conf)\n"
+           "  funes --version | version   print the version and exit\n"
+           "  funes --help | help         this text\n\n"
+           "Accounts (run against $FUNES_DB, no server, no LLM):\n"
+           "  useradd  userdel  userlist  passwd  perms  locale  jid-map  jid-unmap\n\n"
+           "Maintenance:\n"
+           "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n";
+}
+
+} // namespace
+
 int main(int argc, char** argv) {
+    // Argument handling comes before load_config() and before anything derives
+    // a database path, because the failure this prevents is exactly that: an
+    // unrecognised argument used to fall through to "start the server", so
+    // `funes --version` asked a harmless question and got a live server on the
+    // default port plus a fresh database at ~/.funes/memory.db. Nothing below
+    // this block runs unless argv names something real.
+    if (argc > 1 && argv[1] != nullptr) {
+        const std::string arg = argv[1];
+        if (arg == "--version" || arg == "-V" || arg == "version") {
+            std::cout << "funes " FUNES_VERSION "\n";
+            return 0;
+        }
+        if (arg == "--help" || arg == "-h" || arg == "help") {
+            print_usage(std::cout);
+            return 0;
+        }
+        if (!funes::is_user_cli_command(argc, argv) &&
+            !funes::is_maint_cli_command(argc, argv)) {
+            std::cerr << "funes: unknown command '" << arg << "'\n\n";
+            print_usage(std::cerr);
+            return 2;
+        }
+    }
+
     funes::load_config();
 
     // ── configuration ─────────────────────────────────────────────────────────

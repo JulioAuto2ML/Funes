@@ -26,6 +26,8 @@ check() {  # check <name> <haystack> <needle>
         FAILURES=$((FAILURES + 1))
     fi
 }
+ok()   { echo "  ok: $1"; }
+fail() { echo "  FAIL: $1"; FAILURES=$((FAILURES + 1)); }
 check_absent() {  # check_absent <name> <haystack> <needle>
     if echo "$2" | grep -q "$3"; then
         echo "  FAIL: $1 — did not expect '$3' in: $(echo "$2" | head -c 300)"
@@ -290,6 +292,28 @@ OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup --bogus 2>&1)
 check "cron-cleanup rejects unknown option"  "$OUT" 'Unknown option'
 OUT=$(FUNES_DB="$DB" "$FUNES_BIN" cron-cleanup --user 2>&1)
 check "cron-cleanup rejects a missing value" "$OUT" 'Missing value'
+
+echo "— argv: nothing unrecognised may start the server"
+# The trap this closes: `funes --version` was not a subcommand, so it fell
+# through to "start the server" — against an unset FUNES_DB, which means a new
+# database at ~/.funes/memory.db and a second process on the port. An operator
+# reaching for a harmless question got a running server instead.
+PROBE_HOME=$(mktemp -d /tmp/funes_it_home_XXXX)
+OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" --version 2>&1); RC=$?
+check "--version prints the version"  "$OUT" '^funes [0-9]\+\.[0-9]\+\.[0-9]\+$'
+[ "$RC" = 0 ] && ok "--version exits 0" || fail "--version exits 0 (got $RC)"
+[ ! -e "$PROBE_HOME/.funes" ] && ok "--version touched no database" \
+                              || fail "--version created $PROBE_HOME/.funes"
+OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" version 2>&1)
+check "bare 'version' works too"      "$OUT" '^funes [0-9]'
+OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" --help 2>&1)
+check "--help lists the subcommands"  "$OUT" 'cron-cleanup'
+OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" --bogus 2>&1); RC=$?
+check "an unknown argument is refused" "$OUT" "unknown command '--bogus'"
+[ "$RC" = 2 ] && ok "unknown argument exits 2" || fail "unknown argument exits 2 (got $RC)"
+[ ! -e "$PROBE_HOME/.funes" ] && ok "a refused argument touched no database" \
+                              || fail "a refused argument created $PROBE_HOME/.funes"
+rm -rf "$PROBE_HOME"
 
 echo "— completion contract (require_tools): premature answer gets nudged, not accepted"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
