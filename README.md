@@ -583,17 +583,17 @@ this tree with an `extension.cmake` and self-registering sources
 (`src/core/extension.h`):
 
 ```bash
-cmake -B build -DFUNES_EXTENSIONS=/path/to/funes-julio
+cmake -B build -DFUNES_EXTENSIONS=/path/to/my-extension
 cmake --build build -j$(nproc)
-FUNES_AGENTS_DIR=./agents:/path/to/funes-julio/agents ./bin/funes
+FUNES_AGENTS_DIR=./agents:/path/to/my-extension/agents ./bin/funes
 ```
 
 The extension's tools register beside the built-ins with the same registry,
 memory store and workspace root, and nothing else; its agents load from a
 second `agents/` directory (`FUNES_AGENTS_DIR` is colon-separated, later
 entries shadow earlier ones by name); its configuration is its own. A core
-build with no extension has seven agents and no newsletter, and every test
-still passes.
+build with no extension has seven agents and no publishing pipeline, and every
+test still passes.
 
 To give an agent tools from an external MCP server, over HTTP+SSE:
 
