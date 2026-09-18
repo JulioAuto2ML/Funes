@@ -61,7 +61,10 @@ struct Publication {
 
     // selection:
     int count          = 10;
-    int min_count      = 10;
+    // Deliberately below count: a floor equal to count refuses to publish
+    // unless every slot fills, which is the thin-news-day failure
+    // ai-pulse.yaml documents. Publications override it anyway.
+    int min_count      = 8;
     int max_per_source = 0;
     int max_per_story  = 2;
 
