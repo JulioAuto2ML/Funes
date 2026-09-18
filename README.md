@@ -7,6 +7,14 @@ Split out in Funes 5.1 so the core stops being 19% one person's habits and so
 this repository can hold what only makes sense on one machine: a newsletter
 with subscribers, a WhatsApp number, a Gmail mailbox, a manuscript.
 
+**This repository does not run on its own, and is not meant to.** It has no
+`main()`, no UI and none of the seven general-purpose agents: it is a set of
+tools, agents and scripts that compile into the Funes binary and load
+alongside the core's own. Cloning it without Funes gets you source files with
+nothing to link against. That asymmetry is the point of the split — the core
+is complete without this, and this is deliberately incomplete without the
+core.
+
 Built into the `funes` binary as an *extension* (see `src/core/extension.h`
 in Funes):
 
