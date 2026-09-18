@@ -18,7 +18,10 @@ require_tools: [harvest_candidates, publish_issue]
 tool_limits:
   harvest_candidates: 3
   read_result: 8
-  publish_issue: 6
+  # 10, not 6: a repair loop spends one call per replaced item, and 6 ran the
+  # budget out mid-repair on yoda. This is the value production has been
+  # publishing with since 2026-09-17.
+  publish_issue: 10
 
 system_prompt: |
   You put together one issue of a daily publication. Everything mechanical is
