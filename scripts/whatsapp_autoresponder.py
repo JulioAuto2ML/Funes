@@ -57,13 +57,35 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def config_dir():
+    """Which config/ holds funes.conf and funes.local.
+
+    Not a fixed offset from __file__ any more: the 5.1 split moved this script
+    into funes-julio while the configuration stayed in the Funes checkout, and
+    resolving it relative to the script silently found an empty directory —
+    the service then exited on "WHATSAPP_WHITELIST is empty" with the variable
+    plainly set. In order: $FUNES_CONFIG_DIR, the working directory (the
+    systemd unit points it at the Funes checkout for exactly this reason),
+    then this repository, which is what a bare `git clone` run gets."""
+    explicit = os.environ.get("FUNES_CONFIG_DIR", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    for candidate in (Path.cwd() / "config", REPO_ROOT / "config"):
+        if (candidate / "funes.local").exists() or (candidate / "funes.conf").exists():
+            return candidate
+    return REPO_ROOT / "config"
+
+
+CONFIG_DIR = config_dir()
+
+
 def load_config():
-    """Read config/funes.conf then config/funes.local (KEY=VALUE lines,
-    later file wins), same precedence Funes itself documents — but real
-    process env vars always win over both."""
+    """Read funes.conf then funes.local (KEY=VALUE lines, later file wins),
+    same precedence Funes itself documents — but real process env vars always
+    win over both."""
     cfg = {}
-    for name in ("config/funes.conf", "config/funes.local"):
-        path = REPO_ROOT / name
+    for name in ("funes.conf", "funes.local"):
+        path = CONFIG_DIR / name
         if not path.exists():
             continue
         for line in path.read_text().splitlines():
@@ -465,7 +487,8 @@ def send_reply(chat_jid: str, text: str) -> bool:
 def main():
     if not WHITELIST:
         log("WHATSAPP_WHITELIST is empty — no chat_jid is allowed to trigger "
-            "an auto-reply. Set it in config/funes.local. Exiting.")
+            f"an auto-reply. Set it in {CONFIG_DIR / 'funes.local'} "
+           "(override the directory with $FUNES_CONFIG_DIR). Exiting.")
         sys.exit(1)
 
     log(f"Watching {DB_PATH} for messages from {len(WHITELIST)} whitelisted chat(s), "
@@ -546,5 +569,22 @@ def main():
         time.sleep(POLL_SECONDS)
 
 
+def self_test():
+    """Runs scripts/tests/ — same shape as publish_newsletter.py --self-test,
+    and registered in ctest as julio_autoresponder, so the assertions CI runs
+    are the ones the deployment host can run too."""
+    import unittest
+    tests_dir = REPO_ROOT / "scripts" / "tests"
+    if not tests_dir.is_dir():
+        print(f"ERROR: no test directory at {tests_dir} — is this a full checkout?")
+        return 1
+    suite = unittest.defaultTestLoader.discover(
+        str(tests_dir), top_level_dir=str(REPO_ROOT / "scripts"))
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    return 0 if result.wasSuccessful() else 1
+
+
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     main()

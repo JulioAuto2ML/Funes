@@ -32,6 +32,13 @@ if(Python3_FOUND)
     add_test(NAME julio_publishing
              COMMAND ${Python3_EXECUTABLE}
                      ${FUNES_EXTENSION_DIR}/publishing/publish_newsletter.py --self-test)
+    # scripts/ (Python). whatsapp_autoresponder.py reads the *Funes* checkout's
+    # config while living in this one; where it looks is the kind of thing that
+    # breaks silently on a move, so it is pinned by tests rather than by a
+    # comment.
+    add_test(NAME julio_autoresponder
+             COMMAND ${Python3_EXECUTABLE}
+                     ${FUNES_EXTENSION_DIR}/scripts/whatsapp_autoresponder.py --self-test)
 else()
     message(STATUS "python3 not found — skipping the publishing/ tests")
 endif()
