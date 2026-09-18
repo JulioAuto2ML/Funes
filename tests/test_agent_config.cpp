@@ -126,6 +126,31 @@ llm_api_key: "${unclosed"
 )yaml");
     CHECK(env_broken.llm_api_key == "${unclosed");
 
+    // An MCP server's command and env both expand ${VAR}. The command needs
+    // it as much as the env does: a stdio server's path differs per machine
+    // (dev checkout vs. the deployment host), and without expansion the only
+    // way to say so is an absolute path committed to the repo, which the
+    // other machine then has to edit by hand on every pull.
+    setenv("TEST_MCP_DIR", "/opt/servers", 1);
+    setenv("TEST_MCP_SECRET", "s3cret", 1);
+    AgentConfig mcp_env = AgentConfig::from_string(R"yaml(
+name: mcp-env
+mcp_servers:
+  - command: node ${TEST_MCP_DIR}/imap/index.js
+    name: imap
+    env:
+      IMAP_PASSWORD: ${TEST_MCP_SECRET}
+  - command: ${TEST_MCP_UNSET}/bin/thing
+    name: unset
+)yaml");
+    CHECK(mcp_env.mcp_servers.size() == 2);
+    CHECK(mcp_env.mcp_servers[0].command == "node /opt/servers/imap/index.js");
+    CHECK(mcp_env.mcp_servers[0].env.at("IMAP_PASSWORD") == "s3cret");
+    // An unset variable expands to nothing, as everywhere else.
+    CHECK(mcp_env.mcp_servers[1].command == "/bin/thing");
+    unsetenv("TEST_MCP_DIR");
+    unsetenv("TEST_MCP_SECRET");
+
     // Missing name → throws.
     bool threw = false;
     try { AgentConfig::from_string("description: nameless"); }

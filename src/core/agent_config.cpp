@@ -102,7 +102,11 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
                 srv.name = srv.url;
             } else {
                 if (entry["url"])     srv.url     = entry["url"].as<std::string>();
-                if (entry["command"]) srv.command = entry["command"].as<std::string>();
+                // ${VAR} expands in the command too, not just in env: a stdio
+                // server's path is machine-local (dev checkout vs. deployment
+                // host), and the alternative is an absolute path committed to
+                // the repo that the other machine edits by hand on every pull.
+                if (entry["command"]) srv.command = expand_env(entry["command"].as<std::string>());
                 if (entry["name"])    srv.name    = entry["name"].as<std::string>();
                 if (entry["env"] && entry["env"].IsMap()) {
                     // ${VAR} expands from the server's environment here, the
