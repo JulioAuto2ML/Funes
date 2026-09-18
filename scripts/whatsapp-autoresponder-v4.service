@@ -67,8 +67,11 @@ Type=simple
 # The v4 clone. This is also what makes ./config/funes.local resolve to v4's,
 # so it must not be the 3.x checkout — the script reads its whole
 # configuration relative to this directory.
+# WorkingDirectory stays the Funes checkout: it is what makes the script
+# read config/funes.local (see the note above). The script itself moved
+# here with the rest of scripts/ in the 5.1 split.
 WorkingDirectory=/home/julio/Funes-v4
-ExecStart=/usr/bin/python3 /home/julio/Funes-v4/scripts/whatsapp_autoresponder.py
+ExecStart=/usr/bin/python3 /home/julio/funes-julio/scripts/whatsapp_autoresponder.py
 
 Restart=on-failure
 RestartSec=5

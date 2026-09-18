@@ -76,9 +76,33 @@ object file nothing references, and nothing references a self-registering one.
 - Session tokens are hashed at rest since 5.0.1; every browser signs in once
   more after the upgrade. The WhatsApp autoresponder is unaffected (service
   token).
-- The `min_count` default in the core's `publication.h` moved to 10 while
-  `tests/test_publication.cpp` still expects 8 — one of the two is wrong, and
-  it was already so before the split.
+- `min_count` in `src/publication.h` is back to 8, below the default `count`
+  of 10. Funes `fb54ffa` had raised it to 10 to get more items into an issue,
+  but `publications/ai-pulse.yaml` sets `min_count: 6` explicitly, so the
+  default never applied to the one publication that runs; what it did change is
+  a bare config, where `min_count == count` refuses to publish unless the
+  harvest fills every slot.
+- The MCP servers the `gmail-assistant` and `whatsapp-assistant` agents spawn
+  live in this checkout, and their YAML names them as
+  `${FUNES_JULIO_DIR}/third-party/...`. That variable is published at startup
+  by `src/register.cpp` from the path `extension.cmake` baked into the binary,
+  so nothing has to be configured per machine — but it also means **the binary
+  must be rebuilt after this repository moves**, not just after it changes.
+  `funes.local` can set `FUNES_JULIO_DIR` to override.
+- Their dependencies are not in git and do not move themselves:
+  `third-party/imap-email-mcp-patched/node_modules` (`npm install` there, which
+  applies the SNI patch) and `third-party/whatsapp-mcp/whatsapp-mcp-server/.venv`
+  (`uv sync`). On an upgrade from a pre-5.1 tree, move the existing ones over
+  from the Funes checkout rather than re-fetching.
+- Two systemd units name paths that the split moved; both are copies under
+  `~/.config/systemd/user/`, so editing the files here changes nothing until
+  they are copied over and `systemctl --user daemon-reload` is run:
+  `funes-v4.service` needs `FUNES_AGENTS_DIR=<Funes>/agents:<here>/agents` —
+  without the second entry all eleven agents in this repository are missing and
+  both cron jobs fail to resolve their agent — and
+  `whatsapp-autoresponder-v4.service` runs `scripts/whatsapp_autoresponder.py`,
+  which is now in this repository (its `WorkingDirectory` stays the Funes
+  checkout, which is what makes the script find `config/funes.local`).
 
 ## 4.2 — per-user publications
 
