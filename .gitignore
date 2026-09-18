@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+data/whatsapp-uploads/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.claude/

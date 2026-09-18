@@ -1,0 +1,86 @@
+# Voice-of-customer pipeline: research → debate → article → prototype.
+#
+# This file is the file conventions that used to live as a paragraph in each of
+# five agent system prompts (voc-researcher, council-chair, council-panelist,
+# content-writer, mvp-builder). The agents still decide *what* to write; where
+# it goes and what shape it has are settled here, and `write_structured`
+# enforces them.
+#
+# Adding a stage is a block here plus a sentence in one agent prompt. It is
+# not a new agent, and it is not a new tool.
+
+id: voc
+description: Voice-of-customer research, council debate, article, prototype
+workspace: data/voc-pipeline
+
+stages:
+  - name: topic
+    description: A debate-ready problem distilled from real pain language
+    dir: topics
+    filename: "{date}-{slug}.json"
+    schema:
+      type: object
+      required: [topic, source_job, date, pain_points, evidence_urls, status]
+      properties:
+        topic:      {type: string}
+        source_job: {type: string}
+        date:       {type: string}
+        pain_points:
+          type: array
+          minItems: 2
+          items: {type: string}
+        evidence_urls:
+          type: array
+          minItems: 1
+          items: {type: string}
+        status: {type: string, enum: [pending, debated, dropped]}
+
+  - name: debate
+    description: The three-perspective council record and its merged ranking
+    dir: debates
+    filename: "{date}-{slug}.json"
+    schema:
+      type: object
+      required: [topic, date, panelists, merged_ranking, winner, status]
+      properties:
+        topic:     {type: string}
+        date:      {type: string}
+        panelists: {type: object}
+        merged_ranking:
+          type: array
+          minItems: 3
+          items:
+            type: object
+            required: [proposal, score]
+            properties:
+              proposal:  {type: string}
+              score:     {type: number}
+              rationale: {type: string}
+        winner: {type: string}
+        # "decided" is what the council writes; only a human promotes a debate
+        # to "approved", which is what mvp-builder refuses to run without.
+        status: {type: string, enum: [decided, approved, rejected]}
+
+  - name: article
+    description: The long-form draft written from a debate winner
+    dir: articles
+    filename: "{slug}/draft.md"
+    format: text
+
+  - name: mvp
+    description: Build log for a scaffolded prototype
+    dir: mvp
+    filename: "{slug}/build-log.json"
+    schema:
+      type: object
+      required: [topic, proposal, date, files, ran_successfully, notes]
+      properties:
+        topic:    {type: string}
+        proposal: {type: string}
+        date:     {type: string}
+        files:
+          type: array
+          minItems: 1
+          items: {type: string}
+        ran_successfully: {type: boolean}
+        notes: {type: string}
