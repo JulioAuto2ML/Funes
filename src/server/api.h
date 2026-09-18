@@ -81,6 +81,7 @@ public:
 
     // Loads agents/*.yaml. Returns how many agents were loaded.
     size_t load_agents();
+    std::vector<std::string> agent_dirs() const;   // agents_dir_ split on ':'
 
     size_t agent_count() const { return agents_.size(); }
 

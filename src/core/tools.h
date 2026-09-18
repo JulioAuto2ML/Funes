@@ -92,12 +92,22 @@ struct NativeTool {
     std::string description;
     json        parameters;   // JSON-schema object for the arguments
     ToolHandler handler;
+    // Exempt from the result store regardless of size (see result_store.h):
+    // for a tool whose output is a structure the model has to see whole — a
+    // numbered pool to pick from — rather than a document that happens to be
+    // long. The tool then owns bounding its own output. Default false; a tool
+    // that sets it is making a promise about size, not asking for a favour.
+    bool        inline_result = false;
 };
 
 class ToolRegistry {
 public:
     void add(NativeTool tool);
     bool has(const std::string& name) const { return tools_.count(name) > 0; }
+    bool inline_result(const std::string& name) const {
+        auto it = tools_.find(name);
+        return it != tools_.end() && it->second.inline_result;
+    }
 
     std::vector<std::string> names() const;
 
@@ -130,10 +140,6 @@ void register_shell_tool(ToolRegistry& reg,
                          const std::string& workspace_dir);        // execute_shell
 void register_script_tools(ToolRegistry& reg, const std::string& workspace_dir,
                            const std::string& scripts_dir);        // list_scripts, run_script
-void register_structured_tools(ToolRegistry& reg, const std::string& workspace_dir,
-                               const std::string& pipelines_dir);
-                                                                     // write_structured, read_structured
-void register_ranking_tools(ToolRegistry& reg);                      // merge_rankings
 void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,
                               std::function<AgentConfig(const std::string&)> find_agent,
                               std::function<std::vector<std::string>()> list_agent_names);

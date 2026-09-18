@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 5.0.1 LANGUAGES C CXX)
+project(Funes VERSION 5.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -78,8 +78,6 @@ add_library(funes_core STATIC
     src/core/llm_client.cpp
     src/core/agent_config.cpp
     src/core/agent_roster.cpp
-    src/core/publication.cpp
-    src/core/pipeline.cpp
     src/core/script_library.cpp
     src/core/context_compressor.cpp
     src/core/completion_contract.cpp
@@ -103,8 +101,6 @@ add_library(funes_core STATIC
     src/core/tools/pdf_extract.cpp
     src/core/tools/tavily.cpp
     src/core/tools/page_text.cpp
-    src/core/tools/harvest.cpp
-    src/core/tools/issue.cpp
     src/core/tools/web_search.cpp
     src/core/tools/web_fetch.cpp
     src/core/tools/memory_tools.cpp
@@ -114,13 +110,12 @@ add_library(funes_core STATIC
     src/core/tools/tool_builder.cpp
     src/core/tools/agent_builder.cpp
     src/core/tools/file_tools.cpp
-    src/core/tools/structured.cpp
-    src/core/tools/rankings.cpp
     src/core/tools/shell_tool.cpp
     src/core/tools/script_tools.cpp
     src/core/tools/delegation.cpp
     src/core/tools/cron_tool.cpp
     src/core/agent.cpp
+    src/core/extension.cpp
 )
 target_include_directories(funes_core PUBLIC src/core)
 # One source of truth for the version string /api/status reports: project()
@@ -151,6 +146,26 @@ add_executable(funes
 )
 target_link_libraries(funes PRIVATE funes_core)
 
-# ── tests ─────────────────────────────────────────────────────────────────────
+# ── extensions (native tools that live in another repository) ─────────────────
+# See src/core/extension.h. Each directory named here provides extension.cmake,
+# which is included with `funes` already defined and adds what it wants to it
+# (sources, include dirs, compile definitions, tests). Semicolon-separated.
+#
+#     cmake -B build -DFUNES_EXTENSIONS=/home/me/funes-julio
+#
+# The core build carries no knowledge of what is in there; an extension that
+# fails to build fails here, at configure or compile time, not at runtime.
+set(FUNES_EXTENSIONS "" CACHE STRING "Semicolon-separated extension directories (each with extension.cmake)")
 enable_testing()
+foreach(ext_dir IN LISTS FUNES_EXTENSIONS)
+    get_filename_component(ext_dir "${ext_dir}" ABSOLUTE)
+    if(NOT EXISTS "${ext_dir}/extension.cmake")
+        message(FATAL_ERROR "FUNES_EXTENSIONS: no extension.cmake in ${ext_dir}")
+    endif()
+    message(STATUS "Funes extension: ${ext_dir}")
+    set(FUNES_EXTENSION_DIR "${ext_dir}")
+    include("${ext_dir}/extension.cmake")
+endforeach()
+
+# ── tests ─────────────────────────────────────────────────────────────────────
 add_subdirectory(tests)

@@ -81,47 +81,6 @@ add_executable(test_run_outcome test_run_outcome.cpp)
 target_link_libraries(test_run_outcome PRIVATE funes_core)
 add_test(NAME run_outcome COMMAND test_run_outcome)
 
-# Runs from the project root: one of its cases loads publications/ai-pulse.yaml,
-# the config the daily newsletter actually goes out on.
-add_executable(test_publication test_publication.cpp)
-target_link_libraries(test_publication PRIVATE funes_core)
-add_test(NAME publication COMMAND test_publication
-         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-
-# Runs from the project root for the same reason test_publication does: one of
-# its cases loads pipelines/voc.yaml, the config the five VoC agents run on.
-add_executable(test_agent_roster test_agent_roster.cpp)
-target_link_libraries(test_agent_roster PRIVATE funes_core)
-add_test(NAME agent_roster COMMAND test_agent_roster)
-
-add_executable(test_lang_detect test_lang_detect.cpp)
-target_link_libraries(test_lang_detect PRIVATE funes_core)
-add_test(NAME lang_detect COMMAND test_lang_detect)
-
-add_executable(test_memory_links test_memory_links.cpp)
-target_link_libraries(test_memory_links PRIVATE funes_core)
-add_test(NAME memory_links COMMAND test_memory_links)
-
-add_executable(test_pipeline test_pipeline.cpp)
-target_link_libraries(test_pipeline PRIVATE funes_core)
-add_test(NAME pipeline COMMAND test_pipeline
-         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-
-add_executable(test_structured_tools test_structured_tools.cpp)
-target_link_libraries(test_structured_tools PRIVATE funes_core)
-add_test(NAME structured_tools COMMAND test_structured_tools)
-
-add_executable(test_merge_rankings test_merge_rankings.cpp)
-target_link_libraries(test_merge_rankings PRIVATE funes_core)
-add_test(NAME merge_rankings COMMAND test_merge_rankings)
-
-add_executable(test_issue test_issue.cpp)
-target_link_libraries(test_issue PRIVATE funes_core)
-add_test(NAME issue COMMAND test_issue)
-
-add_executable(test_harvest test_harvest.cpp)
-target_link_libraries(test_harvest PRIVATE funes_core)
-add_test(NAME harvest COMMAND test_harvest)
 
 add_executable(test_tool_budget test_tool_budget.cpp)
 target_link_libraries(test_tool_budget PRIVATE funes_core)
@@ -135,20 +94,17 @@ add_executable(test_cron_tool test_cron_tool.cpp)
 target_link_libraries(test_cron_tool PRIVATE funes_core)
 add_test(NAME cron_tool COMMAND test_cron_tool)
 
-# ── publishing/ (Python) ──────────────────────────────────────────────────────
-# publish_newsletter.py is the component that decides whether mail goes out, so
-# its suite runs under the same `ctest` as everything else rather than behind a
-# flag someone has to remember. --self-test is the script's own entry point into
-# publishing/tests/, so there is one set of assertions rather than a CI copy and
-# a deployed copy that drift.
-find_package(Python3 COMPONENTS Interpreter)
-if(Python3_FOUND)
-    add_test(NAME publishing
-             COMMAND ${Python3_EXECUTABLE}
-                     ${CMAKE_SOURCE_DIR}/publishing/publish_newsletter.py --self-test)
-else()
-    message(STATUS "python3 not found — skipping the publishing/ tests")
-endif()
+add_executable(test_agent_roster test_agent_roster.cpp)
+target_link_libraries(test_agent_roster PRIVATE funes_core)
+add_test(NAME agent_roster COMMAND test_agent_roster)
+
+add_executable(test_lang_detect test_lang_detect.cpp)
+target_link_libraries(test_lang_detect PRIVATE funes_core)
+add_test(NAME lang_detect COMMAND test_lang_detect)
+
+add_executable(test_memory_links test_memory_links.cpp)
+target_link_libraries(test_memory_links PRIVATE funes_core)
+add_test(NAME memory_links COMMAND test_memory_links)
 
 add_executable(test_user_isolation test_user_isolation.cpp)
 target_link_libraries(test_user_isolation PRIVATE funes_core)

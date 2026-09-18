@@ -105,8 +105,14 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
                 if (entry["command"]) srv.command = entry["command"].as<std::string>();
                 if (entry["name"])    srv.name    = entry["name"].as<std::string>();
                 if (entry["env"] && entry["env"].IsMap()) {
+                    // ${VAR} expands from the server's environment here, the
+                    // way llm_api_key does: since children no longer inherit
+                    // that environment (proc::child_environment), this is how
+                    // a YAML hands its MCP server one credential from
+                    // funes.local without writing the secret into the repo.
                     for (const auto& kv : entry["env"])
-                        srv.env[kv.first.as<std::string>()] = kv.second.as<std::string>();
+                        srv.env[kv.first.as<std::string>()] =
+                            expand_env(kv.second.as<std::string>());
                 }
                 if (srv.name.empty()) srv.name = srv.command.empty() ? srv.url : srv.command;
             }

@@ -9,11 +9,15 @@ self-contained -- no package manager, no network fetch during `cmake`.
 |---|---|---|
 | `sqlite/` | SQLite amalgamation + [sqlite-vec](https://github.com/asg017/sqlite-vec) | Built as a static library with `SQLITE_CORE` so the vector extension is compiled in, not loaded at runtime. |
 | `cpp-mcp/` | C++ MCP client library | Provides `httplib.h` (HTTP server + client), `json.hpp` (nlohmann/json), and the MCP SSE/stdio client used to connect to external tool servers. |
-| `imap-email-mcp-patched/` | Node.js IMAP/SMTP MCP server (patched) | The published npm package has a TLS SNI bug: node-imap never sets `servername`, causing Gmail's IMAP frontend to return a self-signed fallback cert. The patch is in `patches/`. |
-| `whatsapp-mcp/` | Go + Python WhatsApp Web bridge + MCP tools | Vendored + patched copy of [lharries/whatsapp-mcp](https://github.com/lharries/whatsapp-mcp). REST API port moved from 8080 to 8090 to avoid conflict with llama-server. |
+
+`cpp-mcp/` carries one Funes patch beyond upstream: `stdio_client::
+set_environment_filter`, the hook through which the core hands a spawned MCP
+server an allowlisted environment instead of the process's own (see
+`src/core/tools/process_runner.h`).
 
 ## Build integration
 
-`sqlite/` and `cpp-mcp/` are built by CMakeLists.txt as part of the main
-build. The Node.js and Go/Python servers are run as child processes by their
-respective agents' MCP configurations -- they are not compiled into the binary.
+Both directories are built by CMakeLists.txt as part of the main build. The
+MCP *servers* that used to be vendored here (a patched IMAP/SMTP server and a
+WhatsApp bridge) moved to the `funes-julio` extension repository with the
+agents that use them.

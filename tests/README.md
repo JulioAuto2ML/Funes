@@ -35,14 +35,11 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 | `test_context_compressor` | Token estimator, no-op guard, prune_turns + summary |
 | `test_result_store` | Session isolation, preview shape, read_result windowing |
 | `test_cron_schedule` | Cron expression parsing, next-run arithmetic |
-| `test_cron_tool` | schedule_job validation, CRUD roundtrip, run_job_now, and `kind="script"`: scheduling is refused for an ungranted script, a scheduled script runs with no shell enabled, and revoking either the agent's grant or the account's permission stops an existing job from firing |
+| `test_cron_tool` | schedule_job validation, CRUD roundtrip, run_job_now, `kind="shell"` requires the owner's `execute_shell` permission at schedule and fire time, and `kind="script"`: scheduling is refused for an ungranted script, a scheduled script runs with no shell enabled, and revoking either the agent's grant or the account's permission stops an existing job from firing |
 | `test_file_tools` | fs_guard traversal prevention, read/write/append, PDF extraction, image detection |
-| `test_shell_tool` | Disabled-by-default check, enabled path |
+| `test_shell_tool` | Disabled-by-default check, enabled path, and the child environment is an allowlist (no service token or `funes.local` secret reaches `env`; `FUNES_CHILD_ENV` and manifest `env:` pass through) |
 | `test_script_library` | The per-agent script allowlist: an ungranted script cannot be reached by any name (path, extension, case), argv construction refuses undeclared/missing/mistyped arguments, shell metacharacters stay data, manifest `run:` cannot leave the library, manifest env reaches the child, declared JSON output is enforced (and a script's stderr cannot corrupt it), qualified keys (`run_script:<name>`) drive budgets/contracts/permissions, and every `scripts:` grant in `agents/` names a script that is actually installed |
-| `test_harvest` | URL stripping, dedup, stale filter, story clustering, shortlisting, pool format |
-| `test_issue` | Grounding checks, evidence extraction, candidate substitution, build_issue validation |
-| `test_publication` | Publication config loading and defaults |
-| `test_web_fetch` | Non-UTF-8 handling, large inline script, HTML landmark dropping |
+| `test_web_fetch` | Non-UTF-8 handling, large inline script, HTML landmark dropping, the resolving private-host guard (every spelling of loopback, RFC 1918, link-local, ULA, v4-mapped v6, unresolvable names), manual redirect following |
 | `test_text_utils` | UTF-8 validation, safe truncation, dump_safe |
 | `test_base64` | RFC 4648 vectors, roundtrip, binary with NUL |
 | `test_meta_tools` | list_tools, create_tool, create_agent |

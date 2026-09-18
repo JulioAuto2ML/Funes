@@ -3,14 +3,15 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **5.0.1** (security fixes on 5.0, `project(Funes VERSION 5.0.1)`).
+Current release: **5.1** (security fixes + the core/extension split, `project(Funes VERSION 5.1.0)`).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
 | **4.1** | Generalization: config over prose, tools over model arithmetic | [generalization-plan.md](generalization-plan.md) phases 1, 4, 5 | shipped |
-| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 + below | planned |
+| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | [generalization-plan.md](generalization-plan.md) phases 2, 3 + below | moved to funes-julio |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
 | **5.0.1** | Security: shell-job permission bypass, child env allowlist, resolving SSRF guard, hashed tokens, login throttle, body cap | review of 2026-09-18 | done |
+| **5.1** | Split: the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
 | **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
 
 ## Why this order
@@ -60,6 +61,41 @@ MCP stdio servers spawned per request; DNS rebinding between the guard's
 lookup and httplib's connect (needs address pinning httplib does not offer);
 memory design (auto-memory is a conversation log, not fact extraction).
 
+## 5.1 — the split
+
+The review that produced 5.0.1 also measured the tree: 13.3k lines, of which
+~2.5k (`harvest`, `issue`, `publication`, `rankings`, `structured`,
+`pipeline`) and eleven of eighteen agents existed for one operator's
+newsletter, debate pipeline, phone number, mailbox and manuscript. The core
+now carries the harness and seven agents; everything with a personal path or
+a personal identity lives in `funes-julio`, a sibling repository compiled in
+with `-DFUNES_EXTENSIONS=<dir>` and loaded with a second `agents/` directory
+(`FUNES_AGENTS_DIR` is colon-separated).
+
+What the core gained to make that possible, and nothing more:
+
+| Change | Where |
+|---|---|
+| Registration queue for out-of-tree tools: static initializer queues, `main()` applies with `{tools, memory, workspace_dir}` | `src/core/extension.{h,cpp}`, `CMakeLists.txt` (`FUNES_EXTENSIONS`, includes `<dir>/extension.cmake`) |
+| `NativeTool::inline_result` — a tool declares its output exempt from the result store; replaces the core knowing `harvest_candidates` by name | `tools.h`, `result_store.h`, `agent.cpp` |
+| Several agent directories | `FunesApi::agent_dirs`, `main.cpp` |
+| `config/funes.conf` loses the Gmail/WhatsApp/publishing sections | → `funes-julio/config/funes.conf.example` |
+
+What moved, verbatim apart from include paths: the six modules above and
+their six tests; `publishing/`, `publications/`, `pipelines/`, `scripts/`;
+`third-party/whatsapp-mcp` and `imap-email-mcp-patched`; the agents `curator`,
+`voc-researcher`, `council-chair`, `council-panelist`, `content-writer`,
+`mvp-builder`, `whatsapp-assistant`, `whatsapp-autoresponder`,
+`gmail-assistant`, `rss-reader`, `book-editor` and `agents/templates/`.
+
+The test that the split is clean: a core build with no extension passes all
+28 tests and `integration.sh`; a build with the extension passes those plus
+the extension's seven (`julio_*`).
+
+The other question the review raised — whether a memory that is a
+conversation log with vector search is the product's claim or its weakest part
+— is still open, and is now the only substantive open question in this tree.
+
 ## 4.1 breakdown
 
 | Step | Deliverable | State |
@@ -74,62 +110,10 @@ memory design (auto-memory is a conversation log, not fact extraction).
 
 ## 4.2 — per-user publications
 
-**Why now.** The deferred items in 4.2 were held back for want of real demand.
-This one acquired it on 2026-09-14: a second account exists (`daniela`), so
-"any user can publish their own newsletter" stopped being hypothetical. The
-other two (channel adapter, `mcp-builder`) still have no second consumer and
-stay deferred.
-
-**The goal.** `curator` loses its absolute `workspace_dir`
-(`/home/julio/Documents/X_posts`) and resolves per-user like every other
-agent, so publishing is something an account does rather than something the
-installation does.
-
-**What must not happen on the way.** Moving that directory wholesale into the
-user workspace is the obvious version of this change and it is wrong twice:
-
-1. **It would publish the credentials.** The directory holds `.env` (Gmail +
-   LinkedIn) and `subscribers.txt`. Today they sit outside every workspace, and
-   `curator` has no `read_file` — nothing the model drives can reach them.
-   Inside `<workspace>/<user_id>/`, they land in the confinement root of every
-   agent that account runs, and `funes`, `operator`, `file-reviewer` and
-   `book-editor` all have `read_file`. "Read x_posts/.env" would print live
-   credentials into a chat transcript, and `/api/upload` and the files pane
-   would reach them too.
-2. **It would split the publication.** `publications/ai-pulse.yaml` is
-   installation-global, and `dedup_against_last_issues` reads the *caller's*
-   `issues/` directory. Two accounts could each publish `ai-pulse` on the same
-   morning, with independent dedup histories, to one subscriber list. The
-   absolute path is currently what prevents that; removing it without settling
-   ownership first replaces isolation with a split brain that a subscriber
-   discovers, not a test.
-
-**Order of work.**
-
-| Step | Deliverable |
-|------|-------------|
-| 1 | Decide ownership: a publication belongs to a user (an `owner` in the YAML, or per-user publication configs) rather than to the install. Everything else follows from this. |
-| 2 | Split the publish directory by what each thing *is*: working files (harvest pools, issue JSON, run records, rendered artifacts) are per-user and model-visible; `.env` and `subscribers.txt` are publication-owned and resolved by the **tool**, never by a path the model can name — the same rule `publications/*.yaml` and `funes.local` already follow. |
-| 3 | Per-user sending identity. A second publisher either brings their own SMTP/LinkedIn credentials or sends from the owner's — a decision, not a default. |
-| 4 | Drop `workspace_dir` from `curator.yaml`. Smallest step, and last. |
-| 5 | Update `run_publication.sh` and the LinkedIn cron, which read `runs/<pub>/<date>.json` at a fixed path and will need to know whose. A live cron that publishes real things. |
-
-**A category this exposed, worth writing down.** Funes isolates its own data —
-memories, turns, stored results, workspace files — in SQL and in `fs_guard`.
-It cannot isolate a *third-party account* reached through an MCP server with
-installation-wide credentials. `gmail-assistant` (`IMAP_USER` in
-`funes.local`, one mailbox) and `whatsapp-assistant` (one bridge store, one
-phone number) are both in that class: granting either to a second account
-hands over the first account's inbox or chats, however well-isolated Funes's
-own storage is. Per-user credentials for those is its own piece of work, not
-part of this one. Until then they stay off a member's agent allowlist —
-`daniela`'s is `funes, researcher, operator, rss-reader, file-reviewer,
-book-editor`.
-
-Note `--agents` is an allowlist with no deny form, so that list freezes at
-today's roster: a newly added agent will not reach a restricted account until
-somebody grants it. That is the safer default for a member account, but it is
-a maintenance cost, not an accident.
+Moved with the newsletter to the funes-julio repository (its README carries
+the plan). Whether a publication belongs to a user or to the install is that
+repository's question now; what the core owes it is already there — per-user
+workspaces, `shared_identity`, the agent allowlist.
 
 ## 5.0 breakdown
 

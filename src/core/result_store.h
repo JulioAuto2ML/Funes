@@ -17,6 +17,7 @@
 // untouched, so this is invisible until a tool actually returns something big.
 
 #pragma once
+#include "tools.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -41,31 +42,28 @@ inline bool exceeds_inline_limit(const std::string& text) {
 // already in the store, so it must never be stored itself.
 constexpr const char* kDereferenceTool = "read_result";
 
-// The tool that returns a candidate pool to choose from. Its whole output is
-// the menu, and a preview of a menu is not a menu.
-constexpr const char* kPoolTool = "harvest_candidates";
-
 // True if this tool's output is exempt from storage regardless of size. Two
-// tools qualify, for the same underlying reason — their output is not a
+// kinds qualify, for the same underlying reason — the output is not a
 // document that happens to be large, it is a structure whose parts only mean
-// something together — but each earned it differently:
+// something together:
 //
-//   read_result. A full window plus the "N bytes remain" note result_window
-//   appends comes to slightly more than kInlineLimit, so on 2026-07-31 every
-//   dereference was stored in turn and answered with a fresh result_id instead
-//   of the text. The model reads, gets a new id, reads that, gets another —
-//   `researcher` spent all 20 of its steps this way and returned nothing.
-//   Clamping the window was tried and is what broke: the clamp bounds the
-//   window, not the note. Size can't be the guard here, so the tool is.
+//   read_result, always. A full window plus the "N bytes remain" note
+//   result_window appends comes to slightly more than kInlineLimit, so on
+//   2026-07-31 every dereference was stored in turn and answered with a fresh
+//   result_id instead of the text. The model reads, gets a new id, reads that,
+//   gets another — `researcher` spent all 20 of its steps this way and returned
+//   nothing. Clamping the window was tried and is what broke: the clamp bounds
+//   the window, not the note. Size can't be the guard here, so the tool is.
 //
-//   harvest_candidates. It returns ~25 numbered candidates sized to fit the
-//   context on purpose; the model's next act is to pick from them by number.
-//   Stored, the model would see the first two candidates and a byte count, and
-//   would have to page the rest back in through read_result — reintroducing the
-//   walk the pool was built to remove. The tool bounds its own output instead,
-//   which is why size is not the guard here either.
-inline bool exempt_from_store(const std::string& tool) {
-    return tool == kDereferenceTool || tool == kPoolTool;
+//   Any tool registered with NativeTool::inline_result. The original case was
+//   a newsletter's harvest_candidates: ~25 numbered candidates sized to fit the
+//   context on purpose, the model's next act being to pick by number. Stored,
+//   it would see two candidates and a byte count and have to page the rest
+//   back through read_result — reintroducing the walk the pool was built to
+//   remove. That tool now lives in an extension, so the exemption is a flag on
+//   the registration rather than a name this header knows.
+inline bool exempt_from_store(const std::string& tool, const ToolRegistry& reg) {
+    return tool == kDereferenceTool || reg.inline_result(tool);
 }
 
 // The JSON object that replaces `text` in the transcript. Both slices are cut

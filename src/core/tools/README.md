@@ -24,24 +24,15 @@ hop, no protocol overhead.
 | `list_tools` | `introspection.cpp` | Lists every registered tool with its description. |
 | `delegate_to_agent` | `delegation.cpp` | Hands a task to a specialist agent. Self-delegation refused, depth-2 cap. |
 
-### Newsletter pipeline tools
+### Extension tools
 
-| Tool | File | What it does |
-|---|---|---|
-| `harvest_candidates` | `harvest.cpp` | Searches, deduplicates, fetches, and builds a numbered candidate pool for a publication. |
-| `publish_issue` | `issue.cpp` | Publishes an issue: resolves IDs to URLs, runs deterministic grounding checks, renders artifacts, sends. |
-
-### Pipeline tools
-
-The same idea as the two above, generalized: a stage's path and shape come
-from `pipelines/*.yaml`, not from a paragraph in an agent prompt. See
-[../../../pipelines/README.md](../../../pipelines/README.md).
-
-| Tool | File | What it does |
-|---|---|---|
-| `write_structured` | `structured.cpp` | Writes one pipeline-stage entry. Derives the path from the config (the model supplies a slug, never a path) and validates JSON content against the stage schema — a refusal writes nothing. |
-| `read_structured` | `structured.cpp` | Reads an entry by slug, or lists a stage and restates its required shape. An empty stage is an answer, not an error. |
-| `merge_rankings` | `rankings.cpp` | Borda count over several ranked lists, matching proposals named differently and reporting lists it could not parse. Replaces arithmetic a system prompt used to ask the model for. |
+Tools that belong to one operator's workflow are not in this directory. They
+are compiled in from another repository through `src/core/extension.h`
+(`-DFUNES_EXTENSIONS=<dir>`) and register themselves into the same
+`ToolRegistry`. The first such extension, `funes-julio`, carries the newsletter
+tools (`harvest_candidates`, `publish_issue`) and the pipeline tools
+(`write_structured`, `read_structured`, `merge_rankings`) that used to be here;
+its own README documents them.
 
 ### Scheduling tools
 
@@ -66,8 +57,7 @@ from `pipelines/*.yaml`, not from a paragraph in an agent prompt. See
 | `fs_guard.h/cpp` | Filesystem path confinement plus `workspace_for`, the single resolver for which directory a call operates in (`<root>/<user_id>`, with an agent's own `workspace_dir` nested inside when relative). Catches `..` traversal, symlinks, absolute escapes. Used by read/write_file, shell, and /api/upload -- keep it the only resolver, or the confinement check ends up guarding a different root than the one being written to. |
 | `net_guard.h/cpp` | SSRF protection. Blocks requests to private/loopback hosts. Used by web_fetch and HTTP template tools. |
 | `process_runner.h/cpp` | Fork/exec engine with timeout, process-group kill, output cap. Used by execute_shell, read_file (PDF), publish_issue, run_script. Optionally passes extra environment (a script manifest's `env:`, so a credential never enters the model's context) and optionally keeps stderr separate — a script whose stdout is a declared JSON contract must not have it corrupted by a library's deprecation warning. |
-| `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search and harvest_candidates. |
-| `../pipeline.h/cpp` | Pipeline stage configuration: directory, filename template, schema. Loaded per call by the pipeline tools, so a new stage is live without a restart. |
+| `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search (and by extensions that need the same call). |
 | `../answer_schema.h/cpp` | The JSON-Schema subset used for both an agent's `answer_schema:` and a pipeline stage's `schema:` — one validator, so the two fail identically and read identically to a small local model. |
 | `../script_library.h/cpp` | The script library: manifest parsing, the `[a-z0-9_-]` name alphabet, and argv construction from declared parameters. Split from `script_tools.cpp` so the allowlist and argument rules are testable without starting a process. |
 | `page_text.h/cpp` | URL fetching + HTML-to-text extraction. Manual scan (no regex -- avoids stack overflow on large inline scripts). |
@@ -119,6 +109,10 @@ The tool system enforces security at multiple layers:
   pass it straight through to `MemoryStore`.
 - **Content**: Binary/non-UTF-8 rejected everywhere. Output capped at every
   boundary. Large results stored by reference.
-- **Newsletter pipeline**: The model picks candidates by numeric ID. URL
-  resolution is deterministic. Grounding checks verify post text against page
-  content using word overlap, with no LLM involvement.
+- **Child processes** (`process_runner.cpp`): an allowlisted environment, never
+  the server's own — no `FUNES_*`, no key or token from `funes.local` reaches a
+  script, a shell command or an MCP stdio server unless the operator names it
+  in `FUNES_CHILD_ENV` or the manifest/agent YAML passes it explicitly.
+- **Outbound URLs** (`net_guard.cpp`): the private-host check resolves the name
+  and judges every address; redirects are followed by hand so each hop is
+  checked; unresolvable names are refused.

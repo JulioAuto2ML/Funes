@@ -302,24 +302,43 @@ json FunesApi::resolved_permissions(const UserStore::User& user) const {
     };
 }
 
+// `agents_dir_` may name several directories, colon-separated (the repo's own
+// agents/ and an extension's, typically). All are loaded into one table; a
+// later directory's agent replaces an earlier one of the same name, so a
+// deployment can override a shipped agent without editing the repo.
+std::vector<std::string> FunesApi::agent_dirs() const {
+    std::vector<std::string> dirs;
+    size_t pos = 0;
+    while (pos <= agents_dir_.size()) {
+        size_t end = agents_dir_.find(':', pos);
+        if (end == std::string::npos) end = agents_dir_.size();
+        const std::string one = agents_dir_.substr(pos, end - pos);
+        if (!one.empty()) dirs.push_back(one);
+        pos = end + 1;
+    }
+    return dirs;
+}
+
 size_t FunesApi::load_agents() {
     std::map<std::string, AgentConfig> loaded;
 
-    std::error_code ec;
-    for (const auto& entry : fs::directory_iterator(agents_dir_, ec)) {
-        const auto path = entry.path();
-        if (path.extension() != ".yaml" && path.extension() != ".yml") continue;
-        try {
-            AgentConfig cfg = AgentConfig::from_file(path.string());
-            loaded[cfg.name] = std::move(cfg);
-        } catch (const std::exception& e) {
-            std::cerr << "[api] skipping invalid agent file " << path << ": "
-                      << e.what() << "\n";
+    for (const std::string& dir : agent_dirs()) {
+        std::error_code ec;
+        for (const auto& entry : fs::directory_iterator(dir, ec)) {
+            const auto path = entry.path();
+            if (path.extension() != ".yaml" && path.extension() != ".yml") continue;
+            try {
+                AgentConfig cfg = AgentConfig::from_file(path.string());
+                loaded[cfg.name] = std::move(cfg);
+            } catch (const std::exception& e) {
+                std::cerr << "[api] skipping invalid agent file " << path << ": "
+                          << e.what() << "\n";
+            }
         }
+        if (ec)
+            std::cerr << "[api] cannot read agents dir '" << dir << "': "
+                      << ec.message() << "\n";
     }
-    if (ec)
-        std::cerr << "[api] cannot read agents dir '" << agents_dir_ << "': "
-                  << ec.message() << "\n";
 
     std::lock_guard<std::mutex> lock(agents_mu_);
     agents_ = std::move(loaded);

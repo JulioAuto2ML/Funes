@@ -390,7 +390,7 @@ punctuation in it rather than a second command. Unknown parameters, missing
 required ones and bad types are refused before the process starts.
 
 A script can also declare the shape of what it prints, which the runtime then
-checks — the same contract `pipelines/*.yaml` puts on a pipeline stage:
+checks — the same contract an `answer_schema` puts on an agent's final answer:
 
 ```yaml
 output:
@@ -409,7 +409,7 @@ Four consequences worth knowing:
   an agent names it.
 - **Budgets, contracts and permissions can name one script.**
   `tool_limits: {run_script:backup_workspace: 1}`,
-  `require_tools: [run_script:publish_issue]`, and
+  `require_tools: [run_script:backup_workspace]`, and
   `funes perms marta --deny run_script:backup_workspace` all work, because one
   tool standing in for several programs would otherwise share one ceiling, one
   contract slot and one grant between them.
@@ -554,80 +554,50 @@ schema is ignored rather than rejected.
 ### Not asking the model for what a tool can supply
 
 The three features above make a model finish, stop and answer correctly. The
-cheapest way to stop it getting a step wrong is not to ask it, and the
-`curator` agent is what that looks like carried all the way.
+cheapest way to stop it getting a step wrong is not to ask it. The worked
+example — a daily newsletter that went from three agents and 46 steps to one
+agent and about four, by moving search, dedup, fetch, link-check, render and
+send into two tools and leaving the model only the judgement — lives with the
+newsletter itself, in the [funes-julio](../funes-julio) extension (its README
+carries the full incident write-up). The rule it left behind is general:
 
-The daily newsletter used to be three agents and 46 steps, most of them a
-language model reading instructions about how to perform a deterministic task.
-One of those steps was retyping ten URLs it had read earlier, out of a
-transcript that had since been compressed and stored by reference. On
-2026-07-31 an item about an OpenAI breach shipped pointing at a Stripe checkout
-page — which returned 200, so the link checker passed it. That is arithmetic,
-not carelessness: ask for ten transcriptions a day and one comes out wrong every
-few weeks, forever.
+- **A URL is never retyped.** A tool hands the model a numbered pool; the model
+  picks by number; a tool resolves the number back. What the model never saw a
+  reason to copy, it cannot copy wrong.
+- **A claim is checked, not trusted.** Where the model's judgement has a
+  checkable half ("this item is about X" → a quote from the page that says so),
+  a tool checks it against the text actually fetched.
+- **An exit code is a fact; a sentence is a claim.** "It was sent" is the send
+  script's return value, recorded by the tool, never the model's summary.
+- **Convention is configuration.** A stage's directory, filename and JSON shape
+  are declared once and enforced by the runtime, not restated in five prompts.
+  Arithmetic (a Borda count over three rankings) is a tool, not a prompt.
 
-So `harvest_candidates` runs the searches, drops duplicates, stale items and
-anything that already ran this week, fetches every survivor (a failed fetch
-drops the candidate *there*, which is the link check moved before selection
-instead of after writing), and returns a numbered pool. The model picks by
-number. `publish_issue` resolves those numbers back to URLs it never showed the
-model a reason to retype, and renders, re-checks and sends in one call whose
-exit code is what makes "it was sent" a fact.
+The pieces of the core that carry this rule — `answer_schema`, `require_tools`,
+`tool_limits`, `scriptlib`'s `output:` contract, `NativeTool::inline_result` —
+stayed. The tools that first needed it (`harvest_candidates`, `publish_issue`,
+`write_structured`/`read_structured`, `merge_rankings`) moved out as the first
+extension; see "Extensions" below for how they plug back in.
 
-The one thing a model cannot be relieved of is whether an item is worth running
-and whether the post is true. The second half of that is checkable, so it is
-checked: each item carries an `evidence` quote copied off the candidate's page,
-verified against the text the harvester actually fetched. A post about a breach
-cannot produce a supporting quote from a checkout page. A failed check names one
-item and sends nothing.
+### Extensions: native tools that live somewhere else
 
-Three agents and 46 steps became one agent and about four.
+A tool is C++ and needs a rebuild to add, which is right for the generic set
+and wrong for one operator's workflow. An extension is a directory outside
+this tree with an `extension.cmake` and self-registering sources
+(`src/core/extension.h`):
 
-The same split decides what is configuration. A publication is one YAML in
-`publications/` — queries, recency window, caps, artifacts, channels — plus a
-prose voice file, because voice is the one part a model has to read rather than
-obey. The agent never sees the config; it is handed a pool and a voice note by
-the tools, which is why a second publication needs no second agent. Every run
-leaves a record in `runs/<publication>/<date>.json`, and both the scheduler and
-the LinkedIn cron read it rather than believing anything the model said.
+```bash
+cmake -B build -DFUNES_EXTENSIONS=/path/to/funes-julio
+cmake --build build -j$(nproc)
+FUNES_AGENTS_DIR=./agents:/path/to/funes-julio/agents ./bin/funes
+```
 
-#### The same fix, generalized (4.1)
-
-Knowing the rule and applying it are different things. The voice-of-customer
-chain — research a problem, debate it from three perspectives, write the
-article, scaffold a prototype — was built *after* the newsletter rewrite and
-repeated two of the mistakes it had just fixed.
-
-Its stages hand work to each other as files, and each of five system prompts
-carried the convention as prose: "write the topic as JSON to
-`topics/<date>-<slug>.json` with these six fields." Nothing enforced it. A slug
-that drifted by a character, a field the model dropped, an object where an
-array belonged — each produces a file that exists, so the stage reports success
-and the next stage finds nothing where it looked. You learn at the end of a
-five-step pipeline, from an empty article.
-
-And `council-chair`'s prompt asked the model to merge three panelists' rankings
-by *computing a Borda count in its head* — "for N proposals, rank 1 gets N
-points, rank 2 gets N-1, sum across all three" — while holding three JSON
-replies in an 8K context.
-
-So: a pipeline is now a YAML in `pipelines/` naming each stage's directory,
-filename template and JSON schema. `write_structured` takes a pipeline, a stage,
-a slug and content; it derives the path, fills the date, and validates against
-the stage schema — and a violation is refused with the offending field named and
-**nothing written**, because a malformed file that exists is worse than no file:
-the next stage parses it and believes it. `read_structured` answers "has this
-been done already?" and restates the shape on request. `merge_rankings` does the
-Borda count in C++, matching proposals three independent panelists inevitably
-named three different ways.
-
-The slug is sanitized rather than validated, which is the part that matters
-more than the schema: `"Local AI Compliance!"` and `local-ai-compliance` are the
-same entry, so drift stops being possible instead of being caught.
-
-Five agents lost their file-convention paragraphs and their arithmetic. None of
-them lost a judgement — which topic is worth debating, which proposal wins, what
-the article says, whether the prototype runs. That is the line.
+The extension's tools register beside the built-ins with the same registry,
+memory store and workspace root, and nothing else; its agents load from a
+second `agents/` directory (`FUNES_AGENTS_DIR` is colon-separated, later
+entries shadow earlier ones by name); its configuration is its own. A core
+build with no extension has seven agents and no newsletter, and every test
+still passes.
 
 To give an agent tools from an external MCP server, over HTTP+SSE:
 
@@ -656,199 +626,6 @@ server, SSE or stdio, is reconnected fresh per agent instance (i.e. per
 request) — for a stdio server that means a new subprocess each time, so
 expect its startup cost (e.g. `npx`'s package resolution) on every call, not
 just the first.
-
-`agents/gmail-assistant.yaml` is a second example, wired to
-[imap-email-mcp](https://www.npmjs.com/package/imap-email-mcp) over IMAP/SMTP
-rather than the Gmail API — no OAuth app to register, it authenticates with a
-plain Gmail App Password. Its `tools:` list only allows the read/search/draft
-tools (`search_emails`, `list_emails`, `get_email`, `list_folders`,
-`list_drafts`, `get_draft`, `create_draft`, `update_draft`); the server also
-exposes `send_email` and `delete_email`, but leaving them out of `tools:` is
-enough to keep the agent from ever calling them — Funes filters the tool
-schema handed to the model down to that list (`agent.cpp`'s
-`tools_.openai_schema(cfg_.tools)`), so unlisted tools are invisible to it,
-not just discouraged. Note what's *not* in the yaml's `env:` block: only
-`IMAP_HOST` is set there, because it isn't secret. `IMAP_USER` and
-`IMAP_PASSWORD` are deliberately absent from the file — a stdio server's
-subprocess inherits Funes' own process environment (that's how
-`FUNES_MCP_SERVERS` reaches agents too), so the credentials just need to live
-in `config/funes.local` (same Gmail address and App Password
-`publishing/send_newsletter.py` uses — see the Email section in
-`config/funes.conf`). Never put a real secret in an agent yaml's `env:` map —
-anything written there is committed to the repo in plain text.
-
-The `command:` doesn't run `npx -y imap-email-mcp` directly, though — it
-points at `third-party/imap-email-mcp-patched/node_modules/imap-email-mcp/index.js`,
-a pinned local install. The published package's `node-imap` dependency never
-sets the TLS SNI `servername` when connecting, and Gmail's IMAP frontend
-responds to a connection with no SNI by handing back a fallback certificate
-that's genuinely self-signed — every request would fail with `Error:
-self-signed certificate` otherwise. `third-party/imap-email-mcp-patched/`
-pins the exact version and carries a one-line patch (via
-[patch-package](https://www.npmjs.com/package/patch-package), see
-`patches/imap+0.8.19.patch`) that sets `servername` explicitly. Run `npm
-install` in that directory once per host (local dev and yoda both) before
-this agent can connect — `patch-package` reapplies the patch automatically
-on every install, so it survives a clean `node_modules` wipe.
-
-`agents/whatsapp-assistant.yaml` is a third example, wired to
-[whatsapp-mcp](https://github.com/lharries/whatsapp-mcp) — a personal
-WhatsApp account connected the same way WhatsApp Web/Desktop links a device
-(scan a QR code with the phone once), via the unofficial `whatsmeow`
-protocol library. Unlike the other two, it's a two-process design vendored
-in full under `third-party/whatsapp-mcp/`:
-
-- **The Go bridge** (`whatsapp-bridge/`) holds the actual WhatsApp
-  connection and writes incoming messages to a local SQLite store. It is
-  **not** spawned by Funes — Funes only starts short-lived stdio
-  subprocesses per request, but this bridge has to stay connected
-  continuously to receive messages at all. Run it as its own systemd
-  `--user` service; see `scripts/whatsapp-bridge.service` for the unit file
-  and setup steps (including the one-time QR scan, and re-pairing roughly
-  every 20 days when the session expires).
-- **The Python MCP server** (`whatsapp-mcp-server/`) is the thin tool layer
-  Funes actually spawns per request (`uv --directory
-  third-party/whatsapp-mcp/whatsapp-mcp-server run main.py`) — it just reads
-  the bridge's SQLite DB and calls its local REST API.
-
-Locally patched, three times. The bridge's REST API was hardcoded to port
-8080, which collides with yoda's `llama-server` (`FUNES_LLM_URL`); both
-`whatsapp-bridge/main.go` and `whatsapp-mcp-server/whatsapp.py` were edited
-to use 8090 instead. Separately, the vendored `whatsmeow` dependency was
-~17 months stale as of first deploy and got rejected outright ("Client
-outdated (405)") — `go get -u go.mau.fi/whatsmeow@latest` fixed that but
-changed several method signatures to take a leading `context.Context`
-(`client.Download`, `sqlstore.New`, `container.GetFirstDevice`,
-`client.GetGroupInfo`, `client.Store.Contacts.GetContact`), all updated in
-`main.go` to pass `context.Background()`. Expect to need this again
-periodically — it's an unofficial protocol implementation racing WhatsApp's
-actual client version. The agent's `tools:` list deliberately excludes
-`send_file`, `send_audio_message`, and `download_media` — it can search,
-read, and send plain-text replies, nothing else. Because WhatsApp message
-content is untrusted input the model reads directly, the system prompt
-tells it explicitly not to treat message text as instructions.
-
-**Two numbers, two bridge instances.** `whatsapp-assistant` acts as *you* —
-it should stay on your own number. `whatsapp-autoresponder` talks back
-autonomously to whoever's on the whitelist, which is a materially different
-thing to hand your personal WhatsApp identity to, so it gets a second,
-dedicated number instead. The third patch — `WHATSAPP_STORE_DIR` /
-`WHATSAPP_BRIDGE_PORT` env vars read once at package init in `main.go` —
-turns every hardcoded `"store"` path and the port literal into per-instance
-config, so the same compiled binary runs twice with independent sessions and
-SQLite stores: `whatsapp-bridge.service` (personal, port 8090, `store/`) and
-`whatsapp-bridge-funes.service` (dedicated, port 8091, `store-funes/`, env
-set in the unit file). Pairing the second instance needs an actual second
-phone number you control — that's on you to provide, this only handles the
-bridge process once you have one. `whatsapp-mcp-server` (whatsapp-assistant's
-MCP layer) still only ever points at the personal instance;
-`whatsapp_autoresponder.py` points at the dedicated one via
-`WHATSAPP_DB_PATH`/`WHATSAPP_BRIDGE_URL` in `config/funes.conf`.
-
-**Auto-replying to incoming messages** is a separate, opt-in layer on top of
-the above — `agents/whatsapp-assistant.yaml` only answers when *you* ask
-Funes (through its own UI) to check or send WhatsApp; it does nothing when a
-message just arrives. `scripts/whatsapp_autoresponder.py` is a small
-standalone poller (stdlib-only, no new dependency) that watches the
-dedicated instance's SQLite store directly and, for messages from chats on
-`WHATSAPP_WHITELIST` only, asks a dedicated `whatsapp-autoresponder` agent
-for a reply and sends it back. Every other chat is silently ignored.
-Manage the whitelist with `scripts/whatsapp_whitelist.py list/add/remove`
-(matches by contact name, so you don't have to hand-look-up a `jid`) rather
-than editing `config/funes.local` directly — see the WhatsApp section of
-`config/funes.conf` for the commands. It's a plain local CLI, not something
-exposed to any agent: changing who Funes will auto-reply to should stay a
-step only you can take.
-
-The autoresponder agent is deliberately more restricted than
-`whatsapp-assistant`: its only tools are `recall`/`remember` (memory), no
-`delegate_to_agent`, no MCP servers, and specifically **no send capability**
-— it can only return text. `whatsapp_autoresponder.py` is the one thing that
-actually calls the bridge's `/api/send`, and it always sends into the exact
-chat the incoming message came from, for whitelisted chats only. That split
-exists so the model can never pick who to send to; it only ever picks what
-to say, and even that only reaches a chat that already passed the whitelist
-check in plain Python before the model saw anything. Run it as its own
-systemd `--user` service — see `scripts/whatsapp-autoresponder.service`.
-
-That restriction is right for a contact and wrong for you. Funes has its own
-number, so a message *you* send it reaches the poller looking exactly like a
-stranger's, and got the same declawed agent: asked to go find an email it
-answered — truthfully, for that agent — that it had no Gmail access, while
-`agents/gmail-assistant.yaml` sat loaded one delegation away. So the agent is
-now chosen by the sender's role, which 4.0 already resolves from their jid:
-an **admin** gets `WHATSAPP_ADMIN_AGENT` (`funes` by default), the
-orchestrator with `delegate_to_agent`; every other role keeps
-`whatsapp-autoresponder` unchanged. Map your own number with
-`funes jid-map <jid> <username>` to be recognized.
-
-Routing is not permission, and this deliberately does not become one. The
-jid is resolved server-side and every call still runs as that user, under
-that user's own agent and tool allowlists — `Permissions::allows_agent`,
-enforced in `/api/chat`, the delegation roster, `delegate_to_agent` and cron.
-Pointing a member at `funes` would simply be refused, and narrowing what an
-admin can reach over WhatsApp is a `funes user permissions` change, not a
-routing one. What the poller decides is only *which agent is asked first*.
-
-Attachments follow the same split, because a path is only meaningful relative
-to the workspace its reader is confined to. `whatsapp-autoresponder` declares
-`workspace_dir: whatsapp-uploads`, so the upload folder is its root and it
-gets a bare `<chat>/<file>`; an admin agent declaring no `workspace_dir` is
-rooted one level up at the user's workspace, so it gets
-`whatsapp-uploads/<chat>/<file>`. Same file on disk, in the same per-user
-workspace, spelled for whoever is allowed to read it.
-
-It does, though, share `funes`'s own memory rather than starting a separate,
-empty pool — via `memory_scope: funes` in its yaml. Every agent normally has
-fully isolated memory (`recall`/`remember` are scoped by agent name — see
-`AgentConfig::memory_scope` in `src/core/agent_config.h`); this is one field
-away from opting out of that isolation for a specific agent, so a message
-sent over WhatsApp and one sent through the web UI draw on and add to the
-same facts, rather than the WhatsApp side starting from a blank slate.
-
-**Starting a fresh conversation.** A contact can send `/new` to reset their
-thread. This is handled entirely in `whatsapp_autoresponder.py` — the model
-never sees it — and, like the web UI's own "New Chat" button (`ui/app.js`),
-it rotates to a new session rather than deleting the old one's history
-(`sanitize_session`'s `generation` suffix, tracked per `chat_jid` in the
-poller's own state file). Note this only resets *conversation* history —
-`recall`/`remember` long-term memory is shared with `funes` (see above) and
-is unaffected either way. There's currently no way to actually delete a
-session's history — through WhatsApp or the web UI — only start a new one;
-the storage layer has the pieces (`MemoryStore::prune_turns`) but nothing
-exposes them yet.
-
-**Documents and photos over WhatsApp.** A whitelisted contact can send a
-"document" attachment (PDF or plain text file) or a photo ("image"
-attachment) and Funes will read it — audio/video are still ignored, that
-would need transcription, a separate feature. `whatsapp_autoresponder.py`
-downloads it via the bridge's `/api/download` (pre-checking the message's
-known `file_length` against `WHATSAPP_MAX_MEDIA_BYTES` before downloading,
-and re-checking the actual size after, so an oversized file is never handed
-to the model), copies it into the *sender's own* workspace under a per-chat
-subfolder, and tells the agent about it with a `[Document received: <path>]`
-or `[Photo received: <path>]` marker in the message text. Which workspace
-that is comes from Funes, not from the script: the poller asks which account
-the number maps to and writes there, so identity is resolved in one place and
-an unmapped number's attachments are ignored rather than written somewhere
-nothing can read them. `whatsapp-autoresponder`'s only new tool for this is
-`read_file`, scoped via `workspace_dir: whatsapp-uploads` in its yaml, which
-resolves to `<workspace>/<user_id>/whatsapp-uploads/` — the same confinement
-`read_file` gives every other agent (see `src/core/tools/fs_guard.h`), so it
-can never reach anything outside that one folder, including another
-contact's. `read_file` already knows
-how to pull text out of a PDF (`src/core/tools/pdf_extract.cpp`, the same
-code path the web UI's drag-and-drop upload uses) and to hand a PNG/JPEG/
-GIF/WebP image back as multimodal content (`funes::detect_image_mime`,
-`src/core/tools/file_tools.cpp`) for a vision-capable backend to read —
-Funes' own deployment uses a Qwen model with an `--mmproj` file loaded for
-this (see `FUNES_LLM_URL`/the llama-server setup); without a vision-capable
-backend, images are silently ignored by the model the same way they'd be by
-a text-only one. Anything read_file still can't handle (spreadsheets, Word
-docs) comes back as a plain error the model is told to relay honestly
-rather than bluff through. Uploads are deleted automatically once they're
-older than `WHATSAPP_UPLOAD_MAX_AGE_DAYS` (default 30) — see the WhatsApp section
-of `config/funes.conf`.
 
 ---
 
@@ -921,7 +698,8 @@ quietly make recall worse for everyone as accounts were added.
 
 ```
 Funes/
-├── agents/            # agent definitions (funes, researcher, operator, tool-builder, agent-builder…)
+├── agents/            # the seven shipped agents (funes, researcher, operator, file-reviewer,
+│                      # agent-builder, tool-builder, agent-doctor)
 ├── config/            # funes.conf (defaults) + funes.local (secrets, gitignored)
 ├── src/
 │   ├── core/          # llm_client (+ multimodal messages), memory, users + password
@@ -930,19 +708,18 @@ Funes/
 │   │   │              # base64, UTF-8-safety helpers
 │   │   └── tools/     # web_search/fetch, remember/recall, read_result, read/write_file
 │   │                  # (+ PDF extraction), execute_shell, list_scripts/run_script,
-│   │                  # compress_context,
-│   │                  # create_tool/create_agent, delegate_to_agent,
-│   │                  # harvest_candidates/publish_issue,
-│   │                  # write_structured/read_structured/merge_rankings
+│   │                  # compress_context, schedule_job & co.,
+│   │                  # create_tool/create_agent, delegate_to_agent
 │   │                  # (+ generated/, self-registering)
 │   └── server/        # HTTP API + SSE + entry point + the admin user CLI
-├── pipelines/         # one YAML per multi-stage pipeline (stage dirs, names, schemas)
-├── publications/      # one YAML + one voice file per publication
-├── publishing/        # the scripts that render, send and post an issue (Python)
 ├── scriptlib/         # the script library: what an agent may run by name, not by command
 ├── ui/                # web UI (vanilla JS — no build step)
 ├── tests/             # unit tests + mock-LLM integration test
 └── third-party/       # vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json)
+
+Julio's own agents, tools and pipelines (newsletter, VoC council, WhatsApp,
+Gmail, book editor) live in a separate repository, funes-julio, built in as an
+extension — see "Extensions" above.
 ```
 
 ## Lineage

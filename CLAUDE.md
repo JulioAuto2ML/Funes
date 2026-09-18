@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Funes is a self-hosted AI assistant with persistent memory: a single C++17
 binary (`funes`) that serves the web UI, chat API, agent runtime, and a
 SQLite-backed memory engine. No Python/Node/containers/external DB at
-runtime — Python only shows up in `publishing/` (newsletter/social scripts)
-and `scripts/` (WhatsApp autoresponder, benchmarking).
+runtime — Python does not appear at runtime at all; the
+`funes-julio` extension brings its own where it needs it.
 
 As of 4.0 it is multi-user (households and small teams): every `/api/` route
 requires authentication, and memories, conversations, stored tool results,
@@ -55,18 +55,16 @@ Passwords are always prompted, never taken as arguments.
 ## Tests
 
 ```bash
-cd build && ctest --output-on-failure     # all C++ unit tests + publishing suite
+cd build && ctest --output-on-failure     # all C++ unit tests (+ an extension's, if built in)
 ctest -R memory                            # single test, e.g. test_memory.cpp -> `memory`
 bash tests/integration.sh                  # full-stack integration test, mock LLM, no network
-cd publishing && python3 -m pytest         # Python publishing suite directly
 ```
 
 Test names in `ctest -R <name>` are the `test_*.cpp` filename with the
 `test_` prefix stripped (registered in `tests/CMakeLists.txt`). Each unit test
 is a standalone binary with its own `main()` and a minimal `CHECK()` macro —
-no external test framework. `publishing/`'s suite also runs via
-`python3 publishing/publish_newsletter.py --self-test`, the same invocation
-used on the deployment machine, so CI and prod exercise identical assertions.
+no external test framework. With `-DFUNES_EXTENSIONS=...` the extension's
+tests join the same `ctest` run (prefixed `julio_`).
 
 There is no separate lint step; treat `cmake --build build` warnings and
 `ctest` as the correctness gate.
@@ -158,35 +156,27 @@ Two rules there that are easy to undo by accident:
   so every hop is checked — httplib's own `set_follow_location` skips the
   guard, and is off everywhere.
 
-### The newsletter/publishing pipeline is deliberately mostly deterministic
+### Extensions: one operator's tools live outside this repository
 
-`curator` (agent) + `harvest_candidates`/`publish_issue` (tools) +
-`publishing/*.py` (scripts) replaced a 3-agent, 46-step design that failed in
-production (an LLM retyping a URL from memory shipped a broken link). The
-current design's rule: **don't ask the model for what a tool can supply**.
-`harvest_candidates` does all search/dedup/fetch/staleness filtering and
-hands back a numbered pool; the model only *picks by number*; `publish_issue`
-resolves numbers back to URLs itself, re-checks links, renders, sends —
-one call whose exit code is the fact of whether it sent. What's left for the
-model — whether an item is worth running, whether the post is true — is
-partly checked too: each item must carry an `evidence` quote verified
-word-for-word against the page actually fetched. One YAML per publication
-(`publications/*.yaml`) + one prose voice file; the agent never sees the
-config, only a pool and a voice note, so a second publication needs no
-second agent.
+`src/core/extension.h`. A directory passed as `-DFUNES_EXTENSIONS=<dir>` (a
+semicolon-separated list) provides `extension.cmake`, which adds its sources to
+the `funes` executable; each source queues a registration function from a
+static initializer and `main()` runs the queue after the built-in tools, handing
+it `{tools, memory, workspace_dir}` and nothing else. `FUNES_AGENTS_DIR` is
+colon-separated for the same reason, so an extension's `agents/` loads beside
+the repo's seven (later directories shadow earlier ones by name; `create_agent`
+writes into the first). Rule: the core never names an extension's tool, file or
+directory — if a core header needs to know about one, that is a flag on the
+registration (`NativeTool::inline_result` is the example), not a string.
 
-As of 4.1 that same shape is available to any multi-stage pipeline:
-`pipelines/*.yaml` declares each stage's directory, filename template and JSON
-schema, and `write_structured`/`read_structured` derive the path and enforce
-the schema — a stage contract is checked by the runtime instead of restated in
-five system prompts. `merge_rankings` is the other half of the same rule: the
-Borda count `council-chair` used to compute in-context is arithmetic, so it is
-a tool. See `pipelines/README.md`.
-
-See the "Agents" section of the root `README.md` for the full
-incident writeup and `publishing/README.md` for the script-level split
-between what's in the repo (code) and what lives on the sending host (issue
-JSON, run records, secrets, subscriber list — via `$FUNES_PUBLISH_DIR`).
+The first extension is `funes-julio` (sibling repository): the newsletter
+(`harvest_candidates`/`publish_issue`, `publications/`, `publishing/`), the
+VoC pipeline (`write_structured`/`read_structured`/`merge_rankings`,
+`pipelines/`), and the agents that use them plus WhatsApp, Gmail, RSS and the
+book editor. Its README carries the "don't ask the model for what a tool can
+supply" incident write-up that used to be here; the principle stays in the
+core — `answer_schema`, `require_tools`, `tool_limits`, `scriptlib`'s `output:`
+contract — the worked example moved with the code it was about.
 
 ### Scripts an agent may run
 
@@ -205,7 +195,7 @@ Three things to keep straight when touching this:
 
 - **`scripts:` denies by default.** Empty or absent means *no scripts*, the
   opposite of `tools:`. A file appearing in a directory must not become
-  runnable by eighteen agents; each grant is written down. `ToolContext`
+  runnable by every agent; each grant is written down. `ToolContext`
   defaults the list to empty for the same reason — a call site that doesn't
   know about scripts grants none rather than all.
 - **The model supplies arguments, never a command.** Declared parameters
@@ -293,8 +283,8 @@ capped run that re-asked the questions it already answered would never reach
 the end of the pool.
 
 Each agent has an isolated memory namespace by name unless it sets
-`memory_scope:` to share another agent's pool (used by
-`whatsapp-autoresponder` to share `funes`'s memory). That is orthogonal to
+`memory_scope:` to share another agent's pool (the funes-julio
+WhatsApp autoresponder uses it to share `funes`'s memory). That is orthogonal to
 the per-user scoping below: `memory_scope` picks *which agent's* pool,
 `user_id` picks *whose*.
 
@@ -389,7 +379,7 @@ default password. `PUT /api/me/locale` sets the caller's own language and nobody
 route taking a user id would be account administration wearing a preference's
 clothes, and that lives in the CLI. The agent runtime appends the
 reply-language instruction itself (`AgentDefaults::user_locale`, resolved per
-run from `UserStore`), rather than each of the eighteen agent YAMLs carrying
+run from `UserStore`), rather than each agent YAML carrying
 it: a locale change then takes effect everywhere at once and no prompt can be
 left behind. English appends nothing — every prompt in the repo is already
 English, so saying it again spends context to change nothing.
@@ -424,26 +414,25 @@ failure surfaces at whichever fires first.
 ## Directory map
 
 ```
-agents/        agent YAML definitions (see agents/README.md)
+agents/        the seven shipped agent YAMLs (see agents/README.md)
 config/        funes.conf (committed defaults) + funes.local (gitignored secrets)
-pipelines/     one YAML per multi-stage pipeline (stage dirs, filenames, schemas)
-publications/  one YAML + one voice file per publication
-publishing/    Python scripts that render/send/post an issue
 scriptlib/     central script library: what agents may run by name (see scriptlib/README.md)
-scripts/       operational scripts + systemd units (WhatsApp bridge/autoresponder, benchmarking)
-src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety)
+src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety, extension hook)
 src/core/tools/  individual tool implementations
 src/server/    HTTP API + SSE + entry point + the admin user CLI
 tests/         C++ unit tests + bash integration test + mock LLM
-third-party/   vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json), whatsapp-mcp, imap-email-mcp
+third-party/   vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json)
 ui/            web UI (vanilla JS)
+
+Not here any more (5.1): pipelines/, publications/, publishing/, scripts/, the
+WhatsApp and IMAP MCP servers, and eleven agents — all in the funes-julio
+extension repository.
 ```
 
 Nearly every directory has its own `README.md` with more detail than this
 file carries — read the local one before making non-trivial changes in that
 area (`src/core/README.md`, `src/core/tools/README.md`, `src/server/README.md`,
-`agents/README.md`, `config/README.md`, `pipelines/README.md`,
-`publishing/README.md`, `scriptlib/README.md`, `tests/README.md`,
-`scripts/README.md`).
+`agents/README.md`, `config/README.md`, `scriptlib/README.md`,
+`tests/README.md`).
 
 `docs/ROADMAP.md` says what is being built next and in what order.

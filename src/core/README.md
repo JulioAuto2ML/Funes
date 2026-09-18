@@ -60,11 +60,11 @@ produces text and tool calls; this code decides whether to execute them.
 | `cron_runner.h/cpp` | Background poll thread that fires due cron jobs: agent tasks, library scripts (`kind="script"`, dispatched through the `run_script` tool so a scheduled run passes exactly the checks an interactive one does, with the grant and the owner's permissions re-resolved at fire time), or shell commands. |
 | `cron_schedule.h/cpp` | Pure-function cron expression parser and next-run calculator. |
 
-### Publishing
+### Extensions
 
 | File | Purpose |
 |---|---|
-| `publication.h/cpp` | Loads publication configs (queries, artifacts, channels) from `publications/*.yaml`. |
+| `extension.h/cpp` | Registration queue for native tools compiled in from another repository (`-DFUNES_EXTENSIONS`). Static initializers queue; `main()` applies once with `{tools, memory, workspace_dir}`. The newsletter and pipeline modules that used to sit here (`publication`, `pipeline`, `harvest`, `issue`, `structured`, `rankings`) are the first extension, `funes-julio`. |
 
 ### Utilities
 

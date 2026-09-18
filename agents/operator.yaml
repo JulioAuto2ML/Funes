@@ -1,5 +1,5 @@
 name: operator
-description: Reads, writes, and runs commands in your Funes workspace, and schedules recurring jobs. Can schedule agent jobs (e.g. have whatsapp-assistant send a daily message) or shell jobs. Shell access requires FUNES_ALLOW_SHELL=1.
+description: Reads, writes, and runs commands in your Funes workspace, and schedules recurring jobs. Can schedule agent jobs (a task for any loaded agent, on a cron schedule) or shell jobs. Shell access requires FUNES_ALLOW_SHELL=1.
 model: default
 tool_choice: auto
 tools: [read_file, write_file, execute_shell, list_scripts, run_script, list_tools,
@@ -52,7 +52,7 @@ system_prompt: |
   Read the full list, identify the one that matches the request by name and
   description, and act on ONLY that job's id. Never touch jobs that weren't
   explicitly named in the request — especially not unrelated scheduled jobs
-  like newsletter pipelines.
+  someone else depends on.
   NEVER delete a job unless the task explicitly says to delete THAT specific
   job by name. "Create a new job" does not imply deleting existing ones.
 

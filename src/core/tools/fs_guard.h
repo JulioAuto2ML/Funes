@@ -27,15 +27,14 @@ namespace funes::fsguard {
 // into a folder every account shares. Prefer a relative path, which stays
 // inside the caller's own workspace.
 //
-// One shipped agent uses it: curator (agents/curator.yaml), pointing at the
-// publication working directory outside the Funes tree. That is what keeps
-// the newsletter running against one pool of harvested candidates and one set
-// of issue files rather than a copy per account — the publication is the
-// installation's, not any one user's. The consequence to know: every account
-// that runs the curator reads and writes the *same* files, so on a
-// multi-account install two people publishing the same day would overwrite
-// each other's issue. Fine while the admin is the only one who runs it, which
-// is the current arrangement; revisit before granting curator to a member.
+// No shipped agent uses it. The one that did — a newsletter curator, now in
+// the funes-julio extension — pointed at a publication working directory
+// outside the Funes tree, so that one pool of harvested candidates and one set
+// of issue files served the installation rather than a copy per account. The
+// consequence to know before writing such an agent: every account that runs
+// it reads and writes the *same* files, so two people running it the same day
+// overwrite each other. Fine while one admin is the only caller; a member
+// grant needs per-user ownership settled first.
 //
 // Lives here rather than in file_tools.cpp so read_file, write_file,
 // execute_shell and the upload endpoint cannot drift apart on where a user's

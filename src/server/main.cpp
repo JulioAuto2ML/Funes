@@ -14,9 +14,8 @@
 #include "permissions.h"
 #include "tools.h"
 #include "tools/cron_tool.h"
-#include "tools/harvest.h"
 #include "tools/http_tool_runtime.h"
-#include "tools/issue.h"
+#include "extension.h"
 #include "tools/process_runner.h"
 #include "mcp_stdio_client.h"
 #include "maint_cli.h"
@@ -204,22 +203,28 @@ int main(int argc, char** argv) {
     const std::string host          = funes::env("FUNES_HOST", "127.0.0.1");
     const int         port          = funes::env_int("FUNES_PORT", 8484);
     const std::string default_agent = funes::env("FUNES_DEFAULT_AGENT", "funes");
-    const std::string agents_dir    = resolve_dir(funes::env("FUNES_AGENTS_DIR"), "agents");
+    // Colon-separated: the repo's agents/ plus an extension's, say. The first
+    // entry is where create_agent writes; every entry is loaded, later ones
+    // shadowing earlier ones on a name collision (api.cpp::load_agents).
+    std::string agents_dir;
+    {
+        const std::string configured = funes::env("FUNES_AGENTS_DIR");
+        if (configured.empty()) {
+            agents_dir = resolve_dir("", "agents");
+        } else {
+            size_t pos = 0;
+            while (pos <= configured.size()) {
+                size_t end = configured.find(':', pos);
+                if (end == std::string::npos) end = configured.size();
+                const std::string one = configured.substr(pos, end - pos);
+                if (!one.empty()) agents_dir += (agents_dir.empty() ? "" : ":") + resolve_dir(one, "agents");
+                pos = end + 1;
+            }
+        }
+    }
     const std::string ui_dir        = resolve_dir(funes::env("FUNES_UI_DIR"), "ui");
     const std::string generated_tools_dir = resolve_dir(
         funes::env("FUNES_GENERATED_TOOLS_DIR"), "src/core/tools/generated");
-    // The publishing scripts publish_issue runs. In the repo, deployed by the
-    // same `git pull` as the binary — see publishing/README.md.
-    const std::string publishing_dir = resolve_dir(funes::env("FUNES_PUBLISHING_DIR"),
-                                                   "publishing");
-    // One YAML per publication: queries, windows, caps, artifacts, channels.
-    const std::string publications_dir = resolve_dir(funes::env("FUNES_PUBLICATIONS_DIR"),
-                                                     "publications");
-    // One YAML per multi-stage pipeline: where each stage's entries go and what
-    // shape they have. Read per call by write_structured/read_structured, so a
-    // new pipeline is live without a restart — see src/core/pipeline.h.
-    const std::string pipelines_dir = resolve_dir(funes::env("FUNES_PIPELINES_DIR"),
-                                                  "pipelines");
     // The script library: one manifest + one executable file per script, and
     // the only place run_script will start anything from. Outside every
     // workspace on purpose — no agent-driven tool can read, edit or add a
@@ -324,13 +329,15 @@ int main(int argc, char** argv) {
     register_file_tools(tools, workspace_dir);
     register_shell_tool(tools, workspace_dir);
     register_script_tools(tools, workspace_dir, scripts_dir);
-    register_harvest_tool(tools, memory, workspace_dir, publications_dir);
-    register_publish_issue_tool(tools, workspace_dir, publishing_dir,
-                                publications_dir);
-    register_structured_tools(tools, workspace_dir, pipelines_dir);
-    register_ranking_tools(tools);
     funes::tools::register_all_generated_tools(tools);
     register_tool_builder(tools, generated_tools_dir);
+    // Out-of-tree native tools (see src/core/extension.h). Nothing here knows
+    // what they are; each was compiled in by -DFUNES_EXTENSIONS and queued
+    // itself from a static initializer.
+    {
+        const size_t n = funes::ext::register_all_extensions({tools, memory, workspace_dir});
+        if (n > 0) std::cerr << "[funes] " << n << " extension(s) registered tools\n";
+    }
 
     FunesApi api(tools, memory, users, defaults, agents_dir, ui_dir, default_agent,
                  workspace_dir, service_token);
@@ -370,7 +377,9 @@ int main(int argc, char** argv) {
 
     // create_agent needs to trigger a live reload after writing a new agent
     // YAML, so it's wired up once FunesApi (which owns the agent table) exists.
-    register_agent_builder(tools, agents_dir, [&api] { api.load_agents(); });
+    // create_agent writes into the first agents directory only.
+    register_agent_builder(tools, agents_dir.substr(0, agents_dir.find(':')),
+                           [&api] { api.load_agents(); });
 
     // delegate_to_agent needs to look up other personas by name — also
     // wired up post-construction since FunesApi owns the agent table.
