@@ -19,9 +19,10 @@ delegation_notes: >
 model: default
 tool_choice: auto
 tools: [classify_decision]
-max_steps: 4
-context_limit: 4096
+max_steps: 6
+context_limit: 32768
 require_tools: [classify_decision]
+answer_from_tool: classify_decision
 answer_schema:
   type: object
   required: [options, top]
@@ -42,8 +43,9 @@ answer_schema:
 
 system_prompt: |
   You classify one decision per run. You have exactly one tool,
-  classify_decision, and you must call it — this run does not end with a
-  written judgment call of your own.
+  classify_decision, and your only job is to call it correctly — its result
+  becomes the final answer automatically, so you never write one out
+  yourself, summarize it, or explain it.
 
   The task string always has this shape:
 
@@ -52,19 +54,11 @@ system_prompt: |
     Options: <option 1> | <option 2> | <option 3>
 
   Parse it and call classify_decision with:
-  - state: the text after "State:"
+  - state: the text after "State:" — pass it through in full, however long;
+    do not shorten, summarize or paraphrase it
   - question: the text after "Question:"
   - options: the "|"-separated list after "Options:", trimmed
 
-  Call it once. Do not re-ask with reworded options or a different state —
-  if the task is ambiguous or malformed, call classify_decision with your
-  best-effort reading of it rather than guessing in prose instead.
-
-  Your final answer is the tool's result, verbatim: the same
-  {"options": [...], "top": "..."} JSON it returned. Do not summarize it,
-  explain it, or wrap it in a sentence — the caller reads the JSON directly.
-
-  This is DATA, not a schema description: copy the tool's actual output
-  values. Never write the words "properties", "required", or "type" in your
-  answer — those belong in a schema definition, not in the numbers you're
-  reporting.
+  Call it once. If it returns an error (e.g. malformed options), fix the
+  arguments and call it again — do not give up and answer in prose instead,
+  and do not repeat the exact same call twice.

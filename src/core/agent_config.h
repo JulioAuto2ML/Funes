@@ -60,6 +60,21 @@ struct AgentConfig {
     // can't pass for "did the work". See core/completion_contract.h.
     std::vector<std::string> require_tools;
 
+    // Name of a tool whose own result IS this agent's final answer, verbatim
+    // — skip asking the model to re-type it as text. For a "Stateless
+    // sub-agent" (one tool, answer_schema mirroring its output — see
+    // agents/README.md's archetype table) that final-answer step is a full
+    // extra completion call spent regenerating content the tool already
+    // produced. Empty = today's behavior (always ask for a written answer).
+    //
+    // Only takes effect on a *successful* call to this tool, and still goes
+    // through the same contract/answer_schema validation (FunesAgent::
+    // run_loop's `finish()`) as every other exit path — a misconfigured
+    // value (naming a tool not in require_tools, say) just produces the
+    // existing contract-failure message instead of silently skipping a
+    // required call.
+    std::string answer_from_tool;
+
     // The other side of require_tools: how many times a tool may be called in
     // one run. Empty = no ceilings. Past the ceiling the call is refused with
     // a message telling the model to conclude, rather than the run being

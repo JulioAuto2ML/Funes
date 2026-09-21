@@ -15,7 +15,7 @@ allowlist, and a handful of knobs, not an independent binary or container.
 | `agent-doctor` | Diagnoses and fixes broken agents. | read_file, delegate_to_agent, create_agent | 16 |
 | `tool-builder` | Scaffolds new HTTP-template tools via interview. | create_tool | 8 |
 | `file-reviewer` | Reviews an uploaded document and reports on it. | read_file, remember | 10 |
-| `classifier` | Fast typed decisions: probability per option, no free text. | classify_decision | 4 |
+| `classifier` | Fast typed decisions: probability per option, no free text. | classify_decision | 6 |
 
 That is the whole shipped roster, and it is meant to be. An agent that needs
 a mailbox, a phone number or a subscriber list is one installation's, not the
@@ -79,6 +79,13 @@ system_prompt: |
 
 # Optional safety mechanisms
 require_tools: [some_tool]        # completion contract
+answer_from_tool: some_tool       # that tool's own result IS the final
+                                   # answer — skip the completion call that
+                                   # would otherwise have the model re-type
+                                   # it. Only fires on a successful call to
+                                   # this tool; still validated against
+                                   # require_tools/answer_schema below like
+                                   # every other exit path.
 tool_limits:                      # per-tool call ceilings
   web_search: 3
 answer_schema:                    # JSON shape enforcement
@@ -156,7 +163,7 @@ when you can say what went wrong at the old value.
 | **Orchestrator** | Talks to the user, delegates the work. `funes`, `agent-doctor`. | 8 | `delegate_to_agent: 3`, `web_search: 2` | auto | Low on purpose: an orchestrator that searches is an orchestrator doing the specialist's job badly. |
 | **Researcher** | Gathers from the outside world, then synthesizes. `researcher`, `file-reviewer`. | 16-20 | `web_search: 4-6`, `web_fetch: 6-8` | auto | The cap exists because a model that hasn't found the answer searches again rather than concluding. Leave room after the cap for the synthesis step. |
 | **Pipeline worker** | Reads a stage, produces the next one. None ship here -- this is the shape an extension's multi-stage work takes. | 12-24 | Per tool, sized to the stage | auto | Prefer `require_tools` over a high ceiling: say what must succeed, don't just allow more attempts. A tool whose refusal is recoverable (a schema rejection, say) needs no cap -- retrying it is the correct behaviour. |
-| **Stateless sub-agent** | One judgement, no side effects. `classifier`. | 4 | none needed | auto | Give it an `answer_schema` and few or no tools. Its output is consumed by a tool or another agent, so shape matters more than length. |
+| **Stateless sub-agent** | One judgement, no side effects. `classifier`. | 4-6 | none needed | auto | Give it an `answer_schema` and `answer_from_tool` naming its one tool — few or no tools otherwise. Its output is consumed by a tool or another agent, so shape matters more than length. |
 
 Two rules that apply to all four:
 

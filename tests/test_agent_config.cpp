@@ -21,6 +21,7 @@ model: some-model
 tool_choice: required
 tools: [web_search, recall]
 require_tools: [write_file, execute_shell]
+answer_from_tool: write_file
 max_steps: 3
 context_limit: 2048
 system_prompt: |
@@ -42,6 +43,7 @@ memory_scope: funes
     CHECK(cfg.tool_choice == "required");
     CHECK(cfg.tools.size() == 2 && cfg.tools[0] == "web_search");
     CHECK(cfg.require_tools.size() == 2 && cfg.require_tools[1] == "execute_shell");
+    CHECK(cfg.answer_from_tool == "write_file");
     CHECK(cfg.max_steps == 3);
     CHECK(cfg.context_limit == 2048);
     CHECK(cfg.system_prompt.find("Prompt line.") != std::string::npos);
@@ -61,6 +63,7 @@ memory_scope: funes
     CHECK(min.tool_choice == "auto");
     CHECK(min.tools.empty());
     CHECK(min.require_tools.empty());   // no contract unless asked for
+    CHECK(min.answer_from_tool.empty());  // ...nor a tool-result shortcut
     CHECK(min.answer_schema.is_null());  // ...nor an answer schema
     CHECK(min.max_steps == 8);
     CHECK(min.memory_scope == "minimal");  // unset → own name, i.e. isolated by default

@@ -875,6 +875,17 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 else               satisfied.erase(key);
             }
 
+            // answer_from_tool: this tool's own result IS the final answer —
+            // skip the completion call that would otherwise have the model
+            // re-type it. Still routed through finish(), which re-checks the
+            // contract and answer_schema, so a misconfigured value (naming a
+            // tool not actually in require_tools, say) fails the same way an
+            // unmet contract always does rather than silently short-circuiting.
+            if (!result.error && !cfg_.answer_from_tool.empty()
+                && tc.name == cfg_.answer_from_tool) {
+                return finish(result.text);
+            }
+
             // Large results go to the store and the transcript carries a
             // preview instead (see core/result_store.h). Errors are left alone:
             // they're short, and their text is what the model needs to recover.

@@ -55,6 +55,15 @@ require_tools: [write_file]
 max_steps: 6
 system_prompt: Write the file you are asked for.
 YAML
+cat > "$AGENTS/answer-from-tool-tester.yaml" <<'YAML'
+name: answer-from-tool-tester
+description: Test fixture — recall's own result should become the final answer directly, with no second completion call to narrate it.
+tools: [recall]
+require_tools: [recall]
+answer_from_tool: recall
+max_steps: 4
+system_prompt: Call recall, then stop.
+YAML
 cat > "$AGENTS/perm-tester.yaml" <<'YAML'
 name: perm-tester
 description: Test fixture — offers one privileged tool and one ordinary one, so a run can report which of them survived the caller's permissions.
@@ -208,6 +217,18 @@ OUT=$(curl -s -N -X POST "$BASE/api/chat" \
 check "tool_call event"    "$OUT" 'event: tool_call'
 check "tool_result event"  "$OUT" 'event: tool_result'
 check "loop completed"     "$OUT" 'with-tool-result'
+
+echo "— chat (SSE, answer_from_tool skips the narration completion)"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"please use-tool now","session":"it-session-answer-from-tool","agent":"answer-from-tool-tester"}')
+check "tool_call event"   "$OUT" 'event: tool_call'
+check "tool_result event" "$OUT" 'event: tool_result'
+check "done event"        "$OUT" 'event: done'
+# "MOCK-REPLY" only ever appears in the mock's SECOND-call narration text (the
+# first call, matching "use-tool", returns a tool call with null content) — so
+# its absence here is only possible if that second completion call was never
+# made at all, i.e. answer_from_tool actually shortcut the run.
+check_absent "no narration completion was made" "$OUT" 'MOCK-REPLY'
 
 echo "— chat (SSE, delegate_to_agent — orchestration + persist=false)"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \

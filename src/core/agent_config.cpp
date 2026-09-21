@@ -75,6 +75,8 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
             cfg.require_tools.push_back(t.as<std::string>());
     }
 
+    cfg.answer_from_tool = root["answer_from_tool"] ? root["answer_from_tool"].as<std::string>() : "";
+
     // tool_limits: { web_search: 5 } — see core/tool_budget.h.
     if (root["tool_limits"] && root["tool_limits"].IsMap()) {
         for (const auto& kv : root["tool_limits"])
