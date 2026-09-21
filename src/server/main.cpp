@@ -363,6 +363,7 @@ int main(int argc, char** argv) {
     register_memory_tools(tools, memory);
     register_result_tools(tools, memory);
     register_context_tools(tools, memory, defaults);
+    register_classify_decision_tool(tools, defaults);
     register_introspection_tools(tools);
     register_file_tools(tools, workspace_dir);
     register_shell_tool(tools, workspace_dir);

@@ -22,7 +22,9 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <regex>
 #include <sstream>
@@ -505,6 +507,94 @@ CompletionResponse LLMClient::complete_openai(
     }
 
     recover_tool_calls_from_content(out, /*tools_withheld=*/tool_choice_ == "none");
+    return out;
+}
+
+// ── Typed-decision path (classify_decision) ────────────────────────────────────
+// Hits llama.cpp's native /completion, not /v1/chat/completions: that's the
+// endpoint that returns per-token logprobs (n_probs) and honours cache_prompt
+// + id_slot for KV-cache reuse across calls sharing a prompt prefix.
+//
+// The top-level array name has changed across llama.cpp server versions:
+// older/currently-deployed builds (verified 2026-09-21 against yoda's
+// Qwen3.8-9B-Q8_0 build) return "completion_probabilities"; the schema
+// documented in ggml-org/llama.cpp's current tools/server/README.md renamed
+// it to "probs". Both are checked, in that order, so an upgrade on the
+// serving side doesn't silently zero every result — the inner shape (a
+// "top_logprobs" array of {token, logprob} alternatives per generated
+// token) is the same in both.
+std::vector<LabelProb> LLMClient::label_probs(
+    const std::string& prompt,
+    const std::vector<std::string>& candidates,
+    const std::string& cache_id,
+    int n_probs)
+{
+    if (provider_ != "openai")
+        throw std::runtime_error("label_probs requires a llama.cpp-style backend "
+                                  "(the Anthropic API exposes no logprobs)");
+
+    json body = {
+        {"prompt",       prompt},
+        {"n_predict",    1},
+        {"n_probs",      n_probs},
+        {"cache_prompt", true},
+        // Pins every call for the same decision to one slot so the second
+        // (reversed-order) pass reuses the first pass's cached prefix rather
+        // than recomputing it on whatever idle slot it happens to land on.
+        {"id_slot",      static_cast<int>(std::hash<std::string>{}(cache_id) % 4)},
+        {"temperature",  0.0}
+    };
+    const std::string path = base_path_ + "/completion";
+    auto result = do_post(https_, host_, port_, path, openai_headers(api_key_), funes::dump_safe(body));
+
+    if (!result)
+        throw std::runtime_error("HTTP request failed: " +
+            std::string(httplib::to_string(result.error())));
+    if (result->status != 200)
+        throw std::runtime_error("LLM API error " +
+            std::to_string(result->status) + ": " + result->body);
+
+    json resp;
+    try { resp = json::parse(result->body); }
+    catch (const json::exception& e) {
+        throw std::runtime_error("Invalid JSON from LLM: " + std::string(e.what()));
+    }
+
+    std::vector<LabelProb> out;
+    for (const auto& label : candidates) out.push_back({label, 0.0});
+
+    const json* probs_array = nullptr;
+    if (resp.contains("completion_probabilities") && resp["completion_probabilities"].is_array())
+        probs_array = &resp["completion_probabilities"];
+    else if (resp.contains("probs") && resp["probs"].is_array())
+        probs_array = &resp["probs"];
+
+    if (!probs_array || probs_array->empty()) {
+        std::cerr << "[llm_client] WARNING: label_probs got no per-token probabilities from "
+                     "the server (neither 'completion_probabilities' nor 'probs' in the "
+                     "response) — is this a llama.cpp-family /completion endpoint, and was "
+                     "n_probs > 0 honoured?\n";
+        return out;
+    }
+
+    const json& alternatives = (*probs_array)[0].value("top_logprobs", json::array());
+    std::vector<double> raw(candidates.size(), 0.0);
+    for (const auto& alt : alternatives) {
+        const std::string tok = alt.value("token", "");
+        for (size_t i = 0; i < candidates.size(); ++i) {
+            if (tok == candidates[i]) { raw[i] = std::exp(alt.value("logprob", -1e9)); break; }
+        }
+    }
+    double total = 0.0;
+    for (double v : raw) total += v;
+    if (total > 0.0) {
+        for (size_t i = 0; i < candidates.size(); ++i) out[i].probability = raw[i] / total;
+    } else {
+        std::cerr << "[llm_client] WARNING: none of the candidate labels appeared in the "
+                     "top " << n_probs << " tokens for label_probs — raise n_probs or check "
+                     "that each candidate is a single token (including a leading space, if "
+                     "the prompt doesn't end with one — e.g. \" A\" not \"A\")\n";
+    }
     return out;
 }
 

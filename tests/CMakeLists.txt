@@ -61,6 +61,14 @@ add_executable(test_llm_client_images test_llm_client_images.cpp)
 target_link_libraries(test_llm_client_images PRIVATE funes_core)
 add_test(NAME llm_client_images COMMAND test_llm_client_images)
 
+add_executable(test_label_probs test_label_probs.cpp)
+target_link_libraries(test_label_probs PRIVATE funes_core)
+add_test(NAME label_probs COMMAND test_label_probs)
+
+add_executable(test_classify_decision test_classify_decision.cpp)
+target_link_libraries(test_classify_decision PRIVATE funes_core)
+add_test(NAME classify_decision COMMAND test_classify_decision)
+
 add_executable(test_delegation test_delegation.cpp)
 target_link_libraries(test_delegation PRIVATE funes_core)
 add_test(NAME delegation COMMAND test_delegation)

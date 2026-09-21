@@ -20,6 +20,7 @@ hop, no protocol overhead.
 | `list_scripts` | `script_tools.cpp` | Lists the scripts the calling agent is granted, with the arguments each takes. |
 | `run_script` | `script_tools.cpp` | Runs one script from the central library by name, with declared parameters passed as argv, and checks its output against the shape the manifest declares. Per-agent allowlist (`scripts:` in agent YAML); no shell, no global switch. |
 | `compress_context` | `context_tools.cpp` | Folds old conversation turns into a summary to free context space. |
+| `classify_decision` | `classify_decision.cpp` | Reflex/Jev-style typed decision: probability per option from the model already loaded for chat, via `LLMClient::label_probs` — no free-text generation, two option orderings averaged to cancel position bias. |
 | `read_result` | `result_tools.cpp` | Reads a windowed portion of a large stored tool result. |
 | `list_tools` | `introspection.cpp` | Lists every registered tool with its description. |
 | `delegate_to_agent` | `delegation.cpp` | Hands a task to a specialist agent. Self-delegation refused, depth-2 cap. |

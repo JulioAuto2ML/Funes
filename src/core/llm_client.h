@@ -63,6 +63,14 @@ struct CompletionResponse {
     int                   completion_tokens = 0;
 };
 
+// One candidate label and the probability mass the model assigned it,
+// restricted to the requested candidate set (not the full vocabulary) — see
+// LLMClient::label_probs.
+struct LabelProb {
+    std::string label;
+    double      probability = 0.0;
+};
+
 // Called with each text fragment as the model generates it. Only text content
 // is streamed; tool-call arguments are accumulated internally and returned in
 // the CompletionResponse.
@@ -98,6 +106,40 @@ public:
 
     const std::string& model()    const { return model_; }
     const std::string& provider() const { return provider_; }
+
+    // Reads next-token probabilities for a small set of candidate labels
+    // instead of generating text — one forward pass, no decoding loop. This
+    // is the classify_decision tool's primitive: a Reflex/Jev-style typed
+    // decision read off the model already loaded for chat, not a second one.
+    //
+    // Only meaningful against a llama.cpp-family backend: it calls the
+    // native /completion endpoint (not /v1/chat/completions), which is the
+    // one that exposes per-token logprobs. Throws immediately for the
+    // Anthropic provider, which exposes none.
+    //
+    // prompt:     raw text ending exactly where the label token belongs — no
+    //             chat template is applied, the caller controls every byte.
+    // candidates: exact strings that count as valid answers, e.g.
+    //             {"A","B","C"}. Must each be a single token in the served
+    //             model's tokenizer, or a candidate silently reads back as a
+    //             lower probability than it should (its multi-token form
+    //             never appears as a single top_logprobs entry).
+    // cache_id:   opaque key so repeated calls sharing the same prompt
+    //             prefix (e.g. two option orderings of the same state) land
+    //             on the same llama-server slot and reuse its KV cache
+    //             instead of recomputing the shared prefix from scratch.
+    // n_probs:    how many of the server's top-logprob tokens to request;
+    //             must be large enough that every candidate appears, or its
+    //             probability silently reads as 0 (logged as a warning).
+    // Returns one LabelProb per candidate, in the order given, normalized to
+    // sum to 1 over just the candidate set — the leftover mass ("none of
+    // these") is discarded, the same way Reflex does.
+    // Throws std::runtime_error on HTTP or JSON errors, like complete().
+    std::vector<LabelProb> label_probs(
+        const std::string& prompt,
+        const std::vector<std::string>& candidates,
+        const std::string& cache_id,
+        int n_probs = 40);
 
 private:
     std::string host_;

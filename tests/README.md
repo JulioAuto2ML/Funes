@@ -44,6 +44,8 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 | `test_base64` | RFC 4648 vectors, roundtrip, binary with NUL |
 | `test_meta_tools` | list_tools, create_tool, create_agent |
 | `test_llm_client_images` | Multipart image wire format |
+| `test_label_probs` | `LLMClient::label_probs`: native `/completion` wire format, normalization over just the candidate set (non-candidate tokens and leftover mass excluded), the zero-match case, Anthropic-provider refusal |
+| `test_classify_decision` | `classify_decision` tool: schema shape, argument validation, that a content-blind mock (always favors whichever option is labeled "A") washes out to ~uniform once both option orderings are averaged, that a content-tracking mock's signal survives averaging, LLM failure surfaced as an error result |
 
 ## Integration test
 

@@ -144,3 +144,5 @@ void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const Agen
                               std::function<AgentConfig(const std::string&)> find_agent,
                               std::function<std::vector<std::string>()> list_agent_names);
                                                                      // delegate_to_agent
+void register_classify_decision_tool(ToolRegistry& reg,
+                                     const AgentDefaults& defaults);  // classify_decision

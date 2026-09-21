@@ -106,6 +106,7 @@ add_library(funes_core STATIC
     src/core/tools/memory_tools.cpp
     src/core/tools/result_tools.cpp
     src/core/tools/context_tools.cpp
+    src/core/tools/classify_decision.cpp
     src/core/tools/introspection.cpp
     src/core/tools/tool_builder.cpp
     src/core/tools/agent_builder.cpp
