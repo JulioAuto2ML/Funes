@@ -24,5 +24,8 @@ config/funes.local
 # ctest scratch, written when ctest is run from the repo root
 Testing/
 
+# JevBench run output — a point-in-time artifact of one model/config
+benchmarks/jevbench/results/
+
 # Claude Code local scratch (agent worktrees, local settings)
 .claude/
