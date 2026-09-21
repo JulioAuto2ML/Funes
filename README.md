@@ -592,7 +592,7 @@ The extension's tools register beside the built-ins with the same registry,
 memory store and workspace root, and nothing else; its agents load from a
 second `agents/` directory (`FUNES_AGENTS_DIR` is colon-separated, later
 entries shadow earlier ones by name); its configuration is its own. A core
-build with no extension has seven agents and no publishing pipeline, and every
+build with no extension has eight agents and no publishing pipeline, and every
 test still passes.
 
 To give an agent tools from an external MCP server, over HTTP+SSE:
@@ -695,8 +695,8 @@ quietly make recall worse for everyone as accounts were added.
 
 ```
 Funes/
-├── agents/            # the seven shipped agents (funes, researcher, operator, file-reviewer,
-│                      # agent-builder, tool-builder, agent-doctor)
+├── agents/            # the eight shipped agents (funes, researcher, operator, file-reviewer,
+│                      # agent-builder, tool-builder, agent-doctor, classifier)
 ├── config/            # funes.conf (defaults) + funes.local (secrets, gitignored)
 ├── src/
 │   ├── core/          # llm_client (+ multimodal messages), memory, users + password

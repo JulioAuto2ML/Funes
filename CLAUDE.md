@@ -421,7 +421,7 @@ failure surfaces at whichever fires first.
 ## Directory map
 
 ```
-agents/        the seven shipped agent YAMLs (see agents/README.md)
+agents/        the eight shipped agent YAMLs (see agents/README.md)
 config/        funes.conf (committed defaults) + funes.local (gitignored secrets)
 scriptlib/     central script library: what agents may run by name (see scriptlib/README.md)
 src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety, extension hook)
