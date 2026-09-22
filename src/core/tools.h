@@ -63,6 +63,17 @@ struct ToolContext {
     // rather than unrestricted for the same reason, so a call site that
     // doesn't know about scripts grants none instead of all.
     std::vector<std::string> scripts;
+    // The message that started this run, verbatim — set once by
+    // FunesAgent::run from its own user_message parameter, at the exact
+    // point ctx is built, before the tool-calling loop starts. A tool that
+    // knows its caller's task follows a fixed convention (e.g.
+    // classify_decision's "State:/Question:/Options:") can parse what it
+    // needs from here instead of requiring the model to re-type a
+    // potentially large argument it already received as this same text.
+    // Not a constructor parameter — added as a plain field so no existing
+    // positional ToolContext(...) call site needs updating; left empty
+    // there is simply nothing to fall back to.
+    std::string task_text;
 
     ToolContext(std::string agent_, std::string session_,
                 std::string workspace_dir_ = "", std::string memory_scope_ = "",

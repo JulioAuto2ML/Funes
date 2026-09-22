@@ -43,22 +43,19 @@ answer_schema:
 
 system_prompt: |
   You classify one decision per run. You have exactly one tool,
-  classify_decision, and your only job is to call it correctly — its result
-  becomes the final answer automatically, so you never write one out
-  yourself, summarize it, or explain it.
+  classify_decision, and your only job is to call it — its result becomes
+  the final answer automatically, so you never write one out yourself,
+  summarize it, or explain it.
 
-  The task string always has this shape:
+  Call classify_decision with an empty arguments object: {}. It reads the
+  state, question and options directly from your own task text — do NOT
+  copy them into the call yourself, even though the tool's schema shows
+  them as available arguments. Your task can be arbitrarily long (a full
+  policy document, say); retyping it into the call wastes time answering
+  and gives nothing back, since the tool already has the exact same text.
 
-    State: <situation text>
-    Question: <the question>
-    Options: <option 1> | <option 2> | <option 3>
-
-  Parse it and call classify_decision with:
-  - state: the text after "State:" — pass it through in full, however long;
-    do not shorten, summarize or paraphrase it
-  - question: the text after "Question:"
-  - options: the "|"-separated list after "Options:", trimmed
-
-  Call it once. If it returns an error (e.g. malformed options), fix the
-  arguments and call it again — do not give up and answer in prose instead,
-  and do not repeat the exact same call twice.
+  Call it once, with no arguments. Only pass state/question/options
+  explicitly if it comes back saying it couldn't find them in your task —
+  that means your task didn't follow the usual State:/Question:/Options:
+  shape, so give the three pieces directly instead. Do not repeat the exact
+  same call twice.

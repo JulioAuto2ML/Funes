@@ -76,12 +76,23 @@ python3 run_benchmark.py summarize \
   --dataset datasets/original.jsonl \
   --results /tmp/jevbench_smoke.jsonl
 
-# the real run — all 231 public items. Measured against yoda's
-# Qwen3.8-9B-Q8_0 (2026-09-21): ~12-19s per item — a full /api/chat round
-# trip through the agent loop, not classify_decision's own two forward
-# passes (see "What's measured" below) — so expect on the order of an hour,
-# not minutes. This is real load on whatever LLM backs the instance — don't
-# point it at a shared production model during hours real usage matters.
+# the real run — all 231 public items. The timing note below predates two
+# fixes landed 2026-09-22 (classifier's context_limit/max_steps sizing, and
+# classify_decision reading state/question/options from the caller's own
+# task text instead of requiring the model to retype them — see
+# agents/classifier.yaml and ToolContext::task_text in ../../src/core/
+# tools.h) — a fresh full run's numbers supersede it whenever one is done.
+# This is real load on whatever LLM backs the instance — don't point it at
+# a shared production model during hours real usage matters.
+#
+# Measured against yoda's Qwen3.8-9B-Q8_0 pre-fix (2026-09-21): ~12-19s per
+# item on easy/original, up to ~233s average on long_policy (the model was
+# retyping multi-thousand-token states as a tool-call argument) — so
+# roughly an hour end to end. A single post-fix spot check on the single
+# slowest item from that run (hard-opus-a-long_policy-01, ~16K-character
+# task) dropped from 233s average to 8.4s, with the tool called as {} (no
+# arguments) exactly as intended — a full re-run to get real aggregate
+# numbers is still open.
 python3 run_benchmark.py run \
   --dataset datasets/original.jsonl datasets/easy.jsonl datasets/hard.jsonl \
   --base-url http://127.0.0.1:18485 \

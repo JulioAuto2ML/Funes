@@ -82,6 +82,12 @@ AgentDefaults defaults_for(int port) {
 
 ToolContext ctx() { return ToolContext("test-agent", "test-session"); }
 
+ToolContext ctx_with_task(const std::string& task_text) {
+    ToolContext c = ctx();
+    c.task_text = task_text;
+    return c;
+}
+
 } // namespace
 
 int test_registers_with_expected_schema() {
@@ -99,8 +105,10 @@ int test_registers_with_expected_schema() {
         CHECK(props.contains("state"));
         CHECK(props.contains("question"));
         CHECK(props.contains("options"));
-        const json& required = t["function"]["parameters"]["required"];
-        CHECK(required.size() == 3);
+        // Deliberately optional, not required — see the task_text fallback
+        // tests below. No "required" key at all means every property is
+        // optional as far as the schema is concerned.
+        CHECK(!t["function"]["parameters"].contains("required"));
     }
     CHECK(found);
     return 0;
@@ -199,6 +207,76 @@ int test_llm_failure_becomes_error_result_not_a_crash() {
     return 0;
 }
 
+int test_falls_back_to_task_text_when_arguments_are_omitted() {
+    // No state/question/options in args at all — this is the whole point of
+    // the fallback: classifier.yaml now tells the model to call with {},
+    // relying entirely on ctx.task_text for the real content.
+    DynamicMockServer mock;
+    mock.start([](const std::string& body) {
+        // Confirms the *parsed* state actually reached the LLM request, not
+        // some empty/placeholder string — the prompt sent to /completion
+        // must contain the real state text extracted from task_text.
+        bool has_real_state = body.find("a customer says the product broke") != std::string::npos;
+        return probs_favoring(has_real_state ? "A" : "B", 0.9);
+    });
+
+    ToolRegistry reg;
+    AgentDefaults defaults = defaults_for(mock.port);
+    register_classify_decision_tool(reg, defaults);
+
+    auto result = reg.call("classify_decision", json::object(),
+        ctx_with_task("State: a customer says the product broke\n"
+                     "Question: which team should handle this?\n"
+                     "Options: billing | technical"));
+
+    CHECK(!result.error);
+    json out = json::parse(result.text);
+    CHECK(out["top"] == "billing");
+    return 0;
+}
+
+int test_explicit_arguments_override_task_text() {
+    // task_text describes a completely different decision than the explicit
+    // arguments — if the fallback ever won over an explicit argument, this
+    // mock (content-blind, always favors "A") would answer with whichever
+    // option is first in task_text's Options: line instead of args'.
+    DynamicMockServer mock;
+    mock.start([](const std::string&) { return probs_favoring("A", 0.9); });
+
+    ToolRegistry reg;
+    AgentDefaults defaults = defaults_for(mock.port);
+    register_classify_decision_tool(reg, defaults);
+
+    auto result = reg.call("classify_decision",
+        {{"state", "explicit state"}, {"question", "explicit question"},
+         {"options", {"explicit-a", "explicit-b"}}},
+        ctx_with_task("State: task-text state\nQuestion: task-text question\n"
+                     "Options: task-text-a | task-text-b"));
+
+    CHECK(!result.error);
+    json out = json::parse(result.text);
+    CHECK(out["top"] == "explicit-a");
+    for (const auto& o : out["options"]) {
+        std::string opt = o["option"];
+        CHECK(opt == "explicit-a" || opt == "explicit-b");  // never the task_text options
+    }
+    return 0;
+}
+
+int test_unparseable_task_text_with_no_arguments_is_a_clean_error() {
+    ToolRegistry reg;
+    AgentDefaults defaults;  // unreachable — fails validation before any network call
+    register_classify_decision_tool(reg, defaults);
+
+    // No args, and task_text doesn't follow the State:/Question:/Options:
+    // shape at all (e.g. a delegator that didn't use the documented
+    // convention) — must fail cleanly, not crash or silently invent values.
+    auto result = reg.call("classify_decision", json::object(),
+        ctx_with_task("just some free-form text with no structure"));
+    CHECK(result.error);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_registers_with_expected_schema();
@@ -206,6 +284,9 @@ int main() {
     rc |= test_pure_position_bias_washes_out_to_uniform();
     rc |= test_real_signal_survives_averaging();
     rc |= test_llm_failure_becomes_error_result_not_a_crash();
+    rc |= test_falls_back_to_task_text_when_arguments_are_omitted();
+    rc |= test_explicit_arguments_override_task_text();
+    rc |= test_unparseable_task_text_with_no_arguments_is_a_clean_error();
     if (rc == 0) std::cout << "test_classify_decision: all tests passed\n";
     return rc;
 }

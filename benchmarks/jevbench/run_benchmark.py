@@ -98,7 +98,7 @@ def build_task(record):
 # ── Funes HTTP client ────────────────────────────────────────────────────────
 
 class FunesClient:
-    def __init__(self, base_url, timeout=120):
+    def __init__(self, base_url, timeout=300):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.jar = http.cookiejar.CookieJar()
@@ -361,7 +361,10 @@ def main():
     p_run.add_argument("--output", required=True, help="path to write results.jsonl")
     p_run.add_argument("--limit", type=int, default=None, help="only run the first N items (smoke test)")
     p_run.add_argument("--delay-s", type=float, default=0.2, help="pause between calls (shared GPU)")
-    p_run.add_argument("--timeout", type=float, default=120)
+    p_run.add_argument("--timeout", type=float, default=300,
+                       help="per-request socket timeout — long_policy states can push a single "
+                            "call well past 120s once the model actually finishes echoing a "
+                            "~15K-character state back as a tool-call argument (default 300)")
     p_run.set_defaults(func=cmd_run)
 
     p_sum = sub.add_parser("summarize", help="compute metrics from a results.jsonl")

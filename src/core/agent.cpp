@@ -244,6 +244,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     // hands it to the sub-agent's own run().
     ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope,
                     user_id, perms, cfg_.scripts};
+    ctx.task_text = user_message;
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;

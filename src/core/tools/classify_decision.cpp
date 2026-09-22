@@ -15,12 +15,60 @@
 #include "../agent.h"        // AgentDefaults
 #include "../tools.h"
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 
 namespace {
 
 constexpr size_t MAX_OPTIONS = 6;
 const char LETTERS[] = "ABCDEF";
+
+std::string trim(std::string s) {
+    const auto not_space = [](unsigned char c) { return !std::isspace(c); };
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), not_space));
+    s.erase(std::find_if(s.rbegin(), s.rend(), not_space).base(), s.end());
+    return s;
+}
+
+// Fallback for when the model omits an argument: pulls state/question/
+// options straight out of the raw task text (ToolContext::task_text)
+// instead of requiring the model to re-type a state it already received —
+// see agents/classifier.yaml's delegation_notes for the exact convention
+// this parses ("State: ...\nQuestion: ...\nOptions: a | b | c").
+//
+// Searches from the END of the text (rfind), not the start: a fully
+// well-formed task's Options: line is always last, and anchoring there
+// means a state that happens to *contain* the literal substring
+// "\nQuestion:" or "\nOptions:" (a policy document quoting a form, say)
+// doesn't split in the wrong place as readily as a forward search would.
+// This is a heuristic over plain text, not a real parser — it can still be
+// confused by adversarial input, which is exactly why an explicit argument
+// always wins over this fallback rather than the reverse.
+bool parse_task_text(const std::string& text, std::string& state,
+                     std::string& question, std::vector<std::string>& options) {
+    const std::string state_marker    = "State:";
+    const std::string question_marker = "\nQuestion:";
+    const std::string options_marker  = "\nOptions:";
+
+    if (text.rfind(state_marker, 0) != 0) return false;  // must start with "State:"
+
+    const size_t options_pos = text.rfind(options_marker);
+    if (options_pos == std::string::npos || options_pos < state_marker.size()) return false;
+    const size_t question_pos = text.rfind(question_marker, options_pos - 1);
+    if (question_pos == std::string::npos || question_pos < state_marker.size()) return false;
+
+    state    = trim(text.substr(state_marker.size(), question_pos - state_marker.size()));
+    question = trim(text.substr(question_pos + question_marker.size(),
+                                options_pos - (question_pos + question_marker.size())));
+
+    std::istringstream iss(text.substr(options_pos + options_marker.size()));
+    std::string token;
+    while (std::getline(iss, token, '|')) {
+        std::string t = trim(token);
+        if (!t.empty()) options.push_back(t);
+    }
+    return !state.empty() && !question.empty() && options.size() >= 2;
+}
 
 std::string build_prompt(const std::string& state, const std::string& question,
                          const std::vector<std::string>& options_in_order) {
@@ -56,24 +104,40 @@ std::vector<double> average_reversed(const std::vector<double>& pass1_original_o
     return combined;
 }
 
-ToolResult classify_decision_handler(const json& args, const ToolContext&, LLMClient& llm) {
-    if (!args.contains("state") || !args["state"].is_string() || args["state"].get<std::string>().empty())
-        return {"Missing or invalid 'state' argument", /*error=*/true};
-    if (!args.contains("question") || !args["question"].is_string() || args["question"].get<std::string>().empty())
-        return {"Missing or invalid 'question' argument", /*error=*/true};
-    if (!args.contains("options") || !args["options"].is_array() ||
-        args["options"].size() < 2 || args["options"].size() > MAX_OPTIONS)
-        return {"'options' must be an array of 2-" + std::to_string(MAX_OPTIONS) + " strings",
-                /*error=*/true};
+ToolResult classify_decision_handler(const json& args, const ToolContext& ctx, LLMClient& llm) {
+    const bool has_state = args.contains("state") && args["state"].is_string()
+                          && !args["state"].get<std::string>().empty();
+    const bool has_question = args.contains("question") && args["question"].is_string()
+                              && !args["question"].get<std::string>().empty();
+    const bool has_options = args.contains("options") && args["options"].is_array()
+                             && args["options"].size() >= 2;
 
-    const std::string state    = args["state"].get<std::string>();
-    const std::string question = args["question"].get<std::string>();
+    // Explicit arguments always win — the fallback only fills in what the
+    // model actually left out, so a caller not following the classifier
+    // agent's task convention (a different agent, a direct tool call) is
+    // completely unaffected by any of this.
+    std::string parsed_state, parsed_question;
+    std::vector<std::string> parsed_options;
+    const bool parsed = (!has_state || !has_question || !has_options)
+                       && parse_task_text(ctx.task_text, parsed_state, parsed_question, parsed_options);
+
+    std::string state    = has_state    ? args["state"].get<std::string>()    : (parsed ? parsed_state    : "");
+    std::string question = has_question ? args["question"].get<std::string>() : (parsed ? parsed_question : "");
     std::vector<std::string> options;
-    for (const auto& o : args["options"]) {
-        if (!o.is_string() || o.get<std::string>().empty())
-            return {"Every entry in 'options' must be a non-empty string", /*error=*/true};
-        options.push_back(o.get<std::string>());
+    if (has_options) {
+        for (const auto& o : args["options"])
+            if (o.is_string() && !o.get<std::string>().empty()) options.push_back(o.get<std::string>());
+    } else if (parsed) {
+        options = parsed_options;
     }
+
+    if (state.empty())
+        return {"Missing 'state' — not given as an argument, and couldn't be read from the task", true};
+    if (question.empty())
+        return {"Missing 'question' — not given as an argument, and couldn't be read from the task", true};
+    if (options.size() < 2 || options.size() > MAX_OPTIONS)
+        return {"'options' must resolve to 2-" + std::to_string(MAX_OPTIONS) +
+                " strings, from arguments or the task", true};
 
     // The prompt ends in "Answer:" with no trailing space, so the model's
     // answer token includes the leading space as part of the token itself
@@ -119,17 +183,20 @@ void register_classify_decision_tool(ToolRegistry& reg, const AgentDefaults& def
         "of a written answer. Use this instead of reasoning in prose when the task "
         "is really 'which bucket does this fall into' (routing, triage, spam/ham, "
         "sentiment) rather than something that needs explanation — it costs one "
-        "forward pass and the confidence numbers are directly usable by other code.",
+        "forward pass and the confidence numbers are directly usable by other code. "
+        "All three arguments are optional: if your own task already states the "
+        "situation, question and options (e.g. a 'State: ... Question: ... "
+        "Options: a | b' task), omit them here and this tool reads them directly "
+        "from that task instead of you retyping a possibly large state.",
         {
             {"type", "object"},
             {"properties", {
-                {"state",    {{"type", "string"}, {"description", "The situation or text to classify"}}},
-                {"question", {{"type", "string"}, {"description", "The decision question, e.g. 'which team should handle this?'"}}},
+                {"state",    {{"type", "string"}, {"description", "The situation or text to classify — omit if your task already states it"}}},
+                {"question", {{"type", "string"}, {"description", "The decision question, e.g. 'which team should handle this?' — omit if your task already states it"}}},
                 {"options",  {{"type", "array"}, {"items", {{"type", "string"}}},
                              {"minItems", 2}, {"maxItems", static_cast<int>(MAX_OPTIONS)},
-                             {"description", "2-6 short option labels"}}}
-            }},
-            {"required", json::array({"state", "question", "options"})}
+                             {"description", "2-6 short option labels — omit if your task already states them"}}}
+            }}
         },
         // A fresh LLMClient per call is cheap (parsed URL + connection
         // params, no persistent socket) and keeps the tool free of shared
