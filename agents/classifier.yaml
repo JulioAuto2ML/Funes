@@ -18,6 +18,7 @@ delegation_notes: >
   own confidence, so it needs the real text, not your gloss on it.
 model: default
 tool_choice: auto
+temperature: 0.0
 tools: [classify_decision]
 max_steps: 6
 context_limit: 32768

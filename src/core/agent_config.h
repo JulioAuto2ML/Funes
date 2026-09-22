@@ -53,6 +53,16 @@ struct AgentConfig {
     std::string system_prompt;
     std::string tool_choice = "auto"; // "auto" | "required" | "none"
 
+    // Sampling temperature for this agent's own completions (not
+    // classify_decision's internal forward passes, which always force 0.0
+    // regardless of this). Sentinel -1 = unset, inherit LLMClient's own
+    // default (0.2f) — every agent that doesn't name one keeps today's
+    // behavior. Set to 0.0 for an agent whose job is a fixed transformation
+    // rather than a judgment call with room for phrasing (classifier: variance
+    // here means occasionally ignoring "call with {}" or looping a nudge
+    // retry, not a better or more creative answer).
+    float temperature = -1.0f;
+
     // Completion contract: tools that must have succeeded before a plain-text
     // answer is accepted as this agent's final answer. Empty = no contract (a
     // model may finish whenever it likes). Use it for agents whose real output

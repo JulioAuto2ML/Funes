@@ -45,6 +45,7 @@ FunesAgent::FunesAgent(const AgentConfig& cfg, ToolRegistry& tools,
 {
     llm_.set_max_tokens(cfg_.context_limit / 4);
     llm_.set_tool_choice(cfg_.tool_choice);
+    if (cfg_.temperature >= 0.0f) llm_.set_temperature(cfg_.temperature);
 
     if (!defaults.vision_url.empty()) {
         vision_llm_ = std::make_unique<LLMClient>(
@@ -52,6 +53,7 @@ FunesAgent::FunesAgent(const AgentConfig& cfg, ToolRegistry& tools,
             "default", defaults.llm_provider);
         vision_llm_->set_max_tokens(cfg_.context_limit / 4);
         vision_llm_->set_tool_choice(cfg_.tool_choice);
+        if (cfg_.temperature >= 0.0f) vision_llm_->set_temperature(cfg_.temperature);
     }
 
     tools_schema_ = tools_.openai_schema(cfg_.tools);

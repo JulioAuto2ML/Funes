@@ -74,6 +74,15 @@ scripts: [backup_workspace]       # vetted programs from scriptlib/ this agent
 max_steps: 8                      # tool-call budget per run
 context_limit: 8192               # token ceiling
 tool_choice: auto                 # auto | required | none
+temperature: 0.0                  # sampling temperature for this agent's own
+                                   # completions. Omit to inherit the default
+                                   # (0.2) every agent used before this field
+                                   # existed. 0.0 for an agent whose job is a
+                                   # fixed transformation, not a judgment call
+                                   # with room for phrasing -- classifier is
+                                   # the shipped example: variance here means
+                                   # occasionally ignoring an instruction or
+                                   # looping a nudge retry, not a better answer.
 system_prompt: |
   You are ...
 

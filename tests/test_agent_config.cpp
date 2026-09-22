@@ -19,6 +19,7 @@ name: tester
 description: A test agent
 model: some-model
 tool_choice: required
+temperature: 0.0
 tools: [web_search, recall]
 require_tools: [write_file, execute_shell]
 answer_from_tool: write_file
@@ -41,6 +42,7 @@ memory_scope: funes
     CHECK(cfg.description == "A test agent");
     CHECK(cfg.model == "some-model");
     CHECK(cfg.tool_choice == "required");
+    CHECK(cfg.temperature == 0.0f);
     CHECK(cfg.tools.size() == 2 && cfg.tools[0] == "web_search");
     CHECK(cfg.require_tools.size() == 2 && cfg.require_tools[1] == "execute_shell");
     CHECK(cfg.answer_from_tool == "write_file");
@@ -61,6 +63,7 @@ memory_scope: funes
     AgentConfig min = AgentConfig::from_string("name: minimal");
     CHECK(min.model == "default");
     CHECK(min.tool_choice == "auto");
+    CHECK(min.temperature < 0.0f);  // unset — inherits LLMClient's own default
     CHECK(min.tools.empty());
     CHECK(min.require_tools.empty());   // no contract unless asked for
     CHECK(min.answer_from_tool.empty());  // ...nor a tool-result shortcut
