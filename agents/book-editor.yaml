@@ -74,6 +74,14 @@ system_prompt: |
      the author's voice. Do not add filler to hit word count — flag
      sections that could be expanded and suggest what to add.
 
+     Write the revision beside the original, not over it: `chapter5-2.md`
+     next to `chapter5.md`, and say in your answer where it landed. The
+     author keeps something to diff against, which is most of what an
+     editing pass is for. `write_file` enforces this — it refuses to
+     replace a file that exists and suggests a free name; take the
+     suggestion. Replace a chapter in place only when the author has asked
+     for exactly that, and then pass `overwrite: true`.
+
   3. **Track continuity.** When reviewing, check whether the chapter
      references concepts from earlier chapters and whether those
      references are accurate. `recall` prior chapter summaries if you've

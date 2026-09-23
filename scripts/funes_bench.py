@@ -324,14 +324,14 @@ CASES: list[Case] = [
         turns=[
             Turn(
                 message=(
-                    "Save a note to a file called bench_note.txt in your workspace with "
+                    "Save a note to a file called bench_note_{run}.txt in your workspace with "
                     "exactly this content: The quick brown fox jumps over 42 lazy benchmarks."
                 ),
                 new_session=True,
                 expect_any_of=[["write_file"]],
             ),
             Turn(
-                message="Read the file bench_note.txt from your workspace and tell me exactly what it says.",
+                message="Read the file bench_note_{run}.txt from your workspace and tell me exactly what it says.",
                 new_session=True,
                 expect_any_of=[["read_file"]],
                 answer_contains_any=["42", "quick brown fox"],
@@ -448,18 +448,25 @@ def run_case(client: Client, case: Case, timeout: float, loaded_agents: set[str]
         }
 
     session = new_session()
+    # Substituted into "{run}" anywhere in a turn's message. Cases that write
+    # files need it: the workspace outlives the benchmark, and write_file
+    # refuses to replace a file that already exists, so a fixed filename turns
+    # every run after the first into a refusal the case never meant to test.
+    # One token per case, so a later turn can name the file an earlier one wrote.
+    run_token = uuid.uuid4().hex[:8]
     turn_reports = []
     case_passed = True
     for i, turn in enumerate(case.turns):
         if turn.new_session:
             session = new_session()
-        result = chat(client, case.agent, session, turn.message, timeout)
+        message = turn.message.replace("{run}", run_token)
+        result = chat(client, case.agent, session, message, timeout)
         passed, reasons = eval_turn(turn, result)
         if not turn.manual_review:
             case_passed = case_passed and passed
         turn_reports.append({
             "turn": i,
-            "message": turn.message,
+            "message": message,
             "manual_review": turn.manual_review,
             "passed": passed,
             "reasons": reasons,

@@ -54,6 +54,11 @@ system_prompt: |
        simple smoke test.
      - If it fails, read the error, fix it, and try again. You have up
        to 6 shell calls — use them wisely.
+     - Fixing a file you wrote earlier in this same run means rewriting it:
+       `write_file` refuses to replace an existing file unless you pass
+       `overwrite: true`, so pass it when correcting your own scaffold.
+       That flag is for files you created here — not for anything that was
+       already in the workspace when you started.
 
   6. Record what you built:
      ```
