@@ -78,11 +78,43 @@ int test_read_write_file() {
     auto r2 = reg.call("read_file", {{"path", "notes/todo.txt"}}, ctx);
     CHECK(r2.text == "buy milk\nwalk dog");
 
-    // default (append=false) overwrites.
+    // An existing file is NOT replaced on the model's own initiative: the call
+    // is refused, the file is untouched, and the refusal names both choices —
+    // this is what turns "write it again" into a question for the user instead
+    // of a silent loss of the first version.
     auto w3 = reg.call("write_file", {{"path", "notes/todo.txt"}, {"content", "fresh start"}}, ctx);
-    CHECK(!w3.error);
+    CHECK(w3.error);
+    CHECK(w3.text.find("already exists") != std::string::npos);
+    CHECK(w3.text.find("overwrite=true") != std::string::npos);
+    CHECK(w3.text.find("todo-2.txt") != std::string::npos);   // a concrete free name, not "pick another"
     auto r3 = reg.call("read_file", {{"path", "notes/todo.txt"}}, ctx);
-    CHECK(r3.text == "fresh start");
+    CHECK(r3.text == "buy milk\nwalk dog");                   // nothing was written
+
+    // ...and overwrite=true — the user's answer relayed back — goes through.
+    auto w3b = reg.call("write_file",
+        {{"path", "notes/todo.txt"}, {"content", "fresh start"}, {"overwrite", true}}, ctx);
+    CHECK(!w3b.error);
+    auto r3b = reg.call("read_file", {{"path", "notes/todo.txt"}}, ctx);
+    CHECK(r3b.text == "fresh start");
+
+    // The suggested name is free, so writing to it needs no confirmation.
+    auto w3c = reg.call("write_file", {{"path", "notes/todo-2.txt"}, {"content", "second version"}}, ctx);
+    CHECK(!w3c.error);
+
+    // A byte-identical rewrite destroys nothing, so it is not a question.
+    auto w3d = reg.call("write_file", {{"path", "notes/todo.txt"}, {"content", "fresh start"}}, ctx);
+    CHECK(!w3d.error);
+    CHECK(w3d.text.find("unchanged") != std::string::npos);
+
+    // Appending to an existing file is never refused (it destroys nothing).
+    auto w3e = reg.call("write_file",
+        {{"path", "notes/todo.txt"}, {"content", "\nand again"}, {"append", true}}, ctx);
+    CHECK(!w3e.error);
+
+    // A directory in the way is its own error, not a failed ofstream.
+    auto w3f = reg.call("write_file", {{"path", "notes"}, {"content", "x"}}, ctx);
+    CHECK(w3f.error);
+    CHECK(w3f.text.find("directory") != std::string::npos);
 
     // Traversal is refused for both tools.
     auto w4 = reg.call("write_file", {{"path", "../escape.txt"}, {"content", "x"}}, ctx);

@@ -10,6 +10,7 @@
 #include "fs_guard.h"
 #include "pdf_extract.h"
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -106,6 +107,69 @@ ToolResult read_file_handler(const fs::path& default_workspace, const json& args
     return {content};
 }
 
+// "report.md" -> the first of "report-2.md", "report-3.md", ... that is free,
+// so the refusal below can name a concrete alternative. Asked to invent one
+// itself a model reaches for "report_final_new.md", and the second request
+// produces "report_final_new_v2.md".
+std::string suggest_free_path(const fs::path& requested, const fs::path& resolved) {
+    const std::string stem = requested.stem().string();
+    const std::string ext  = requested.extension().string();
+    if (stem.empty()) return {};
+
+    std::error_code ec;
+    for (int n = 2; n <= 99; ++n) {
+        const std::string name = stem + "-" + std::to_string(n) + ext;
+        if (!fs::exists(resolved.parent_path() / name, ec))
+            return (requested.parent_path() / name).string();
+    }
+    return {};
+}
+
+// Relative age ("4 minutes ago"), because what the user needs to judge is
+// whether this is the file from a minute ago in this conversation or something
+// from last month, and an absolute timestamp makes them do that subtraction.
+std::string describe_age(const fs::path& p) {
+    std::error_code ec;
+    const auto mtime = fs::last_write_time(p, ec);
+    if (ec) return {};
+
+    const auto age = std::chrono::duration_cast<std::chrono::seconds>(
+        decltype(mtime)::clock::now() - mtime).count();
+    if (age < 0)      return {};
+    if (age < 90)     return "just now";
+    if (age < 5400)   return std::to_string(age / 60) + " minutes ago";
+    if (age < 172800) return std::to_string(age / 3600) + " hours ago";
+    return std::to_string(age / 86400) + " days ago";
+}
+
+// Cheap because it only reads when the sizes already match, and `content` is
+// capped at MAX_WRITE_BYTES.
+bool already_holds(const fs::path& p, const std::string& content) {
+    std::error_code ec;
+    if (fs::file_size(p, ec) != content.size() || ec) return false;
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str() == content;
+}
+
+// Overwriting is the one thing write_file does that destroys work nobody can
+// get back: a workspace is not a git repository and there is no undo. So an
+// existing file is never replaced on the model's own initiative — the call is
+// refused the recoverable way a tool-budget refusal is, and the refusal
+// carries the two choices the person actually has, one of them concrete.
+//
+// The sequence this exists for: "write the report" -> the user changes
+// something -> "write it again". Without the guard the first version is gone
+// before anyone is asked whether they wanted to keep it.
+//
+// Three deliberate holes. `append` destroys nothing. A byte-identical rewrite
+// destroys nothing, so it answers itself instead of spending a turn asking.
+// And `overwrite: true` is how the user's answer comes back — also what an
+// unattended job passes, since there is nobody to ask at 03:00 and a daily
+// report that refuses to write itself is worse than one that replaces
+// yesterday's copy.
 ToolResult write_file_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
     if (!args.contains("path") || !args["path"].is_string())
         return {"Missing 'path' argument", true};
@@ -116,15 +180,39 @@ ToolResult write_file_handler(const fs::path& default_workspace, const json& arg
     if (content.size() > MAX_WRITE_BYTES)
         return {"Content too large (max 256 KB)", true};
 
+    const std::string requested = args["path"].get<std::string>();
     const fs::path workspace = effective_workspace(default_workspace, ctx);
-    auto resolved = funes::fsguard::resolve(workspace, args["path"].get<std::string>());
+    auto resolved = funes::fsguard::resolve(workspace, requested);
     if (!resolved)
         return {"Refusing to write outside the workspace (" + workspace.string() + ")", true};
 
+    const bool append    = args.value("append", false);
+    const bool overwrite = args.value("overwrite", false);
+
     std::error_code ec;
+    if (fs::is_directory(*resolved, ec))
+        return {"'" + requested + "' is a directory, not a file.", true};
+
+    if (!append && !overwrite && fs::is_regular_file(*resolved, ec)) {
+        if (already_holds(*resolved, content))
+            return {"'" + requested + "' already contains exactly this content — left unchanged."};
+
+        const std::string age  = describe_age(*resolved);
+        const std::string free = suggest_free_path(fs::path(requested), *resolved);
+
+        std::string msg = "'" + requested + "' already exists (" +
+                          std::to_string(fs::file_size(*resolved, ec)) + " bytes" +
+                          (age.empty() ? "" : ", modified " + age) +
+                          "). Nothing was written. Ask the user which they want, then call "
+                          "write_file again: replace it — same path, overwrite=true";
+        msg += free.empty() ? " — or keep both, under a different path."
+                            : ", or keep both — path=\"" + free + "\".";
+        msg += " Do not choose for them.";
+        return {msg, true};
+    }
+
     fs::create_directories(resolved->parent_path(), ec);
 
-    const bool append = args.value("append", false);
     std::ofstream f(*resolved, append ? (std::ios::binary | std::ios::app)
                                       : (std::ios::binary | std::ios::trunc));
     if (!f) return {"Could not write " + resolved->string(), true};
@@ -224,13 +312,19 @@ void register_file_tools(ToolRegistry& reg, const std::string& workspace_dir) {
         workspace.string() + "; some agents are scoped to a different folder — the "
         "error message on a failed path will show which one applies). Creates parent "
         "directories as needed. The path is relative to that workspace and can't escape "
-        "it. Content capped at 256 KB.",
+        "it. Content capped at 256 KB. If the file already exists the write is refused "
+        "and nothing changes on disk: ask the user whether to replace it (call again with "
+        "overwrite=true) or keep both under a different path — the refusal suggests a free "
+        "one. Appending and re-writing byte-identical content are never refused.",
         {
             {"type", "object"},
             {"properties", {
-                {"path",    {{"type", "string"}, {"description", "Path relative to the workspace"}}},
-                {"content", {{"type", "string"}, {"description", "Text to write"}}},
-                {"append",  {{"type", "boolean"}, {"description", "Append instead of overwrite (default false)"}}}
+                {"path",      {{"type", "string"}, {"description", "Path relative to the workspace"}}},
+                {"content",   {{"type", "string"}, {"description", "Text to write"}}},
+                {"append",    {{"type", "boolean"}, {"description", "Append instead of overwrite (default false)"}}},
+                {"overwrite", {{"type", "boolean"}, {"description",
+                    "Replace the file if it already exists (default false). Only set this once the "
+                    "user has said to replace it, or for unattended work that owns the file."}}}
             }},
             {"required", json::array({"path", "content"})}
         },

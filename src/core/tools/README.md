@@ -15,7 +15,7 @@ hop, no protocol overhead.
 | `remember` | `memory_tools.cpp` | Stores a fact in persistent long-term memory. |
 | `recall` | `memory_tools.cpp` | Semantic (or keyword) search over stored memories. |
 | `read_file` | `file_tools.cpp` | Reads text, PDFs (via pdftotext, with image fallback for scans), and images (base64 for vision). Workspace-confined. |
-| `write_file` | `file_tools.cpp` | Writes or appends text. Creates parent directories. Workspace-confined. |
+| `write_file` | `file_tools.cpp` | Writes or appends text. Creates parent directories. Workspace-confined. Refuses to replace an existing file unless `overwrite: true`, so "write it again" becomes a question for the user (replace, or the free name the refusal suggests) instead of a silent loss of the previous version. |
 | `execute_shell` | `shell_tool.cpp` | Runs a shell command. Opt-in only (`FUNES_ALLOW_SHELL=1`). Timeout, output cap. |
 | `list_scripts` | `script_tools.cpp` | Lists the scripts the calling agent is granted, with the arguments each takes. |
 | `run_script` | `script_tools.cpp` | Runs one script from the central library by name, with declared parameters passed as argv, and checks its output against the shape the manifest declares. Per-agent allowlist (`scripts:` in agent YAML); no shell, no global switch. |
@@ -79,6 +79,14 @@ The tool system enforces security at multiple layers:
 - **Filesystem**: `fs_guard` confines read/write_file to the calling account's
   own workspace, `<root>/<user_id>/`. Path traversal, symlink escapes, and
   absolute paths are all caught -- including `../<other_user_id>/...`.
+  Confinement is not the only way a file is lost, so `write_file` also refuses
+  to replace one that already exists: the workspace has no history and no undo,
+  and the ordinary sequence "write the report" -> the user changes something ->
+  "write it again" destroyed the first version before anyone was asked. The
+  refusal is recoverable (like a tool-budget refusal), names a free alternative
+  path, and is lifted by `overwrite: true` -- the user's answer relayed back, or
+  an unattended job that owns the file. Appending and byte-identical rewrites
+  destroy nothing and are never refused.
 - **Network**: `net_guard` blocks SSRF to localhost, 10.x, 192.168.x, 169.254.x.
 - **Shell**: Disabled by default. When enabled: hard timeout (120s max), output
   cap (16 KB), process-group kill on timeout.
