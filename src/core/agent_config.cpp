@@ -47,6 +47,7 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     cfg.system_prompt = root["system_prompt"] ? root["system_prompt"].as<std::string>() : "";
     cfg.tool_choice   = root["tool_choice"]   ? root["tool_choice"].as<std::string>()   : "auto";
     if (root["temperature"]) cfg.temperature = root["temperature"].as<float>();
+    if (root["auto_memory"]) cfg.auto_memory = root["auto_memory"].as<bool>();
     cfg.workspace_dir    = root["workspace_dir"]    ? root["workspace_dir"].as<std::string>()    : "";
     cfg.delegation_notes = root["delegation_notes"] ? root["delegation_notes"].as<std::string>() : "";
     cfg.shared_identity  = root["shared_identity"]  ? root["shared_identity"].as<std::string>()  : "";

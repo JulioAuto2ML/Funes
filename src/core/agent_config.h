@@ -63,6 +63,15 @@ struct AgentConfig {
     // retry, not a better or more creative answer).
     float temperature = -1.0f;
 
+    // Whether a person's run with this agent writes the `User said: ... — I
+    // replied: ...` auto-memory. Can only switch it off: FUNES_AUTO_MEMORY=0
+    // still wins. Off for an agent whose conversations are commands ("run
+    // today's newsletter", "list my drafts") — those logs carry no fact, match
+    // the next identical command best, and get recalled into it with the old
+    // reply attached: a stale issue's headlines, a failure from weeks ago.
+    // Measured on the deployment: over half of all recall hits were such logs.
+    bool auto_memory = true;
+
     // Completion contract: tools that must have succeeded before a plain-text
     // answer is accepted as this agent's final answer. Empty = no contract (a
     // model may finish whenever it likes). Use it for agents whose real output
