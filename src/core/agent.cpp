@@ -464,7 +464,12 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
 
         if (writes_memory && defaults_.auto_memory && !used_action_tool_
             && !final_text.empty()) {
-            std::string reply = final_text.substr(0, 300);
+            // Cut on a character boundary: a bare substr(0, 300) split a
+            // multi-byte character whenever one straddled byte 300 (any
+            // Spanish reply with an accent or a dash there), and the stored
+            // row was then invalid UTF-8 — unreadable to strict decoders.
+            std::string reply = final_text;
+            funes::truncate_utf8_safe(reply, 300);
             if (final_text.size() > 300) reply += "…";
             try {
                 memory_.remember(user_id, cfg_.memory_scope,
