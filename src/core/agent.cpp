@@ -460,8 +460,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
         memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
-        if (writes_memory && defaults_.auto_memory && cfg_.auto_memory
-            && !final_text.empty()) {
+        if (writes_memory && defaults_.auto_memory && !final_text.empty()) {
             std::string reply = final_text.substr(0, 300);
             if (final_text.size() > 300) reply += "…";
             try {

@@ -110,14 +110,6 @@ workspace_dir: subfolder          # nested inside the caller's own workspace
                                   # shared by every account -- deliberate, but
                                   # nothing shipped uses it.
 memory_scope: funes               # share another agent's memory pool
-auto_memory: false                # don't store each exchange as a memory.
-                                  # Only switches it off (FUNES_AUTO_MEMORY=0
-                                  # still wins). For agents spoken to in
-                                  # commands: their logs hold no fact and get
-                                  # recalled into the next identical command,
-                                  # old reply and all. Delegated runs never
-                                  # write one, so this matters only for agents
-                                  # a person talks to directly.
 mcp_servers:
   - name: my-server
     command: npx -y my-mcp-server

@@ -36,7 +36,6 @@ mcp_servers:
     env:
       FOO: bar
 memory_scope: funes
-auto_memory: false
 )yaml");
 
     CHECK(cfg.name == "tester");
@@ -59,7 +58,6 @@ auto_memory: false
     CHECK(cfg.mcp_servers[2].url.empty());
     CHECK(cfg.mcp_servers[2].env.at("FOO") == "bar");
     CHECK(cfg.memory_scope == "funes");  // explicit override
-    CHECK(!cfg.auto_memory);
 
     // Defaults.
     AgentConfig min = AgentConfig::from_string("name: minimal");
@@ -72,7 +70,6 @@ auto_memory: false
     CHECK(min.answer_schema.is_null());  // ...nor an answer schema
     CHECK(min.max_steps == 8);
     CHECK(min.memory_scope == "minimal");  // unset → own name, i.e. isolated by default
-    CHECK(min.auto_memory);                // unset → follows FUNES_AUTO_MEMORY
 
     // answer_schema: written as ordinary YAML, converted to JSON. The types
     // have to survive — a schema whose minItems is the string "1" enforces
