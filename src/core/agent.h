@@ -161,6 +161,15 @@ private:
     std::vector<std::unique_ptr<mcp::client>>     mcp_clients_;
     std::unordered_map<std::string, std::size_t>  mcp_tool_index_;
 
+    // Set by run_loop when the model calls (or is refused) any tool other than
+    // recall/remember. Such a run was a command — "run the newsletter", "list
+    // my drafts" — and its exchange is not written as an auto-memory: it holds
+    // no fact, it matches the next identical command best, and it was recalled
+    // into that command with the old reply attached (a past issue's headlines,
+    // a mail failure from weeks earlier). Measured on the deployment: 54% of
+    // all recall hits were auto rows, the most-recalled of them commands.
+    bool used_action_tool_ = false;
+
     void connect_mcp_servers();
     static json mcp_tool_to_openai(const mcp::tool& t);
 

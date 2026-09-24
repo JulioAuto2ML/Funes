@@ -612,6 +612,12 @@ check "history has assistant turn" "$OUT" 'MOCK-REPLY'
 echo "— auto-memory + forget"
 OUT=$(curl -s "$BASE/api/memories")
 check "auto-memory stored" "$OUT" '"source":"auto"'
+# Only for a conversation: recall doesn't make a run a command, a delegation
+# does — its log would be recalled into the next identical command, old reply
+# and all.
+OUT=$(curl -s "$BASE/api/memories?limit=200")
+check "recall-only run keeps its auto-memory" "$OUT" 'please use-tool now'
+check_absent "delegating run wrote no auto-memory" "$OUT" 'please delegate-now'
 OUT=$(curl -s -X DELETE "$BASE/api/memories/$MEM_ID")
 check "memory forgotten" "$OUT" '"ok":true'
 OUT=$(curl -s -X DELETE "$BASE/api/memories/$MEM_ID")

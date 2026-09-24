@@ -217,6 +217,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     // the first and emphatically not the second.
     const bool writes_history = (persist != Persist::None);
     const bool writes_memory  = (persist == Persist::Full);
+    used_action_tool_ = false;
     // Narrow the schema to what this user may actually call. Built in the
     // constructor from the agent's own allowlist; intersected here, because
     // the caller isn't known until the run. Withholding the schema is the
@@ -455,12 +456,14 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     //    auto-memory phrases itself as `User said: "..." — I replied: "..."`,
     //    which is a lie for a scheduled job and a lie that gets *recalled*:
     //    the cron-authored ones on the deployment had been injected into real
-    //    conversations a dozen times each.
+    //    conversations a dozen times each. Nor for a run that called an
+    //    action tool (used_action_tool_, agent.h): a command, not a fact.
     if (writes_history) {
         memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
-        if (writes_memory && defaults_.auto_memory && !final_text.empty()) {
+        if (writes_memory && defaults_.auto_memory && !used_action_tool_
+            && !final_text.empty()) {
             std::string reply = final_text.substr(0, 300);
             if (final_text.size() > 300) reply += "…";
             try {
@@ -827,6 +830,9 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             }
 
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
+            // A refused call counts too: it still says the message was a command.
+            // recall only reads; remember already stored the fact explicitly.
+            if (tc.name != "recall" && tc.name != "remember") used_action_tool_ = true;
 
             if (refused) {
                 std::cerr << "[agent:" << cfg_.name << "] " << refused_key

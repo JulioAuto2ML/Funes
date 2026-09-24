@@ -269,7 +269,10 @@ What a run *writes* is three-valued, not a bool: `FunesAgent::run` takes a
 transcript, write no auto-memory) or `None` (a delegated sub-agent call). The
 middle one exists because a cron firing used to store `User said: "<the job's
 task>" — I replied: "..."`, and those got recalled into real conversations as
-things the person had said. Scheduled sessions (`cron-<id>-<epoch>`) are hidden
+things the person had said. `Full` also skips the auto-memory when the run
+called any tool but `recall`/`remember`: that run was a command, and its log —
+old reply attached — got recalled into the next identical command (54% of all
+recall hits on the deployment). Scheduled sessions (`cron-<id>-<epoch>`) are hidden
 from `list_sessions` unless asked for; `funes cron-cleanup` removes what an
 older database already holds.
 
