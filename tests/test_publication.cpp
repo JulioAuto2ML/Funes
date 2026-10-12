@@ -117,7 +117,7 @@ int test_the_shipped_ai_pulse_config_loads() {
     CHECK(pub.min_count == 6);
     CHECK(pub.count == 9);
     CHECK(pub.min_count <= pub.count);
-    CHECK(pub.artifacts.size() == 2);
+    CHECK(pub.artifacts.size() == 3);   // posts, newsletter, image prompts
     CHECK(pub.channels.size() == 1);
     CHECK(pub.channels[0].kind == "email");
 

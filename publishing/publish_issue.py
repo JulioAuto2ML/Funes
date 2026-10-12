@@ -278,6 +278,15 @@ def render_posts_txt(issue, target_date):
     return "\n".join(out[:-3]) + "\n"
 
 
+def image_prompts(issue):
+    """[{n, prompt}] for the items that carry an image prompt. `n` is the item's
+    slot — the number cron passes to post_tweet.py — so a dropped or renumbered
+    item cannot leave a prompt pointing at somebody else's post."""
+    return [{"n": slot, "prompt": item["image_prompt"].strip()}
+            for slot, item in enumerate(issue["items"], start=1)
+            if (item.get("image_prompt") or "").strip()]
+
+
 def posts_for_render(issue):
     """The issue's items in the shape render_html expects. The link label comes
     from the harvested title, so it is the article's own headline rather than
@@ -334,6 +343,9 @@ def render_artifacts(issue, work_dir, target_date):
                 render_html(template.read_text(encoding="utf-8"), target_date,
                             posts_for_render(issue)),
                 encoding="utf-8")
+        elif kind == "image_prompts":
+            path.write_text(json.dumps(image_prompts(issue), indent=2,
+                                       ensure_ascii=False) + "\n", encoding="utf-8")
         else:
             raise ValueError(f"unknown artifact kind '{kind}'")
 

@@ -70,6 +70,10 @@ artifacts:
   - kind: newsletter_html
     path: "{workspace}/newsletter_{iso_date}.html"
     template: newsletter_template.html
+  # One illustration prompt per item, for the LinkedIn posts only — never the
+  # newsletter. publishing/generate_images.py turns these into images.
+  - kind: image_prompts
+    path: "{workspace}/image_prompts_{iso_date}.json"
 
 channels:
   - kind: email

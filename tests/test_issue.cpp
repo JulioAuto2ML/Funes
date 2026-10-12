@@ -631,6 +631,39 @@ int test_pool_date_rejects_an_empty_workspace() {
     return 0;
 }
 
+// The illustration prompt is garnish: it rides along when it is sensible and
+// never costs the issue anything when it is not.
+int test_build_issue_carries_the_image_prompt() {
+    Selection s = good_selection();
+    s.image_prompt = "  A robot picking a lock on a server rack  ";
+    json out;
+    CHECK(build_issue(pool_with_one_candidate(), {s}, out).empty());
+    CHECK(out["items"][0]["image_prompt"] == "A robot picking a lock on a server rack");
+    return 0;
+}
+
+int test_build_issue_omits_an_absent_image_prompt() {
+    json out;
+    CHECK(build_issue(pool_with_one_candidate(), {good_selection()}, out).empty());
+    CHECK(!out["items"][0].contains("image_prompt"));
+    Selection blank = good_selection();
+    blank.image_prompt = "   ";
+    json out2;
+    CHECK(build_issue(pool_with_one_candidate(), {blank}, out2).empty());
+    CHECK(!out2["items"][0].contains("image_prompt"));
+    return 0;
+}
+
+int test_build_issue_drops_an_oversized_image_prompt_but_keeps_the_item() {
+    Selection s = good_selection();
+    s.image_prompt = std::string(kMaxImagePromptChars + 1, 'x');
+    json out;
+    CHECK(build_issue(pool_with_one_candidate(), {s}, out).empty());
+    CHECK(out["items"].size() == 1);
+    CHECK(!out["items"][0].contains("image_prompt"));
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_normalize_for_match();
@@ -643,6 +676,9 @@ int main() {
     rc |= test_headline_from_title();
     rc |= test_build_issue_takes_the_url_from_the_pool();
     rc |= test_build_issue_ignores_any_url_the_model_supplies();
+    rc |= test_build_issue_carries_the_image_prompt();
+    rc |= test_build_issue_omits_an_absent_image_prompt();
+    rc |= test_build_issue_drops_an_oversized_image_prompt_but_keeps_the_item();
     rc |= test_build_issue_rejects_an_unknown_id();
     rc |= test_build_issue_accepts_a_result_id();
     rc |= test_build_issue_catches_a_pool_id_and_result_id_duplicate();

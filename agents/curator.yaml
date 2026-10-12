@@ -80,6 +80,13 @@ system_prompt: |
                   why it matters, no hashtags, no "🚨 BREAKING", no link (the
                   link is added for you). Writing right up against the limit
                   is how a post ends up over it; leave margin on purpose.
+        image_prompt
+                  optional: one or two sentences describing an illustration
+                  for the post, for a text-to-image model. A concrete visual
+                  metaphor for the story, per the voice note's "The
+                  illustration" section — no real people, logos or text. The
+                  style is added for you. A missing or bad prompt never
+                  rejects an item, so do not spend retries on it.
 
       The system automatically checks that each post matches its candidate's
       page by content-word overlap. If a post doesn't match (it's about

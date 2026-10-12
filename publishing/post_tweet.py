@@ -6,6 +6,10 @@ Usage:
     python3 post_tweet.py <post_number> [--dir PATH] [--publication ID]
                           [--date YYYY-MM-DD] [--dry-run]
 
+If <dir>/images/<publication>/<date>/<post_number>.png exists (see
+generate_images.py) it is attached to the post. An image is garnish: a missing
+file, or an upload that fails, posts text-only rather than not at all.
+
     post_number: 1-based index of the item to publish.
 
 Two things changed when this moved into the repo, and both were bugs.
@@ -90,6 +94,26 @@ def post_body(issue: dict, post_number: int) -> str:
     return f"{body}\n\n{cta}" if cta else body
 
 
+# ── The illustration ──────────────────────────────────────────────────────────
+
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def image_path(work_dir: Path, publication: str, target_date: date, slot: int):
+    """The slot's illustration, or None. generate_images.py writes
+    <dir>/images/<publication>/<date>/<slot>.png; anything that is not a real PNG
+    (empty, truncated at the header, an error page) counts as absent, so a
+    render that died half way becomes a text-only post rather than a broken
+    attachment."""
+    path = (work_dir / "images" / publication / target_date.isoformat()
+            / f"{slot}.png")
+    try:
+        with open(path, "rb") as f:
+            return path if f.read(len(PNG_MAGIC)) == PNG_MAGIC else None
+    except OSError:
+        return None
+
+
 # ── Credentials ───────────────────────────────────────────────────────────────
 
 def load_env(path: Path) -> dict:
@@ -138,20 +162,50 @@ def get_person_urn(token: str) -> str:
     return f"urn:li:person:{r.json()['sub']}"
 
 
-def post_to_linkedin(text: str, token: str) -> str:
-    payload = {
-        "author": get_person_urn(token),
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": text},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-        }
-    }
+def upload_image(path: Path, token: str, author: str) -> str:
+    """Registers an upload, PUTs the bytes, returns the asset URN."""
+    auth = {"Authorization": f"Bearer {token}"}
+    r = requests.post(
+        "https://api.linkedin.com/v2/assets?action=registerUpload",
+        headers={**auth, "Content-Type": "application/json"},
+        json={"registerUploadRequest": {
+            "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+            "owner": author,
+            "serviceRelationships": [{
+                "relationshipType": "OWNER",
+                "identifier": "urn:li:userGeneratedContent"}]}})
+    r.raise_for_status()
+    value = r.json()["value"]
+    upload_url = (value["uploadMechanism"]
+                  ["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]
+                  ["uploadUrl"])
+    put = requests.put(upload_url, headers=auth, data=path.read_bytes())
+    put.raise_for_status()
+    return value["asset"]
+
+
+def post_to_linkedin(text: str, token: str, image=None, title: str = "") -> str:
+    """Posts `text`, with `image` attached when there is one and it uploads.
+
+    Only the *upload* falls back to text-only. A failure creating the post
+    itself is raised and never retried: it may have half gone through, and
+    retrying is how a profile ends up with the same item twice."""
+    author = get_person_urn(token)
+
+    asset = None
+    if image is not None:
+        try:
+            asset = upload_image(image, token, author)
+        except Exception as e:                       # noqa: BLE001 — reported below
+            print(f"WARNING: image upload failed ({e}); posting text-only.")
+
+    content = {"shareCommentary": {"text": text}, "shareMediaCategory": "NONE"}
+    if asset:
+        media = {"status": "READY", "media": asset}
+        if title:
+            media["title"] = {"text": title}
+        content.update(shareMediaCategory="IMAGE", media=[media])
+
     r = requests.post(
         "https://api.linkedin.com/v2/ugcPosts",
         headers={
@@ -159,7 +213,14 @@ def post_to_linkedin(text: str, token: str) -> str:
             "Content-Type": "application/json",
             "X-Restli-Protocol-Version": "2.0.0"
         },
-        json=payload
+        json={
+            "author": author,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {"com.linkedin.ugc.ShareContent": content},
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }
     )
     r.raise_for_status()
     return r.headers.get("x-restli-id", r.text)
@@ -232,13 +293,16 @@ def main_with_args(args):
         print(f"ERROR: {e}")
         return 1
 
+    image = image_path(work_dir, publication, target_date, post_number)
+    title = issue["items"][post_number - 1].get("headline", "")
     print(f"Posting #{post_number} to LinkedIn:\n{text}\n")
+    print(f"image: {image}" if image else "no image for this slot (text-only)")
     if dry_run:
         print("[DRY RUN] nothing was posted.")
         return 0
 
     token = get_valid_token(load_env(work_dir / ".env"))
-    print(f"Posted successfully! Post ID: {post_to_linkedin(text, token)}")
+    print(f"Posted successfully! Post ID: {post_to_linkedin(text, token, image, title)}")
     return 0
 
 

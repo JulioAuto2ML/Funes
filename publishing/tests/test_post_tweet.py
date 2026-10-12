@@ -170,5 +170,152 @@ class PostBody(unittest.TestCase):
         self.assertNotIn("Reuters exclusive", pt.post_body(ISSUE, 1))
 
 
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+
+
+class FakeResponse:
+    def __init__(self, json_body=None, headers=None, status=200):
+        self._json, self.headers, self.status_code = json_body or {}, headers or {}, status
+        self.text = ""
+
+    def json(self):
+        return self._json
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+
+class FakeRequests:
+    """Records every call, answers like LinkedIn's three endpoints."""
+
+    def __init__(self, fail_upload=False, fail_post=False):
+        self.calls, self.fail_upload, self.fail_post = [], fail_upload, fail_post
+
+    def get(self, url, **kw):
+        self.calls.append(("GET", url))
+        return FakeResponse({"sub": "abc"})
+
+    def post(self, url, **kw):
+        self.calls.append(("POST", url, kw.get("json")))
+        if url.endswith("registerUpload"):
+            return FakeResponse({"value": {
+                "asset": "urn:li:digitalmediaAsset:XYZ",
+                "uploadMechanism": {
+                    "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest":
+                        {"uploadUrl": "https://upload.example/put"}}}},
+                status=500 if self.fail_upload else 200)
+        return FakeResponse(headers={"x-restli-id": "urn:li:share:1"},
+                            status=500 if self.fail_post else 200)
+
+    def put(self, url, **kw):
+        self.calls.append(("PUT", url, kw.get("data")))
+        return FakeResponse()
+
+    def posted_payload(self):
+        return [c for c in self.calls if c[0] == "POST" and c[1].endswith("ugcPosts")][0][2]
+
+
+class ImageLookup(unittest.TestCase):
+    def test_finds_the_slots_image(self):
+        with TemporaryDirectory() as tmp:
+            d = Path(tmp) / "images" / "ai-pulse" / "2026-07-30"
+            d.mkdir(parents=True)
+            (d / "2.png").write_bytes(PNG)
+            self.assertEqual(pt.image_path(Path(tmp), "ai-pulse", DAY, 2), d / "2.png")
+
+    def test_no_file_means_no_image(self):
+        with TemporaryDirectory() as tmp:
+            self.assertIsNone(pt.image_path(Path(tmp), "ai-pulse", DAY, 1))
+
+    def test_an_empty_or_non_png_file_means_no_image(self):
+        # A render that died half way must not become a broken attachment.
+        with TemporaryDirectory() as tmp:
+            d = Path(tmp) / "images" / "ai-pulse" / "2026-07-30"
+            d.mkdir(parents=True)
+            (d / "1.png").write_bytes(b"")
+            (d / "2.png").write_bytes(b"<html>not an image</html>")
+            self.assertIsNone(pt.image_path(Path(tmp), "ai-pulse", DAY, 1))
+            self.assertIsNone(pt.image_path(Path(tmp), "ai-pulse", DAY, 2))
+
+
+class PostingWithAnImage(unittest.TestCase):
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.png = Path(self.tmp.name) / "1.png"
+        self.png.write_bytes(PNG)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_post(self, fake, **kw):
+        real, pt.requests = pt.requests, fake
+        try:
+            with redirect_stdout(io.StringIO()) as out:
+                result = pt.post_to_linkedin("hello", "tok", **kw)
+            return result, out.getvalue()
+        finally:
+            pt.requests = real
+
+    def test_text_only_when_there_is_no_image(self):
+        fake = FakeRequests()
+        self.run_post(fake)
+        payload = fake.posted_payload()
+        content = payload["specificContent"]["com.linkedin.ugc.ShareContent"]
+        self.assertEqual(content["shareMediaCategory"], "NONE")
+        self.assertFalse([c for c in fake.calls if c[0] == "PUT"])
+
+    def test_registers_uploads_then_posts_the_asset(self):
+        fake = FakeRequests()
+        result, _ = self.run_post(fake, image=self.png, title="Reuters exclusive")
+        self.assertEqual(result, "urn:li:share:1")
+        kinds = [c[0] + " " + c[1].rsplit("/", 1)[-1] for c in fake.calls]
+        self.assertEqual(kinds, ["GET userinfo", "POST assets?action=registerUpload",
+                                 "PUT put", "POST ugcPosts"])
+        put = [c for c in fake.calls if c[0] == "PUT"][0]
+        self.assertEqual(put[2], PNG)
+        content = fake.posted_payload()["specificContent"]["com.linkedin.ugc.ShareContent"]
+        self.assertEqual(content["shareMediaCategory"], "IMAGE")
+        self.assertEqual(content["media"][0]["media"], "urn:li:digitalmediaAsset:XYZ")
+        self.assertEqual(content["media"][0]["status"], "READY")
+        self.assertEqual(content["shareCommentary"]["text"], "hello")
+
+    def test_a_failed_upload_posts_text_only_and_says_so(self):
+        fake = FakeRequests(fail_upload=True)
+        result, out = self.run_post(fake, image=self.png)
+        self.assertEqual(result, "urn:li:share:1")
+        content = fake.posted_payload()["specificContent"]["com.linkedin.ugc.ShareContent"]
+        self.assertEqual(content["shareMediaCategory"], "NONE")
+        self.assertIn("text-only", out)
+
+    def test_a_failed_post_is_not_retried(self):
+        # Retrying a post that may have half-gone-through is how a profile gets
+        # the same item twice. The error surfaces; cron logs it.
+        fake = FakeRequests(fail_post=True)
+        with self.assertRaises(RuntimeError):
+            self.run_post(fake, image=self.png)
+        posts = [c for c in fake.calls if c[0] == "POST" and c[1].endswith("ugcPosts")]
+        self.assertEqual(len(posts), 1)
+
+
+class MainWithImages(unittest.TestCase):
+    def test_dry_run_says_whether_an_image_would_be_attached(self):
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp)
+            d = f.dir / "images" / "ai-pulse" / "2026-07-30"
+            d.mkdir(parents=True)
+            (d / "1.png").write_bytes(PNG)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                pt.main_with_args(["1", "--dir", str(f.dir),
+                                   "--date", DAY.isoformat(), "--dry-run"])
+                pt.main_with_args(["2", "--dir", str(f.dir),
+                                   "--date", DAY.isoformat(), "--dry-run"])
+        text = out.getvalue()
+        self.assertIn("image: ", text)
+        self.assertIn("1.png", text)
+        self.assertIn("no image", text)
+
+
 if __name__ == "__main__":
     unittest.main()

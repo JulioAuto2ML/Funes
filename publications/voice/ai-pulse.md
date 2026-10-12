@@ -48,3 +48,19 @@ anyway.
 Interested, not breathless. Sceptical of claims a company makes about itself,
 without editorialising — quote the claim and attribute it rather than debunking
 it in 280 characters. It is fine for an issue to be boring on a boring day.
+
+## The illustration
+
+Each post may carry an `image_prompt`: a description of the picture that goes
+with it on LinkedIn (not in the newsletter). It is read by an image model, not
+by a person, so write it as a scene.
+
+- One or two sentences naming a **concrete visual metaphor** for the story —
+  objects, setting, what is happening. "A glass milk bottle wired into a circuit
+  board while a clipboard of inspectors looks on" beats "AI regulation".
+- **No real people, no logos, no brand names, no words or numbers in the
+  picture.** A made-up face next to a real headline reads as a claim, and the
+  model cannot spell anyway.
+- Do not describe style, colours or format: the house style is added for you.
+- Never illustrate a death, an injury or an accusation. If the story has no
+  honest picture, leave the prompt out — an absent illustration is fine.

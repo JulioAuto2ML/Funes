@@ -462,7 +462,7 @@ std::string build_issue(const nlohmann::json& pool,
             evidence = substitute_evidence;
         }
 
-        items.push_back({
+        nlohmann::json item = {
             {"n",            n},
             {"emoji",        trim(sel.emoji)},
             {"text",         trim(post_text)},
@@ -472,7 +472,16 @@ std::string build_issue(const nlohmann::json& pool,
             {"published",    funes::json_string(*candidate, "published")},
             {"evidence",     evidence},
             {"candidate_id", candidate->value("id", 0)}
-        });
+        };
+        const std::string image_prompt = trim(sel.image_prompt);
+        if (utf8_length(image_prompt) > kMaxImagePromptChars) {
+            std::cerr << "[publish_issue] item " << n << ": image prompt is "
+                      << utf8_length(image_prompt) << " characters (limit "
+                      << kMaxImagePromptChars << "); dropped, item kept\n";
+        } else if (!image_prompt.empty()) {
+            item["image_prompt"] = image_prompt;
+        }
+        items.push_back(std::move(item));
     }
 
     if (!errors.empty()) {
@@ -621,6 +630,7 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         sel.candidate_id = item["id"].get<int>();
         sel.emoji        = funes::json_string(item, "emoji");
         sel.text         = funes::json_string(item, "text");
+        sel.image_prompt = funes::json_string(item, "image_prompt");
         selection.push_back(std::move(sel));
     }
 
@@ -755,7 +765,8 @@ void register_publish_issue_tool(ToolRegistry& reg,
     reg.add({
         "publish_issue",
         "Publish the day's issue from candidates you picked out of harvest_candidates. "
-        "Give one entry per item: the candidate's `id`, an emoji, and the post text. "
+        "Give one entry per item: the candidate's `id`, an emoji, the post text, and an "
+        "`image_prompt` describing an illustration for it. "
         "You never supply a URL — each id is resolved against the pool, so the link that "
         "ships is the one that was fetched and checked. "
         "Each post is automatically checked against its candidate's page text; if the post "
@@ -779,7 +790,15 @@ void register_publish_issue_tool(ToolRegistry& reg,
                                        {"description", "One emoji to open the post with"}}},
                             {"text", {{"type", "string"},
                                       {"description", "The post, under 280 characters, "
-                                                      "written for X/LinkedIn"}}}
+                                                      "written for X/LinkedIn"}}},
+                            {"image_prompt", {{"type", "string"},
+                                              {"description",
+                                               "Optional. One or two sentences describing "
+                                               "an illustration for this story, for a "
+                                               "text-to-image model: a concrete visual "
+                                               "metaphor, not a headline. No real people, "
+                                               "logos or text in the picture. The style is "
+                                               "added for you."}}}
                         }},
                         {"required", json::array({"id", "emoji", "text"})}
                     }}

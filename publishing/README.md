@@ -11,6 +11,8 @@ decides whether mail goes out.
 | `publish_issue.py` | The current path. Renders a publication's artifacts from its issue JSON, re-checks every link, sends, writes the run record. Invoked by the `publish_issue` tool. |
 | `send_newsletter.py` | Gmail SMTP. Takes `--subject` and `--recipients` from the publication config. |
 | `post_tweet.py` | One LinkedIn post per invocation, from the issue JSON — and only if the day's run record says the issue was sent. |
+| `generate_images.py` | One LinkedIn illustration per item, from each item's `image_prompt`, through a running ComfyUI (Qwen Image 2.1). Writes `images/<pub>/<date>/<n>.png`. |
+| `run_images.sh` | The cron entry for the above: lends the GPU from the LLM for a window and always gives it back (EXIT trap). Does nothing, GPU untouched, if there is nothing to render. |
 | `run_publication.sh` | The cron entry: runs the curator, then checks the run record rather than believing it. |
 | `publish_newsletter.py` | The older path, reading the hand-written `X_posts_<date>.txt`. Still works, still tested; kept until the new path has run a clean week. Also the entry point to the test suite (`--self-test`). |
 
@@ -54,6 +56,24 @@ A cron slot past the end of the issue exits `0` with "Nothing to post" — an
 issue can carry fewer items than there are slots, because `publish_issue` drops
 an item no page in the pool supports rather than sinking the whole issue, so a
 short day is expected rather than a failure.
+
+## Illustrations (LinkedIn only)
+
+The curator may give each item an `image_prompt`; it is stored in the issue JSON
+and listed in `image_prompts_<date>.json`. `run_images.sh` renders them once the
+day's run record says `sent`, and `post_tweet.py` attaches `images/.../<n>.png`
+to slot *n*. Images never reach the newsletter, and a missing or failed image
+means that post goes out text-only.
+
+Measured on yoda (RX 9060 XT 16 GB): ~170 s for the first image, ~106 s for each
+after, nearly all of it the CPU VAE decode — the GPU decode runs out of memory
+because the diffusion model stays resident, which is why ComfyUI runs with
+`--cpu-vae`. **Funes has no model for the whole window** (~17 min for nine), so
+schedule it where that is cheapest, and before the first post slot.
+
+`run_images.sh` exit codes: `2` the issue was never sent, `4` VRAM never freed,
+`5` the model did not come back healthy (look at this first), `6` already
+running. The log is `images_log.txt`; ComfyUI's own is `comfy_images.log`.
 
 ## Scheduling
 

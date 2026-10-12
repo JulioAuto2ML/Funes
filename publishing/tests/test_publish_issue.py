@@ -361,6 +361,30 @@ class PublicationConfig(unittest.TestCase):
             self.assertFalse((f.dir / "X_posts_2026-07-30.txt").exists())
             self.assertEqual(f.record()["artifacts"], ["newsletter_html"])
 
+    def test_image_prompts_artifact_lists_only_items_that_have_one(self):
+        issue = json.loads(json.dumps(ISSUE))
+        issue["items"][1]["image_prompt"] = "A price tag melting"
+        issue["artifacts"] = [{"kind": "image_prompts",
+                               "path": "{workspace}/image_prompts_{iso_date}.json"}]
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp, issue)
+            code, _ = f.run()
+            self.assertEqual(code, 0)
+            written = json.loads(
+                (f.dir / "image_prompts_2026-07-30.json").read_text(encoding="utf-8"))
+            self.assertEqual(f.record()["artifacts"], ["image_prompts"])
+        # n is the item's slot, the number cron hands post_tweet.py.
+        self.assertEqual(written, [{"n": 2, "prompt": "A price tag melting"}])
+
+    def test_an_issue_with_no_prompts_still_gets_an_empty_prompts_file(self):
+        issue = dict(ISSUE, artifacts=[{"kind": "image_prompts",
+                                        "path": "{workspace}/p.json"}])
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp, issue)
+            code, _ = f.run()
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads((f.dir / "p.json").read_text()), [])
+
     def test_an_unknown_artifact_kind_is_refused(self):
         # Quietly skipping it would ship an issue missing half of itself.
         issue = dict(ISSUE, artifacts=[{"kind": "podcast", "path": "{workspace}/x"}])

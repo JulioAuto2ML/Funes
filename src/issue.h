@@ -49,7 +49,16 @@ struct Selection {
     int         candidate_id = 0;
     std::string emoji;
     std::string text;
+    // What a picture for this post should show. Optional, and never a reason to
+    // reject an item: the illustration is garnish for the LinkedIn post, so a
+    // missing or unusable prompt just means that post goes out without one.
+    std::string image_prompt;
 };
+
+// A subject for an image model, not an essay. Over this it is dropped (and
+// logged) rather than truncated — half a scene description is a worse picture
+// than none.
+constexpr size_t kMaxImagePromptChars = 600;
 
 // Posts go to X and LinkedIn, so the limit is X's.
 constexpr size_t kMaxPostChars = 280;
