@@ -80,6 +80,10 @@ def clean(text) -> "str | None":
     t = _LABEL.sub("", t).strip("\"'“”`").strip()
     if not t or len(t) > MAX_CHARS or _CHATTER.match(t) or "http" in t.lower():
         return None
+    # Quoted words are lettering the image model will try to draw ("STOP" sign),
+    # and the rule is no words in the picture. Rejecting sends it to the retry.
+    if re.search(r'["\u201c\u201d]', t):
+        return None
     return t
 
 

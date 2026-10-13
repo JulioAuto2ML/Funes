@@ -44,6 +44,12 @@ class Clean(unittest.TestCase):
         self.assertEqual(ip.clean("**Scene:** A lighthouse made of keys\n"),
                          "A lighthouse made of keys")
 
+    def test_quoted_words_mean_lettering_in_the_picture(self):
+        # 2026-10-13: 'pushes a red "STOP" sign' — the model was told no words.
+        self.assertIsNone(ip.clean('A robot pushes a red "STOP" sign toward a screen.'))
+        self.assertIsNone(ip.clean("A banner reads \u201cOPEN\u201d above a door."))
+        self.assertEqual(ip.clean("The device's screen glows."), "The device's screen glows.")
+
     def test_rejects_empty_oversized_and_chatter(self):
         self.assertIsNone(ip.clean("   "))
         self.assertIsNone(ip.clean("x" * (ip.MAX_CHARS + 1)))
