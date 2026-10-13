@@ -61,6 +61,10 @@ by a person, so write it as a scene.
 - **No real people, no logos, no brand names, no words or numbers in the
   picture.** A made-up face next to a real headline reads as a claim, and the
   model cannot spell anyway.
-- Do not describe style, colours or format: the house style is added for you.
+- Describe it as a photograph: the materials and surfaces, the lighting and
+  atmosphere, and the angle or framing ("low angle, a rack of glass servers lit
+  from within by cold blue light"). Two or three sentences.
+- Do not name an art style or medium: the house look — photorealistic,
+  cinematic, futuristic — is added for you.
 - Never illustrate a death, an injury or an accusation. If the story has no
   honest picture, leave the prompt out — an absent illustration is fine.

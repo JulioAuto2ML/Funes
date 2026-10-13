@@ -26,6 +26,22 @@ class PromptsFor(unittest.TestCase):
         self.assertEqual(gi.prompts_for({}), [])
 
 
+class HouseStyle(unittest.TestCase):
+    def test_style_asks_for_a_realistic_futuristic_photograph(self):
+        style = gi.STYLE.lower()
+        for word in ("photorealistic", "futuristic", "lighting", "lens"):
+            self.assertIn(word, style)
+
+    def test_style_does_not_ask_for_the_old_cartoon_look(self):
+        style = gi.STYLE.lower()
+        for word in ("flat", "cartoon", "illustration", "gradient"):
+            self.assertNotIn(word, style)
+
+    def test_negative_pushes_away_from_cartoons(self):
+        for word in ("cartoon", "illustration", "vector"):
+            self.assertIn(word, gi.NEGATIVE.lower())
+
+
 class Workflow(unittest.TestCase):
     def test_prompt_gets_the_house_style_appended(self):
         p = gi.full_prompt("A robot arm")

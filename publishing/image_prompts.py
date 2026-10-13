@@ -25,17 +25,35 @@ MAX_CHARS = 600
 DEFAULT_LLM_URL = "http://127.0.0.1:8080"
 
 SYSTEM = (
-    "You write one-sentence picture descriptions for a text-to-image model, to "
-    "illustrate a news post. Describe a concrete visual metaphor for the story: "
-    "objects, a setting, something happening. Rules: never depict a person or a "
-    "face (use objects, animals or machines); no logos or brand names; no words, "
-    "letters or numbers in the picture; do not describe style or colours. "
-    "Answer with the description only — one or two sentences, no preamble.")
+    "You write picture descriptions for a text-to-image model, to illustrate a "
+    "news post. Describe a concrete visual metaphor for the story as a "
+    "photograph: the subject, the setting, the materials and surfaces, the "
+    "lighting and atmosphere, and the camera angle or framing. Rules: never "
+    "depict a person or a face (use objects, animals, machines or architecture); "
+    "no logos or brand names; no words, letters or numbers in the picture. Do not "
+    "name an art style or medium — a photorealistic futuristic look is added for "
+    "you. Answer with the description only: two or three sentences, no preamble.")
 
 _LABEL = re.compile(r"^\s*(image prompt|prompt|scene|illustration|description)\s*:\s*",
                     re.IGNORECASE)
 _CHATTER = re.compile(r"^(sure|certainly|of course|okay|ok|here\b|i['’ ]|as an ai)",
                       re.IGNORECASE)
+
+
+# The prompt rules say no people; a 9B model wrote "a dark, shadowy silhouette"
+# anyway (2026-10-13). A real face or body next to a real headline reads as a
+# claim, so this is checked rather than trusted. "Hand" and "arm" are allowed.
+_PERSON = re.compile(
+    r"\b(silhouettes?|figures?|persons?|people|peoples|man|men|woman|women|"
+    r"child|children|kids?|crowds?|workers?|employees?|faces?|portraits?|"
+    r"ceo|president|executives?|crew|passengers?|pilots?|staff)\b", re.IGNORECASE)
+
+REMINDER = ("\n(Reminder: no people, figures, faces or silhouettes at all — "
+            "describe only objects, machines, buildings or landscapes.)")
+
+
+def mentions_person(text: str) -> bool:
+    return bool(_PERSON.search(text or ""))
 
 
 def sidecar_path(work_dir: Path, day: str) -> Path:
@@ -72,7 +90,14 @@ def backfill(issue: dict, extra: dict, ask, log=lambda m: print(m, flush=True)) 
         if (item.get("image_prompt") or "").strip() or slot in result:
             continue
         try:
-            prompt = clean(ask(item.get("text", "")))
+            post = item.get("text", "")
+            prompt = clean(ask(post))
+            if prompt is not None and mentions_person(prompt):
+                log(f"[{slot}] the answer pictured a person; asking once more")
+                prompt = clean(ask(post + REMINDER))
+                if prompt is not None and mentions_person(prompt):
+                    log(f"[{slot}] still a person; this post goes without an image")
+                    continue
         except Exception as e:                       # noqa: BLE001 — logged, not hidden
             log(f"[{slot}] no prompt written: {e}")
             continue

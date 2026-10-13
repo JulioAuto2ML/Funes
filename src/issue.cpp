@@ -793,11 +793,13 @@ void register_publish_issue_tool(ToolRegistry& reg,
                                                       "written for X/LinkedIn"}}},
                             {"image_prompt", {{"type", "string"},
                                               {"description",
-                                               "One or two sentences describing "
-                                               "an illustration for this story, for a "
-                                               "text-to-image model: a concrete visual "
-                                               "metaphor, not a headline. No real people, "
-                                               "logos or text in the picture. The style is "
+                                               "Two or three sentences describing "
+                                               "a picture for this story, for a "
+                                               "text-to-image model, as a photograph: a "
+                                               "concrete visual metaphor (not a headline) "
+                                               "with materials, lighting and framing. No "
+                                               "real people, logos or text in the picture. "
+                                               "The photorealistic, futuristic look is "
                                                "added for you."}}}
                         }},
                         {"required", json::array({"id", "emoji", "text", "image_prompt"})}

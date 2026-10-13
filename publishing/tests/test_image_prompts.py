@@ -29,6 +29,14 @@ class Merged(unittest.TestCase):
         self.assertEqual(ip.merged({"items": [{"text": "x"}]}, {1: "  "}), [])
 
 
+class Instruction(unittest.TestCase):
+    def test_the_backstop_asks_for_photographic_detail_not_a_medium(self):
+        text = ip.SYSTEM.lower()
+        for word in ("lighting", "material", "camera"):
+            self.assertIn(word, text)
+        self.assertIn("never depict a person", text)      # the safety rule survives
+
+
 class Clean(unittest.TestCase):
     def test_strips_wrappers_and_labels(self):
         self.assertEqual(ip.clean('"Prompt: A paper boat on a circuit-board sea."'),
@@ -73,6 +81,36 @@ class Backfill(unittest.TestCase):
     def test_an_unusable_answer_leaves_the_item_text_only(self):
         extra = ip.backfill(ISSUE, {}, lambda t: "Sure! Here is a prompt: boat",
                             log=lambda m: None)
+        self.assertEqual(extra, {})
+
+
+class NoPeople(unittest.TestCase):
+    def test_detects_people_words_but_not_hands_or_objects(self):
+        for bad in ("a dark shadowy silhouette in the background",
+                    "a lone figure walks past", "two workers at a console",
+                    "a portrait of a woman", "a crowd gathers"):
+            self.assertTrue(ip.mentions_person(bad), bad)
+        for ok in ("a human hand pushes a contract away",
+                   "a server rack in a concrete cavern",
+                   "a robotic arm sorts parcels"):
+            self.assertFalse(ip.mentions_person(ok), ok)
+
+    def test_a_person_in_the_first_answer_gets_one_retry_with_a_reminder(self):
+        asked = []
+
+        def ask(text):
+            asked.append(text)
+            return ("A shadowy figure by a vault" if len(asked) == 1
+                    else "A steel vault door ajar in a dim hall")
+        extra = ip.backfill({"items": [{"text": "Bank hacked."}]}, {}, ask,
+                            log=lambda m: None)
+        self.assertEqual(extra, {1: "A steel vault door ajar in a dim hall"})
+        self.assertEqual(len(asked), 2)
+        self.assertIn("no people", asked[1].lower())
+
+    def test_a_person_in_both_answers_leaves_the_post_without_an_image(self):
+        extra = ip.backfill({"items": [{"text": "Bank hacked."}]}, {},
+                            lambda t: "A man at a desk", log=lambda m: None)
         self.assertEqual(extra, {})
 
 

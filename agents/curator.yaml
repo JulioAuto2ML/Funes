@@ -81,11 +81,12 @@ system_prompt: |
                   link is added for you). Writing right up against the limit
                   is how a post ends up over it; leave margin on purpose.
         image_prompt
-                  one or two sentences describing an illustration for the
-                  post, for a text-to-image model. Every item gets one: a
+                  two or three sentences describing a picture for the post,
+                  for a text-to-image model, as a photograph: subject,
+                  materials, lighting, framing. Every item gets one: a
                   concrete visual metaphor for the story, per the voice note's
                   "The illustration" section — no real people, logos or text.
-                  The style is added for you. A bad prompt never rejects an
+                  The photorealistic, futuristic look is added for you. A bad prompt never rejects an
                   item, so do not spend retries on it.
 
       The system automatically checks that each post matches its candidate's

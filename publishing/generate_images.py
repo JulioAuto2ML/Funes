@@ -46,11 +46,17 @@ DEFAULT_SERVER = "http://127.0.0.1:8189"
 WIDTH, HEIGHT = 1280, 672
 
 # Added here, not asked of the model: one look for the whole series, and the
-# model's job stays "say what the picture is of".
-STYLE = ("Clean editorial illustration, flat shapes with soft gradients, "
-         "muted blue and warm orange palette, uncluttered composition, "
-         "no text, no letters, no logos, no real people.")
-NEGATIVE = "text, letters, watermark, logo, signature, photo of a real person, blurry"
+# scene the model writes can then concentrate on what the picture is *of*.
+# (Changed 2026-10-13 from flat editorial illustration to a photographic look.)
+STYLE = ("Photorealistic cinematic photograph, futuristic high-tech aesthetic, "
+         "dramatic volumetric lighting, shallow depth of field, ultra-detailed "
+         "materials and reflections, sleek glass and brushed metal, cool teal and "
+         "deep blue tones with a subtle warm accent light, shot on a full-frame "
+         "camera with a 35mm lens, sharp focus, 8k. No text or lettering, no "
+         "logos, no faces.")
+NEGATIVE = ("cartoon, illustration, drawing, painting, flat colors, vector art, "
+            "anime, toy-like render, text, letters, numbers, watermark, logo, "
+            "signature, face, portrait, blurry, low quality")
 
 # Model files, as named in ~/ComfyUI-Shared/models.
 UNET = "qwen-image-2.1-UC-fp8.safetensors"
