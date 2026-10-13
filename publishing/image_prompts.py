@@ -46,10 +46,11 @@ _CHATTER = re.compile(r"^(sure|certainly|of course|okay|ok|here\b|i['’ ]|as an
 _PERSON = re.compile(
     r"\b(silhouettes?|figures?|persons?|people|peoples|man|men|woman|women|"
     r"child|children|kids?|crowds?|workers?|employees?|faces?|portraits?|"
-    r"ceo|president|executives?|crew|passengers?|pilots?|staff)\b", re.IGNORECASE)
+    r"eyes?|ceo|president|executives?|crew|passengers?|pilots?|staff)\b", re.IGNORECASE)
 
-REMINDER = ("\n(Reminder: no people, figures, faces or silhouettes at all — "
-            "describe only objects, machines, buildings or landscapes.)")
+REMINDER = ("\n(Reminder: at most three sentences and 450 characters. No people, "
+            "figures, faces, eyes or silhouettes at all — describe only objects, "
+            "machines, buildings or landscapes.)")
 
 
 def mentions_person(text: str) -> bool:
@@ -92,8 +93,9 @@ def backfill(issue: dict, extra: dict, ask, log=lambda m: print(m, flush=True)) 
         try:
             post = item.get("text", "")
             prompt = clean(ask(post))
-            if prompt is not None and mentions_person(prompt):
-                log(f"[{slot}] the answer pictured a person; asking once more")
+            if prompt is None or mentions_person(prompt):
+                why = "was not usable" if prompt is None else "pictured a person"
+                log(f"[{slot}] the answer {why}; asking once more")
                 prompt = clean(ask(post + REMINDER))
                 if prompt is not None and mentions_person(prompt):
                     log(f"[{slot}] still a person; this post goes without an image")

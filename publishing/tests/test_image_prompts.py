@@ -88,7 +88,8 @@ class NoPeople(unittest.TestCase):
     def test_detects_people_words_but_not_hands_or_objects(self):
         for bad in ("a dark shadowy silhouette in the background",
                     "a lone figure walks past", "two workers at a console",
-                    "a portrait of a woman", "a crowd gathers"):
+                    "a portrait of a woman", "a crowd gathers",
+                    "a glowing human eye stares out", "wide eyes reflect the screen"):
             self.assertTrue(ip.mentions_person(bad), bad)
         for ok in ("a human hand pushes a contract away",
                    "a server rack in a concrete cavern",
@@ -107,6 +108,18 @@ class NoPeople(unittest.TestCase):
         self.assertEqual(extra, {1: "A steel vault door ajar in a dim hall"})
         self.assertEqual(len(asked), 2)
         self.assertIn("no people", asked[1].lower())
+
+    def test_an_over_long_first_answer_also_gets_one_retry(self):
+        # Richer prompts run long; 2026-10-13 slot 1 lost its image to this.
+        asked = []
+
+        def ask(text):
+            asked.append(text)
+            return "x" * (ip.MAX_CHARS + 50) if len(asked) == 1 else "A short steel scene"
+        extra = ip.backfill({"items": [{"text": "Chips fall."}]}, {}, ask,
+                            log=lambda m: None)
+        self.assertEqual(extra, {1: "A short steel scene"})
+        self.assertIn("450", asked[1])
 
     def test_a_person_in_both_answers_leaves_the_post_without_an_image(self):
         extra = ip.backfill({"items": [{"text": "Bank hacked."}]}, {},
