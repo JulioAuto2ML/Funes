@@ -793,14 +793,14 @@ void register_publish_issue_tool(ToolRegistry& reg,
                                                       "written for X/LinkedIn"}}},
                             {"image_prompt", {{"type", "string"},
                                               {"description",
-                                               "Optional. One or two sentences describing "
+                                               "One or two sentences describing "
                                                "an illustration for this story, for a "
                                                "text-to-image model: a concrete visual "
                                                "metaphor, not a headline. No real people, "
                                                "logos or text in the picture. The style is "
                                                "added for you."}}}
                         }},
-                        {"required", json::array({"id", "emoji", "text"})}
+                        {"required", json::array({"id", "emoji", "text", "image_prompt"})}
                     }}
                 }},
                 {"publication", {{"type", "string"},

@@ -6,6 +6,7 @@ Usage:
     python3 generate_images.py [YYYY-MM-DD] [--dir PATH] [--publication ID]
                                [--server URL] [--only N]
     python3 generate_images.py [YYYY-MM-DD] [--dir PATH] --pending
+    python3 generate_images.py [YYYY-MM-DD] [--dir PATH] --backfill [--llm-url URL]
     python3 generate_images.py --prompt "text" --out file.png [--server URL]
 
 Reads each item's `image_prompt` from the issue JSON, renders it through a
@@ -37,6 +38,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from publish_newsletter import issue_dir   # noqa: E402
+import image_prompts as ip                 # noqa: E402
 
 DEFAULT_SERVER = "http://127.0.0.1:8189"
 
@@ -71,20 +73,16 @@ def image_dir(work_dir: Path, publication: str, day: str) -> Path:
     return work_dir / "images" / publication / day
 
 
-def prompts_for(issue: dict) -> list:
-    """[(slot, prompt)] for the items that carry a usable prompt. The slot is the
-    item's position, because that is the number cron hands post_tweet.py."""
-    out = []
-    for slot, item in enumerate(issue.get("items", []), start=1):
-        prompt = (item.get("image_prompt") or "").strip()
-        if prompt:
-            out.append((slot, prompt))
-    return out
+def prompts_for(issue: dict, extra: dict = None) -> list:
+    """[(slot, prompt)] for the items that carry a usable prompt — their own, or
+    one backfilled by image_prompts.py. The slot is the item's position, because
+    that is the number cron hands post_tweet.py."""
+    return ip.merged(issue, extra or {})
 
 
-def pending(issue: dict, out_dir: Path) -> list:
+def pending(issue: dict, out_dir: Path, extra: dict = None) -> list:
     """Slots that have a prompt but no image yet."""
-    return [slot for slot, _ in prompts_for(issue)
+    return [slot for slot, _ in prompts_for(issue, extra)
             if not (out_dir / f"{slot}.png").exists()]
 
 
@@ -139,13 +137,13 @@ def describe_comfy_error(status: dict, limit: int = 300) -> str:
 
 
 def generate(issue: dict, out_dir: Path, client, day: str = "", only=None,
-             log=lambda m: print(m, flush=True)) -> dict:
+             extra: dict = None, log=lambda m: print(m, flush=True)) -> dict:
     """Render every prompt that has no image yet. One failure never stops the
     batch — the result says what happened to each slot."""
     result = {"made": [], "skipped": [], "failed": [], "aborted": []}
     streak = 0
     out_dir.mkdir(parents=True, exist_ok=True)
-    for slot, prompt in prompts_for(issue):
+    for slot, prompt in prompts_for(issue, extra):
         if only is not None and slot != only:
             continue
         if streak >= MAX_CONSECUTIVE_FAILURES:
@@ -244,8 +242,12 @@ def main(args) -> int:
     ask_pending = "--pending" in args
     if ask_pending:
         args.remove("--pending")
+    ask_backfill = "--backfill" in args
+    if ask_backfill:
+        args.remove("--backfill")
+    llm_url = _take(args, "--llm-url") or ip.DEFAULT_LLM_URL
 
-    if not ask_pending and not client.reachable():
+    if not ask_pending and not ask_backfill and not client.reachable():
         print(f"ERROR: no ComfyUI at {server}")
         return 2
 
@@ -264,11 +266,23 @@ def main(args) -> int:
         print(f"ERROR: no issue at {issue_path}")
         return 1
     issue = json.loads(issue_path.read_text(encoding="utf-8"))
+    if ask_backfill:
+        # Best effort by design: whatever happens here, the run goes on and the
+        # posts without a prompt go out text-only.
+        extra = ip.backfill(issue, ip.load_extra(work_dir, day, issue),
+                            ip.LlmClient(llm_url).ask)
+        try:
+            ip.write_sidecar(ip.sidecar_path(work_dir, day), issue, extra)
+        except OSError as e:
+            print(f"WARNING: could not write the prompts file: {e}")
+        print(f"{len(ip.merged(issue, extra))} of {len(issue.get('items', []))} items have a prompt")
+        return 0
+    extra = ip.load_extra(work_dir, day, issue)
     if ask_pending:
-        print(len(pending(issue, image_dir(work_dir, publication, day))))
+        print(len(pending(issue, image_dir(work_dir, publication, day), extra)))
         return 0
     result = generate(issue, image_dir(work_dir, publication, day), client,
-                      day=day, only=int(only) if only else None)
+                      day=day, only=int(only) if only else None, extra=extra)
     print(json.dumps(result))
     return 0
 

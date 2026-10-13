@@ -153,6 +153,65 @@ class Pending(unittest.TestCase):
             self.assertEqual(gi.main(["2026-07-30", "--dir", d, "--pending"]), 1)
 
 
+class WithBackfilledPrompts(unittest.TestCase):
+    def test_extras_fill_gaps_in_prompts_for_and_pending(self):
+        self.assertEqual([n for n, _ in gi.prompts_for(ISSUE, {2: "A cube", 1: "ignored"})],
+                         [1, 2, 4])
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(gi.pending(ISSUE, Path(d), {2: "A cube"}), [1, 2, 4])
+
+    def test_generate_renders_a_backfilled_slot(self):
+        with tempfile.TemporaryDirectory() as d:
+            client = FakeClient()
+            res = gi.generate(ISSUE, Path(d), client, extra={2: "A glowing cube"})
+            self.assertEqual(res["made"], [1, 2, 4])
+            self.assertIn("A glowing cube", " ".join(client.calls))
+
+    def test_cli_backfill_writes_the_sidecar_and_counts(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as d:
+            issue = Path(d) / "issues" / "ai-pulse" / "2026-07-30.json"
+            issue.parent.mkdir(parents=True)
+            issue.write_text(json.dumps(ISSUE))
+
+            class Fake:
+                def __init__(self, *a, **k): pass
+                def ask(self, text): return "A tidy scene"
+            real, gi.ip.LlmClient = gi.ip.LlmClient, Fake
+            try:
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc = gi.main(["2026-07-30", "--dir", d, "--backfill"])
+            finally:
+                gi.ip.LlmClient = real
+            self.assertEqual(rc, 0)
+            rows = json.loads((Path(d) / "image_prompts_2026-07-30.json").read_text())
+            self.assertEqual([r["n"] for r in rows], [1, 2, 3, 4])
+            # --pending now sees the backfilled slots too.
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                gi.main(["2026-07-30", "--dir", d, "--pending"])
+            self.assertEqual(out.getvalue().strip().splitlines()[-1], "4")
+
+    def test_cli_backfill_survives_an_unreachable_llm(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as d:
+            issue = Path(d) / "issues" / "ai-pulse" / "2026-07-30.json"
+            issue.parent.mkdir(parents=True)
+            issue.write_text(json.dumps(ISSUE))
+
+            class Down:
+                def __init__(self, *a, **k): pass
+                def ask(self, text): raise OSError("connection refused")
+            real, gi.ip.LlmClient = gi.ip.LlmClient, Down
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = gi.main(["2026-07-30", "--dir", d, "--backfill"])
+            finally:
+                gi.ip.LlmClient = real
+            self.assertEqual(rc, 0)       # garnish: never a reason to fail the run
+
+
 class Paths(unittest.TestCase):
     def test_image_dir_layout(self):
         self.assertEqual(gi.image_dir(Path("/x"), "ai-pulse", "2026-10-12"),

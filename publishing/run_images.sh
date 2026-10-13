@@ -60,6 +60,7 @@ COMFY_LOG="${COMFY_LOG:-$PUBLISH_DIR/comfy_images.log}"
 
 GENERATE_CMD="${GENERATE_CMD:-python3 $SCRIPT_DIR/generate_images.py $DAY --dir $PUBLISH_DIR --publication $PUBLICATION --server http://127.0.0.1:$COMFY_PORT}"
 GENERATE_TIMEOUT_S="${GENERATE_TIMEOUT_S:-2400}"
+BACKFILL_CMD="${BACKFILL_CMD:-python3 $SCRIPT_DIR/generate_images.py $DAY --dir $PUBLISH_DIR --publication $PUBLICATION --backfill}"
 
 VRAM_USED_MB_CMD="${VRAM_USED_MB_CMD:-}"
 VRAM_FREE_BELOW_MB="${VRAM_FREE_BELOW_MB:-2000}"
@@ -104,6 +105,11 @@ until [ "$(record_status)" = "sent" ]; do
     fi
     sleep "$POLL_S"; waited=$(( waited + POLL_S ))
 done
+
+# The curator is a small model and has skipped `image_prompt` before. While the
+# LLM is still up, write any missing prompts directly. Best effort: a failure
+# here means those posts go out without an image, never a failed run.
+$BACKFILL_CMD 9>&- || log "prompt backfill failed (exit $?); continuing with what exists"
 
 PENDING="$(python3 "$SCRIPT_DIR/generate_images.py" "$DAY" --dir "$PUBLISH_DIR" \
             --publication "$PUBLICATION" --pending)" || {

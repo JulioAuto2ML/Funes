@@ -65,6 +65,14 @@ class Env:
             "vram.sh",
             f'if grep -q "ctl stop" {self.log}; then echo '
             f'{"100" if vram_frees else "14000"}; else echo 14000; fi\n')
+        self.backfill = self._script(
+            "backfill.sh",
+            f'echo backfill >> {self.log}\n'
+            f'python3 - <<PY\nimport json,pathlib\n'
+            f'p=pathlib.Path("{self.pub}/issues/ai-pulse/{DAY}.json")\n'
+            f'd=json.loads(p.read_text())\n'
+            f'[i.update(image_prompt="filled") for i in d["items"]]\n'
+            f'p.write_text(json.dumps(d))\nPY\n')
         self.health = self._script(
             "health.sh",
             f'[ "$(grep -c "ctl start" {self.log})" -ge 1 ]\n')
@@ -88,7 +96,8 @@ class Env:
                    LOCK_FILE=str(self.dir / "lock"),
                    WAIT_SENT_S="2", POLL_S="1", VRAM_WAIT_S="3",
                    COMFY_WAIT_S="10", LLM_WAIT_S="5", GENERATE_TIMEOUT_S="20",
-                   **extra)
+                   **{"BACKFILL_CMD": "true",   # never reach for a real LLM in a test
+                      **extra})
         p = subprocess.run(["bash", str(SCRIPT), "ai-pulse"], env=env,
                            capture_output=True, text=True, timeout=60)
         events = [l for l in self.log.read_text().splitlines() if l.strip()]
@@ -156,6 +165,24 @@ class TheLock(unittest.TestCase):
         self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
 
 
+class Backfill(unittest.TestCase):
+    def test_backfill_runs_while_the_model_is_still_up(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            e = Env(tmp, prompts=False)
+            p, ev = e.run(BACKFILL_CMD=f"{e.backfill}")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(ev[0], "backfill")           # before ctl stop
+        self.assertEqual(ev[1], "ctl stop qwen9b")
+
+    def test_a_failed_backfill_does_not_stop_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            e = Env(tmp)
+            e.backfill.write_text(f'#!/usr/bin/env bash\necho backfill >> {e.log}\nexit 9\n')
+            p, ev = e.run(BACKFILL_CMD=f"{e.backfill}")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("ctl stop qwen9b", ev)
+
+
 class Cancelling(unittest.TestCase):
     def test_sigterm_mid_render_restores_the_model_promptly(self):
         # Bash holds a trap until the foreground command finishes, so a render
@@ -170,6 +197,7 @@ class Cancelling(unittest.TestCase):
                        COMFY_CMD=f"exec python3 {e.comfy} 18999", COMFY_PORT="18999",
                        GENERATE_CMD=str(e.generate), VRAM_USED_MB_CMD=str(e.vram),
                        HEALTH_CMD=str(e.health), LOCK_FILE=str(e.dir / "lock"),
+                       BACKFILL_CMD="true",
                        WAIT_SENT_S="2", POLL_S="1", VRAM_WAIT_S="3", COMFY_WAIT_S="10",
                        LLM_WAIT_S="5", GENERATE_TIMEOUT_S="120")
             proc = subprocess.Popen(["bash", str(SCRIPT), "ai-pulse"], env=env,
