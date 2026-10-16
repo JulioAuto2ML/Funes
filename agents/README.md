@@ -11,6 +11,7 @@ allowlist, and a handful of knobs, not an independent binary or container.
 | `funes` | Orchestrator. The only agent the user talks to. | delegate_to_agent, web_search, remember/recall, read/write_file | 8 |
 | `operator` | Workspace and scheduler. Files, shell, cron jobs. | read/write_file, execute_shell, schedule/list/cancel_job | 12 |
 | `researcher` | Deep web research with source attribution. | web_search, web_fetch, remember/recall | 20 |
+| `monitor-argy` | Argentine macro indicators from official sources (hosted MCP server, streamable HTTP). | listar_series, obtener_serie, coyuntura, calendario | 8 |
 | `agent-builder` | Creates new agents via interview. The only holder of `create_agent`. | create_agent, list_tools | 8 |
 | `agent-doctor` | Diagnoses and fixes broken agents. | read_file, delegate_to_agent, create_agent | 16 |
 | `tool-builder` | Scaffolds new HTTP-template tools via interview. | create_tool | 8 |
@@ -58,7 +59,7 @@ same account the caller is acting for.
   restricts nothing by itself (the agent allowlist still decides); it changes
   what a caller is *told* when the agent is unavailable, because "ask an
   administrator" is good advice for an allowlist and bad advice for this. See
-  `src/core/agent_roster.h`. None of the eight shipped agents needs it; an
+  `src/core/agent_roster.h`. None of the nine shipped agents needs it; an
   agent wired to one mailbox, one phone number or one subscriber list does.
 
 ## YAML format
@@ -112,8 +113,14 @@ workspace_dir: subfolder          # nested inside the caller's own workspace
 memory_scope: funes               # share another agent's memory pool
 mcp_servers:
   - name: my-server
-    command: npx -y my-mcp-server
+    command: npx -y my-mcp-server        # stdio
+  - name: monitor-argy
+    url: https://monitorargy.com/mcp     # streamable HTTP: one URL, JSON-RPC POSTs
+    transport: http                      # (omit for the legacy GET /sse transport)
 ```
+
+With `transport: http` the URL is the full endpoint, path included. If the agent
+has a `tools:` allowlist, the server's tool names must be listed there too.
 
 ## `scripts:` -- what an agent may run instead of a shell
 

@@ -105,6 +105,7 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
                 srv.name = srv.url;
             } else {
                 if (entry["url"])     srv.url     = entry["url"].as<std::string>();
+                if (entry["transport"]) srv.transport = entry["transport"].as<std::string>();
                 // ${VAR} expands in the command too, not just in env: a stdio
                 // server's path is machine-local (dev checkout vs. deployment
                 // host), and the alternative is an absolute path committed to

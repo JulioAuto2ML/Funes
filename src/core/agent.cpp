@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "agent.h"
+#include "mcp_http_client.h"
 #include "users.h"   // funes::language_name
 #include "answer_schema.h"
 #include "completion_contract.h"
@@ -89,7 +90,8 @@ json FunesAgent::mcp_tool_to_openai(const mcp::tool& t) {
 
 void FunesAgent::connect_mcp_servers() {
     // Global servers (FUNES_MCP_SERVERS, semicolon-separated URLs) + per-agent
-    // ones (YAML, either url: for SSE or command: for stdio).
+    // ones (YAML: url: for SSE, url: + transport: http for streamable HTTP,
+    // or command: for stdio).
     std::vector<McpServerConfig> servers;
     std::set<std::string> seen;
 
@@ -124,6 +126,14 @@ void FunesAgent::connect_mcp_servers() {
 
         if (stdio) {
             client = std::make_unique<mcp::stdio_client>(srv.command, srv.env);
+        } else if (srv.transport == "http") {
+            try {
+                client = std::make_unique<funes::HttpMcpClient>(srv.url, 120);
+            } catch (const std::exception& e) {
+                std::cerr << "[agent:" << cfg_.name << "] WARNING: MCP server '"
+                          << label << "': " << e.what() << " — skipping.\n";
+                continue;
+            }
         } else {
             auto [host, port] = parse_host_port(srv.url);
             auto sse = std::make_unique<mcp::sse_client>(host, port);

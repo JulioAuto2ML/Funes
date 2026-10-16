@@ -10,6 +10,10 @@ add_executable(test_agent_config test_agent_config.cpp)
 target_link_libraries(test_agent_config PRIVATE funes_core)
 add_test(NAME agent_config COMMAND test_agent_config)
 
+add_executable(test_mcp_http_client test_mcp_http_client.cpp)
+target_link_libraries(test_mcp_http_client PRIVATE funes_core)
+add_test(NAME mcp_http_client COMMAND test_mcp_http_client)
+
 add_executable(test_context_compressor test_context_compressor.cpp)
 target_link_libraries(test_context_compressor PRIVATE funes_core)
 add_test(NAME context_compressor COMMAND test_context_compressor)

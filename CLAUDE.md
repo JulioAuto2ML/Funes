@@ -137,7 +137,8 @@ for the full roster and the hub-and-spoke diagram.
 
 `src/core/tools/` — one file per tool (or tool pack), self-registering into
 `ToolRegistry` (`tools.h/cpp`) at startup, no protocol/HTTP hop for built-ins.
-External tools plug in via MCP (`mcp_servers:` in agent YAML, SSE or stdio —
+External tools plug in via MCP (`mcp_servers:` in agent YAML, SSE, streamable HTTP
+(`transport: http`, `mcp_http_client.cpp`) or stdio —
 stdio servers are spawned fresh as subprocesses per request). Shared
 infrastructure tools build on: `fs_guard` (workspace path confinement),
 `net_guard` (SSRF blocking), `process_runner` (fork/exec with timeout and
@@ -421,7 +422,7 @@ failure surfaces at whichever fires first.
 ## Directory map
 
 ```
-agents/        the eight shipped agent YAMLs (see agents/README.md)
+agents/        the nine shipped agent YAMLs (see agents/README.md)
 config/        funes.conf (committed defaults) + funes.local (gitignored secrets)
 scriptlib/     central script library: what agents may run by name (see scriptlib/README.md)
 src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety, extension hook)

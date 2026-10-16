@@ -15,7 +15,9 @@
 // spawns a subprocess and speaks MCP over its stdin/stdout (the transport
 // most published MCP servers actually use, e.g. "npx -y some-mcp-server").
 struct McpServerConfig {
-    std::string url;           // e.g. "http://localhost:9000" — SSE transport
+    std::string url;           // e.g. "http://localhost:9000" — SSE transport, or the
+                               // full endpoint URL when transport is "http"
+    std::string transport;     // "" / "sse" (legacy GET /sse) | "http" (streamable HTTP)
     std::string command;       // e.g. "npx -y rss-reader-mcp" — stdio transport
     std::string name;          // optional human label for logs; defaults to url/command
     nlohmann::json env = nlohmann::json::object(); // extra env vars for a stdio server's process

@@ -35,6 +35,8 @@ mcp_servers:
     name: rss
     env:
       FOO: bar
+  - url: https://example.com/mcp
+    transport: http
 memory_scope: funes
 )yaml");
 
@@ -49,7 +51,8 @@ memory_scope: funes
     CHECK(cfg.max_steps == 3);
     CHECK(cfg.context_limit == 2048);
     CHECK(cfg.system_prompt.find("Prompt line.") != std::string::npos);
-    CHECK(cfg.mcp_servers.size() == 3);
+    CHECK(cfg.mcp_servers.size() == 4);
+    CHECK(cfg.mcp_servers[3].transport == "http" && cfg.mcp_servers[0].transport.empty());
     CHECK(cfg.mcp_servers[0].name == "srv-a");
     CHECK(cfg.mcp_servers[1].url == "http://localhost:9001");
     CHECK(cfg.mcp_servers[1].name == "http://localhost:9001");  // bare URL shorthand
