@@ -275,15 +275,15 @@ def main(args) -> int:
     if ask_backfill:
         # Best effort by design: whatever happens here, the run goes on and the
         # posts without a prompt go out text-only.
-        extra = ip.backfill(issue, ip.load_extra(work_dir, day, issue),
+        extra = ip.backfill(issue, ip.load_extra(work_dir, day, issue, publication),
                             ip.LlmClient(llm_url).ask)
         try:
-            ip.write_sidecar(ip.sidecar_path(work_dir, day), issue, extra)
+            ip.write_sidecar(ip.sidecar_path(work_dir, day, publication), issue, extra)
         except OSError as e:
             print(f"WARNING: could not write the prompts file: {e}")
         print(f"{len(ip.merged(issue, extra))} of {len(issue.get('items', []))} items have a prompt")
         return 0
-    extra = ip.load_extra(work_dir, day, issue)
+    extra = ip.load_extra(work_dir, day, issue, publication)
     if ask_pending:
         print(len(pending(issue, image_dir(work_dir, publication, day), extra)))
         return 0

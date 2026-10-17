@@ -102,7 +102,13 @@ std::string normalize_for_match(const std::string& s) {
     return folded;
 }
 
-// ── Stop words: common English words that carry no topical signal ────────────
+// ── Stop words: common English and Spanish words that carry no topical signal ─
+// One union set rather than one per publication: no language has to be threaded
+// into the gate, and no Spanish word of four letters or more is also a topical
+// English one, so the union costs nothing. Without the Spanish half, "para",
+// "como", "sobre" and "tambi" (accents split a word here — see below) count as
+// evidence a post matches its page, and the check passes posts it should not.
+// Mirrored in publishing/publish_issue.py — keep the two in sync.
 const std::unordered_set<std::string> kStopWords = {
     "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
     "of", "is", "are", "was", "were", "be", "been", "has", "have", "had",
@@ -114,12 +120,60 @@ const std::unordered_set<std::string> kStopWords = {
     "when", "where", "how", "who", "would", "could", "should", "does",
     "did", "being", "here", "there", "then", "now", "out", "own", "these",
     "those", "said", "says", "one", "two", "may", "like", "well", "use",
-    "used", "using", "make", "made", "get", "got", "set", "way", "many"
+    "used", "using", "make", "made", "get", "got", "set", "way", "many",
+    // Spanish, accent-folded (see fold_accents). Entries under four letters are
+    // omitted: the length floor already drops them.
+    "para", "como", "pero", "esta", "este", "esto", "estos", "estas", "sobre",
+    "entre", "desde", "hasta", "cuando", "donde", "tiene", "tienen", "puede",
+    "pueden", "porque", "otro", "otra", "otros", "otras", "cada", "ellos",
+    "ellas", "nuestro", "nuestra", "sido", "sera", "seran", "sino", "tras",
+    "solo", "mismo", "misma", "todo", "todos", "toda", "todas", "algo",
+    "luego", "ahora", "aqui", "habia", "hace", "hacen", "hizo", "dice",
+    "dijo", "segun", "tambien", "ademas", "aunque", "mientras", "durante",
+    "contra", "hacia", "nuevo", "nueva", "nuevos", "nuevas", "primer",
+    "primera", "ante", "bajo", "cual", "cuales", "quien", "quienes", "estar",
+    "estan", "estaba", "fueron", "fuera", "unos", "unas", "esos", "esas",
+    "aquel", "menos", "casi", "veces", "parte", "partir", "lugar", "caso",
+    "anos"
 };
 
 constexpr size_t kMinWordLen = 4;
 
-std::set<std::string> content_words(const std::string& text) {
+// Spanish accents and ñ to plain ASCII (UTF-8 two-byte sequences C3 xx). The
+// tokenizer below splits on any byte that is not ASCII alphanumeric, so without
+// this "también" becomes "tambi" and "según" becomes "seg" — neither of which a
+// stop list could name — and a post that says "decisión" would fail to match a
+// page that says "decision". Folding both sides makes the match accent-blind.
+std::string fold_accents(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (c == 0xC3 && i + 1 < text.size()) {
+            const unsigned char d = static_cast<unsigned char>(text[i + 1]);
+            char plain = 0;
+            switch (d) {
+                case 0x81: case 0xA1: plain = 'a'; break;   // Á á
+                case 0x89: case 0xA9: plain = 'e'; break;   // É é
+                case 0x8D: case 0xAD: plain = 'i'; break;   // Í í
+                case 0x93: case 0xB3: plain = 'o'; break;   // Ó ó
+                case 0x9A: case 0xBA: case 0x9C: case 0xBC: plain = 'u'; break;  // Ú ú Ü ü
+                case 0x91: case 0xB1: plain = 'n'; break;   // Ñ ñ
+                default: break;
+            }
+            if (plain) {
+                out += plain;
+                ++i;
+                continue;
+            }
+        }
+        out += text[i];
+    }
+    return out;
+}
+
+std::set<std::string> content_words(const std::string& raw) {
+    const std::string text = fold_accents(raw);
     std::set<std::string> words;
     std::string word;
     for (unsigned char c : text) {
@@ -693,6 +747,7 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         issue["title"]   = pub.title;
         issue["subject"] = pub.subject;
         if (!pub.cta.empty()) issue["cta"] = pub.cta;
+        issue["language"] = pub.language;
         issue["artifacts"] = nlohmann::json::array();
         for (const auto& a : pub.artifacts)
             issue["artifacts"].push_back({{"kind", a.kind},

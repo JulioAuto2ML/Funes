@@ -128,6 +128,73 @@ int test_the_shipped_ai_pulse_config_loads() {
     return 0;
 }
 
+int test_the_shipped_spanish_config_loads() {
+    // The Spanish edition: its own sources, its own files, and nothing that
+    // could overwrite the English edition's.
+    Publication pub;
+    const std::string why = Publication::load("publications", "ai-pulse-es", pub);
+    if (!why.empty()) {
+        std::cerr << "  (publications/ai-pulse-es.yaml: " << why << ")\n";
+        return 1;
+    }
+    CHECK(pub.id == "ai-pulse-es");
+    CHECK(pub.language == "es");
+    CHECK(pub.min_count <= pub.count);
+    CHECK(pub.queries.size() >= 3);
+    // Spanish-language search needs an allowlist: there is no language filter.
+    CHECK(pub.include_domains.size() >= 8);
+    CHECK(!pub.cta.empty());
+    CHECK(pub.cta.find("SUSCRIBIR") != std::string::npos);
+
+    Publication en;
+    CHECK(Publication::load("publications", "ai-pulse", en).empty());
+    CHECK(en.language == "en");
+    CHECK(en.include_domains.empty());
+
+    // No artifact path or recipients file is shared with ai-pulse.
+    CHECK(!pub.artifacts.empty());
+    for (const auto& a : pub.artifacts)
+        for (const auto& b : en.artifacts)
+            CHECK(a.path != b.path);
+    CHECK(pub.channels.size() == 1);
+    CHECK(pub.channels[0].recipients_file != en.channels[0].recipients_file);
+
+    CHECK(funes::voice_text("publications", pub).find("Spanish") != std::string::npos);
+    for (const auto& a : pub.artifacts)
+        if (!a.html_template.empty())
+            CHECK(std::filesystem::exists(std::filesystem::path("publishing") /
+                                          a.html_template));
+    return 0;
+}
+
+int test_language_and_include_domains_are_read_and_validated() {
+    const fs::path dir = scratch();
+    write_config(dir, "es", "id: es\nlanguage: es\nsources:\n"
+                            "  include_domains: [xataka.com, genbeta.com]\n");
+    Publication pub;
+    CHECK(Publication::load(dir.string(), "es", pub).empty());
+    CHECK(pub.language == "es");
+    CHECK((pub.include_domains == std::vector<std::string>{"xataka.com", "genbeta.com"}));
+
+    // Defaults: English, whole web.
+    write_config(dir, "bare", "id: bare\n");
+    Publication bare;
+    CHECK(Publication::load(dir.string(), "bare", bare).empty());
+    CHECK(bare.language == "en");
+    CHECK(bare.include_domains.empty());
+
+    // A language the machinery has no dates or stop words for is refused here,
+    // where the mistake is, rather than shipping an English date in French.
+    write_config(dir, "fr", "id: fr\nlanguage: fr\n");
+    Publication fr;
+    const std::string why = Publication::load(dir.string(), "fr", fr);
+    CHECK(!why.empty());
+    CHECK(why.find("language") != std::string::npos);
+
+    fs::remove_all(dir);
+    return 0;
+}
+
 int test_a_second_publication_needs_no_code() {
     // Nothing below exists in the repo. If it round-trips, a new publication is
     // a file.
@@ -209,6 +276,8 @@ int main() {
     rc |= test_missing_and_malformed_configs();
     rc |= test_a_config_that_cannot_be_satisfied_is_refused();
     rc |= test_the_shipped_ai_pulse_config_loads();
+    rc |= test_the_shipped_spanish_config_loads();
+    rc |= test_language_and_include_domains_are_read_and_validated();
     rc |= test_a_second_publication_needs_no_code();
     rc |= test_a_missing_voice_file_is_not_an_error();
     if (rc == 0) std::cout << "test_publication: all tests passed\n";

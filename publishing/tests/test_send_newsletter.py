@@ -62,6 +62,23 @@ class LoadNewsletter(unittest.TestCase):
             subject, _ = sn.load_newsletter(Path(tmp), date(2026, 7, 3))
         self.assertIn("July 3, 2026", subject)
 
+    def test_reads_a_named_file_when_the_publication_has_its_own(self):
+        # A second publication's newsletter must not be (or overwrite) the AI
+        # newsletter's newsletter_<date>.html.
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "newsletter_2026-07-30.html").write_text("<p>english</p>")
+            (Path(tmp) / "newsletter_es_2026-07-30.html").write_text("<p>hola</p>")
+            _, body = sn.load_newsletter(Path(tmp), date(2026, 7, 30),
+                                         html_name="newsletter_es_2026-07-30.html")
+        self.assertEqual(body, "<p>hola</p>")
+
+    def test_a_named_file_may_be_an_absolute_path(self):
+        with TemporaryDirectory() as tmp, TemporaryDirectory() as other:
+            path = Path(other) / "n.html"
+            path.write_text("<p>abs</p>")
+            _, body = sn.load_newsletter(Path(tmp), date(2026, 7, 30), html_name=str(path))
+        self.assertEqual(body, "<p>abs</p>")
+
     def test_a_missing_issue_raises(self):
         with TemporaryDirectory() as tmp:
             with self.assertRaises(FileNotFoundError):

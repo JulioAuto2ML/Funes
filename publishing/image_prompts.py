@@ -57,8 +57,19 @@ def mentions_person(text: str) -> bool:
     return bool(_PERSON.search(text or ""))
 
 
-def sidecar_path(work_dir: Path, day: str) -> Path:
-    return work_dir / f"image_prompts_{day}.json"
+# The publication whose sidecar kept the un-prefixed name it had before there
+# was a second one; renaming the files already on disk would orphan them.
+LEGACY_PUBLICATION = "ai-pulse"
+
+
+def sidecar_path(work_dir: Path, day: str, publication: str = "") -> Path:
+    """Where a publication's backfilled prompts live. Per publication, because two
+    publications backfilling on the same day would otherwise overwrite each
+    other. This is also where publish_issue's `image_prompts` artifact lands when
+    its path is configured to match."""
+    if not publication or publication == LEGACY_PUBLICATION:
+        return work_dir / f"image_prompts_{day}.json"
+    return work_dir / f"image_prompts_{publication}_{day}.json"
 
 
 def merged(issue: dict, extra: dict) -> list:
@@ -120,11 +131,12 @@ def write_sidecar(path: Path, issue: dict, extra: dict) -> None:
     path.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def load_extra(work_dir: Path, day: str, issue: dict) -> dict:
+def load_extra(work_dir: Path, day: str, issue: dict, publication: str = "") -> dict:
     """The backfilled prompts on disk — only for slots whose item has no prompt
     of its own. Missing or corrupt means none: this is garnish, not a gate."""
     try:
-        rows = json.loads(sidecar_path(work_dir, day).read_text(encoding="utf-8"))
+        rows = json.loads(sidecar_path(work_dir, day, publication)
+                          .read_text(encoding="utf-8"))
         extra = {int(r["n"]): str(r["prompt"]).strip() for r in rows}
     except (OSError, ValueError, KeyError, TypeError):
         return {}

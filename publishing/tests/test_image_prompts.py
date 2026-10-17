@@ -145,6 +145,25 @@ class Sidecar(unittest.TestCase):
             # prompts are the issue's business.
             self.assertEqual(ip.load_extra(Path(d), "2026-10-13", ISSUE), {2: "A glowing cube"})
 
+    def test_each_publication_has_its_own_sidecar(self):
+        # Two publications backfilling on the same day must not overwrite each
+        # other's prompts. ai-pulse keeps the name the files on disk already have.
+        d = Path("/w")
+        self.assertEqual(ip.sidecar_path(d, "2026-10-13"), d / "image_prompts_2026-10-13.json")
+        self.assertEqual(ip.sidecar_path(d, "2026-10-13", "ai-pulse"),
+                         d / "image_prompts_2026-10-13.json")
+        self.assertEqual(ip.sidecar_path(d, "2026-10-13", "ai-pulse-es"),
+                         d / "image_prompts_ai-pulse-es_2026-10-13.json")
+
+    def test_extras_are_read_from_the_publications_own_sidecar(self):
+        with tempfile.TemporaryDirectory() as d:
+            ip.write_sidecar(ip.sidecar_path(Path(d), "2026-10-13", "ai-pulse"),
+                             ISSUE, {2: "english cube"})
+            self.assertEqual(ip.load_extra(Path(d), "2026-10-13", ISSUE,
+                                           "ai-pulse-es"), {})
+            self.assertEqual(ip.load_extra(Path(d), "2026-10-13", ISSUE,
+                                           "ai-pulse"), {2: "english cube"})
+
     def test_missing_or_corrupt_sidecar_means_no_extras(self):
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(ip.load_extra(Path(d), "2026-10-13", ISSUE), {})

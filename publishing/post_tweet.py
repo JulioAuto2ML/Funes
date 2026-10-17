@@ -27,23 +27,45 @@ check, a blocked run left yesterday's posts file in place and cron cheerfully
 published from it — the asymmetry that made a silent failure into ten public
 ones.
 
+**The link goes in the first comment, not the body.** LinkedIn demotes a post
+that carries an outbound link, so the post is the text (and image) alone and the
+source URL follows as a comment, in a second API call. That makes a post two
+steps, and the second can fail after the first has made something public — so
+the post's id is written to <dir>/posted/<publication>/<date>.json the moment
+LinkedIn returns it, before the comment is attempted. Re-running a slot then
+only ever finishes the comment: it can never repost. Every invocation also
+sweeps today's earlier slots for comments still owed, so a transient failure is
+repaired by the next cron slot without anyone looking.
+
 Credentials are read from <dir>/.env, which stays on the host.
 
 Exit codes:
-    0  posted (or, with --dry-run, would have been)
+    0  posted and commented (or, with --dry-run, would have been)
     1  usage/input error
     3  refused: no run record for that date, or the issue was not sent
+    4  posted, but a link comment could not be added (post id is on record;
+       re-run the slot, or wait for the next one, to finish it)
 """
 
 import json
+import os
 import sys
 import time
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
+
+EXIT_COMMENT_FAILED = 4
+
+# Seconds to wait before each retry of a comment. LinkedIn can answer 404 for a
+# post it created a second earlier, so a short wait fixes the common failure;
+# a module constant so tests don't sleep.
+COMMENT_RETRY_DELAYS = (5, 15)
+_RETRYABLE_COMMENT_STATUS = {404, 429, 500, 502, 503, 504}
 
 sys.path.insert(0, str(SCRIPT_DIR))
 from publish_newsletter import issue_dir           # noqa: E402
@@ -79,19 +101,66 @@ def load_sent_issue(work_dir: Path, publication: str, target_date: date) -> dict
     return json.loads(issue_path.read_text(encoding="utf-8"))
 
 
-def post_body(issue: dict, post_number: int) -> str:
-    """Item N as a LinkedIn post: the text, the link, and the publication's own
-    call to action. Every part of it is looked up, not parsed."""
+def _item(issue: dict, post_number: int) -> dict:
     items = issue.get("items", [])
     if post_number < 1 or post_number > len(items):
         raise IndexError(f"post_number must be between 1 and {len(items)}")
+    return items[post_number - 1]
 
-    item = items[post_number - 1]
+
+# Tells the reader where the link went, in the issue's language.
+LINK_NOTES = {"en": "🔗 Full article in the first comment 👇",
+              "es": "🔗 Artículo completo en el primer comentario 👇"}
+
+
+def post_body(issue: dict, post_number: int) -> str:
+    """Item N as a LinkedIn post: the text, a note pointing at the first
+    comment, and the publication's own call to action — no link, which goes in
+    the comment (see comment_text). Every part of it is looked up, not parsed."""
+    item = _item(issue, post_number)
     emoji = item.get("emoji", "").strip()
     text = f"{emoji} {item['text']}".strip()
-    body = f"{text}\n{item['url']}"
+    note = LINK_NOTES.get(issue.get("language", "en"), LINK_NOTES["en"])
     cta = (issue.get("cta") or "").strip()
-    return f"{body}\n\n{cta}" if cta else body
+    return "\n\n".join(part for part in (text, note, cta) if part)
+
+
+def comment_text(issue: dict, post_number: int) -> str:
+    """The first comment on item N: its source URL, the one the harvester
+    fetched and the publisher link-checked."""
+    return _item(issue, post_number)["url"]
+
+
+# ── What has been posted ──────────────────────────────────────────────────────
+
+def posted_path(work_dir: Path, publication: str, target_date: date) -> Path:
+    return work_dir / "posted" / publication / f"{target_date.isoformat()}.json"
+
+
+def load_posted(work_dir: Path, publication: str, target_date: date) -> dict:
+    """{slot: {post_id, posted_at, comment: "pending"|"done", comment_error?}}.
+
+    A missing file is an empty record; an unreadable one is an error. Treating
+    a corrupt record as empty would let the next cron slot repost the day."""
+    path = posted_path(work_dir, publication, target_date)
+    if not path.exists():
+        return {}
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict):
+            raise ValueError("not a JSON object")
+        return record
+    except (ValueError, OSError) as e:
+        raise RuntimeError(f"cannot read the posted record {path}: {e} — fix or "
+                           f"remove it; refusing to guess what was already posted.")
+
+
+def save_posted(work_dir: Path, publication: str, target_date: date, record: dict):
+    path = posted_path(work_dir, publication, target_date)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(record, indent=1, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 # ── The illustration ──────────────────────────────────────────────────────────
@@ -184,13 +253,14 @@ def upload_image(path: Path, token: str, author: str) -> str:
     return value["asset"]
 
 
-def post_to_linkedin(text: str, token: str, image=None, title: str = "") -> str:
+def post_to_linkedin(text: str, token: str, image=None, title: str = "",
+                     author: str = None) -> str:
     """Posts `text`, with `image` attached when there is one and it uploads.
 
     Only the *upload* falls back to text-only. A failure creating the post
     itself is raised and never retried: it may have half gone through, and
     retrying is how a profile ends up with the same item twice."""
-    author = get_person_urn(token)
+    author = author or get_person_urn(token)
 
     asset = None
     if image is not None:
@@ -224,6 +294,59 @@ def post_to_linkedin(text: str, token: str, image=None, title: str = "") -> str:
     )
     r.raise_for_status()
     return r.headers.get("x-restli-id", r.text)
+
+
+def post_comment(post_urn: str, text: str, token: str, author: str) -> None:
+    """Adds `text` as a comment on `post_urn`, as `author`. Raises RuntimeError
+    when it cannot.
+
+    Unlike the post, the comment is retried — but only on failures that mean
+    "not yet" (404 right after creation, 429, 5xx, a dropped connection). A 403
+    is a missing permission, and asking again will not grant it."""
+    url = ("https://api.linkedin.com/v2/socialActions/"
+           f"{quote(post_urn, safe='')}/comments")
+    headers = {"Authorization": f"Bearer {token}",
+               "Content-Type": "application/json",
+               "X-Restli-Protocol-Version": "2.0.0"}
+    body = {"actor": author, "message": {"text": text}}
+
+    last = "no attempt made"
+    for delay in (0,) + tuple(COMMENT_RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            r = requests.post(url, headers=headers, json=body)
+        except Exception as e:                        # noqa: BLE001 — retried below
+            last = f"{type(e).__name__}: {e}"
+            continue
+        if r.status_code < 400:
+            return
+        last = f"HTTP {r.status_code} {(r.text or '')[:200]}".strip()
+        if r.status_code not in _RETRYABLE_COMMENT_STATUS:
+            break
+    raise RuntimeError(f"comment on {post_urn} failed: {last}")
+
+
+def finish_comments(issue: dict, posted: dict, work_dir: Path, publication: str,
+                    target_date: date, token: str, author: str) -> list:
+    """Adds every comment still owed today, lowest slot first, saving after each
+    so a crash half way loses nothing. Returns the slots that still owe one."""
+    still_owed = []
+    for slot in sorted((k for k, v in posted.items() if v.get("comment") != "done"),
+                       key=int):
+        entry = posted[slot]
+        try:
+            post_comment(entry["post_id"], comment_text(issue, int(slot)), token, author)
+        except (RuntimeError, IndexError, KeyError) as e:
+            print(f"WARNING: slot {slot} is posted but has no link comment yet: {e}")
+            entry.update(comment="pending", comment_error=str(e))
+            still_owed.append(int(slot))
+        else:
+            print(f"Commented the source link on slot {slot}.")
+            entry.update(comment="done")
+            entry.pop("comment_error", None)
+        save_posted(work_dir, publication, target_date, posted)
+    return still_owed
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -296,13 +419,44 @@ def main_with_args(args):
     image = image_path(work_dir, publication, target_date, post_number)
     title = issue["items"][post_number - 1].get("headline", "")
     print(f"Posting #{post_number} to LinkedIn:\n{text}\n")
+    print(f"first comment: {comment_text(issue, post_number)}")
     print(f"image: {image}" if image else "no image for this slot (text-only)")
     if dry_run:
         print("[DRY RUN] nothing was posted.")
         return 0
 
+    try:
+        posted = load_posted(work_dir, publication, target_date)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        return 1
+
+    slot = str(post_number)
+    already = bool(posted.get(slot, {}).get("post_id"))
+    owes_comment = any(v.get("comment") != "done" for v in posted.values())
+    if already and not owes_comment:
+        print(f"Slot {post_number} is already posted and commented — nothing to do.")
+        return 0
+
     token = get_valid_token(load_env(work_dir / ".env"))
-    print(f"Posted successfully! Post ID: {post_to_linkedin(text, token, image, title)}")
+    author = get_person_urn(token)
+
+    if already:
+        print(f"Slot {post_number} is already posted ({posted[slot]['post_id']}); "
+              "not posting again.")
+    else:
+        post_id = post_to_linkedin(text, token, image, title, author=author)
+        # Written before the comment is attempted: from here on the post is
+        # public, and this record is what stops a re-run from making a second.
+        posted[slot] = {"post_id": post_id, "comment": "pending",
+                        "posted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        save_posted(work_dir, publication, target_date, posted)
+        print(f"Posted successfully! Post ID: {post_id}")
+
+    if finish_comments(issue, posted, work_dir, publication, target_date,
+                       token, author):
+        print("Exit 4: posted, but a link comment is still owed.")
+        return EXIT_COMMENT_FAILED
     return 0
 
 

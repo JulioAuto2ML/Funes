@@ -130,6 +130,50 @@ int test_extract_evidence_needs_minimum_overlap() {
     return 0;
 }
 
+// ── Spanish ──────────────────────────────────────────────────────────────────
+
+static const char* kPaginaEs =
+    "Anthropic presentó ayer una versión de Claude que reduce a la mitad el "
+    "costo de las consultas para empresas. La compañía dijo que el cambio "
+    "llegará también a los planes individuales durante el próximo trimestre.";
+
+int test_spanish_post_matches_its_page() {
+    auto [evidence, err] = extract_evidence(
+        "Anthropic presentó una versión de Claude que reduce el costo a la mitad.",
+        kPaginaEs);
+    CHECK(err.empty());
+    CHECK(!evidence.empty());
+    return 0;
+}
+
+int test_accents_do_not_hide_a_match() {
+    // The tokenizer splits on non-ASCII bytes, so without folding "presentó"
+    // and "presento" are different words.
+    auto [evidence, err] = extract_evidence(
+        "Anthropic presento una version de Claude: la mitad del costo para empresas.",
+        kPaginaEs);
+    CHECK(err.empty());
+    return 0;
+}
+
+int test_spanish_function_words_are_not_evidence() {
+    // Nothing here but words every Spanish sentence contains.
+    auto [evidence, err] = extract_evidence(
+        "Esto es para como sobre entre desde hasta cuando también según además.",
+        kPaginaEs);
+    CHECK(!err.empty());
+    CHECK(evidence.empty());
+    return 0;
+}
+
+int test_an_unrelated_spanish_post_is_rejected() {
+    auto [evidence, err] = extract_evidence(
+        "El banco central subió las tasas de interés por la inflación del trimestre.",
+        kPaginaEs);
+    CHECK(!err.empty());
+    return 0;
+}
+
 // ── Headlines ────────────────────────────────────────────────────────────────
 
 int test_headline_from_title() {
@@ -673,6 +717,10 @@ int main() {
     rc |= test_extract_evidence_picks_best_sentence();
     rc |= test_extract_evidence_ignores_nav_boilerplate();
     rc |= test_extract_evidence_needs_minimum_overlap();
+    rc |= test_spanish_post_matches_its_page();
+    rc |= test_accents_do_not_hide_a_match();
+    rc |= test_spanish_function_words_are_not_evidence();
+    rc |= test_an_unrelated_spanish_post_is_rejected();
     rc |= test_headline_from_title();
     rc |= test_build_issue_takes_the_url_from_the_pool();
     rc |= test_build_issue_ignores_any_url_the_model_supplies();

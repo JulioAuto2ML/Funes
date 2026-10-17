@@ -1,0 +1,99 @@
+# AI Pulse en Español — the Spanish edition of the daily AI newsletter.
+#
+# Not a translation of ai-pulse: its own harvest, from Spanish-language sources,
+# so it can lead with a story the English edition never saw (and skip ones that
+# only matter in English). It shares the machinery and nothing else — its own
+# issue, run record, posted record, images, newsletter file and subscriber list,
+# all keyed by this id.
+#
+# LinkedIn: publishing/post_tweet.py ai-pulse-es, on the half hour, between the
+# English edition's on-the-hour posts. See publishing/README.md "Scheduling".
+
+id: ai-pulse-es
+title: "AI Pulse en Español"
+language: es
+# {date} is spelled in Spanish: "jueves, 30 de julio de 2026".
+subject: "AI Pulse en Español · {date}"
+
+# Appended to every LinkedIn post by publishing/post_tweet.py.
+cta: |-
+  📧 ¿Te gustó? Suscríbete a mi newsletter diario de IA — escribe a
+  julio.rodriguezmartino@gmail.com con el asunto: SUSCRIBIR NOTICIAS IA
+
+voice:
+  prompt_file: voice/ai-pulse-es.md      # relative to this directory
+
+sources:
+  # Spanish queries over an allowlist of Spanish-language outlets. Tavily has no
+  # language filter, and an open Spanish query comes back full of local TV,
+  # crypto wires and press releases (checked 2026-10-17), so the domains are
+  # the filter. Tech-first outlets give breadth on AI; the general dailies give
+  # the regulation, business and Latin American stories the tech press skips.
+  queries:
+    - "inteligencia artificial noticias"
+    - "lanzamiento de modelo de IA"
+    - "regulación de la inteligencia artificial"
+    - "agentes de IA empresas"
+    - "OpenAI Anthropic Google nuevo modelo"
+    - "Anthropic OpenAI"
+    - "startups de inteligencia artificial inversión"
+    - "modelo de IA de código abierto"
+    - "robótica y automatización"
+  include_domains:
+    # Tech and AI press (Spain / Latin America)
+    - xataka.com
+    - genbeta.com
+    - hipertextual.com
+    - es.wired.com
+    - es.gizmodo.com
+    - technologyreview.es
+    - wwwhatsnew.com
+    - muycomputer.com
+    - ecosistemastartup.com
+    # General press with real technology desks: Argentina, then Spain
+    - infobae.com
+    - lanacion.com.ar
+    - clarin.com
+    - ambito.com
+    - elpais.com
+    - cincodias.elpais.com
+    - expansion.com
+    - elconfidencial.com
+    - europapress.es
+    - elespanol.com
+    - lavanguardia.com
+    - es.euronews.com
+  time_range: day
+  per_query: 16
+  max_candidates: 40
+  # Same reasoning as ai-pulse: a slow-news day needs the reach, and the
+  # Spanish-language pool is thinner than the English one.
+  max_age_days: 4
+  dedup_against_last_issues: 4
+  exclude_domains: []
+
+selection:
+  count: 9
+  # Lower than ai-pulse's 6: this pool is narrower, and a short issue is better
+  # than a refused one.
+  min_count: 5
+  # The tech outlets cover the same ten stories; two per outlet keeps one site
+  # from being the whole issue.
+  max_per_source: 2
+  max_per_story: 2
+
+artifacts:
+  # Paths carry the publication id: the sender, the image tools and the posts
+  # file are all keyed by name, and ai-pulse's files must not be overwritten.
+  - kind: posts_txt
+    path: "{workspace}/X_posts_ai-pulse-es_{iso_date}.txt"
+  - kind: newsletter_html
+    path: "{workspace}/newsletter_ai-pulse-es_{iso_date}.html"
+    template: newsletter_template_es.html
+  - kind: image_prompts
+    path: "{workspace}/image_prompts_ai-pulse-es_{iso_date}.json"
+
+channels:
+  - kind: email
+    recipients_file: subscribers_es.txt
+  # LinkedIn is cron-driven off the issue, as for ai-pulse.

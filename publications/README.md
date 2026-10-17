@@ -40,6 +40,7 @@ newsletter did before any of this was configurable. See
 |---|---|---|---|
 | | `id` | — | required; `[a-z0-9_-]` |
 | | `title` | the id | |
+| | `language` | `en` | `en` or `es`. Picks the language of the machinery — the date in the subject and newsletter. What the posts say is the voice file's business. Anything else is refused at load. |
 | | `subject` | `<title> · {date}` | `{date}` long form, `{iso_date}` = 2026-07-30 |
 | `voice` | `prompt_file` | none | relative to this directory |
 | `sources` | `queries` | none | up to 6; the curator may add its own to widen a thin pool |
@@ -49,6 +50,7 @@ newsletter did before any of this was configurable. See
 | | `max_age_days` | 2 | |
 | | `dedup_against_last_issues` | 7 | don't run the same story twice a week |
 | | `exclude_domains` | none | *added to* the global social-platform list |
+| | `include_domains` | none (whole web) | restricts the search to these domains. The only language filter there is: Tavily has none, and an open Spanish query returns local TV, crypto wires and press releases. |
 | `selection` | `count` | 10 | |
 | | `min_count` | 8 | below this the issue is refused, loudly, in the run record |
 | | `max_per_source` | 0 (no cap) | |
@@ -70,3 +72,15 @@ the subject, artifacts and channels into the issue JSON, and they read them from
 there — one config dialect, in one language, in one place. The issue JSON was
 already the source of truth for what goes out; this makes it the source of truth
 for how.
+
+## A second language is a second publication
+
+`ai-pulse-es.yaml` is the Spanish edition, and it is a publication in its own
+right rather than a translation of `ai-pulse`: its own harvest from
+Spanish-language outlets (`include_domains`), its own issue, run record, posted
+record and images, its own newsletter file and subscriber list
+(`subscribers_es.txt`). Every artifact path carries the publication id, because
+the sender, the image tools and the posts file are all keyed by name and must
+not overwrite the English edition's. `language: es` makes the date in the
+subject and newsletter read "jueves, 30 de julio de 2026", and the post-vs-page
+overlap check ignores Spanish function words and is accent-blind.

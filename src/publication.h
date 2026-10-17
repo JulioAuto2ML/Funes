@@ -49,6 +49,10 @@ struct Publication {
     // by default: a call to action naming one person's inbox is not something
     // a new publication should inherit.
     std::string cta;
+    // "en" (default) or "es". Picks the language of the *machinery* — the date
+    // in the subject and the newsletter, the stop words the post-vs-page check
+    // ignores. What the posts say is the voice file's business, not this field's.
+    std::string language = "en";
 
     // sources:
     std::vector<std::string> queries;
@@ -58,6 +62,10 @@ struct Publication {
     int max_age_days              = 2;
     int dedup_against_last_issues = 7;
     std::vector<std::string> exclude_domains;   // added to the global list
+    // Restricts the search to these domains. Empty = the whole web. A Spanish
+    // publication needs it: Tavily has no language filter, and an open Spanish
+    // query comes back full of local TV, crypto wires and press releases.
+    std::vector<std::string> include_domains;
 
     // selection:
     int count          = 10;

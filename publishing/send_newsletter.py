@@ -4,7 +4,7 @@ send_newsletter.py — Sends the daily AI Pulse HTML newsletter via Gmail SMTP.
 
 Usage:
     python3 send_newsletter.py [YYYY-MM-DD] [--dir PATH] [--dry-run]
-                               [--subject TEXT] [--recipients FILE]
+                               [--subject TEXT] [--recipients FILE] [--html FILE]
 
     If no date is given, today's date is used. --subject and --recipients come
     from the publication config via publish_issue.py; on their own the defaults
@@ -71,9 +71,13 @@ def load_subscribers(path: Path) -> list[str]:
 
 
 def load_newsletter(work_dir: Path, target_date: date,
-                    subject: str = "") -> tuple[str, str]:
-    """Returns (subject, html_body). Raises FileNotFoundError if missing."""
-    html_path = work_dir / f"newsletter_{target_date.isoformat()}.html"
+                    subject: str = "", html_name: str = "") -> tuple[str, str]:
+    """Returns (subject, html_body). Raises FileNotFoundError if missing.
+
+    `html_name` is the newsletter file when it is not newsletter_<date>.html — a
+    publication configures its own path so two publications' issues never share
+    a file. Relative names are relative to the issue directory."""
+    html_path = work_dir / (html_name or f"newsletter_{target_date.isoformat()}.html")
     if not html_path.exists():
         raise FileNotFoundError(f"Newsletter not found: {html_path}")
     html = html_path.read_text(encoding="utf-8")
@@ -150,6 +154,7 @@ def main():
     explicit_dir = take("--dir")
     subject_line = take("--subject") or ""
     recipients   = take("--recipients") or "subscribers.txt"
+    html_name    = take("--html") or ""
 
     dry_run = "--dry-run" in args
     positional = [a for a in args if not a.startswith("-")]
@@ -187,7 +192,8 @@ def main():
 
     # Load newsletter
     try:
-        subject, html_body = load_newsletter(work_dir, target_date, subject_line)
+        subject, html_body = load_newsletter(work_dir, target_date, subject_line,
+                                             html_name)
     except FileNotFoundError as e:
         print(f"ERROR: {e}")
         sys.exit(1)

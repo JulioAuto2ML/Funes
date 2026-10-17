@@ -166,9 +166,27 @@ def placeholder_indent(template, placeholder):
     return ""
 
 
-def render_html(template, target_date, posts):
+_ES_WEEKDAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado",
+                "domingo")
+_ES_MONTHS = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+              "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+
+
+def long_date(target_date, lang="en"):
+    """"Thursday, July 30, 2026" or, for lang="es", "jueves, 30 de julio de 2026".
+
+    Spelled out here rather than through strftime: that follows the process's
+    locale, and a cron environment's locale is whatever the host happened to
+    have when it booted."""
+    if lang == "es":
+        return (f"{_ES_WEEKDAYS[target_date.weekday()]}, {target_date.day} de "
+                f"{_ES_MONTHS[target_date.month - 1]} de {target_date.year}")
     # "Wednesday, July 30, 2026" — matches the existing issues' convention.
-    friendly = target_date.strftime("%A, %B %d, %Y").replace(" 0", " ")
+    return target_date.strftime("%A, %B %d, %Y").replace(" 0", " ")
+
+
+def render_html(template, target_date, posts, lang="en"):
+    friendly = long_date(target_date, lang)
     indent = placeholder_indent(template, "{{POSTS}}")
     blocks = []
     for i, post in enumerate(posts):

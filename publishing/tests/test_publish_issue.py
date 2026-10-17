@@ -406,6 +406,25 @@ class PublicationConfig(unittest.TestCase):
             cmd = proc.call_args.args[0]
         self.assertEqual(cmd[cmd.index("--subject") + 1], "Security Brief — 2026-07-30")
 
+    def test_the_rendered_newsletter_path_reaches_the_sender(self):
+        # The sender used to assume newsletter_<date>.html, so a publication
+        # with its own path would have mailed (or failed to find) someone
+        # else's issue.
+        issue = dict(ISSUE, artifacts=[
+            {"kind": "newsletter_html",
+             "path": "{workspace}/newsletter_es_{iso_date}.html",
+             "template": "newsletter_template.html"}])
+        with TemporaryDirectory() as tmp:
+            f = Fixture(tmp, issue)
+            with mock.patch.object(pi, "check_link", return_value=("ok", "200")):
+                with mock.patch.object(pi.subprocess, "run") as proc:
+                    proc.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+                    with redirect_stdout(io.StringIO()):
+                        pi.publish(DAY, "ai-pulse", f.dir, send=True)
+            cmd = proc.call_args.args[0]
+            self.assertEqual(Path(cmd[cmd.index("--html") + 1]),
+                             f.dir / "newsletter_es_2026-07-30.html")
+
     def test_the_configured_recipients_file_reaches_the_sender(self):
         issue = dict(ISSUE, channels=[{"kind": "email",
                                        "recipients_file": "defenders.txt"}])
@@ -445,6 +464,35 @@ class PublicationConfig(unittest.TestCase):
         self.assertEqual(pi.substitute("{date}", Path("/w"), DAY),
                          "Thursday, July 30, 2026")
         self.assertEqual(pi.substitute("{workspace}/x", Path("/w"), DAY), "/w/x")
+
+    def test_substitute_spells_the_date_in_the_publications_language(self):
+        self.assertEqual(pi.substitute("{date}", Path("/w"), DAY, "es"),
+                         "jueves, 30 de julio de 2026")
+        self.assertEqual(pi.substitute("{iso_date}", Path("/w"), DAY, "es"), "2026-07-30")
+
+
+class SpanishOverlapGate(unittest.TestCase):
+    """The post-vs-page gate must not be fooled by Spanish function words, and
+    must not be blind to accents."""
+
+    PAGE = ("Anthropic presentó ayer una versión de Claude que reduce a la mitad "
+            "el costo de las consultas para empresas.")
+
+    def test_function_words_alone_are_not_evidence(self):
+        post = "Esto es para como sobre entre desde hasta cuando también según además"
+        self.assertEqual(pi.best_overlap(post, self.PAGE), 0)
+
+    def test_accents_do_not_hide_a_match(self):
+        post = "Anthropic presento una version de Claude: la mitad del costo para empresas"
+        self.assertGreaterEqual(pi.best_overlap(post, self.PAGE), 4)
+
+    def test_a_matching_spanish_post_clears_the_gate(self):
+        post = "Anthropic presentó una versión de Claude que reduce el costo a la mitad."
+        self.assertGreaterEqual(pi.best_overlap(post, self.PAGE), pi._MIN_OVERLAP)
+
+    def test_an_unrelated_spanish_post_does_not(self):
+        post = "El banco central subió las tasas de interés por la inflación del trimestre."
+        self.assertLess(pi.best_overlap(post, self.PAGE), pi._MIN_OVERLAP)
 
 
 class BadIssues(unittest.TestCase):

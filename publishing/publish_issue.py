@@ -48,6 +48,7 @@ from publish_newsletter import (
     SCRIPT_DIR,
     check_link,
     issue_dir,
+    long_date,
     render_html,
     template_path,
 )
@@ -79,13 +80,36 @@ _STOP_WORDS = {
     "did", "being", "here", "there", "then", "now", "out", "own", "these",
     "those", "said", "says", "one", "two", "may", "like", "well", "use",
     "used", "using", "make", "made", "get", "got", "set", "way", "many",
+    # Spanish, accent-folded (see _fold). Same list as src/issue.cpp.
+    "para", "como", "pero", "esta", "este", "esto", "estos", "estas", "sobre",
+    "entre", "desde", "hasta", "cuando", "donde", "tiene", "tienen", "puede",
+    "pueden", "porque", "otro", "otra", "otros", "otras", "cada", "ellos",
+    "ellas", "nuestro", "nuestra", "sido", "sera", "seran", "sino", "tras",
+    "solo", "mismo", "misma", "todo", "todos", "toda", "todas", "algo",
+    "luego", "ahora", "aqui", "habia", "hace", "hacen", "hizo", "dice",
+    "dijo", "segun", "tambien", "ademas", "aunque", "mientras", "durante",
+    "contra", "hacia", "nuevo", "nueva", "nuevos", "nuevas", "primer",
+    "primera", "ante", "bajo", "cual", "cuales", "quien", "quienes", "estar",
+    "estan", "estaba", "fueron", "fuera", "unos", "unas", "esos", "esas",
+    "aquel", "menos", "casi", "veces", "parte", "partir", "lugar", "caso",
+    "anos",
 }
 _MIN_WORD_LEN = 4
 _MIN_SENTENCE_CHARS = 40
 _MIN_OVERLAP = 3
 
 
+_ACCENTS = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunaeiouun")
+
+
+def _fold(text):
+    """Spanish accents and ñ to ASCII, as fold_accents does in src/issue.cpp, so
+    a post saying "decisión" matches a page saying "decision"."""
+    return text.translate(_ACCENTS)
+
+
 def _content_words(text):
+    text = _fold(text)
     words = set()
     word = ""
     for ch in text:
@@ -265,7 +289,7 @@ def load_issue(work_dir, publication, target_date):
 def render_posts_txt(issue, target_date):
     """The posts file, still in the shape post_tweet.py and a human expect —
     but generated, so nobody types a URL into it."""
-    friendly = target_date.strftime("%B %d, %Y").replace(" 0", " ")
+    friendly = long_date(target_date, issue.get("language", "en"))
     out = [f"X Posts — {friendly}",
            "Generated from trending AI/LLM/AGI topics",
            "=" * 60, ""]
@@ -305,12 +329,12 @@ DEFAULT_ARTIFACTS = [
 ]
 
 
-def substitute(template, work_dir, target_date):
-    """The two placeholders a publication config may use in a path or subject."""
+def substitute(template, work_dir, target_date, lang="en"):
+    """The placeholders a publication config may use in a path or subject.
+    {date} is spelled in the publication's language; {iso_date} never is."""
     return (template.replace("{workspace}", str(work_dir))
                     .replace("{iso_date}", target_date.isoformat())
-                    .replace("{date}",
-                             target_date.strftime("%A, %B %d, %Y").replace(" 0", " ")))
+                    .replace("{date}", long_date(target_date, lang)))
 
 
 def artifacts_of(issue):
@@ -327,7 +351,8 @@ def render_artifacts(issue, work_dir, target_date):
     written = []
     for artifact in artifacts_of(issue):
         kind = artifact.get("kind")
-        path = Path(substitute(artifact.get("path", ""), work_dir, target_date))
+        path = Path(substitute(artifact.get("path", ""), work_dir, target_date,
+                               issue.get("language", "en")))
         if not artifact.get("path"):
             raise ValueError(f"artifact '{kind}' has no path")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -341,7 +366,7 @@ def render_artifacts(issue, work_dir, target_date):
                 raise FileNotFoundError(f"template not found: {template}")
             path.write_text(
                 render_html(template.read_text(encoding="utf-8"), target_date,
-                            posts_for_render(issue)),
+                            posts_for_render(issue), issue.get("language", "en")),
                 encoding="utf-8")
         elif kind == "image_prompts":
             path.write_text(json.dumps(image_prompts(issue), indent=2,
@@ -471,8 +496,12 @@ def publish(target_date, publication, work_dir, send, dry_run=False):
            target_date.isoformat(), "--dir", str(work_dir)]
     if channel.get("recipients_file"):
         cmd += ["--recipients", channel["recipients_file"]]
+    newsletters = [path for kind, path in written if kind == "newsletter_html"]
+    if newsletters:
+        cmd += ["--html", str(newsletters[0])]
     if issue.get("subject"):
-        cmd += ["--subject", substitute(issue["subject"], work_dir, target_date)]
+        cmd += ["--subject", substitute(issue["subject"], work_dir, target_date,
+                                        issue.get("language", "en"))]
     if dry_run:
         cmd.append("--dry-run")
     proc = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True)

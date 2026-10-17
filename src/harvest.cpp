@@ -618,6 +618,7 @@ ToolResult harvest_handler(MemoryStore& memory, const std::string& default_works
                                       pub.exclude_domains.begin(),
                                       pub.exclude_domains.end());
         }
+        tq.include_domains = pub.include_domains;
         std::vector<tavily::Hit> got;
         const std::string err = tavily::search(tq, got);
         if (!err.empty()) query_errors.push_back(q + ": " + err);

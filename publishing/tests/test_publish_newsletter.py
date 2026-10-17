@@ -103,6 +103,23 @@ class RenderHtml(unittest.TestCase):
                              date(2026, 7, 30), self.NASTY)
         self.assertIn("Thursday, July 30, 2026", out)
 
+    def test_spanish_date_is_spelled_out_in_spanish(self):
+        self.assertEqual(pn.long_date(date(2026, 7, 30), "es"),
+                         "jueves, 30 de julio de 2026")
+        self.assertEqual(pn.long_date(date(2026, 3, 1), "es"),
+                         "domingo, 1 de marzo de 2026")
+        self.assertEqual(pn.long_date(date(2026, 9, 7), "es"),
+                         "lunes, 7 de septiembre de 2026")
+
+    def test_english_is_the_default_language(self):
+        self.assertEqual(pn.long_date(date(2026, 7, 30)), "Thursday, July 30, 2026")
+        self.assertEqual(pn.long_date(date(2026, 7, 30), "en"), "Thursday, July 30, 2026")
+
+    def test_render_html_uses_the_requested_language_for_the_date(self):
+        out = pn.render_html("{{DATE}}{{POSTS}}", date(2026, 7, 30), self.NASTY,
+                             lang="es")
+        self.assertIn("jueves, 30 de julio de 2026", out)
+
     def test_day_is_not_zero_padded(self):
         out = pn.render_html("{{DATE}}{{POSTS}}", date(2026, 7, 3), self.NASTY)
         self.assertNotIn("July 03", out)

@@ -203,6 +203,18 @@ class WithBackfilledPrompts(unittest.TestCase):
             self.assertEqual(rc, 0)
             rows = json.loads((Path(d) / "image_prompts_2026-07-30.json").read_text())
             self.assertEqual([r["n"] for r in rows], [1, 2, 3, 4])
+            # and another publication's backfill lands in a file of its own
+            issue_es = Path(d) / "issues" / "ai-pulse-es" / "2026-07-30.json"
+            issue_es.parent.mkdir(parents=True)
+            issue_es.write_text(json.dumps(ISSUE))
+            real, gi.ip.LlmClient = gi.ip.LlmClient, Fake
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    gi.main(["2026-07-30", "--dir", d, "--publication", "ai-pulse-es",
+                             "--backfill"])
+            finally:
+                gi.ip.LlmClient = real
+            self.assertTrue((Path(d) / "image_prompts_ai-pulse-es_2026-07-30.json").exists())
             # --pending now sees the backfilled slots too.
             out = io.StringIO()
             with contextlib.redirect_stdout(out):

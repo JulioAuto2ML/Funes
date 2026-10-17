@@ -74,6 +74,10 @@ std::string Publication::load(const std::string& dir, const std::string& id,
     pub.title      = str_or(root["title"], pub.id);
     pub.subject    = str_or(root["subject"], pub.title + " · {date}");
     pub.cta        = str_or(root["cta"], "");
+    pub.language   = str_or(root["language"], "en");
+    if (pub.language != "en" && pub.language != "es")
+        return path.filename().string() + ": language must be 'en' or 'es', not '" +
+               pub.language + "'";
     if (const auto voice = root["voice"])
         pub.voice_file = str_or(voice["prompt_file"], "");
 
@@ -86,6 +90,7 @@ std::string Publication::load(const std::string& dir, const std::string& id,
         pub.dedup_against_last_issues =
             int_or(sources["dedup_against_last_issues"], pub.dedup_against_last_issues);
         pub.exclude_domains = string_list(sources["exclude_domains"]);
+        pub.include_domains = string_list(sources["include_domains"]);
     }
 
     if (const auto selection = root["selection"]) {

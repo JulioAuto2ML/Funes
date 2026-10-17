@@ -111,10 +111,43 @@ class TheRunRecordGate(unittest.TestCase):
 
 
 class PostBody(unittest.TestCase):
-    def test_the_url_comes_from_the_issue(self):
+    def test_the_post_text_comes_from_the_issue(self):
+        self.assertIn("🤖 Anthropic says Claude hacked three firms.",
+                      pt.post_body(ISSUE, 1))
+
+    def test_the_link_is_not_in_the_body(self):
+        # LinkedIn demotes posts that carry an outbound link, so the link goes
+        # in the first comment instead (see comment_text).
+        self.assertNotIn("http", pt.post_body(ISSUE, 1))
+        self.assertNotIn("reuters.com", pt.post_body(ISSUE, 1))
+
+    def test_a_note_after_the_text_points_to_the_first_comment(self):
         body = pt.post_body(ISSUE, 1)
-        self.assertIn("https://reuters.com/tech/anthropic", body)
-        self.assertIn("🤖 Anthropic says Claude hacked three firms.", body)
+        self.assertIn("🔗 Full article in the first comment 👇", body)
+        # between the post text and the call to action
+        self.assertLess(body.index("hacked three firms."), body.index("🔗"))
+        self.assertLess(body.index("🔗"), body.index("📧 Subscribe"))
+
+    def test_the_note_is_in_the_issues_language(self):
+        es = dict(ISSUE, language="es")
+        self.assertIn("🔗 Artículo completo en el primer comentario 👇",
+                      pt.post_body(es, 1))
+        self.assertNotIn("Full article", pt.post_body(es, 1))
+
+    def test_no_cta_still_gets_the_note(self):
+        plain = dict(ISSUE); del plain["cta"]
+        self.assertTrue(pt.post_body(plain, 1).endswith("in the first comment 👇"))
+
+    def test_the_comment_is_the_issues_url(self):
+        # Still looked up, not parsed: it is the URL the harvester fetched and
+        # the publisher link-checked.
+        self.assertEqual(pt.comment_text(ISSUE, 1), "https://reuters.com/tech/anthropic")
+        self.assertEqual(pt.comment_text(ISSUE, 2), "https://pymnts.com/openai-price-cuts")
+
+    def test_the_comment_number_is_checked_like_the_body_s(self):
+        for n in (0, 3):
+            with self.assertRaises(IndexError):
+                pt.comment_text(ISSUE, n)
 
     def test_the_cta_is_appended(self):
         self.assertTrue(pt.post_body(ISSUE, 1).endswith(
@@ -124,8 +157,7 @@ class PostBody(unittest.TestCase):
         # A publication should not inherit another one's call to action.
         plain = dict(ISSUE)
         del plain["cta"]
-        self.assertTrue(pt.post_body(plain, 1).endswith(
-            "https://reuters.com/tech/anthropic"))
+        self.assertNotIn("Subscribe", pt.post_body(plain, 1))
 
     def test_indexing_is_one_based(self):
         self.assertIn("OpenAI cuts prices", pt.post_body(ISSUE, 2))
@@ -189,8 +221,10 @@ class FakeResponse:
 class FakeRequests:
     """Records every call, answers like LinkedIn's three endpoints."""
 
-    def __init__(self, fail_upload=False, fail_post=False):
+    def __init__(self, fail_upload=False, fail_post=False, comment_statuses=(200,)):
         self.calls, self.fail_upload, self.fail_post = [], fail_upload, fail_post
+        # One status per comment attempt; the last one repeats.
+        self.comment_statuses = list(comment_statuses)
 
     def get(self, url, **kw):
         self.calls.append(("GET", url))
@@ -198,6 +232,10 @@ class FakeRequests:
 
     def post(self, url, **kw):
         self.calls.append(("POST", url, kw.get("json")))
+        if url.endswith("/comments"):
+            status = (self.comment_statuses.pop(0) if len(self.comment_statuses) > 1
+                      else self.comment_statuses[0])
+            return FakeResponse(status=status)
         if url.endswith("registerUpload"):
             return FakeResponse({"value": {
                 "asset": "urn:li:digitalmediaAsset:XYZ",
@@ -211,6 +249,9 @@ class FakeRequests:
     def put(self, url, **kw):
         self.calls.append(("PUT", url, kw.get("data")))
         return FakeResponse()
+
+    def comment_calls(self):
+        return [c for c in self.calls if c[0] == "POST" and c[1].endswith("/comments")]
 
     def posted_payload(self):
         return [c for c in self.calls if c[0] == "POST" and c[1].endswith("ugcPosts")][0][2]
@@ -296,6 +337,165 @@ class PostingWithAnImage(unittest.TestCase):
             self.run_post(fake, image=self.png)
         posts = [c for c in fake.calls if c[0] == "POST" and c[1].endswith("ugcPosts")]
         self.assertEqual(len(posts), 1)
+
+
+class Commenting(unittest.TestCase):
+    URN = "urn:li:share:7517268223457861632"
+
+    def setUp(self):
+        self._delays, pt.COMMENT_RETRY_DELAYS = pt.COMMENT_RETRY_DELAYS, (0, 0)
+
+    def tearDown(self):
+        pt.COMMENT_RETRY_DELAYS = self._delays
+
+    def run_comment(self, fake):
+        real, pt.requests = pt.requests, fake
+        try:
+            with redirect_stdout(io.StringIO()):
+                return pt.post_comment(self.URN, "https://x.example/a", "tok",
+                                       "urn:li:person:abc")
+        finally:
+            pt.requests = real
+
+    def test_comments_on_the_url_encoded_post_as_the_author(self):
+        fake = FakeRequests()
+        self.run_comment(fake)
+        (call,) = fake.comment_calls()
+        self.assertTrue(call[1].endswith(
+            "/socialActions/urn%3Ali%3Ashare%3A7517268223457861632/comments"))
+        self.assertEqual(call[2], {"actor": "urn:li:person:abc",
+                                   "message": {"text": "https://x.example/a"}})
+
+    def test_a_transient_failure_is_retried(self):
+        # LinkedIn can answer 404 for a post it created a second ago.
+        fake = FakeRequests(comment_statuses=(404, 503, 200))
+        self.run_comment(fake)
+        self.assertEqual(len(fake.comment_calls()), 3)
+
+    def test_a_permanent_failure_is_not_retried(self):
+        fake = FakeRequests(comment_statuses=(403,))
+        with self.assertRaises(RuntimeError) as cm:
+            self.run_comment(fake)
+        self.assertEqual(len(fake.comment_calls()), 1)
+        self.assertIn("403", str(cm.exception))
+
+    def test_gives_up_after_the_last_retry(self):
+        fake = FakeRequests(comment_statuses=(503,))
+        with self.assertRaises(RuntimeError):
+            self.run_comment(fake)
+        self.assertEqual(len(fake.comment_calls()), 3)      # first try + 2 retries
+
+
+class PostedRecord(unittest.TestCase):
+    def test_missing_record_is_empty(self):
+        with TemporaryDirectory() as tmp:
+            self.assertEqual(pt.load_posted(Path(tmp), "ai-pulse", DAY), {})
+
+    def test_round_trips_and_keeps_publications_apart(self):
+        with TemporaryDirectory() as tmp:
+            pt.save_posted(Path(tmp), "ai-pulse", DAY, {"1": {"post_id": "urn:a"}})
+            self.assertEqual(pt.load_posted(Path(tmp), "ai-pulse", DAY),
+                             {"1": {"post_id": "urn:a"}})
+            self.assertEqual(pt.load_posted(Path(tmp), "ai-pulse-es", DAY), {})
+
+    def test_a_corrupt_record_is_an_error_not_an_empty_one(self):
+        # Treating it as empty would repost every slot of the day.
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "posted" / "ai-pulse" / f"{DAY}.json"
+            path.parent.mkdir(parents=True)
+            path.write_text("{not json")
+            with self.assertRaises(RuntimeError):
+                pt.load_posted(Path(tmp), "ai-pulse", DAY)
+
+
+class MainPostsThenComments(unittest.TestCase):
+    """main_with_args end to end, with LinkedIn faked at the requests module."""
+
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.f = Fixture(self.tmp.name)
+        (self.f.dir / ".env").write_text("LI_ACCESS_TOKEN=tok\n")
+        self._delays, pt.COMMENT_RETRY_DELAYS = pt.COMMENT_RETRY_DELAYS, (0, 0)
+        self.real, self.fake = pt.requests, None
+
+    def tearDown(self):
+        pt.requests = self.real
+        pt.COMMENT_RETRY_DELAYS = self._delays
+        self.tmp.cleanup()
+
+    def run_main(self, fake, *extra):
+        pt.requests = fake
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = pt.main_with_args(["1", "--dir", str(self.f.dir),
+                                    "--date", DAY.isoformat(), *extra])
+        return rc, out.getvalue()
+
+    def record(self):
+        return pt.load_posted(self.f.dir, "ai-pulse", DAY)
+
+    def test_posts_without_the_link_then_comments_it(self):
+        fake = FakeRequests()
+        rc, _ = self.run_main(fake)
+        self.assertEqual(rc, 0)
+        text = fake.posted_payload()["specificContent"][
+            "com.linkedin.ugc.ShareContent"]["shareCommentary"]["text"]
+        self.assertNotIn("reuters.com", text)
+        (call,) = fake.comment_calls()
+        self.assertEqual(call[2]["message"]["text"], "https://reuters.com/tech/anthropic")
+        rec = self.record()["1"]
+        self.assertEqual(rec["post_id"], "urn:li:share:1")
+        self.assertEqual(rec["comment"], "done")
+
+    def test_the_post_id_is_saved_before_the_comment_is_attempted(self):
+        fake = FakeRequests(comment_statuses=(403,))
+        rc, out = self.run_main(fake)
+        rec = self.record()["1"]
+        self.assertEqual(rec["post_id"], "urn:li:share:1")
+        self.assertEqual(rec["comment"], "pending")
+        self.assertIn("403", rec["comment_error"])
+        self.assertEqual(rc, pt.EXIT_COMMENT_FAILED)
+        self.assertIn("link", out.lower())
+
+    def test_rerunning_a_posted_slot_comments_but_never_reposts(self):
+        self.run_main(FakeRequests(comment_statuses=(403,)))      # post ok, comment fails
+        fake = FakeRequests()                                      # LinkedIn recovers
+        rc, _ = self.run_main(fake)
+        self.assertEqual(rc, 0)
+        self.assertFalse([c for c in fake.calls
+                          if c[0] == "POST" and c[1].endswith("ugcPosts")])
+        self.assertEqual(len(fake.comment_calls()), 1)
+        self.assertEqual(self.record()["1"]["comment"], "done")
+
+    def test_rerunning_a_finished_slot_does_nothing(self):
+        self.run_main(FakeRequests())
+        fake = FakeRequests()
+        rc, out = self.run_main(fake)
+        self.assertEqual(rc, 0)
+        self.assertEqual(fake.calls, [])
+        self.assertIn("already posted", out)
+
+    def test_a_later_slot_finishes_an_earlier_slots_missing_comment(self):
+        self.run_main(FakeRequests(comment_statuses=(403,)))      # slot 1 pending
+        pt.requests = fake = FakeRequests()
+        with redirect_stdout(io.StringIO()):
+            rc = pt.main_with_args(["2", "--dir", str(self.f.dir),
+                                    "--date", DAY.isoformat()])
+        self.assertEqual(rc, 0)
+        urls = [c[2]["message"]["text"] for c in fake.comment_calls()]
+        self.assertEqual(urls, ["https://reuters.com/tech/anthropic",
+                                "https://pymnts.com/openai-price-cuts"])
+        rec = self.record()
+        self.assertEqual((rec["1"]["comment"], rec["2"]["comment"]), ("done", "done"))
+
+    def test_dry_run_shows_the_comment_and_writes_nothing(self):
+        fake = FakeRequests()
+        rc, out = self.run_main(fake, "--dry-run")
+        self.assertEqual(rc, 0)
+        self.assertIn("first comment", out)
+        self.assertIn("https://reuters.com/tech/anthropic", out)
+        self.assertEqual(self.record(), {})
+        self.assertEqual(fake.calls, [])
 
 
 class MainWithImages(unittest.TestCase):
