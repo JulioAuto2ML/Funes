@@ -31,6 +31,10 @@ struct Query {
     // Empty = default_exclude_domains(). A caller that wants to add to the
     // defaults rather than replace them must concatenate them itself.
     std::vector<std::string> exclude_domains;
+    // Empty = the whole web. Non-empty restricts results to these domains,
+    // which is how a publication in a language the search engine has no
+    // filter for (Spanish) avoids local TV, crypto wires and PR feeds.
+    std::vector<std::string> include_domains;
 };
 
 // Social platforms serve a JS shell with no article content to a plain fetch

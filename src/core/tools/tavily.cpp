@@ -42,6 +42,7 @@ std::string search(const Query& q, std::vector<Hit>& out) {
     };
     // "news" + a time_range lets the caller ask for genuinely recent results
     // (e.g. "last 24 hours") instead of hoping the query text implies it.
+    if (!q.include_domains.empty()) body["include_domains"] = q.include_domains;
     if (!q.topic.empty())      body["topic"] = q.topic;
     if (!q.time_range.empty()) body["time_range"] = q.time_range;
 
