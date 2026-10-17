@@ -127,11 +127,14 @@ means. Set `FUNES_PUBLISH_DIR` in the crontab or pass `--dir`.
 
 The Spanish edition runs the same way, offset so the two never contend for the
 model or the GPU. The newsletter is a Funes cron job (`schedule_job`, agent
-`curator`, task "Publish today's ai-pulse-es issue"); the rest is crontab:
+`curator`, task "Publish today's ai-pulse-es issue", `30 10 * * *`); the rest is
+crontab. The Spanish issue needs the LLM, so it starts only after the English
+image window (09:30, which has ended between 09:43 and 09:48) has long closed,
+and its own images follow at 11:00:
 
 ```cron
-# Spanish edition: images after the Spanish issue, posts on the half hour.
-30 10 * * * /home/julio/funes-julio/publishing/run_images.sh ai-pulse-es >> ~/Documents/X_posts/images_log.txt 2>&1
+# Spanish edition: issue 10:30, images 11:00, posts on the half hour.
+0 11 * * * /home/julio/funes-julio/publishing/run_images.sh ai-pulse-es >> ~/Documents/X_posts/images_log.txt 2>&1
 30 13 * * * /usr/bin/python3 /home/julio/funes-julio/publishing/post_tweet.py 1 --publication ai-pulse-es --dir ~/Documents/X_posts >> ~/Documents/X_posts/post_log.txt 2>&1
 30 14 * * * … post_tweet.py 2 --publication ai-pulse-es …
 ...
