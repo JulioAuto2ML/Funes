@@ -97,6 +97,7 @@ class Env:
                    WAIT_SENT_S="2", POLL_S="1", VRAM_WAIT_S="3",
                    COMFY_WAIT_S="10", LLM_WAIT_S="5", GENERATE_TIMEOUT_S="20",
                    **{"BACKFILL_CMD": "true",   # never reach for a real LLM in a test
+                      "LLAMA_PID_DIR": str(self.dir / "no-pids"),   # not this host's
                       **extra})
         p = subprocess.run(["bash", str(SCRIPT), "ai-pulse"], env=env,
                            capture_output=True, text=True, timeout=60)
@@ -113,6 +114,29 @@ class Swap(unittest.TestCase):
         self.assertEqual(ev[1], "comfy-up")
         self.assertTrue(ev[2].startswith("generate"))
         self.assertEqual(ev[3:], ["comfy-down", "ctl start qwen9b"])
+
+    def test_it_swaps_whichever_model_is_serving_the_port(self):
+        # 2026-10-18: Funes had been moved to qwen27b the evening before. The
+        # fixed qwen9b stopped nothing (its pid file was stale), the VRAM never
+        # freed, and no images were made.
+        with tempfile.TemporaryDirectory() as tmp:
+            e = Env(tmp)
+            pids = e.dir / "pids"
+            pids.mkdir()
+            (pids / "llama_qwen9b.pid").write_text("999999\n")            # stale
+            other = subprocess.Popen(["python3", "-c", "import time; time.sleep(60)",
+                                      "--port", "8081", "--host", "x"])
+            served = subprocess.Popen(["python3", "-c", "import time; time.sleep(60)",
+                                       "--port", "8080", "--host", "x"])
+            try:
+                (pids / "llama_embed.pid").write_text(f"{other.pid}\n")
+                (pids / "llama_qwen27b.pid").write_text(f"{served.pid}\n")
+                p, ev = e.run(LLAMA_PID_DIR=str(pids))
+            finally:
+                other.kill(); served.kill()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(ev[0], "ctl stop qwen27b")
+        self.assertEqual(ev[-1], "ctl start qwen27b")
 
     def test_the_model_comes_back_when_generation_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

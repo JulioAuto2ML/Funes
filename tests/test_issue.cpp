@@ -675,6 +675,38 @@ int test_pool_date_rejects_an_empty_workspace() {
     return 0;
 }
 
+// ── Which publication, when the call does not say ────────────────────────────
+
+int test_publication_from_pool_filename() {
+    CHECK(publication_from_pool_filename("harvest_ai-pulse_2026-10-18.json") == "ai-pulse");
+    CHECK(publication_from_pool_filename("harvest_ai-pulse-es_2026-10-18.json") == "ai-pulse-es");
+    CHECK(publication_from_pool_filename("harvest_my_pub_2026-10-18.json") == "my_pub");
+    CHECK(publication_from_pool_filename("harvest_ai-pulse_2026-10-18.txt").empty());
+    CHECK(publication_from_pool_filename("issue_ai-pulse_2026-10-18.json").empty());
+    CHECK(publication_from_pool_filename("harvest__2026-10-18.json").empty());
+    CHECK(publication_from_pool_filename("harvest_ai-pulse_notadate!.json").empty());
+    return 0;
+}
+
+int test_publication_omitted_means_the_one_just_harvested() {
+    // 2026-10-18: the 10:30 Spanish run harvested ai-pulse-es, then called
+    // publish_issue without `publication`. It defaulted to ai-pulse, grounded
+    // Spanish posts against the English pool (0-2 words in common, every item
+    // dropped), and the blocked record overwrote the English issue's `sent`.
+    CHECK(infer_publication({{"ai-pulse", 100}, {"ai-pulse-es", 200}}, "ai-pulse") == "ai-pulse-es");
+    CHECK(infer_publication({{"ai-pulse-es", 100}, {"ai-pulse", 200}}, "ai-pulse") == "ai-pulse");
+    CHECK(infer_publication({}, "ai-pulse") == "ai-pulse");
+    return 0;
+}
+
+int test_a_sent_record_is_never_overwritten_by_a_failure() {
+    CHECK(record_is_final(json{{"status", "sent"}}));
+    CHECK(!record_is_final(json{{"status", "blocked"}}));
+    CHECK(!record_is_final(json::object()));
+    CHECK(!record_is_final(json::array()));
+    return 0;
+}
+
 // The illustration prompt is garnish: it rides along when it is sensible and
 // never costs the issue anything when it is not.
 int test_build_issue_carries_the_image_prompt() {
@@ -753,6 +785,9 @@ int main() {
     rc |= test_pool_date_honours_an_explicit_older_date();
     rc |= test_pool_date_rejects_an_explicit_date_with_no_pool();
     rc |= test_pool_date_rejects_an_empty_workspace();
+    rc |= test_publication_from_pool_filename();
+    rc |= test_publication_omitted_means_the_one_just_harvested();
+    rc |= test_a_sent_record_is_never_overwritten_by_a_failure();
     if (rc == 0) std::cout << "test_issue: all tests passed\n";
     return rc;
 }

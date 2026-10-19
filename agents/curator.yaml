@@ -67,6 +67,7 @@ system_prompt: |
       with that candidate's `result_id` and read the page.
 
   Step 3 — `publish_issue`.
+      Pass the same `publication` you gave `harvest_candidates`.
       One call with `select.count` items from the pool (its `min_count` is the
       floor on a quiet day; below that the issue is refused), in the order they
       should appear. Submit the full `select.count` on your first attempt.

@@ -141,6 +141,22 @@ PoolChoice resolve_pool_date(const std::vector<std::string>& available_dates,
                              const std::string& requested,
                              const std::string& today);
 
+// Which publication a call that names none is about. Filesystem-free for the
+// same reason as resolve_pool_date: on 2026-10-18 the Spanish edition's run
+// harvested ai-pulse-es and then omitted `publication` from publish_issue, so
+// the old fixed default ("ai-pulse") grounded Spanish posts against the English
+// pool and wrote a blocked record over the English issue that had already gone
+// out. The pool written most recently is the one this run is publishing.
+//
+// `pools` is {publication, mtime} per harvest file; `fallback` when empty.
+std::string publication_from_pool_filename(const std::string& filename);  // "" if not a pool
+std::string infer_publication(const std::vector<std::pair<std::string, int64_t>>& pools,
+                              const std::string& fallback);
+
+// A run record that says `sent` is the fact the LinkedIn slots post from; no
+// later failure for the same publication and date may replace it.
+bool record_is_final(const nlohmann::json& record);
+
 // The link label: the candidate's own headline, trimmed at a word boundary.
 // Derived rather than asked for — it is the article's title, and the pool
 // already holds it.

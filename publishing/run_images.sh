@@ -28,7 +28,7 @@
 #
 # Environment (defaults suit yoda; the *_CMD ones exist so tests can swap them):
 #   FUNES_PUBLISH_DIR  default ~/Documents/X_posts
-#   LLAMA_CTL          default ~/launch_llama.sh        LLM_MODEL  default qwen9b
+#   LLAMA_CTL          default ~/launch_llama.sh        LLM_MODEL  default: whatever serves :8080, else qwen9b
 #   COMFY_DIR / COMFY_PYTHON / COMFY_PORT / COMFY_ARGS
 #   WAIT_SENT_S        how long to wait for the run record (default 3600)
 #   GENERATE_TIMEOUT_S hard ceiling on rendering (default 2400)
@@ -47,8 +47,26 @@ DAY="${RUN_DATE:-$(date +%F)}"
 RECORD="$PUBLISH_DIR/runs/$PUBLICATION/$DAY.json"
 
 LLAMA_CTL="${LLAMA_CTL:-$HOME/launch_llama.sh}"
-LLM_MODEL="${LLM_MODEL:-qwen9b}"
-LLM_HEALTH_URL="${LLM_HEALTH_URL:-http://127.0.0.1:8080/health}"
+LLM_PORT="${LLM_PORT:-8080}"
+LLAMA_PID_DIR="${LLAMA_PID_DIR:-/tmp/llama_pids}"
+
+# Whichever managed model is serving Funes's port right now is the one to stop
+# and bring back. On 2026-10-18 Funes had been moved to qwen27b the evening
+# before; a fixed qwen9b stopped nothing (its pid file was stale), the VRAM
+# never freed, and no images were made.
+serving_model() {
+    local f pid name
+    for f in "$LLAMA_PID_DIR"/llama_*.pid; do
+        [ -e "$f" ] || continue
+        pid=$(cat "$f" 2>/dev/null) || continue
+        kill -0 "$pid" 2>/dev/null || continue
+        tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q -- "--port $LLM_PORT " || continue
+        name=${f##*/llama_}; echo "${name%.pid}"; return 0
+    done
+    return 1
+}
+LLM_MODEL="${LLM_MODEL:-$(serving_model || echo qwen9b)}"
+LLM_HEALTH_URL="${LLM_HEALTH_URL:-http://127.0.0.1:$LLM_PORT/health}"
 HEALTH_CMD="${HEALTH_CMD:-curl -fsS -m 3 -o /dev/null $LLM_HEALTH_URL}"
 
 COMFY_DIR="${COMFY_DIR:-$HOME/ComfyUI-Installs/ComfyUI/ComfyUI}"

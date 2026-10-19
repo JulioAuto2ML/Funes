@@ -285,6 +285,35 @@ PoolChoice resolve_pool_date(const std::vector<std::string>& available_dates,
                 "date=" + newest + " if you really mean to republish that day."};
 }
 
+std::string publication_from_pool_filename(const std::string& filename) {
+    // harvest_<publication>_<YYYY-MM-DD>.json — the date is fixed-width, so the
+    // publication is whatever sits between the prefix and it, underscores and all.
+    static const std::string prefix = "harvest_", suffix = ".json";
+    constexpr size_t kDateTail = 1 + 10;   // "_YYYY-MM-DD"
+    if (filename.size() <= prefix.size() + kDateTail + suffix.size()) return "";
+    if (filename.rfind(prefix, 0) != 0) return "";
+    if (filename.compare(filename.size() - suffix.size(), suffix.size(), suffix) != 0) return "";
+    const size_t date_at = filename.size() - suffix.size() - 10;
+    const std::string date = filename.substr(date_at, 10);
+    if (filename[date_at - 1] != '_') return "";
+    for (size_t i : {0, 1, 2, 3, 5, 6, 8, 9})
+        if (!std::isdigit(static_cast<unsigned char>(date[i]))) return "";
+    if (date[4] != '-' || date[7] != '-') return "";
+    return filename.substr(prefix.size(), date_at - 1 - prefix.size());
+}
+
+std::string infer_publication(const std::vector<std::pair<std::string, int64_t>>& pools,
+                              const std::string& fallback) {
+    const std::pair<std::string, int64_t>* newest = nullptr;
+    for (const auto& p : pools)
+        if (!newest || p.second > newest->second) newest = &p;
+    return newest ? newest->first : fallback;
+}
+
+bool record_is_final(const nlohmann::json& record) {
+    return record.is_object() && record.value("status", "") == "sent";
+}
+
 std::string headline_from_title(const std::string& title, size_t max_chars) {
     std::string clean = trim(title);
     // Outlets append their own name after a separator; the link already says
@@ -600,6 +629,19 @@ std::string safe_id(const std::string& raw) {
 void write_blocked_record(const std::filesystem::path& path,
                           const std::string& publication, const std::string& date,
                           const std::string& reason) {
+    {
+        // A later failed attempt for the same day — a retry, or another
+        // publication's run that resolved to this one — must not erase the
+        // record of an issue that already went out: the LinkedIn slots refuse
+        // to post from anything but `sent`.
+        std::ifstream in(path);
+        const nlohmann::json existing = nlohmann::json::parse(in, nullptr, false);
+        if (record_is_final(existing)) {
+            std::cerr << "[publish_issue] kept the 'sent' record at " << path.string()
+                      << "; not replacing it with: " << reason.substr(0, 200) << "\n";
+            return;
+        }
+    }
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
     std::ofstream out(path);
@@ -620,7 +662,25 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
     if (!args.contains("items") || !args["items"].is_array())
         return {"Missing 'items': an array of {id, emoji, text, evidence}.", true};
 
-    const std::string publication = safe_id(args.value("publication", "ai-pulse"));
+    const std::filesystem::path workspace =
+        ctx.workspace_dir.empty() ? default_workspace : ctx.workspace_dir;
+
+    std::string requested = funes::json_string(args, "publication");
+    if (requested.empty()) {
+        std::vector<std::pair<std::string, int64_t>> pools;
+        std::error_code ec;
+        for (const auto& e : std::filesystem::directory_iterator(workspace, ec)) {
+            const std::string pub_id = publication_from_pool_filename(e.path().filename().string());
+            if (pub_id.empty()) continue;
+            const auto mtime = std::filesystem::last_write_time(e.path(), ec);
+            if (ec) continue;
+            pools.emplace_back(pub_id, mtime.time_since_epoch().count());
+        }
+        requested = infer_publication(pools, "ai-pulse");
+        std::cerr << "[publish_issue] no 'publication' given; using the newest pool's: "
+                  << requested << "\n";
+    }
+    const std::string publication = safe_id(requested);
     if (publication.empty())
         return {"'publication' must contain at least one letter or digit.", true};
 
@@ -633,9 +693,6 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
             return {"Publication '" + publication + "' is misconfigured: " + problem +
                     ". Nothing was sent.", true};
     }
-
-    const std::filesystem::path workspace =
-        ctx.workspace_dir.empty() ? default_workspace : ctx.workspace_dir;
 
     // The date comes from the pool, not from the model: the pool is the thing
     // being published, and a mismatch would publish yesterday's candidates
@@ -861,7 +918,9 @@ void register_publish_issue_tool(ToolRegistry& reg,
                     }}
                 }},
                 {"publication", {{"type", "string"},
-                                 {"description", "Publication id (default 'ai-pulse')"}}},
+                                 {"description", "Publication id — the same one you passed "
+                                                 "to harvest_candidates (default: the "
+                                                 "publication harvested last)"}}},
                 {"date", {{"type", "string"},
                           {"description", "Issue date YYYY-MM-DD (default: the newest pool)"}}},
                 {"min_items", {{"type", "integer"},
