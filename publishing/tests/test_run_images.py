@@ -221,6 +221,7 @@ class Cancelling(unittest.TestCase):
                        COMFY_CMD=f"exec python3 {e.comfy} 18999", COMFY_PORT="18999",
                        GENERATE_CMD=str(e.generate), VRAM_USED_MB_CMD=str(e.vram),
                        HEALTH_CMD=str(e.health), LOCK_FILE=str(e.dir / "lock"),
+                       LLAMA_PID_DIR=str(e.dir / "no-pids"),
                        BACKFILL_CMD="true",
                        WAIT_SENT_S="2", POLL_S="1", VRAM_WAIT_S="3", COMFY_WAIT_S="10",
                        LLM_WAIT_S="5", GENERATE_TIMEOUT_S="120")
