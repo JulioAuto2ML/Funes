@@ -204,8 +204,18 @@ class CheckLink(unittest.TestCase):
             self.assertEqual(pn.check_link("https://x.test/")[0], "ok")
         self.assertEqual(seen, ["HEAD", "GET"])
 
+    def test_head_404_retries_as_get(self):
+        # thenextweb.com answers HEAD with 404 and GET with 200 for the same
+        # live article; on 2026-10-21 that dropped a real story from ai-pulse
+        # as "broken". HEAD is only a cheap way to say "ok" — an error from it
+        # is not a verdict, so GET gets the last word.
+        patcher, seen = self._stub({"HEAD": _http_error(404), "GET": 200})
+        with patcher:
+            self.assertEqual(pn.check_link("https://x.test/")[0], "ok")
+        self.assertEqual(seen, ["HEAD", "GET"])
+
     def test_404_is_broken(self):
-        patcher, _ = self._stub({"HEAD": _http_error(404)})
+        patcher, _ = self._stub({"HEAD": _http_error(404), "GET": _http_error(404)})
         with patcher:
             status, detail = pn.check_link("https://x.test/")
         self.assertEqual(status, "broken")
@@ -213,7 +223,7 @@ class CheckLink(unittest.TestCase):
 
     def test_429_is_suspect_not_broken(self):
         # Bot-blocking and rate limiting must never stall an issue.
-        patcher, _ = self._stub({"HEAD": _http_error(429)})
+        patcher, _ = self._stub({"HEAD": _http_error(429), "GET": _http_error(429)})
         with patcher:
             self.assertEqual(pn.check_link("https://x.test/")[0], "suspect")
 
@@ -265,7 +275,7 @@ class CheckLink(unittest.TestCase):
     def test_an_http_404_does_not_hint_at_a_domain_block(self):
         # The server answered on purpose here — the domain is fine, only the
         # page is gone, so another URL on the same site is a reasonable fix.
-        patcher, _ = self._stub({"HEAD": _http_error(404)})
+        patcher, _ = self._stub({"HEAD": _http_error(404), "GET": _http_error(404)})
         with patcher:
             _, detail = pn.check_link("https://x.test/")
         self.assertNotIn("DIFFERENT domain", detail)
@@ -273,10 +283,10 @@ class CheckLink(unittest.TestCase):
     def test_an_http_status_is_never_retried(self):
         # The server answered. Asking again will not change its mind, and ten
         # pointless retries would double the length of every run.
-        patcher, seen = self._stub({"HEAD": _http_error(404)})
+        patcher, seen = self._stub({"HEAD": _http_error(404), "GET": _http_error(404)})
         with patcher:
             self.assertEqual(pn.check_link("https://x.test/")[0], "broken")
-        self.assertEqual(seen, ["HEAD"])
+        self.assertEqual(seen, ["HEAD", "GET"])        # one pass, no second one
         self.slept.assert_not_called()
 
     def test_a_malformed_url_is_never_retried(self):

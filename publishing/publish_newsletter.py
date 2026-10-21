@@ -211,8 +211,11 @@ def _attempt(url):
             with urllib.request.urlopen(req, timeout=LINK_TIMEOUT) as resp:
                 return "ok", str(resp.status), False
         except urllib.error.HTTPError as e:
-            # Plenty of servers refuse HEAD but serve GET fine.
-            if e.code in (403, 405, 501) and method == "HEAD":
+            # HEAD is only a cheap way to say "ok"; its errors are not a
+            # verdict. Plenty of servers refuse it (403/405/501), and some
+            # answer it 404 for a live page — thenextweb.com did on
+            # 2026-10-21, which dropped a real story from ai-pulse.
+            if method == "HEAD":
                 continue
             if e.code in SUSPECT_CODES:
                 return "suspect", f"HTTP {e.code}", False
