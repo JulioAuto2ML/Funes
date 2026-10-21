@@ -552,8 +552,86 @@ int test_shipped_scripts_run() {
     return 0;
 }
 
+// ── a library path, not one directory ────────────────────────────────────────
+//
+// FUNES_SCRIPTS_DIR is colon-separated the way FUNES_AGENTS_DIR is, so an
+// extension's scriptlib/ sits beside the repo's. Later directories shadow
+// earlier ones by name, and a manifest's `run:` resolves inside the directory
+// the manifest came from — never in a sibling, or "a reviewed file in a
+// reviewed directory" would quietly become "any file in any of them".
+
+int test_library_path() {
+    const fs::path a = fs::temp_directory_path() / "funes_test_scriptlib_a";
+    const fs::path b = fs::temp_directory_path() / "funes_test_scriptlib_b";
+    fs::remove_all(a);
+    fs::remove_all(b);
+    fs::create_directories(a);
+    fs::create_directories(b);
+
+    write_file(a / "core_only.sh", "#!/bin/sh\necho core\n", true);
+    write_file(a / "core_only.yaml", "description: Lives in A.\nrun: core_only.sh\n");
+    write_file(a / "shared.sh", "#!/bin/sh\necho from-a\n", true);
+    write_file(a / "shared.yaml", "description: A's copy.\nrun: shared.sh\n");
+    write_file(a / "only_a_file.sh", "#!/bin/sh\necho a-file\n", true);
+
+    write_file(b / "ext.sh", "#!/bin/sh\necho ext\n", true);
+    write_file(b / "ext.yaml", "description: Lives in B.\nrun: ext.sh\n");
+    write_file(b / "shared.sh", "#!/bin/sh\necho from-b\n", true);
+    write_file(b / "shared.yaml", "description: B's copy.\nrun: shared.sh\n");
+    // B's manifest names a file that exists only in A: must not resolve there.
+    write_file(b / "borrow.yaml", "description: Points across.\nrun: only_a_file.sh\n");
+
+    const std::string path = a.string() + ":" + b.string();
+
+    funes::ScriptSpec spec;
+    CHECK(funes::load_script(path, "core_only", spec).empty());
+    CHECK(fs::path(spec.file).parent_path() == fs::absolute(a));
+    CHECK(funes::load_script(path, "ext", spec).empty());
+    CHECK(fs::path(spec.file).parent_path() == fs::absolute(b));
+
+    // The later directory wins a name collision, as with agents.
+    CHECK(funes::load_script(path, "shared", spec).empty());
+    CHECK(spec.description == "B's copy.");
+    CHECK(fs::path(spec.file).parent_path() == fs::absolute(b));
+
+    // run: never crosses into a sibling directory.
+    const std::string borrow = funes::load_script(path, "borrow", spec);
+    CHECK(!borrow.empty());
+    CHECK(borrow.find("not installed") != std::string::npos);
+
+    CHECK(funes::load_script(path, "nowhere", spec).find("No script named") != std::string::npos);
+
+    // Listing merges the directories, each name once.
+    const auto names = funes::list_script_names(path);
+    CHECK((names == std::vector<std::string>{"borrow", "core_only", "ext", "shared"}));
+
+    // Empty segments (a trailing ':', '::') are ignored, not read as ".".
+    CHECK(funes::load_script(":" + path + "::", "ext", spec).empty());
+
+    // End to end: run_script reaches the extension's script through the path.
+    const fs::path ws = fs::temp_directory_path() / "funes_test_scriptlib_ws_path";
+    fs::remove_all(ws);
+    ToolRegistry reg;
+    register_script_tools(reg, ws.string(), path);
+    ToolContext ctx{"operator", "s1", "", "", 1, funes::Permissions::unrestricted(),
+                    {"ext", "shared"}};
+    auto ext = reg.call("run_script", {{"name", "ext"}}, ctx);
+    CHECK(!ext.error);
+    CHECK(ext.text.find("ext") != std::string::npos);
+    auto shared = reg.call("run_script", {{"name", "shared"}}, ctx);
+    CHECK(!shared.error);
+    CHECK(shared.text.find("from-b") != std::string::npos);
+    CHECK(shared.text.find("from-a") == std::string::npos);
+
+    fs::remove_all(a);
+    fs::remove_all(b);
+    fs::remove_all(ws);
+    return 0;
+}
+
 int main() {
     int rc = 0;
+    rc |= test_library_path();
     rc |= test_allowlist_is_what_decides();
     rc |= test_granted_but_not_installed();
     rc |= test_arguments();

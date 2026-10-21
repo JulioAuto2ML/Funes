@@ -173,7 +173,9 @@ static initializer and `main()` runs the queue after the built-in tools, handing
 it `{tools, memory, workspace_dir}` and nothing else. `FUNES_AGENTS_DIR` is
 colon-separated for the same reason, so an extension's `agents/` loads beside
 the repo's seven (later directories shadow earlier ones by name; `create_agent`
-writes into the first). Rule: the core never names an extension's tool, file or
+writes into the first). `FUNES_SCRIPTS_DIR` is colon-separated the same way,
+so an extension's `scriptlib/` does too; a manifest's `run:` resolves only in
+its own directory. Rule: the core never names an extension's tool, file or
 directory — if a core header needs to know about one, that is a flag on the
 registration (`NativeTool::inline_result` is the example), not a string.
 

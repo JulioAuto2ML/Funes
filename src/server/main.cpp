@@ -59,6 +59,24 @@ static std::string resolve_dir(const std::string& configured, const std::string&
     return fs::absolute(relative).string();
 }
 
+// A colon-separated directory list (FUNES_AGENTS_DIR, FUNES_SCRIPTS_DIR):
+// each entry made absolute, empty entries dropped, the default used only when
+// nothing is configured at all. Order is kept — later entries shadow earlier
+// ones by name in both places that read these.
+static std::string resolve_dir_list(const std::string& configured, const std::string& relative) {
+    if (configured.empty()) return resolve_dir("", relative);
+    std::string out;
+    size_t pos = 0;
+    while (pos <= configured.size()) {
+        size_t end = configured.find(':', pos);
+        if (end == std::string::npos) end = configured.size();
+        const std::string one = configured.substr(pos, end - pos);
+        if (!one.empty()) out += (out.empty() ? "" : ":") + resolve_dir(one, relative);
+        pos = end + 1;
+    }
+    return out;
+}
+
 // 4.0: the workspace root gained a per-user level (<root>/<user_id>), so an
 // existing install's files are sitting one directory too high and read_file
 // would no longer find them. Move them once, into the admin's directory —
@@ -244,22 +262,7 @@ int main(int argc, char** argv) {
     // Colon-separated: the repo's agents/ plus an extension's, say. The first
     // entry is where create_agent writes; every entry is loaded, later ones
     // shadowing earlier ones on a name collision (api.cpp::load_agents).
-    std::string agents_dir;
-    {
-        const std::string configured = funes::env("FUNES_AGENTS_DIR");
-        if (configured.empty()) {
-            agents_dir = resolve_dir("", "agents");
-        } else {
-            size_t pos = 0;
-            while (pos <= configured.size()) {
-                size_t end = configured.find(':', pos);
-                if (end == std::string::npos) end = configured.size();
-                const std::string one = configured.substr(pos, end - pos);
-                if (!one.empty()) agents_dir += (agents_dir.empty() ? "" : ":") + resolve_dir(one, "agents");
-                pos = end + 1;
-            }
-        }
-    }
+    const std::string agents_dir = resolve_dir_list(funes::env("FUNES_AGENTS_DIR"), "agents");
     const std::string ui_dir        = resolve_dir(funes::env("FUNES_UI_DIR"), "ui");
     const std::string generated_tools_dir = resolve_dir(
         funes::env("FUNES_GENERATED_TOOLS_DIR"), "src/core/tools/generated");
@@ -267,9 +270,10 @@ int main(int argc, char** argv) {
     // the only place run_script will start anything from. Outside every
     // workspace on purpose — no agent-driven tool can read, edit or add a
     // script, so installing one is an admin editing the repo, the same act as
-    // adding an agent. See src/core/script_library.h.
-    const std::string scripts_dir = resolve_dir(funes::env("FUNES_SCRIPTS_DIR"),
-                                                "scriptlib");
+    // adding an agent. Colon-separated like FUNES_AGENTS_DIR, so an
+    // extension's scriptlib/ loads beside this one. See src/core/script_library.h.
+    const std::string scripts_dir = resolve_dir_list(funes::env("FUNES_SCRIPTS_DIR"),
+                                                     "scriptlib");
 
     std::string db_path = funes::env("FUNES_DB");
     if (db_path.empty()) {

@@ -96,14 +96,22 @@ struct ScriptSpec {
 // instead of silently running a different script.
 std::string safe_script_name(const std::string& raw);
 
-// Loads <dir>/<name>.yaml. Returns an error string (empty on success) rather
-// than throwing: every caller is a tool handler whose job is to hand the
-// model a sentence it can act on.
-std::string load_script(const std::string& dir, const std::string& name, ScriptSpec& out);
+// The library is a colon-separated list of directories (FUNES_SCRIPTS_DIR),
+// so an extension's scriptlib/ can sit beside the repo's — the same shape as
+// FUNES_AGENTS_DIR. Empty segments are skipped, not read as ".".
+std::vector<std::string> split_library_path(const std::string& library_path);
 
-// Names of every *.yaml in the library, sorted. Used to tell an admin's agent
-// what exists, never to decide what may run.
-std::vector<std::string> list_script_names(const std::string& dir);
+// Loads <name>.yaml from the last directory in the library path that has one
+// (later directories shadow earlier ones, as with agents). `run:` resolves in
+// that same directory and nowhere else. Returns an error string (empty on
+// success) rather than throwing: every caller is a tool handler whose job is
+// to hand the model a sentence it can act on.
+std::string load_script(const std::string& library_path, const std::string& name,
+                        ScriptSpec& out);
+
+// Names of every *.yaml across the library path, sorted, each once. Used to
+// tell an admin's agent what exists, never to decide what may run.
+std::vector<std::string> list_script_names(const std::string& library_path);
 
 // Loads each name in `allowed` that the library actually has. A grant naming
 // a script that isn't installed is skipped, not an error: an agent YAML and

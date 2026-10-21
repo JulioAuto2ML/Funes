@@ -150,16 +150,35 @@ std::string validate_output(const ScriptSpec& spec, const std::string& stdout_te
     return {};
 }
 
-std::string load_script(const std::string& dir, const std::string& name, ScriptSpec& out) {
+std::vector<std::string> split_library_path(const std::string& path) {
+    std::vector<std::string> dirs;
+    size_t pos = 0;
+    while (pos <= path.size()) {
+        size_t end = path.find(':', pos);
+        if (end == std::string::npos) end = path.size();
+        if (end > pos) dirs.push_back(path.substr(pos, end - pos));
+        pos = end + 1;
+    }
+    return dirs;
+}
+
+std::string load_script(const std::string& library_path, const std::string& name,
+                        ScriptSpec& out) {
     const std::string id = safe_script_name(name);
     if (id.empty() || id != name)
         return "Invalid script name '" + name + "' — script names are letters, "
                "digits, '-' and '_' only.";
 
-    const fs::path manifest = fs::path(dir) / (id + ".yaml");
+    // The last directory holding the manifest wins, as FUNES_AGENTS_DIR does
+    // for agents. That directory is then the only one `run:` may resolve in.
+    const std::vector<std::string> dirs = split_library_path(library_path);
+    std::string dir;
     std::error_code ec;
-    if (!fs::exists(manifest, ec))
+    for (auto it = dirs.rbegin(); it != dirs.rend(); ++it)
+        if (fs::exists(fs::path(*it) / (id + ".yaml"), ec)) { dir = *it; break; }
+    if (dir.empty())
         return "No script named '" + id + "' is installed.";
+    const fs::path manifest = fs::path(dir) / (id + ".yaml");
 
     YAML::Node root;
     try {
@@ -246,17 +265,20 @@ std::string load_script(const std::string& dir, const std::string& name, ScriptS
     return {};
 }
 
-std::vector<std::string> list_script_names(const std::string& dir) {
+std::vector<std::string> list_script_names(const std::string& library_path) {
     std::vector<std::string> names;
     std::error_code ec;
-    if (!fs::is_directory(dir, ec)) return names;
-    for (const auto& entry : fs::directory_iterator(dir, ec)) {
-        if (!entry.is_regular_file(ec)) continue;
-        if (entry.path().extension() != ".yaml") continue;
-        const std::string stem = entry.path().stem().string();
-        if (safe_script_name(stem) == stem) names.push_back(stem);
+    for (const auto& dir : split_library_path(library_path)) {
+        if (!fs::is_directory(dir, ec)) continue;
+        for (const auto& entry : fs::directory_iterator(dir, ec)) {
+            if (!entry.is_regular_file(ec)) continue;
+            if (entry.path().extension() != ".yaml") continue;
+            const std::string stem = entry.path().stem().string();
+            if (safe_script_name(stem) == stem) names.push_back(stem);
+        }
     }
     std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
     return names;
 }
 

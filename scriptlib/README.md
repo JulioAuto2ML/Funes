@@ -43,6 +43,13 @@ workspace: `read_file`, `write_file` and `/api/upload` are confined to
 script, edit one, or add one. Installing a script is an admin editing the
 repo.
 
+The variable is a colon-separated list, like `FUNES_AGENTS_DIR`, so an
+extension's own `scriptlib/` loads beside this one:
+`FUNES_SCRIPTS_DIR=./scriptlib:../funes-julio/scriptlib`. A later directory
+shadows an earlier one by script name, and a manifest's `run:` resolves only
+in the directory the manifest came from — never in a sibling, so a script is
+still a reviewed file next to its reviewed manifest.
+
 A script runs with the **calling account's workspace as its working
 directory** — the same directory `read_file`/`write_file` resolve to, from the
 same `fs_guard::workspace_for`. Write relative paths and one account's run
