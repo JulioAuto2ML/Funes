@@ -43,6 +43,7 @@ import os
 import random
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 from datetime import date
@@ -58,6 +59,7 @@ MIN_PX = 2500                 # original's width; the panel is 3840
 RATIO = (1.2, 2.4)            # landscape works only; hanging scrolls look lost
 CHECK_PER_QUERY = 25          # objects examined per search before moving on
 HISTORY = 60                  # days before a work may come back
+RETRY_SECONDS = 5
 OUTPUT = "tv/arte_y_clima.jpg"   # inside the caller's workspace (the cwd)
 
 SEASON_EN = {"primavera": "spring", "verano": "summer", "otoño": "autumn", "invierno": "winter"}
@@ -306,10 +308,16 @@ def main(argv):
         log(f"not configured: {e}")
         return 3
 
-    try:
-        weather = fetch_weather(lat, lon)
-    except Exception as e:
-        log(f"weather unavailable (Open-Meteo): {type(e).__name__}: {e}")
+    weather = None
+    for attempt in (1, 2):   # one retry: yoda reaches the internet through luke
+        try:
+            weather = fetch_weather(lat, lon)
+            break
+        except Exception as e:
+            log(f"weather unavailable (Open-Meteo, attempt {attempt}): {type(e).__name__}: {e}")
+            if attempt == 1:
+                time.sleep(RETRY_SECONDS)
+    if weather is None:
         return 1
     try:
         state, image_file = todays_work(cache, args, weather)

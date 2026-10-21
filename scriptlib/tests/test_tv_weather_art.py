@@ -229,6 +229,7 @@ class TestRun(unittest.TestCase):
         mock.patch.object(twa, "llm_complete", lambda prompt: json.dumps(
             {"title": "Obra", "bio": "Francés, 1840–1926", "detail": "1880 · Óleo sobre lienzo"})).start()
         mock.patch.object(twa, "today", lambda: DAY).start()
+        mock.patch.object(twa, "RETRY_SECONDS", 0).start()
         self.perform = mock.patch.object(
             twa.tv_art, "perform",
             return_value=(0, {"ok": True, "content_id": "MY_F0009", "artmode": "on"})).start()
@@ -296,6 +297,20 @@ class TestRun(unittest.TestCase):
         code, out, _ = self.run_main()
         self.assertEqual(code, 1)
         self.assertEqual(out, "")
+
+    def test_one_weather_hiccup_is_retried(self):
+        # Seen on yoda's first real run: one TLS handshake timeout to
+        # Open-Meteo (yoda reaches the internet through luke), fine a minute later.
+        calls = []
+        def flaky(lat, lon):
+            calls.append(1)
+            if len(calls) == 1:
+                raise OSError("handshake timed out")
+            return WEATHER
+        with mock.patch.object(twa, "fetch_weather", flaky):
+            code, out, err = self.run_main()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(calls), 2)
 
     def test_weather_unavailable_fails_loudly(self):
         with mock.patch.object(twa, "fetch_weather", side_effect=OSError("timeout")):
