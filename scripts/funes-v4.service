@@ -49,6 +49,8 @@ Environment=FUNES_WORKSPACE_DIR=/home/julio/.funes-v4/workspace
 # agent. The extension's *tools* need no path here — extension.cmake baked
 # this checkout in at build time (-DFUNES_EXTENSIONS).
 Environment=FUNES_AGENTS_DIR=/home/julio/Funes/agents:/home/julio/funes-julio/agents
+# Same shape for scripts: without the second entry `home` loses tv_art.
+Environment=FUNES_SCRIPTS_DIR=/home/julio/Funes/scriptlib:/home/julio/funes-julio/scriptlib
 Environment=FUNES_PORT=8485
 Environment=FUNES_HOST=0.0.0.0
 
