@@ -13,3 +13,5 @@ data/whatsapp-uploads/
 *.db-wal
 *.db-shm
 .claude/
+# tv_art's own Python environment (scriptlib/requirements.txt).
+scriptlib/.venv/

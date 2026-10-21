@@ -113,3 +113,16 @@ WHATSAPP_BRIDGE_URL=http://localhost:8091
 #   WHATSAPP_MAX_MEDIA_BYTES=20971520
 #   WHATSAPP_UPLOAD_MAX_AGE_DAYS=30
 
+
+# ── home agent: the living-room TV (scriptlib/tv_art) ─────────────────────────
+# The Samsung Frame's address (reserve it in the router's static DHCP) and
+# where its pairing token is kept — outside every workspace, so no agent-driven
+# tool can read it. The first run shows an "Allow?" prompt on the TV; accept it
+# once with the remote. Revoke in the TV's Settings → General → External
+# Device Manager → Device Connection Manager.
+#   FUNES_TV_HOST=192.168.1.55
+#   FUNES_TV_TOKEN_FILE=/home/julio/.funes-v4/samsung_tv_token
+# The Frame drops off the network when Art Mode blanks the screen; with its MAC
+# set, tv_art sends Wake-on-LAN and retries. Needs the TV's "Power On with
+# Mobile" (Settings → General → External Device Manager) switched on.
+#   FUNES_TV_MAC=c8:12:0b:1c:91:7a

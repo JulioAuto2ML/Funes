@@ -25,10 +25,11 @@ cmake --build build -j$(nproc)
 cd build && ctest            # core tests + this repo's, prefixed julio_
 ```
 
-and run with both agent directories:
+and run with both agent directories and both script libraries:
 
 ```bash
-FUNES_AGENTS_DIR=./agents:../funes-julio/agents ./bin/funes
+FUNES_AGENTS_DIR=./agents:../funes-julio/agents \
+FUNES_SCRIPTS_DIR=./scriptlib:../funes-julio/scriptlib ./bin/funes
 ```
 
 Settings this extension reads are listed in `config/funes.conf.example`; they
@@ -44,7 +45,8 @@ funes-julio/
 │   │                   # + publication/pipeline config loaders; register.cpp plugs them in
 ├── agents/             # curator, voc-researcher, council-chair/-panelist, content-writer,
 │                       # mvp-builder, whatsapp-assistant/-autoresponder, gmail-assistant,
-│                       # rss-reader, book-editor (+ templates/)
+│                       # rss-reader, book-editor, home (+ templates/)
+├── scriptlib/          # scripts for run_script: tv_art (Samsung Frame Art Mode)
 ├── publications/       # one YAML + one voice file per publication (ai-pulse, voc-insights)
 ├── pipelines/          # voc.yaml — stage dirs, filenames, schemas for the VoC chain
 ├── publishing/         # Python: render, link-check, send, post an issue (+ its tests)
@@ -100,12 +102,14 @@ object file nothing references, and nothing references a self-registering one.
 - Their dependencies are not in git and do not move themselves:
   `third-party/imap-email-mcp-patched/node_modules` (`npm install` there, which
   applies the SNI patch) and `third-party/whatsapp-mcp/whatsapp-mcp-server/.venv`
-  (`uv sync`). On an upgrade from a pre-5.1 tree, move the existing ones over
+  (`uv sync`), and `scriptlib/.venv` (`python3 -m venv scriptlib/.venv &&
+  scriptlib/.venv/bin/pip install -r scriptlib/requirements.txt`). On an upgrade from a pre-5.1 tree, move the existing ones over
   from the Funes checkout rather than re-fetching.
 - Two systemd units name paths that the split moved; both are copies under
   `~/.config/systemd/user/`, so editing the files here changes nothing until
   they are copied over and `systemctl --user daemon-reload` is run:
-  `funes-v4.service` needs `FUNES_AGENTS_DIR=<Funes>/agents:<here>/agents` —
+  `funes-v4.service` needs `FUNES_AGENTS_DIR=<Funes>/agents:<here>/agents`
+  (and, for `tv_art`, `FUNES_SCRIPTS_DIR=<Funes>/scriptlib:<here>/scriptlib`) —
   without the second entry all eleven agents in this repository are missing and
   both cron jobs fail to resolve their agent — and
   `whatsapp-autoresponder-v4.service` runs `scripts/whatsapp_autoresponder.py`,
@@ -184,6 +188,7 @@ User <-> funes (orchestrator)
               +-> rss-reader         (RSS via MCP)
               +-> book-editor        (manuscript editing)
               +-> file-reviewer      (uploaded documents)
+              +-> home               (living-room TV, Art Mode)
               +-> agent-builder      (create new agents)
               +-> agent-doctor       (diagnose/fix agents)
               +-> tool-builder       (scaffold new tools)
