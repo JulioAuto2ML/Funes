@@ -749,6 +749,18 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         workspace / "runs" / publication / (date + ".json");
 
     const int min_items = std::max(1, args.value("min_items", pub.min_count));
+    // One line per call, before any check can refuse it: on 2026-10-21 an
+    // issue went out with 6 of 9 items and nothing recorded how many each
+    // attempt had submitted, so "the model picked too few" and "the checks
+    // dropped them" could not be told apart.
+    {
+        std::string ids;
+        for (const auto& sel : selection)
+            ids += (ids.empty() ? "" : ",") + std::to_string(sel.candidate_id);
+        std::cerr << "[publish_issue] called: publication=" << publication
+                  << " date=" << date << " items=" << selection.size() << "/"
+                  << pub.count << " min=" << min_items << " ids=[" << ids << "]\n";
+    }
     if (static_cast<int>(selection.size()) < min_items) {
         const std::string why = "only " + std::to_string(selection.size()) +
                                 " items selected; this publication needs at least " +
