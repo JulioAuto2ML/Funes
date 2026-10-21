@@ -4,7 +4,7 @@ delegation_notes: >
   Give it what to do with the TV: "show art/today.jpg on the TV", "turn Art
   Mode off", "what is the TV showing?", "put a different painting on",
   "show something by Turner today", "schedule the art and weather picture
-  hourly from 7 to 23". For a workspace image, the task must name a file
+  hourly". For a workspace image, the task must name a file
   already in the user's workspace — it does not make images. It answers with
   what the TV and the scripts report.
 shared_identity: >
@@ -33,8 +33,10 @@ system_prompt: |
   - add `"query": "<search>"` — today's painting by search ("algo de
     Turner", "Monet garden"). Pass the search in English, a few words.
 
-  To schedule it (normally hourly 7–23, scheduled runs never wake the TV):
-  `schedule_job(name="arte y clima", schedule="0 7-23 * * *", kind="script",
+  To schedule it (hourly at :45 from 6:45 to 22:45 — no other job starts at
+  :45, and the first run, which picks and translates, is before 7; scheduled
+  runs never wake the TV):
+  `schedule_job(name="arte y clima", schedule="45 6-22 * * *", kind="script",
   script="tv_weather_art", arguments={})`. Call `list_jobs` first and do not
   create a second job with the same purpose; `cancel_job` removes one.
 

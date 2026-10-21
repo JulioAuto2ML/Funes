@@ -24,6 +24,12 @@ tv_art. Decisions this script owns:
   and medium are translated once per work by the installation's LLM. The
   reply must have exactly the expected fields, single-line and of plausible
   length; anything else keeps the Met's English, and the next run retries.
+- **The LLM is shared, and has one slot.** llama-server on yoda runs
+  --parallel 1, so a translation in the middle of the newsletter would evict
+  the curator's prompt cache. The script asks /slots first: a scheduled run
+  translates only when the LLM is idle (busy, or stopped for run_images'
+  ComfyUI window, means "English for now, retry next run"); a person's
+  request (--wake, --refresh_art, --query) waits up to LLM_WAIT_SECONDS.
 - **A sleeping TV is not a failure.** The Frame drops off the network when
   Art Mode blanks the screen; a scheduled run then reports shown=false and
   exits 0, so an empty living room does not fill the job log with FAILED.
@@ -60,6 +66,8 @@ RATIO = (1.2, 2.4)            # landscape works only; hanging scrolls look lost
 CHECK_PER_QUERY = 25          # objects examined per search before moving on
 HISTORY = 60                  # days before a work may come back
 RETRY_SECONDS = 5
+LLM_WAIT_SECONDS = 30         # a person's request waits this long for a busy LLM
+LLM_POLL_SECONDS = 5
 OUTPUT = "tv/arte_y_clima.jpg"   # inside the caller's workspace (the cwd)
 
 SEASON_EN = {"primavera": "spring", "verano": "summer", "otoño": "autumn", "invierno": "winter"}
@@ -198,6 +206,41 @@ def llm_complete(prompt):
         return json.load(r)["choices"][0]["message"]["content"]
 
 
+def llm_idle():
+    """True only if the LLM answers and no slot is processing. Down = busy."""
+    base = os.environ.get("FUNES_LLM_URL", "").rstrip("/")
+    if not base or "anthropic" in base:
+        return False
+    try:
+        with urllib.request.urlopen(base + "/slots", timeout=5) as r:
+            slots = json.loads(r.read())
+        return bool(slots) and not any(s.get("is_processing") for s in slots)
+    except Exception as e:
+        log(f"LLM status unknown ({type(e).__name__}: {e}); treating it as busy")
+        return False
+
+
+def may_translate(interactive):
+    if llm_idle():
+        return True
+    if not interactive:
+        log("LLM busy or stopped; keeping the original label until a later run")
+        return False
+    deadline = time.monotonic() + LLM_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(LLM_POLL_SECONDS)
+        if llm_idle():
+            return True
+    log(f"LLM still busy after {LLM_WAIT_SECONDS} s; keeping the original label for now")
+    return False
+
+
+def translate_if_allowed(meta, interactive):
+    if not may_translate(interactive):
+        return dict(meta), False
+    return translate(meta, llm_complete)
+
+
 def translate(meta, complete):
     """(translated, True) or (meta unchanged, False). Never half of each."""
     try:
@@ -272,11 +315,12 @@ def todays_work(cache, args, weather):
     state_file, image_file = cache / "today.json", cache / "art.jpg"
     state = read_json(state_file, {})
     day = today()
+    interactive = args["wake"] or args["refresh_art"] or bool(args["query"])
     fresh = (state.get("date") == day.isoformat() and image_file.exists()
              and not args["refresh_art"] and not args["query"])
     if fresh:
         if not state.get("translated"):
-            state["meta"], state["translated"] = translate(state["original"], llm_complete)
+            state["meta"], state["translated"] = translate_if_allowed(state["original"], interactive)
             write_json(state_file, state)
         return state, image_file
 
@@ -288,7 +332,7 @@ def todays_work(cache, args, weather):
     o = pick_artwork(Met(), qs, day, history)
     image_file.write_bytes(o.pop("_image"))
     original = label(o)
-    meta, translated = translate(original, llm_complete)
+    meta, translated = translate_if_allowed(original, interactive)
     state = {"date": day.isoformat(), "objectID": o["objectID"],
              "artist": (o.get("artistDisplayName") or "").strip(),
              "original": original, "meta": meta, "translated": translated, "query": qs[0]}

@@ -181,6 +181,30 @@ class TestTranslation(unittest.TestCase):
 
 
 @unittest.skipIf(Image is None, "Pillow not installed")
+class TestLlmIdle(unittest.TestCase):
+    def reply(self, body):
+        r = mock.MagicMock()
+        r.__enter__.return_value.read.return_value = json.dumps(body).encode()
+        return r
+
+    def test_idle_only_when_no_slot_is_processing(self):
+        with mock.patch.dict(os.environ, {"FUNES_LLM_URL": "http://127.0.0.1:8080"}), \
+             mock.patch.object(twa.urllib.request, "urlopen") as up:
+            up.return_value = self.reply([{"id": 0, "is_processing": False}])
+            self.assertTrue(twa.llm_idle())
+            up.return_value = self.reply([{"id": 0, "is_processing": True}])
+            self.assertFalse(twa.llm_idle())
+
+    def test_down_or_unknown_counts_as_busy(self):
+        # During run_images' window the LLM is stopped: connection refused.
+        with mock.patch.dict(os.environ, {"FUNES_LLM_URL": "http://127.0.0.1:8080"}), \
+             mock.patch.object(twa.urllib.request, "urlopen", side_effect=OSError("refused")):
+            self.assertFalse(twa.llm_idle())
+        with mock.patch.dict(os.environ, {"FUNES_LLM_URL": ""}):
+            self.assertFalse(twa.llm_idle())
+
+
+@unittest.skipIf(Image is None, "Pillow not installed")
 class TestCanvas(unittest.TestCase):
     META = {"artist": "Wu Shixian", "bio": "China, murió en 1916",
             "title": "Lluvia brumosa sobre el río en primavera " * 3,
@@ -230,6 +254,8 @@ class TestRun(unittest.TestCase):
             {"title": "Obra", "bio": "Francés, 1840–1926", "detail": "1880 · Óleo sobre lienzo"})).start()
         mock.patch.object(twa, "today", lambda: DAY).start()
         mock.patch.object(twa, "RETRY_SECONDS", 0).start()
+        mock.patch.object(twa, "LLM_POLL_SECONDS", 0).start()
+        self.idle = mock.patch.object(twa, "llm_idle", return_value=True).start()
         self.perform = mock.patch.object(
             twa.tv_art, "perform",
             return_value=(0, {"ok": True, "content_id": "MY_F0009", "artmode": "on"})).start()
@@ -283,6 +309,40 @@ class TestRun(unittest.TestCase):
         self.assertTrue(json.loads(out)["artwork"]["title"].startswith("Work "))
         _, out, _ = self.run_main()
         self.assertEqual(json.loads(out)["artwork"]["title"], "Obra")
+
+    # ── sharing the one LLM slot with the newsletter ──────────────────────
+    # llama-server runs --parallel 1: a translation in the middle of the
+    # curator's run evicts its prompt cache. So the script asks first.
+
+    def test_scheduled_run_does_not_translate_while_the_llm_is_busy(self):
+        self.idle.return_value = False
+        with mock.patch.object(twa, "llm_complete") as llm:
+            code, out, _ = self.run_main()
+        self.assertEqual(code, 0)
+        llm.assert_not_called()
+        self.assertFalse(json.loads(out)["artwork"]["translated"])
+
+    def test_busy_then_idle_translates_on_a_later_run(self):
+        self.idle.return_value = False
+        self.run_main()
+        self.idle.return_value = True
+        _, out, _ = self.run_main()
+        self.assertEqual(json.loads(out)["artwork"]["title"], "Obra")
+
+    def test_a_person_waits_for_the_llm_to_free_up(self):
+        self.idle.side_effect = [False, False, True]
+        _, out, _ = self.run_main("--wake")
+        self.assertTrue(json.loads(out)["artwork"]["translated"])
+        self.assertEqual(self.idle.call_count, 3)
+
+    def test_a_person_does_not_wait_forever(self):
+        self.idle.return_value = False
+        with mock.patch.object(twa, "LLM_WAIT_SECONDS", 0), \
+             mock.patch.object(twa, "llm_complete") as llm:
+            code, out, _ = self.run_main("--refresh_art")
+        self.assertEqual(code, 0)
+        llm.assert_not_called()
+        self.assertFalse(json.loads(out)["artwork"]["translated"])
 
     def test_sleeping_tv_is_a_quiet_not_shown(self):
         self.perform.return_value = (twa.tv_art.EXIT_UNREACHABLE, None)

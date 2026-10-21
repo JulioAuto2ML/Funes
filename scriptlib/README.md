@@ -49,6 +49,11 @@ Exit 4 means the TV is off or unreachable and was not woken — `--no-wake`
   medium are translated once per work by the installation's LLM
   (`FUNES_LLM_URL`); a reply with the wrong keys, several lines or an odd
   length keeps the English, and the next run tries again.
+- **It shares the LLM politely.** llama-server runs `--parallel 1`; a
+  translation mid-newsletter would evict the curator's prompt cache. The
+  script checks `/slots` first: scheduled runs translate only when idle (busy,
+  or stopped during `run_images.sh`, keeps English and retries next run); a
+  person's request waits up to 30 s.
 - **A sleeping TV is a quiet `shown: false`**, exit 0. Scheduled runs never
   wake it; an empty living room should not fill the job log with FAILED.
 
@@ -56,8 +61,11 @@ Uses the Met's `/v1.1/search` (the `/v1/search` endpoint was retired on
 2026-10-01) and Open-Meteo (credited on the placard).
 
 Schedule it from a chat, through the `home` agent: "programá el arte y clima
-cada hora de 7 a 23" → `schedule_job(kind="script", script="tv_weather_art",
-schedule="0 7-23 * * *")`.
+en el tele a las :45 de 6 a 22" → `schedule_job(kind="script",
+script="tv_weather_art", schedule="45 6-22 * * *")`. Minute 45 because nothing
+else on yoda starts then (newsletter 9:00/10:30, run_images 9:30/11:00 —
+which stop the LLM for ~17 min —, post_tweet at :00/:30, reminder 20:00), and
+6:45 so the day's pick and translation happen while nothing else runs.
 
 Tests: `scriptlib/.venv/bin/python -m unittest discover -s scriptlib/tests`
 (the TV, the Met, Open-Meteo and the LLM are stubbed; the canvas tests need
