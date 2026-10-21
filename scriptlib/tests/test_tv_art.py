@@ -273,7 +273,7 @@ class TestOtherActions(Base):
     def test_tv_unreachable_says_so(self):
         tv_art.connect.side_effect = ConnectionRefusedError("refused")
         code, out, err = self.run_main("--action=status")
-        self.assertEqual(code, 1)
+        self.assertEqual(code, tv_art.EXIT_UNREACHABLE)
         self.assertEqual(out, "")
         self.assertIn("off or not on the network", err)
 
@@ -284,7 +284,7 @@ class TestOtherActions(Base):
             raise OSError(113, "No route to host")
         self.art.get_artmode = gone
         code, out, err = self.run_main("--action=status")
-        self.assertEqual(code, 1)
+        self.assertEqual(code, tv_art.EXIT_UNREACHABLE)
         self.assertEqual(out, "")
         self.assertIn("off or not on the network", err)
 
@@ -308,6 +308,28 @@ class TestOtherActions(Base):
         # default route is another link, and a limited broadcast left by it.
         wake.assert_called_once_with("c8:12:0b:1c:91:7a", "192.0.2.255")
         self.assertTrue(json.loads(out)["woke"])
+
+    def test_no_wake_leaves_a_sleeping_tv_alone(self):
+        # Scheduled runs pass --no-wake: an empty living room is not a reason
+        # to switch the set on every hour.
+        os.environ["FUNES_TV_MAC"] = "c8:12:0b:1c:91:7a"
+        def gone():
+            raise OSError(113, "No route to host")
+        self.art.get_artmode = gone
+        with mock.patch.object(tv_art, "wake") as wake:
+            code, out, err = self.run_main("--action=status", "--no-wake")
+        self.assertEqual(code, tv_art.EXIT_UNREACHABLE)
+        wake.assert_not_called()
+        self.assertIn("off or not on the network", err)
+
+    def test_perform_returns_the_result_instead_of_printing(self):
+        # tv_weather_art reuses tv_art in-process and prints its own JSON.
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code, result = tv_art.perform(["--action=status"])
+        self.assertEqual(code, 0)
+        self.assertEqual(result["content_id"], "SAM-S1")
+        self.assertEqual(out.getvalue(), "")
 
     def test_magic_packet_shape(self):
         sent = []

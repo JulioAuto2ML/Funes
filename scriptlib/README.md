@@ -7,6 +7,7 @@ executable per script, granted per agent under `scripts:`.
 | Script | Agent | What |
 |---|---|---|
 | `tv_art` | `home` | Samsung Frame Art Mode: `status`, `show --image=<workspace path>`, `artmode_on`/`off`. JSON out. |
+| `tv_weather_art` | `home` | The hourly "art and weather" picture: a Met painting chosen by weather + season, with a forecast placard (drawn by `tv_canvas.py`). JSON out. |
 
 ## Setup (once per machine)
 
@@ -32,4 +33,32 @@ prompt on the TV the first time.
   in `<token file>.state.json`) unless `--keep`. It never deletes an id it did
   not upload, so the Art Store pieces and the owner's own photos are safe.
 
-Tests: `python3 -m unittest discover -s scriptlib/tests` (the TV is stubbed).
+Exit 4 means the TV is off or unreachable and was not woken — `--no-wake`
+(used by `tv_weather_art` on scheduled runs) skips Wake-on-LAN on purpose.
+
+## tv_weather_art — what it decides for itself
+
+- **One work per day.** The day's forecast and the southern-hemisphere season
+  become Met searches (`spring rain`, `rain`, `spring landscape`…); candidates
+  are shuffled with the date as seed, the first usable one wins, and it is
+  cached in `<token dir>/tv_weather_art/`. Works shown in the last 60 days are
+  skipped. `--refresh_art` picks another; `--query=Turner` searches instead.
+- **Only works that look right on a 4K wall:** public domain, landscape
+  (catalogue measurements first, then pixels), original ≥ 2500 px wide.
+- **Spanish label or the original, never a broken one.** Title, bio and
+  medium are translated once per work by the installation's LLM
+  (`FUNES_LLM_URL`); a reply with the wrong keys, several lines or an odd
+  length keeps the English, and the next run tries again.
+- **A sleeping TV is a quiet `shown: false`**, exit 0. Scheduled runs never
+  wake it; an empty living room should not fill the job log with FAILED.
+
+Uses the Met's `/v1.1/search` (the `/v1/search` endpoint was retired on
+2026-10-01) and Open-Meteo (credited on the placard).
+
+Schedule it from a chat, through the `home` agent: "programá el arte y clima
+cada hora de 7 a 23" → `schedule_job(kind="script", script="tv_weather_art",
+schedule="0 7-23 * * *")`.
+
+Tests: `scriptlib/.venv/bin/python -m unittest discover -s scriptlib/tests`
+(the TV, the Met, Open-Meteo and the LLM are stubbed; the canvas tests need
+Pillow, hence the venv).

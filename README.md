@@ -46,7 +46,7 @@ funes-julio/
 ├── agents/             # curator, voc-researcher, council-chair/-panelist, content-writer,
 │                       # mvp-builder, whatsapp-assistant/-autoresponder, gmail-assistant,
 │                       # rss-reader, book-editor, home (+ templates/)
-├── scriptlib/          # scripts for run_script: tv_art (Samsung Frame Art Mode)
+├── scriptlib/          # scripts for run_script: tv_art, tv_weather_art (Samsung Frame)
 ├── publications/       # one YAML + one voice file per publication (ai-pulse, voc-insights)
 ├── pipelines/          # voc.yaml — stage dirs, filenames, schemas for the VoC chain
 ├── publishing/         # Python: render, link-check, send, post an issue (+ its tests)

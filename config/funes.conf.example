@@ -126,3 +126,9 @@ WHATSAPP_BRIDGE_URL=http://localhost:8091
 # set, tv_art sends Wake-on-LAN and retries. Needs the TV's "Power On with
 # Mobile" (Settings → General → External Device Manager) switched on.
 #   FUNES_TV_MAC=c8:12:0b:1c:91:7a
+# Where the "art and weather" picture (scriptlib/tv_weather_art) gets its
+# forecast from. Coordinates from Open-Meteo's geocoding; the place name is
+# what the placard prints.
+#   FUNES_WEATHER_LAT=-34.51236
+#   FUNES_WEATHER_LON=-58.5458
+#   FUNES_WEATHER_PLACE=Villa Adelina

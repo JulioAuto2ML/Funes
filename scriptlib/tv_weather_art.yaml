@@ -1,0 +1,41 @@
+description: >-
+  Put today's "art and weather" picture on the living-room Samsung Frame: a
+  public-domain museum painting chosen by today's weather and the season,
+  with a placard showing the current weather, the next four days and the
+  work's label in Spanish. Scheduled hourly; also run on request to pick a
+  different work or one matching a search.
+run: tv_weather_art.sh
+timeout_seconds: 120
+params:
+  - name: refresh_art
+    description: Choose a different work for today instead of the one already chosen.
+    type: boolean
+    required: false
+  - name: query
+    description: Choose today's work by this search instead of weather and season (e.g. "Turner", "Monet garden").
+    type: string
+    required: false
+  - name: wake
+    description: Wake the TV if it is asleep. Leave false for scheduled runs.
+    type: boolean
+    required: false
+output:
+  format: json
+  schema:
+    type: object
+    required: [ok, shown, artwork, weather]
+    properties:
+      ok:      {type: boolean}
+      shown:   {type: boolean}
+      artwork: {type: object}
+      weather: {type: object}
+env:
+  FUNES_WEATHER_LAT: "${FUNES_WEATHER_LAT}"
+  FUNES_WEATHER_LON: "${FUNES_WEATHER_LON}"
+  FUNES_WEATHER_PLACE: "${FUNES_WEATHER_PLACE}"
+  FUNES_TV_HOST: "${FUNES_TV_HOST}"
+  FUNES_TV_TOKEN_FILE: "${FUNES_TV_TOKEN_FILE}"
+  FUNES_TV_MAC: "${FUNES_TV_MAC}"
+  FUNES_TV_BROADCAST: "${FUNES_TV_BROADCAST}"
+  FUNES_LLM_URL: "${FUNES_LLM_URL}"
+  FUNES_LLM_MODEL: "${FUNES_LLM_MODEL}"

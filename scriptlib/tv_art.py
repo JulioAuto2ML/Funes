@@ -31,7 +31,12 @@ What this script decides for itself rather than trusting the caller or the TV:
   Wake-on-LAN packet and one more try.
 
 Exit codes: 0 done, 1 the TV failed or refused, 2 bad arguments,
-3 not configured (an installation fault, not something a retry fixes).
+3 not configured (an installation fault, not something a retry fixes),
+4 the TV is off or not on the network (and was not, or could not be, woken).
+
+`--no-wake` skips Wake-on-LAN: scheduled runs use it, since an empty living
+room is not a reason to switch the set on. `perform(argv)` is the same run
+returning (exit code, result) for callers in this directory (tv_weather_art).
 
 Config, from the manifest's env (config/funes.local):
     FUNES_TV_HOST        the TV's address
@@ -78,13 +83,13 @@ def log(msg):
 # ── arguments and configuration ──────────────────────────────────────────────
 
 def parse(argv):
-    args = {"keep": False}
+    args = {"keep": False, "no_wake": False}
     for token in argv:
         if not token.startswith("--"):
             raise Refusal(f"unexpected argument {token!r}")
         key, sep, value = token[2:].partition("=")
-        if key == "keep" and not sep:
-            args["keep"] = True
+        if key in ("keep", "no-wake") and not sep:
+            args[key.replace("-", "_")] = True
         elif key in ("action", "image") and sep:
             args[key] = value
         else:
@@ -270,17 +275,23 @@ def run(session, args, token_file, image):
     }
 
 
-def main(argv):
+EXIT_UNREACHABLE = 4
+
+
+def perform(argv):
+    """One run. Returns (exit code, result dict or None); logs to stderr."""
     try:
         args = parse(argv)
         host, token_file, mac = config()
         image = resolve_image(args["image"]) if args["action"] == "show" else None
     except Refusal as e:
         log(str(e))
-        return 2
+        return 2, None
     except NotConfigured as e:
         log(f"not configured: {e}")
-        return 3
+        return 3, None
+    if args["no_wake"]:
+        mac = ""
 
     woke = False
     try:
@@ -297,15 +308,21 @@ def main(argv):
             result = run(Session(connect(host, token_file)), args, token_file, image)
     except Exception as e:
         if is_unreachable(e):
-            hint = "" if mac else " (set FUNES_TV_MAC to let tv_art wake it)"
+            hint = "" if mac or args["no_wake"] else " (set FUNES_TV_MAC to let tv_art wake it)"
             log(f"the TV is off or not on the network ({host}): {e}{hint}")
-        else:
-            log(f"failed: {type(e).__name__}: {e}")
-        return 1
+            return EXIT_UNREACHABLE, None
+        log(f"failed: {type(e).__name__}: {e}")
+        return 1, None
 
     result["woke"] = woke
-    print(json.dumps(result))
-    return 0
+    return 0, result
+
+
+def main(argv):
+    code, result = perform(argv)
+    if result is not None:
+        print(json.dumps(result))
+    return code
 
 
 if __name__ == "__main__":

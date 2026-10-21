@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+"""tv_weather_art — a museum piece for today's weather, with the forecast on it.
+
+Run by Funes through `run_script` (see tv_weather_art.yaml), usually on a
+schedule (`0 7-23 * * *`). stdout is exactly one JSON object; stderr is logs.
+
+    [--refresh_art]   choose a different work today
+    [--query=<text>]  choose today's work by this search instead ("Turner")
+    [--wake]          wake the TV if it is asleep (scheduled runs leave it alone)
+
+Each run: fetch the forecast, reuse today's artwork (chosen at the first run
+of the day), compose artwork + placard (tv_canvas), and show it through
+tv_art. Decisions this script owns:
+
+- **One work per day, chosen by weather and season.** Today's forecast and the
+  southern-hemisphere season become Met searches ("spring rain", then "rain",
+  then "spring landscape"); candidates are shuffled with the date as seed, so
+  a rerun the same day picks the same work. Recently shown works are skipped.
+- **Only works that will look right on the wall.** Public domain, an original
+  image, landscape-shaped (by the catalogue's measurements before anything is
+  downloaded, then by pixels) and at least MIN_PX wide — the Frame is 4K, and
+  the approved mockup's 1995 px original was already at the limit.
+- **A Spanish label, or the original — never a broken one.** The title, bio
+  and medium are translated once per work by the installation's LLM. The
+  reply must have exactly the expected fields, single-line and of plausible
+  length; anything else keeps the Met's English, and the next run retries.
+- **A sleeping TV is not a failure.** The Frame drops off the network when
+  Art Mode blanks the screen; a scheduled run then reports shown=false and
+  exits 0, so an empty living room does not fill the job log with FAILED.
+
+Exit codes: 0 done (shown or deliberately not), 1 a source or the TV failed,
+2 bad arguments, 3 not configured.
+
+Config (manifest env, from config/funes.local and the service):
+    FUNES_WEATHER_LAT, FUNES_WEATHER_LON, FUNES_WEATHER_PLACE
+    FUNES_TV_HOST, FUNES_TV_TOKEN_FILE (+ FUNES_TV_MAC)   — see tv_art.py
+    FUNES_LLM_URL, FUNES_LLM_MODEL                        — for the translation
+"""
+
+import io
+import json
+import os
+import random
+import re
+import sys
+import urllib.parse
+import urllib.request
+from datetime import date
+from pathlib import Path
+
+import tv_art
+import tv_canvas
+from PIL import Image
+
+MET = "https://collectionapi.metmuseum.org/public/collection"
+UA = {"User-Agent": "Funes tv_weather_art (home use)"}
+MIN_PX = 2500                 # original's width; the panel is 3840
+RATIO = (1.2, 2.4)            # landscape works only; hanging scrolls look lost
+CHECK_PER_QUERY = 25          # objects examined per search before moving on
+HISTORY = 60                  # days before a work may come back
+OUTPUT = "tv/arte_y_clima.jpg"   # inside the caller's workspace (the cwd)
+
+SEASON_EN = {"primavera": "spring", "verano": "summer", "otoño": "autumn", "invierno": "winter"}
+WEATHER_EN = {
+    "sun": ["sunlight", "sunny"], "partly": ["clouds", "sky"],
+    "cloud": ["clouds", "overcast"], "fog": ["fog", "mist"],
+    "drizzle": ["rain", "mist"], "rain": ["rain", "wet"],
+    "storm": ["storm", "tempest"], "snow": ["snow", "winter"],
+}
+
+
+class Refusal(Exception):
+    pass
+
+
+class NotConfigured(Exception):
+    pass
+
+
+class NoArtwork(Exception):
+    pass
+
+
+def log(msg):
+    print(f"tv_weather_art: {msg}", file=sys.stderr, flush=True)
+
+
+def today():
+    return date.today()
+
+
+# ── choosing the work ────────────────────────────────────────────────────────
+
+def season(d):
+    """Southern hemisphere, by month."""
+    return {12: "verano", 1: "verano", 2: "verano", 3: "otoño", 4: "otoño", 5: "otoño",
+            6: "invierno", 7: "invierno", 8: "invierno"}.get(d.month, "primavera")
+
+
+def queries(kind, season_name):
+    s = SEASON_EN[season_name]
+    terms = WEATHER_EN.get(kind, ["landscape"])
+    out = [f"{s} {t}" for t in terms] + terms + [f"{s} landscape"]
+    return list(dict.fromkeys(out))
+
+
+class Met:
+    def _get(self, url, raw=False):
+        req = urllib.request.Request(url, headers=UA)
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = r.read()
+        return data if raw else json.loads(data)
+
+    def search(self, query):
+        q = urllib.parse.quote(query)
+        r = self._get(f"{MET}/v1.1/search?hasImages=true&medium=Paintings&q={q}&limit=80")
+        return r.get("objectIDs") or []
+
+    def obj(self, oid):
+        return self._get(f"{MET}/v1/objects/{oid}")
+
+    def image(self, url):
+        return self._get(url, raw=True)
+
+
+def catalogue_ratio(o):
+    """Width/height from the catalogue's measurements, or None if it has none."""
+    for m in o.get("measurements") or []:
+        em = m.get("elementMeasurements") or {}
+        w, h = em.get("Width"), em.get("Height")
+        if w and h:
+            return w / h
+    return None
+
+
+def pick_artwork(met, query_list, day, history):
+    seen = set(history)
+    for q in query_list:
+        try:
+            ids = [i for i in met.search(q) if i not in seen]
+        except Exception as e:
+            log(f"search {q!r} failed: {e}")
+            continue
+        random.Random(f"{day.isoformat()}:{q}").shuffle(ids)
+        for oid in ids[:CHECK_PER_QUERY]:
+            try:
+                o = met.obj(oid)
+                if not (o.get("isPublicDomain") and o.get("primaryImage")):
+                    continue
+                r = catalogue_ratio(o)
+                if r is not None and not RATIO[0] <= r <= RATIO[1]:
+                    continue
+                data = met.image(o["primaryImage"])
+                w, h = Image.open(io.BytesIO(data)).size
+            except Exception as e:
+                log(f"object {oid}: {type(e).__name__}: {e}")
+                continue
+            if w < MIN_PX or not RATIO[0] <= w / h <= RATIO[1]:
+                continue
+            log(f"chose {oid} for {q!r}: {o.get('title')} ({w}x{h})")
+            return {**o, "_image": data}
+    raise NoArtwork(f"no usable public-domain landscape for {query_list}")
+
+
+def label(o):
+    when = o.get("objectDate") or o.get("period") or o.get("dynasty") or ""
+    return {
+        "title": (o.get("title") or "Sin título").strip(),
+        "bio": (o.get("artistDisplayBio") or "").strip(),
+        "detail": " · ".join(x for x in (when.strip(), (o.get("medium") or "").strip()) if x),
+    }
+
+
+# ── the Spanish label ────────────────────────────────────────────────────────
+
+PROMPT = """Traducí al castellano rioplatense neutro, como en la ficha de un museo, \
+los valores de este JSON. No traduzcas nombres propios de personas. Respondé solo \
+con el JSON, mismas claves, cada valor en una sola línea.
+
+{payload}"""
+
+
+def llm_complete(prompt):
+    base = os.environ.get("FUNES_LLM_URL", "").rstrip("/")
+    if not base or "anthropic" in base:
+        raise OSError("no OpenAI-compatible LLM configured")
+    body = {
+        "model": os.environ.get("FUNES_LLM_MODEL") or "default",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0, "max_tokens": 400,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+    req = urllib.request.Request(base + "/v1/chat/completions", json.dumps(body).encode(),
+                                 {"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)["choices"][0]["message"]["content"]
+
+
+def translate(meta, complete):
+    """(translated, True) or (meta unchanged, False). Never half of each."""
+    try:
+        reply = complete(PROMPT.format(payload=json.dumps(meta, ensure_ascii=False)))
+        reply = re.sub(r"<think>.*?</think>", "", reply, flags=re.S).strip()
+        reply = re.sub(r"^```(?:json)?\s*|\s*```$", "", reply).strip()
+        out = json.loads(reply)
+        if not isinstance(out, dict) or set(out) != set(meta):
+            raise ValueError(f"keys {sorted(out) if isinstance(out, dict) else type(out)}")
+        for k, v in out.items():
+            if not isinstance(v, str) or "\n" in v:
+                raise ValueError(f"{k} is not one line of text")
+            if len(v) > 2 * len(meta[k]) + 40:
+                raise ValueError(f"{k} is implausibly long")
+        return {k: v.strip() for k, v in out.items()}, True
+    except Exception as e:
+        log(f"translation kept the original: {type(e).__name__}: {e}")
+        return dict(meta), False
+
+
+# ── weather, cache, run ──────────────────────────────────────────────────────
+
+def fetch_weather(lat, lon):
+    q = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+         "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code"
+         "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+         "&timezone=auto&forecast_days=5")
+    req = urllib.request.Request(q, headers=UA)
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.load(r)
+
+
+def parse(argv):
+    args = {"refresh_art": False, "wake": False, "query": ""}
+    for token in argv:
+        key, sep, value = token[2:].partition("=") if token.startswith("--") else ("", "", "")
+        if key in ("refresh_art", "wake") and not sep:
+            args[key] = True
+        elif key == "query" and sep:
+            args["query"] = value.strip()[:100]
+        else:
+            raise Refusal(f"unknown argument {token!r}")
+    return args
+
+
+def config():
+    need = ["FUNES_WEATHER_LAT", "FUNES_WEATHER_LON", "FUNES_TV_HOST", "FUNES_TV_TOKEN_FILE"]
+    missing = [n for n in need if not os.environ.get(n, "").strip()]
+    if missing:
+        raise NotConfigured(f"{', '.join(missing)} not set — add to config/funes.local")
+    cache = Path(os.environ["FUNES_TV_TOKEN_FILE"]).parent / "tv_weather_art"
+    return (float(os.environ["FUNES_WEATHER_LAT"]), float(os.environ["FUNES_WEATHER_LON"]),
+            os.environ.get("FUNES_WEATHER_PLACE", "").strip(), cache)
+
+
+def read_json(path, default):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return default
+
+
+def write_json(path, value):
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(value, ensure_ascii=False))
+    tmp.replace(path)
+
+
+def todays_work(cache, args, weather):
+    """Today's {objectID, meta, translated}, choosing or re-translating as needed."""
+    cache.mkdir(parents=True, exist_ok=True)
+    state_file, image_file = cache / "today.json", cache / "art.jpg"
+    state = read_json(state_file, {})
+    day = today()
+    fresh = (state.get("date") == day.isoformat() and image_file.exists()
+             and not args["refresh_art"] and not args["query"])
+    if fresh:
+        if not state.get("translated"):
+            state["meta"], state["translated"] = translate(state["original"], llm_complete)
+            write_json(state_file, state)
+        return state, image_file
+
+    history = read_json(cache / "history.json", [])
+    if args["refresh_art"] and state.get("objectID"):
+        history = [state["objectID"]] + history
+    kind = tv_canvas.kind(weather["daily"]["weather_code"][0])
+    qs = [args["query"]] if args["query"] else queries(kind, season(day))
+    o = pick_artwork(Met(), qs, day, history)
+    image_file.write_bytes(o.pop("_image"))
+    original = label(o)
+    meta, translated = translate(original, llm_complete)
+    state = {"date": day.isoformat(), "objectID": o["objectID"],
+             "artist": (o.get("artistDisplayName") or "").strip(),
+             "original": original, "meta": meta, "translated": translated, "query": qs[0]}
+    write_json(state_file, state)
+    write_json(cache / "history.json", ([o["objectID"]] + [h for h in history if h != o["objectID"]])[:HISTORY])
+    return state, image_file
+
+
+def main(argv):
+    try:
+        args = parse(argv)
+        lat, lon, place, cache = config()
+    except Refusal as e:
+        log(str(e))
+        return 2
+    except NotConfigured as e:
+        log(f"not configured: {e}")
+        return 3
+
+    try:
+        weather = fetch_weather(lat, lon)
+    except Exception as e:
+        log(f"weather unavailable (Open-Meteo): {type(e).__name__}: {e}")
+        return 1
+    try:
+        state, image_file = todays_work(cache, args, weather)
+        meta = {**state["meta"], "artist": state["artist"], "place": place}
+        img = tv_canvas.compose(Image.open(image_file), meta, weather)
+        out = Path.cwd() / OUTPUT
+        out.parent.mkdir(parents=True, exist_ok=True)
+        img.save(out, "JPEG", quality=90)
+    except Exception as e:
+        log(f"could not prepare today's image: {type(e).__name__}: {e}")
+        return 1
+
+    argv_tv = ["--action=show", f"--image={OUTPUT}"] + ([] if args["wake"] else ["--no-wake"])
+    code, shown = tv_art.perform(argv_tv)
+    result = {
+        "ok": True,
+        "artwork": {"id": state["objectID"], "title": state["meta"]["title"],
+                    "artist": state["artist"], "translated": state["translated"]},
+        "weather": {"temperature": weather["current"]["temperature_2m"],
+                    "kind": tv_canvas.kind(weather["current"]["weather_code"])},
+    }
+    if code == tv_art.EXIT_UNREACHABLE and not args["wake"]:
+        result.update(shown=False, reason="TV asleep or off; the next run while it is on will show it")
+    elif code != 0:
+        return code
+    else:
+        result.update(shown=True, content_id=shown.get("content_id"))
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
