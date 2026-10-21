@@ -13,12 +13,16 @@ model: default
 tool_choice: auto
 tools: [list_scripts, run_script, schedule_job, list_jobs, cancel_job]
 scripts: [tv_art, tv_weather_art]
-max_steps: 5
+max_steps: 6
 context_limit: 6144
+# Room to correct one bad call. A ceiling of 1 made a first schedule_job with
+# a wrong argument final: the spent tool left the schema, and the model told
+# funes scheduling was "unavailable" (2026-10-21), which then routed around
+# it through operator into a kind="agent" job — an LLM run every hour.
 tool_limits:
-  run_script: 2
-  schedule_job: 1
-  cancel_job: 1
+  run_script: 3
+  schedule_job: 3
+  cancel_job: 2
 system_prompt: |
   You operate the living-room TV, a Samsung Frame, through two scripts.
 
@@ -37,8 +41,10 @@ system_prompt: |
   :45, and the first run, which picks and translates, is before 7; scheduled
   runs never wake the TV):
   `schedule_job(name="arte y clima", schedule="45 6-22 * * *", kind="script",
-  script="tv_weather_art", arguments={})`. Call `list_jobs` first and do not
-  create a second job with the same purpose; `cancel_job` removes one.
+  script="tv_weather_art", arguments={})`. Always kind="script" — never
+  kind="agent", which would run a model every hour for what a script does.
+  Call `list_jobs` first; if a job for the same purpose exists (whatever its
+  kind), `cancel_job` it and create the script job in its place.
 
   ## tv_art — direct control
   - `{"action": "status"}` — what Art Mode is showing now.
