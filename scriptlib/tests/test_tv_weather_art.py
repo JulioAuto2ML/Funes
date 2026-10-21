@@ -445,6 +445,56 @@ class TestRun(unittest.TestCase):
         self.assertNotIn("--no-wake", argv)
         self.assertNotIn("--gentle", argv)
 
+    # ── the event log: what happened, not every minute that nothing did ──
+
+    def events(self):
+        path = self.cache() / "events.log"
+        return [json.loads(line.split(" ", 2)[2]) for line in path.read_text().splitlines()] \
+            if path.exists() else []
+
+    def test_render_and_publish_are_logged_with_what_they_did(self):
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            self.run_main("--mode=publish")
+        kinds = [(e["event"], e.get("shown")) for e in self.events()]
+        self.assertEqual(kinds, [("render", None), ("publish", True)])
+        self.assertEqual(self.events()[1]["content_id"], "MY_F0009")
+
+    def test_minutes_where_nothing_happened_are_not_logged(self):
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=False):
+            for _ in range(5):
+                self.run_main("--mode=publish")               # asleep
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            self.run_main("--mode=publish")
+            for _ in range(5):
+                self.run_main("--mode=publish")               # up to date
+        self.assertEqual([e["event"] for e in self.events()], ["render", "publish"])
+
+    def test_failures_are_logged(self):
+        with mock.patch.object(twa, "fetch_weather", side_effect=OSError("timeout")):
+            self.run_main("--mode=render")
+        self.run_main("--mode=render")
+        self.perform.return_value = (1, None)
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            self.run_main("--mode=publish")
+        self.assertEqual([(e["event"], e["ok"]) for e in self.events()],
+                         [("render", False), ("render", True), ("publish", False)])
+
+    def test_the_log_rotates_and_stays_bounded(self):
+        with mock.patch.object(twa, "LOG_BYTES", 400), mock.patch.object(twa, "LOG_KEEP", 2):
+            for i in range(60):
+                twa.event(self.cache(), event="render", ok=True, n=i)
+        files = sorted(p.name for p in self.cache().glob("events.log*"))
+        self.assertEqual(files, ["events.log", "events.log.1", "events.log.2"])
+        self.assertTrue(all(p.stat().st_size < 800 for p in self.cache().glob("events.log*")))
+
+    def test_an_unwritable_log_never_fails_the_run(self):
+        (self.cache()).mkdir(parents=True, exist_ok=True)
+        (self.cache() / "events.log").mkdir()                 # open() will refuse it
+        code, _, _ = self.run_main("--mode=render")
+        self.assertEqual(code, 0)
+
     def test_bad_mode_is_refused(self):
         code, _, err = self.run_main("--mode=sometimes")
         self.assertEqual(code, 2)

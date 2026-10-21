@@ -69,7 +69,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import tv_art
@@ -89,6 +89,8 @@ OUTPUT = "tv/arte_y_clima.jpg"   # inside the caller's workspace (the cwd)
 MODES = ("render", "publish", "both")
 TV_PORT = 8002                # the set's secure websocket; closed while it sleeps
 PROBE_SECONDS = 2
+LOG_BYTES = 256 * 1024        # events.log rotates at this size...
+LOG_KEEP = 3                  # ...keeping this many older files (~2 months)
 
 SEASON_EN = {"primavera": "spring", "verano": "summer", "otoño": "autumn", "invierno": "winter"}
 WEATHER_EN = {
@@ -363,6 +365,27 @@ def todays_work(cache, args, weather):
     return state, image_file
 
 
+def event(cache, **fields):
+    """One line in <cache>/events.log for something that happened (a render, a
+    publish, a failure) — never for a minute where nothing did, and never a
+    reason to fail the run. The job row's last_output only keeps the last
+    run, which on a per-minute job is always "up to date"."""
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+        path = cache / "events.log"
+        if path.exists() and path.stat().st_size >= LOG_BYTES:
+            for i in range(LOG_KEEP, 0, -1):
+                older = path.with_name(f"{path.name}.{i}")
+                source = path if i == 1 else path.with_name(f"{path.name}.{i - 1}")
+                if source.exists():
+                    source.replace(older)
+        with open(path, "a") as f:
+            f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} "
+                    f"{json.dumps(fields, ensure_ascii=False)}\n")
+    except OSError as e:
+        log(f"could not write the event log: {e}")
+
+
 def tv_awake(host):
     """Does the set answer at all? Cheap enough to ask every minute."""
     try:
@@ -388,6 +411,7 @@ def render(args, lat, lon, place, cache):
     render record, or None on failure."""
     weather = get_weather(lat, lon)
     if weather is None:
+        event(cache, event="render", ok=False, error="weather unavailable")
         return None
     try:
         state, image_file = todays_work(cache, args, weather)
@@ -400,6 +424,7 @@ def render(args, lat, lon, place, cache):
         tmp.replace(out)
     except Exception as e:
         log(f"could not prepare today's image: {type(e).__name__}: {e}")
+        event(cache, event="render", ok=False, error=f"{type(e).__name__}: {e}")
         return None
     record = {
         "rendered_at": time.time(),
@@ -410,6 +435,9 @@ def render(args, lat, lon, place, cache):
                     "kind": tv_canvas.kind(weather["current"]["weather_code"])},
     }
     write_json(cache / "render.json", record)
+    event(cache, event="render", ok=True, weather_time=record["weather_time"],
+          artwork=record["artwork"]["id"], translated=record["artwork"]["translated"],
+          temperature=record["weather"]["temperature"])
     return record
 
 
@@ -442,7 +470,10 @@ def publish(args, cache, record, force):
         if code == tv_art.EXIT_UNREACHABLE and not args["wake"]:
             return 0, answer(record, reason="TV asleep or off; it will be sent when it is on")
         if code != 0:
+            event(cache, event="publish", ok=False, code=code)
             return code, None
+        event(cache, event="publish", ok=True, shown=True, content_id=shown.get("content_id"),
+              weather_time=record["weather_time"], requested=bool(args["wake"]))
         write_json(cache / "published.json",
                    {"rendered_at": record["rendered_at"], "content_id": shown.get("content_id")})
         return 0, answer(record, shown=True, content_id=shown.get("content_id"))

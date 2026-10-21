@@ -71,6 +71,13 @@ Publishing passes tv_art `--gentle`: a set that answers with Art Mode off is
 being watched, so the picture is only selected, not switched to. A person
 asking (`--wake`, default `--mode=both`) renders and sends at once.
 
+**What it logs.** A job row keeps only its *last* output, which for a
+per-minute job is always "up to date", so the script keeps its own history:
+`<token dir>/tv_weather_art/events.log` (on yoda `~/.funes-v4/tv_weather_art/`),
+one line per render, publish or failure — nothing for a minute where nothing
+happened. It rotates itself at 256 KB, keeping three older files (about two
+months). Scheduled script runs write nothing else: no turns, no journal lines.
+
 Schedule it from a chat, through the `home` agent: "programá el arte y clima
 en el tele" → two `schedule_job(kind="script", script="tv_weather_art")`, with
 `{"mode": "render"}` at `2,17,32,47 6-23 * * *` and `{"mode": "publish"}` at
