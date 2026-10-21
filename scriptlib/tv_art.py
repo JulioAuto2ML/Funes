@@ -83,12 +83,12 @@ def log(msg):
 # ── arguments and configuration ──────────────────────────────────────────────
 
 def parse(argv):
-    args = {"keep": False, "no_wake": False}
+    args = {"keep": False, "no_wake": False, "gentle": False}
     for token in argv:
         if not token.startswith("--"):
             raise Refusal(f"unexpected argument {token!r}")
         key, sep, value = token[2:].partition("=")
-        if key in ("keep", "no-wake") and not sep:
+        if key in ("keep", "no-wake", "gentle") and not sep:
             args[key.replace("-", "_")] = True
         elif key in ("action", "image") and sep:
             args[key] = value
@@ -227,8 +227,13 @@ def save_uploaded(token_file, ids):
     tmp.replace(p)
 
 
-def show(session, token_file, image, file_type, keep):
+def show(session, token_file, image, file_type, keep, gentle=False):
+    """Upload and select. `gentle` leaves a set that is in use alone: Art Mode
+    off while the set answers means someone is watching, and switching to Art
+    Mode would blank their programme. The picture is then only selected, so it
+    is what Art Mode shows next."""
     art = session.art
+    in_use = gentle and session.attempt("read art mode", art.get_artmode) == "off"
     log(f"uploading {image.name} ({image.stat().st_size} bytes)")
     cid = art.upload(image.read_bytes(), file_type=file_type, matte="none")
     if not cid:
@@ -237,11 +242,14 @@ def show(session, token_file, image, file_type, keep):
     save_uploaded(token_file, earlier + [cid])      # before anything else can fail
     log(f"uploaded as {cid}")
 
-    session.attempt(f"select {cid}", lambda: art.select_image(cid, show=True))
-    if not session.read_back(lambda: art.get_current().get("content_id") == cid):
-        raise RuntimeError(f"uploaded {cid} but the TV did not select it within "
-                           f"{BUDGET_SECONDS} s")
-    session.ensure_artmode("on")
+    session.attempt(f"select {cid}", lambda: art.select_image(cid, show=not in_use))
+    if in_use:
+        log("the TV is in use: selected without switching to Art Mode")
+    else:
+        if not session.read_back(lambda: art.get_current().get("content_id") == cid):
+            raise RuntimeError(f"uploaded {cid} but the TV did not select it within "
+                               f"{BUDGET_SECONDS} s")
+        session.ensure_artmode("on")
 
     if keep:
         save_uploaded(token_file, [cid])            # earlier ones retire, undeleted
@@ -261,7 +269,7 @@ def show(session, token_file, image, file_type, keep):
 def run(session, args, token_file, image):
     replaced = []
     if args["action"] == "show":
-        replaced = show(session, token_file, *image, args["keep"])
+        replaced = show(session, token_file, *image, args["keep"], args["gentle"])
     elif args["action"] == "artmode_on":
         session.ensure_artmode("on")
     elif args["action"] == "artmode_off":

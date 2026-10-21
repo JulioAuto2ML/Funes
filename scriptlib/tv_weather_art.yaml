@@ -2,11 +2,18 @@ description: >-
   Put today's "art and weather" picture on the living-room Samsung Frame: a
   public-domain museum painting chosen by today's weather and the season,
   with a placard showing the current weather, the next four days and the
-  work's label in Spanish. Scheduled hourly; also run on request to pick a
-  different work or one matching a search.
+  work's label in Spanish. Three modes: `render` (every 15 min — forecast and
+  picture, never touches the TV), `publish` (every minute — sends the newest
+  picture once the TV is on) and `both` (a person asking: pick, render, send).
+  Also run on request to pick a different work or one matching a search.
 run: tv_weather_art.sh
 timeout_seconds: 120
 params:
+  - name: mode
+    description: render | publish | both (default). Scheduled jobs use render and publish.
+    type: string
+    required: false
+    choices: [render, publish, both]
   - name: refresh_art
     description: Choose a different work for today instead of the one already chosen.
     type: boolean

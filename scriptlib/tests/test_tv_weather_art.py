@@ -349,6 +349,106 @@ class TestRun(unittest.TestCase):
         llm.assert_not_called()
         self.assertFalse(json.loads(out)["artwork"]["translated"])
 
+    # ── three events: translate once, render every 15 min, publish on need ──
+
+    def cache(self):
+        return Path(os.environ["FUNES_TV_TOKEN_FILE"]).parent / "tv_weather_art"
+
+    def test_render_makes_the_image_and_never_touches_the_tv(self):
+        code, out, err = self.run_main("--mode=render")
+        self.assertEqual(code, 0, err)
+        self.perform.assert_not_called()
+        self.assertEqual(Image.open(self.ws / twa.OUTPUT).size, (3840, 2160))
+        result = json.loads(out)
+        self.assertFalse(result["shown"])
+        self.assertEqual(result["artwork"]["title"], "Obra")
+
+    def test_render_reuses_todays_work_and_translation(self):
+        self.run_main("--mode=render")
+        searches = len(self.met.queries)
+        with mock.patch.object(twa, "llm_complete") as llm:
+            self.run_main("--mode=render")
+        self.assertEqual(len(self.met.queries), searches)
+        llm.assert_not_called()
+
+    def test_publish_shows_what_was_rendered_once(self):
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=True), \
+             mock.patch.object(twa, "fetch_weather", side_effect=AssertionError("no network")):
+            code, out, err = self.run_main("--mode=publish")
+            self.assertEqual(code, 0, err)
+            self.assertTrue(json.loads(out)["shown"])
+            argv = self.perform.call_args[0][0]
+            self.assertIn("--no-wake", argv)
+            self.assertIn("--gentle", argv)
+            self.perform.reset_mock()
+            code, out, _ = self.run_main("--mode=publish")     # nothing new
+        self.assertEqual(code, 0)
+        self.perform.assert_not_called()
+        self.assertFalse(json.loads(out)["shown"])
+        self.assertIn("up to date", json.loads(out)["reason"])
+
+    def test_a_new_render_is_published_again(self):
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            self.run_main("--mode=publish")
+            self.run_main("--mode=render")
+            self.perform.reset_mock()
+            self.run_main("--mode=publish")
+        self.perform.assert_called_once()
+
+    def test_publish_leaves_a_sleeping_tv_alone_and_stays_pending(self):
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=False):
+            code, out, _ = self.run_main("--mode=publish")
+        self.assertEqual(code, 0)
+        self.perform.assert_not_called()
+        self.assertIn("asleep", json.loads(out)["reason"])
+        with mock.patch.object(twa, "tv_awake", return_value=True):   # turned on later
+            self.run_main("--mode=publish")
+        self.perform.assert_called_once()
+
+    def test_a_failed_publish_is_retried_not_marked_done(self):
+        self.run_main("--mode=render")
+        self.perform.return_value = (1, None)
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            code, _, _ = self.run_main("--mode=publish")
+            self.assertEqual(code, 1)
+            self.perform.return_value = (0, {"ok": True, "content_id": "MY_F0010"})
+            self.run_main("--mode=publish")
+        self.assertEqual(self.perform.call_count, 2)
+
+    def test_publish_before_any_render_is_quiet(self):
+        code, out, _ = self.run_main("--mode=publish")
+        self.assertEqual(code, 0)
+        self.perform.assert_not_called()
+        self.assertIn("nothing rendered", json.loads(out)["reason"])
+
+    def test_overlapping_publishes_do_not_both_upload(self):
+        import fcntl
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            with open(self.cache() / "publish.lock", "w") as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                code, out, _ = self.run_main("--mode=publish")
+        self.assertEqual(code, 0)
+        self.perform.assert_not_called()
+        self.assertIn("already", json.loads(out)["reason"])
+
+    def test_a_person_asking_publishes_even_if_up_to_date_and_is_not_gentle(self):
+        self.run_main("--mode=render")
+        with mock.patch.object(twa, "tv_awake", return_value=True):
+            self.run_main("--mode=publish")
+        self.perform.reset_mock()
+        self.run_main("--wake")
+        argv = self.perform.call_args[0][0]
+        self.assertNotIn("--no-wake", argv)
+        self.assertNotIn("--gentle", argv)
+
+    def test_bad_mode_is_refused(self):
+        code, _, err = self.run_main("--mode=sometimes")
+        self.assertEqual(code, 2)
+
     def test_sleeping_tv_is_a_quiet_not_shown(self):
         self.perform.return_value = (twa.tv_art.EXIT_UNREACHABLE, None)
         code, out, _ = self.run_main()

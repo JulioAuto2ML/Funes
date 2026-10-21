@@ -7,7 +7,7 @@ executable per script, granted per agent under `scripts:`.
 | Script | Agent | What |
 |---|---|---|
 | `tv_art` | `home` | Samsung Frame Art Mode: `status`, `show --image=<workspace path>`, `artmode_on`/`off`. JSON out. |
-| `tv_weather_art` | `home` | The hourly "art and weather" picture: a Met painting chosen by weather + season, with a forecast placard (drawn by `tv_canvas.py`). JSON out. |
+| `tv_weather_art` | `home` | The "art and weather" picture: a Met painting chosen by weather + season, with a forecast placard (drawn by `tv_canvas.py`). JSON out. |
 
 ## Setup (once per machine)
 
@@ -60,12 +60,21 @@ Exit 4 means the TV is off or unreachable and was not woken — `--no-wake`
 Uses the Met's `/v1.1/search` (the `/v1/search` endpoint was retired on
 2026-10-01) and Open-Meteo (credited on the placard).
 
+Three events, two schedules (`--mode`): the day's pick and translation happen
+once (first render of the day, ~6:02, before anything else runs; an untranslated
+day retries at later renders, only while the LLM is idle); **render** every
+15 min at :02/:17/:32/:47 (Open-Meteo updates on the quarter hour; builds the
+picture, never touches the TV); **publish** every minute (a 2 s probe of the
+set's port 8002 when something is pending, nothing otherwise; sends the newest
+render once the TV answers, so turning it on shows data at most 15 min old).
+Publishing passes tv_art `--gentle`: a set that answers with Art Mode off is
+being watched, so the picture is only selected, not switched to. A person
+asking (`--wake`, default `--mode=both`) renders and sends at once.
+
 Schedule it from a chat, through the `home` agent: "programá el arte y clima
-en el tele a las :45 de 6 a 22" → `schedule_job(kind="script",
-script="tv_weather_art", schedule="45 6-22 * * *")`. Minute 45 because nothing
-else on yoda starts then (newsletter 9:00/10:30, run_images 9:30/11:00 —
-which stop the LLM for ~17 min —, post_tweet at :00/:30, reminder 20:00), and
-6:45 so the day's pick and translation happen while nothing else runs.
+en el tele" → two `schedule_job(kind="script", script="tv_weather_art")`, with
+`{"mode": "render"}` at `2,17,32,47 6-23 * * *` and `{"mode": "publish"}` at
+`* 6-23 * * *` (the agent's prompt carries the exact calls).
 
 Tests: `scriptlib/.venv/bin/python -m unittest discover -s scriptlib/tests`
 (the TV, the Met, Open-Meteo and the LLM are stubbed; the canvas tests need

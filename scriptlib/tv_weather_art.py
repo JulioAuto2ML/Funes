@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
 """tv_weather_art — a museum piece for today's weather, with the forecast on it.
 
-Run by Funes through `run_script` (see tv_weather_art.yaml), usually on a
-schedule (`0 7-23 * * *`). stdout is exactly one JSON object; stderr is logs.
+Run by Funes through `run_script` (see tv_weather_art.yaml). stdout is
+exactly one JSON object; stderr is logs. Three events, three schedules:
+
+    --mode=render    every 15 min: fetch the forecast, reuse today's work
+                     (chosen and translated once a day), compose the picture.
+                     Never touches the TV.
+    --mode=publish   every minute: if there is a picture the TV has not been
+                     given and the TV answers, send it. A set that is asleep
+                     stays pending, so turning it on is what publishes —
+                     within a minute, with data at most 15 min old.
+    --mode=both      (default) render, then publish — what a person asking gets.
 
     [--refresh_art]   choose a different work today
     [--query=<text>]  choose today's work by this search instead ("Turner")
-    [--wake]          wake the TV if it is asleep (scheduled runs leave it alone)
+    [--wake]          wake the TV if it is asleep; also publishes even if the
+                      TV already has this picture (a person asked)
 
-Each run: fetch the forecast, reuse today's artwork (chosen at the first run
-of the day), compose artwork + placard (tv_canvas), and show it through
-tv_art. Decisions this script owns:
+Decisions this script owns:
+
+- **Publishing is one rule:** the newest render is newer than the last one
+  the TV was given, and the TV answers. A one-line "answers?" probe comes
+  first so a minute-by-minute job costs nothing while the set is asleep.
+- **A set in use is not taken over.** Scheduled publishes pass tv_art
+  `--gentle`: if the set answers with Art Mode off someone is watching, and
+  the picture is only selected for the next time Art Mode shows.
 
 - **One work per day, chosen by weather and season.** Today's forecast and the
   southern-hemisphere season become Met searches ("spring rain", then "rain",
@@ -43,11 +58,13 @@ Config (manifest env, from config/funes.local and the service):
     FUNES_LLM_URL, FUNES_LLM_MODEL                        — for the translation
 """
 
+import fcntl
 import io
 import json
 import os
 import random
 import re
+import socket
 import sys
 import time
 import urllib.parse
@@ -69,6 +86,9 @@ RETRY_SECONDS = 5
 LLM_WAIT_SECONDS = 30         # a person's request waits this long for a busy LLM
 LLM_POLL_SECONDS = 5
 OUTPUT = "tv/arte_y_clima.jpg"   # inside the caller's workspace (the cwd)
+MODES = ("render", "publish", "both")
+TV_PORT = 8002                # the set's secure websocket; closed while it sleeps
+PROBE_SECONDS = 2
 
 SEASON_EN = {"primavera": "spring", "verano": "summer", "otoño": "autumn", "invierno": "winter"}
 WEATHER_EN = {
@@ -274,13 +294,15 @@ def fetch_weather(lat, lon):
 
 
 def parse(argv):
-    args = {"refresh_art": False, "wake": False, "query": ""}
+    args = {"refresh_art": False, "wake": False, "query": "", "mode": "both"}
     for token in argv:
         key, sep, value = token[2:].partition("=") if token.startswith("--") else ("", "", "")
         if key in ("refresh_art", "wake") and not sep:
             args[key] = True
         elif key == "query" and sep:
             args["query"] = value.strip()[:100]
+        elif key == "mode" and value in MODES:
+            args["mode"] = value
         else:
             raise Refusal(f"unknown argument {token!r}")
     return args
@@ -341,6 +363,91 @@ def todays_work(cache, args, weather):
     return state, image_file
 
 
+def tv_awake(host):
+    """Does the set answer at all? Cheap enough to ask every minute."""
+    try:
+        with socket.create_connection((host, TV_PORT), timeout=PROBE_SECONDS):
+            return True
+    except OSError:
+        return False
+
+
+def get_weather(lat, lon):
+    for attempt in (1, 2):   # one retry: yoda reaches the internet through luke
+        try:
+            return fetch_weather(lat, lon)
+        except Exception as e:
+            log(f"weather unavailable (Open-Meteo, attempt {attempt}): {type(e).__name__}: {e}")
+            if attempt == 1:
+                time.sleep(RETRY_SECONDS)
+    return None
+
+
+def render(args, lat, lon, place, cache):
+    """Compose the picture into the workspace and record it. Returns the
+    render record, or None on failure."""
+    weather = get_weather(lat, lon)
+    if weather is None:
+        return None
+    try:
+        state, image_file = todays_work(cache, args, weather)
+        meta = {**state["meta"], "artist": state["artist"], "place": place}
+        img = tv_canvas.compose(Image.open(image_file), meta, weather)
+        out = Path.cwd() / OUTPUT
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(out.name + ".tmp")        # a publish may be reading `out`
+        img.save(tmp, "JPEG", quality=90)
+        tmp.replace(out)
+    except Exception as e:
+        log(f"could not prepare today's image: {type(e).__name__}: {e}")
+        return None
+    record = {
+        "rendered_at": time.time(),
+        "weather_time": weather["current"].get("time"),
+        "artwork": {"id": state["objectID"], "title": state["meta"]["title"],
+                    "artist": state["artist"], "translated": state["translated"]},
+        "weather": {"temperature": weather["current"]["temperature_2m"],
+                    "kind": tv_canvas.kind(weather["current"]["weather_code"])},
+    }
+    write_json(cache / "render.json", record)
+    return record
+
+
+def answer(record, **extra):
+    return {"ok": True, "shown": False,
+            "artwork": (record or {}).get("artwork", {}),
+            "weather": (record or {}).get("weather", {}), **extra}
+
+
+def publish(args, cache, record, force):
+    """Send the render to the TV if it is new to it. Returns (code, result)."""
+    cache.mkdir(parents=True, exist_ok=True)
+    with open(cache / "publish.lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return 0, answer(record, reason="a publish is already running")
+        if record is None or not (Path.cwd() / OUTPUT).is_file():
+            return 0, answer(None, reason="nothing rendered yet")
+        done = read_json(cache / "published.json", {})
+        if not force and done.get("rendered_at") == record["rendered_at"]:
+            return 0, answer(record, reason="the TV is up to date")
+        if not args["wake"] and not force and not tv_awake(os.environ["FUNES_TV_HOST"]):
+            return 0, answer(record, reason="TV asleep or off; it will be sent when it is on")
+
+        argv = ["--action=show", f"--image={OUTPUT}"]
+        argv += ["--gentle"] if not args["wake"] else []
+        argv += [] if args["wake"] else ["--no-wake"]
+        code, shown = tv_art.perform(argv)
+        if code == tv_art.EXIT_UNREACHABLE and not args["wake"]:
+            return 0, answer(record, reason="TV asleep or off; it will be sent when it is on")
+        if code != 0:
+            return code, None
+        write_json(cache / "published.json",
+                   {"rendered_at": record["rendered_at"], "content_id": shown.get("content_id")})
+        return 0, answer(record, shown=True, content_id=shown.get("content_id"))
+
+
 def main(argv):
     try:
         args = parse(argv)
@@ -352,45 +459,24 @@ def main(argv):
         log(f"not configured: {e}")
         return 3
 
-    weather = None
-    for attempt in (1, 2):   # one retry: yoda reaches the internet through luke
-        try:
-            weather = fetch_weather(lat, lon)
-            break
-        except Exception as e:
-            log(f"weather unavailable (Open-Meteo, attempt {attempt}): {type(e).__name__}: {e}")
-            if attempt == 1:
-                time.sleep(RETRY_SECONDS)
-    if weather is None:
-        return 1
-    try:
-        state, image_file = todays_work(cache, args, weather)
-        meta = {**state["meta"], "artist": state["artist"], "place": place}
-        img = tv_canvas.compose(Image.open(image_file), meta, weather)
-        out = Path.cwd() / OUTPUT
-        out.parent.mkdir(parents=True, exist_ok=True)
-        img.save(out, "JPEG", quality=90)
-    except Exception as e:
-        log(f"could not prepare today's image: {type(e).__name__}: {e}")
-        return 1
-
-    argv_tv = ["--action=show", f"--image={OUTPUT}"] + ([] if args["wake"] else ["--no-wake"])
-    code, shown = tv_art.perform(argv_tv)
-    result = {
-        "ok": True,
-        "artwork": {"id": state["objectID"], "title": state["meta"]["title"],
-                    "artist": state["artist"], "translated": state["translated"]},
-        "weather": {"temperature": weather["current"]["temperature_2m"],
-                    "kind": tv_canvas.kind(weather["current"]["weather_code"])},
-    }
-    if code == tv_art.EXIT_UNREACHABLE and not args["wake"]:
-        result.update(shown=False, reason="TV asleep or off; the next run while it is on will show it")
-    elif code != 0:
-        return code
+    record = None
+    if args["mode"] in ("render", "both"):
+        record = render(args, lat, lon, place, cache)
+        if record is None:
+            return 1
+        if args["mode"] == "render":
+            print(json.dumps(answer(record, reason="rendered; publishing is a separate job"),
+                             ensure_ascii=False))
+            return 0
     else:
-        result.update(shown=True, content_id=shown.get("content_id"))
+        record = read_json(cache / "render.json", None)
+
+    # A person asking (both) always sends; the scheduled publish only what is new.
+    code, result = publish(args, cache, record, force=args["mode"] == "both")
+    if result is None:
+        return code
     print(json.dumps(result, ensure_ascii=False))
-    return 0
+    return code
 
 
 if __name__ == "__main__":

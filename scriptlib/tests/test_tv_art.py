@@ -236,6 +236,26 @@ class TestShow(Base):
         self.assertEqual(code, 0, err)
         self.art.set_artmode.assert_not_called()
 
+    def test_gentle_show_does_not_take_over_a_set_someone_is_watching(self):
+        # Art Mode off while the set answers = a person is watching something.
+        self.art.artmode = "off"
+        self.art.select_image = mock.Mock(side_effect=self.art.select_image)
+        self.art.set_artmode = mock.Mock(side_effect=AssertionError("must not switch"))
+        (self.ws / "a.jpg").write_bytes(JPEG)
+        code, out, err = self.run_main("--action=show", "--image=a.jpg", "--gentle")
+        self.assertEqual(code, 0, err)
+        self.art.set_artmode.assert_not_called()
+        self.art.select_image.assert_called_once_with("MY_F0001", show=False)
+        self.assertEqual(json.loads(out)["artmode"], "off")
+
+    def test_gentle_show_is_a_normal_show_when_art_mode_is_on(self):
+        self.art.artmode = "on"
+        self.art.select_image = mock.Mock(side_effect=self.art.select_image)
+        (self.ws / "a.jpg").write_bytes(JPEG)
+        code, _, err = self.run_main("--action=show", "--image=a.jpg", "--gentle")
+        self.assertEqual(code, 0, err)
+        self.art.select_image.assert_called_once_with("MY_F0001", show=True)
+
     def test_finishes_inside_its_budget(self):
         # A set that never confirms must not run into the manifest's kill:
         # the script gives up on its own, with a sentence, before then.
