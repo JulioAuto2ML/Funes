@@ -37,6 +37,7 @@ Config, from the manifest's env (config/funes.local):
     FUNES_TV_HOST        the TV's address
     FUNES_TV_TOKEN_FILE  where the pairing token lives (outside any workspace)
     FUNES_TV_MAC         optional; enables waking a sleeping set
+    FUNES_TV_BROADCAST   optional; default: the TV's /24 broadcast (x.y.z.255)
 """
 
 import errno
@@ -135,14 +136,26 @@ def connect(host, token_file):
     return tv.art()
 
 
-def wake(mac):
-    """Wake-on-LAN: six 0xFF then the MAC sixteen times, broadcast to port 9."""
+def broadcast_for(host):
+    """Where the magic packet goes: FUNES_TV_BROADCAST, else the TV's /24.
+
+    Not 255.255.255.255: a limited broadcast leaves by the default route, and
+    on yoda that is a different link from the TV's (seen: the packet went to
+    the wired link to luke and the set never woke)."""
+    configured = os.environ.get("FUNES_TV_BROADCAST", "").strip()
+    if configured:
+        return configured
+    return ".".join(host.split(".")[:3] + ["255"])
+
+
+def wake(mac, broadcast):
+    """Wake-on-LAN: six 0xFF then the MAC sixteen times, to port 9."""
     raw = bytes.fromhex(mac.replace(":", "").replace("-", ""))
     packet = b"\xff" * 6 + raw * 16
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.sendto(packet, ("255.255.255.255", 9))
+        s.sendto(packet, (broadcast, 9))
     finally:
         s.close()
 
@@ -276,8 +289,9 @@ def main(argv):
         except Exception as e:
             if not (is_unreachable(e) and mac):
                 raise
-            log(f"unreachable ({e}); sending Wake-on-LAN to {mac}")
-            wake(mac)
+            target = broadcast_for(host)
+            log(f"unreachable ({e}); sending Wake-on-LAN to {mac} via {target}")
+            wake(mac, target)
             woke = True
             time.sleep(WAKE_SECONDS)
             result = run(Session(connect(host, token_file)), args, token_file, image)

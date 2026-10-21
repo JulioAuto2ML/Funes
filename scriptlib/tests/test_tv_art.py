@@ -304,7 +304,9 @@ class TestOtherActions(Base):
         with mock.patch.object(tv_art, "wake") as wake:
             code, out, err = self.run_main("--action=status")
         self.assertEqual(code, 0, err)
-        wake.assert_called_once_with("c8:12:0b:1c:91:7a")
+        # The subnet broadcast of FUNES_TV_HOST, not 255.255.255.255: on yoda the
+        # default route is another link, and a limited broadcast left by it.
+        wake.assert_called_once_with("c8:12:0b:1c:91:7a", "192.0.2.255")
         self.assertTrue(json.loads(out)["woke"])
 
     def test_magic_packet_shape(self):
@@ -315,12 +317,18 @@ class TestOtherActions(Base):
             def sendto(self, data, addr): sent.append((data, addr))
             def close(self): pass
         with mock.patch.object(tv_art.socket, "socket", Sock):
-            tv_art.wake("c8:12:0b:1c:91:7a")
+            tv_art.wake("c8:12:0b:1c:91:7a", "192.0.2.255")
         data, addr = sent[0]
+        self.assertEqual(addr, ("192.0.2.255", 9))
         self.assertEqual(len(data), 102)
         self.assertEqual(data[:6], b"\xff" * 6)
         self.assertEqual(data[6:12], bytes.fromhex("c8120b1c917a"))
         self.assertEqual(addr[1], 9)
+
+    def test_broadcast_address(self):
+        self.assertEqual(tv_art.broadcast_for("192.168.1.55"), "192.168.1.255")
+        os.environ["FUNES_TV_BROADCAST"] = "10.0.255.255"
+        self.assertEqual(tv_art.broadcast_for("10.0.3.4"), "10.0.255.255")
 
     def test_slow_reply_is_not_reported_as_tv_off(self):
         # TimeoutError is an OSError too; it must not read as "unplugged".
