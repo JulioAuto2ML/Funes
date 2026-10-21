@@ -34,7 +34,7 @@ if Image is not None:
 DAY = date(2026, 10, 21)          # spring in Villa Adelina
 
 WEATHER = {
-    "current": {"temperature_2m": 19.6, "apparent_temperature": 17.9,
+    "current": {"time": "2026-10-21T18:45", "temperature_2m": 19.6, "apparent_temperature": 17.9,
                 "relative_humidity_2m": 62, "weather_code": 0},
     "daily": {
         "time": ["2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"],
@@ -270,6 +270,11 @@ class TestRun(unittest.TestCase):
         with redirect_stdout(out), redirect_stderr(err):
             code = twa.main(list(argv))
         return code, out.getvalue(), err.getvalue()
+
+    def test_stamp_is_the_local_time_of_the_reading(self):
+        self.assertEqual(tv_canvas._stamp("2026-10-21T18:45"), "18:45")
+        self.assertEqual(tv_canvas._stamp(None), "")
+        self.assertEqual(tv_canvas._stamp("garbage"), "")
 
     def test_composes_into_the_workspace_and_shows_without_waking(self):
         code, out, err = self.run_main()

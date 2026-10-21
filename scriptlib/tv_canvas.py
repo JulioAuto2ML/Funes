@@ -148,6 +148,14 @@ def _place_work(bg, art):
     bg.paste(fg, (x0, y0))
 
 
+def _stamp(iso):
+    """HH:MM of Open-Meteo's `current.time` (already local: timezone=auto), or ''."""
+    try:
+        return dt.datetime.fromisoformat(iso).strftime("%H:%M")
+    except (TypeError, ValueError):
+        return ""
+
+
 def compose(art, meta, weather):
     """art: PIL image; meta: artist, bio, title, detail, place; weather: Open-Meteo JSON."""
     art = art.convert("RGB")
@@ -173,6 +181,9 @@ def compose(art, meta, weather):
     y += 56
     d.text((left, y), f"{DIAS[today.weekday()]} {today.day} de {MESES[today.month - 1]}",
            font=font("serif_it", 46), fill=ink)
+    stamp = _stamp(cur.get("time"))
+    if stamp:
+        d.text((left, y + 62), f"clima actualizado a las {stamp}", font=font("sans", 28), fill=soft)
     y += 110
     k = kind(cur["weather_code"])
     icon(d, left + 95, y + 95, 95, k, ink)
