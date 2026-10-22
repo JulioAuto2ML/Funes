@@ -83,6 +83,8 @@ en el tele" → two `schedule_job(kind="script", script="tv_weather_art")`, with
 `{"mode": "render"}` at `2,17,32,47 6-23 * * *` and `{"mode": "publish"}` at
 `* 6-23 * * *` (the agent's prompt carries the exact calls).
 
+Ideas not built yet (mates, slideshows, ComfyUI picture of the day, special dates…): `docs/tv-ideas.md`.
+
 Tests: `scriptlib/.venv/bin/python -m unittest discover -s scriptlib/tests`
 (the TV, the Met, Open-Meteo and the LLM are stubbed; the canvas tests need
 Pillow, hence the venv).
