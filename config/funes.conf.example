@@ -132,3 +132,13 @@ WHATSAPP_BRIDGE_URL=http://localhost:8091
 #   FUNES_WEATHER_LAT=-34.51236
 #   FUNES_WEATHER_LON=-58.5458
 #   FUNES_WEATHER_PLACE=Villa Adelina
+
+
+# ── speak: the living-room Echo as a speaker (scriptlib/speak) ────────────────
+# The Echo's Bluetooth *audio* address — pair it with the host first
+# (bluetoothctl pair/trust/connect); the right one is the address whose
+# `bluetoothctl info` lists "Audio Sink" (the other, a BLE address, is not it).
+# Needs espeak-ng and PulseAudio (pulseaudio-module-bluetooth) on the host.
+#   FUNES_ECHO_MAC=78:6C:84:CB:44:AF
+# Hours (local time) when nothing is spoken; "off" disables. Default 23:00-07:00.
+#   FUNES_SPEAK_QUIET=23:00-07:00

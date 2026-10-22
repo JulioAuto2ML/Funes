@@ -8,6 +8,7 @@ executable per script, granted per agent under `scripts:`.
 |---|---|---|
 | `tv_art` | `home` | Samsung Frame Art Mode: `status`, `show --image=<workspace path>`, `artmode_on`/`off`. JSON out. |
 | `tv_weather_art` | `home` | The "art and weather" picture: a Met painting chosen by weather + season, with a forecast placard (drawn by `tv_canvas.py`). JSON out. |
+| `speak` | — (not granted yet) | Say a sentence on the living-room Echo over Bluetooth (`espeak-ng` → `paplay`). Quiet hours, reconnects the Echo itself. JSON out. |
 
 ## Setup (once per machine)
 
@@ -35,6 +36,27 @@ prompt on the TV the first time.
 
 Exit 4 means the TV is off or unreachable and was not woken — `--no-wake`
 (used by `tv_weather_art` on scheduled runs) skips Wake-on-LAN on purpose.
+
+## speak — what it decides for itself
+
+Needs `espeak-ng` on the host and the Echo paired over Bluetooth; stdlib Python,
+no venv. Set `FUNES_ECHO_MAC` (the audio address) in `config/funes.local`.
+
+- **What it says.** Control characters are dropped; empty text and text over 600
+  characters are refused, not truncated. The text follows `--`, so it can never
+  become an `espeak-ng` option.
+- **When it is silent.** `FUNES_SPEAK_QUIET` (default 23:00-07:00) refuses with
+  exit 5. There is deliberately no "urgent" flag a model could reach for.
+- **Whether the Echo is there.** The Echo's PulseAudio sink exists only while the
+  Bluetooth link is up. A missing sink gets one `connect`, then — once — an
+  adapter power cycle and another `connect`. The power cycle is for a state hit on
+  2026-10-22: the controller held a phantom ACL link to the Echo that BlueZ did
+  not know about, so pair/connect answered "Already Connected" until the adapter
+  was reset.
+- **The first half-second.** A2DP takes a moment to open and the Echo swallows the
+  start of the stream, so the audio is prefixed with 0.8 s of silence.
+
+Exit 4 means the Echo is off, out of range, or no longer paired with this host.
 
 ## tv_weather_art — what it decides for itself
 
