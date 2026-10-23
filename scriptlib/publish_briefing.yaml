@@ -1,0 +1,32 @@
+description: >-
+  Publish the spoken news briefing as the Echo's Alexa news feed (replaces the
+  previous one). The text is read aloud exactly as written: plain spoken
+  Spanish sentences, 300 to 4000 characters, no URLs, no markdown, ending with
+  a full sentence. A refusal says what to fix.
+run: publish_briefing.py
+interpreter: python3
+timeout_seconds: 30
+params:
+  - name: text
+    description: The whole briefing as plain spoken text.
+    type: string
+    required: true
+  - name: title
+    description: Optional title shown in the Alexa app. Default "Noticias del <día> de <mes>".
+    type: string
+    required: false
+output:
+  format: json
+  schema:
+    type: object
+    required: [ok, chars, est_seconds, update_date]
+    properties:
+      ok:          {type: boolean}
+      chars:       {type: integer}
+      words:       {type: integer}
+      est_seconds: {type: integer}
+      update_date: {type: string}
+      url:         {type: string}
+env:
+  FUNES_NEWS_FEED_DIR: "${FUNES_NEWS_FEED_DIR}"
+  FUNES_NEWS_PUBLIC_URL: "${FUNES_NEWS_PUBLIC_URL}"

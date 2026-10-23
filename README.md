@@ -45,8 +45,9 @@ funes-julio/
 │   │                   # + publication/pipeline config loaders; register.cpp plugs them in
 ├── agents/             # curator, voc-researcher, council-chair/-panelist, content-writer,
 │                       # mvp-builder, whatsapp-assistant/-autoresponder, gmail-assistant,
-│                       # rss-reader, book-editor, home (+ templates/)
-├── scriptlib/          # scripts for run_script: tv_art, tv_weather_art (Samsung Frame)
+│                       # rss-reader, book-editor, home, noticiero (+ templates/)
+├── scriptlib/          # scripts for run_script: tv_art, tv_weather_art (Samsung Frame),
+│                       # speak, news_headlines + publish_briefing (Echo news feed)
 ├── publications/       # one YAML + one voice file per publication (ai-pulse, voc-insights)
 ├── pipelines/          # voc.yaml — stage dirs, filenames, schemas for the VoC chain
 ├── publishing/         # Python: render, link-check, send, post an issue (+ its tests)
@@ -188,7 +189,8 @@ User <-> funes (orchestrator)
               +-> rss-reader         (RSS via MCP)
               +-> book-editor        (manuscript editing)
               +-> file-reviewer      (uploaded documents)
-              +-> home               (living-room TV, Art Mode)
+              +-> home               (living-room TV, Art Mode, Echo)
+              +-> noticiero          (Echo's morning news feed)
               +-> agent-builder      (create new agents)
               +-> agent-doctor       (diagnose/fix agents)
               +-> tool-builder       (scaffold new tools)

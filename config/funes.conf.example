@@ -142,3 +142,11 @@ WHATSAPP_BRIDGE_URL=http://localhost:8091
 #   FUNES_ECHO_MAC=78:6C:84:CB:44:AF
 # Hours (local time) when nothing is spoken; "off" disables. Default 23:00-07:00.
 #   FUNES_SPEAK_QUIET=23:00-07:00
+
+
+# ── noticiero: the Echo's morning news feed (scriptlib/publish_briefing) ──────
+# Directory `tailscale funnel` serves; must exist, absolute, outside every
+# workspace. feed.json inside it is what the Alexa news skill reads.
+#   FUNES_NEWS_FEED_DIR=/home/julio/.funes-v4/public/noticias
+# The public https URL of that feed.json (the news skill's feed URL).
+#   FUNES_NEWS_PUBLIC_URL=https://yoda.<tailnet>.ts.net/noticias/feed.json
