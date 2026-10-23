@@ -4,7 +4,10 @@
 Run by Funes through `run_script` (see news_headlines.yaml); stdout is exactly
 one JSON object, everything else goes to stderr. Standard library only.
 
-    [--hours=18] [--max_items=20]
+    [--hours=18] [--max_items=16]
+
+The output is kept to about three `read_result` windows (2 KB each): the model
+must read the whole list before choosing, and every window is a tool call.
 
 Reads Infobae, La Nación and Clarín (FEEDS below; the list is the admin's to
 edit, not the model's to supply) and returns the recent items as one list.
@@ -64,7 +67,7 @@ FEEDS = [
 ]
 
 SKIP_CATEGORIES = {"horoscopo", "recetas", "juegos", "clasificados", "funebres", "loterias", "quiniela"}
-SUMMARY_CHARS = 200
+SUMMARY_CHARS = 150
 FETCH_TIMEOUT_S = 12
 FETCH_MAX_BYTES = 4 * 1024 * 1024
 USER_AGENT = "Mozilla/5.0 (compatible; FunesNews/1.0)"
@@ -183,7 +186,6 @@ def to_json(group):
         "section": lead.section,
         "sources": sources,
         "coverage": len(sources),
-        "published": lead.published.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
     }
 
 
@@ -199,7 +201,7 @@ def _read(feed):
 def parse_args(argv):
     p = argparse.ArgumentParser(prog="news_headlines")
     p.add_argument("--hours", type=int, default=18)
-    p.add_argument("--max_items", type=int, default=20)
+    p.add_argument("--max_items", type=int, default=16)
     return p.parse_args(argv)
 
 

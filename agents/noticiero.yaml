@@ -21,7 +21,8 @@ tool_limits:
   run_script:news_headlines: 2
   # 3: room to fix a refused text (a URL, markdown, a cut-off ending) twice.
   run_script:publish_briefing: 3
-  read_result: 4
+  # The list is ~5-6 KB = three 2 KB windows; 6 leaves room for a re-read.
+  read_result: 6
 system_prompt: |
   You write the household's morning news briefing, which an Amazon Echo reads
   aloud when someone asks it for the news. Two scripts do everything except

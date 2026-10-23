@@ -2,7 +2,7 @@ description: >-
   The last 18 hours of Argentine and world headlines from Infobae, La Nación and
   Clarín, as one list ranked by how many of those outlets cover each story
   (coverage 3 = all three). Each item has title, summary, section, sources,
-  coverage and published time. Takes no arguments.
+  and coverage. Takes no arguments.
 run: news_headlines.py
 interpreter: python3
 timeout_seconds: 60
