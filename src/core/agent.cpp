@@ -831,15 +831,17 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             }
             const bool refused = !refused_key.empty();
 
-            if (!refused) {
-                // Neither of these used to say so: both opened with "Done." and
-                // pasted the last tool result, which is a claim of success that
-                // the detector firing already disproves.
-                if (sig_calls >= 3) {
-                    std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
-                              << " repeated with identical arguments\n";
-                    return finish(funes::loop_failure(tc.name, 3));
-                }
+            // An identical repeat is refused rather than ending the run
+            // (core/tool_budget.h, repeat_action): the result it asks for is
+            // already in the transcript, so the model loses nothing by being
+            // told so, and keeps a turn to answer in.
+            const funes::RepeatAction repeat = refused ? funes::RepeatAction::Run
+                                                       : funes::repeat_action(sig_calls);
+            const bool duplicate = repeat != funes::RepeatAction::Run;
+
+            if (!refused && !duplicate) {
+                // This used to say so with "Done." and the last tool result
+                // pasted in, a claim of success the detector firing disproves.
                 if (name_calls > max_same_tool) {
                     std::cerr << "[agent:" << cfg_.name << "] loop detected: " << tc.name
                               << " called " << max_same_tool << "+ times without progress\n";
@@ -861,8 +863,20 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 if (refused_key == tc.name) exhausted_tools.insert(tc.name);
             }
 
+            if (duplicate) {
+                std::cerr << "[agent:" << cfg_.name << "] " << tc.name
+                          << " repeated with identical arguments (" << sig_calls
+                          << "x): refused\n";
+                if (repeat == funes::RepeatAction::RefuseAndWithdraw
+                    && exhausted_tools.insert(tc.name).second)
+                    std::cerr << "[agent:" << cfg_.name << "] " << tc.name
+                              << " withdrawn from schema: identical repeats\n";
+            }
+
             ToolResult result = refused
                 ? ToolResult{funes::budget_message(refused_key, refused_limit), true}
+                : duplicate
+                ? ToolResult{funes::repeat_message(tc.name, sig_calls - 1), true}
                 : dispatch_tool(tc.name, tc.arguments, ctx);
 
             if (emit) {

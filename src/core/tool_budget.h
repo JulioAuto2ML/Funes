@@ -78,6 +78,21 @@ bool over_budget(const ToolLimits& limits, const std::string& tool,
 int effective_limit(const ToolLimits& limits, const std::string& tool,
                     int default_ceiling);
 
+// What to do with a call identical — same tool, same arguments — to earlier
+// ones in this run. `identical_calls` counts this one. The first two run: a
+// list_files after a write, or a retried fetch, is a real reason to repeat.
+// The third is refused and the fourth also withdraws the tool from the schema,
+// because the 9B ignores a refusal it can keep re-issuing (see the 2026-07-31
+// note above). This used to kill the run at the third: on 2026-10-26 funes
+// searched its memory for a schedule the user had just given it, sent the
+// same recall three times, and returned FAILED to a plain question.
+enum class RepeatAction { Run, Refuse, RefuseAndWithdraw };
+RepeatAction repeat_action(int identical_calls);
+
+// The refusal for a repeated call. `earlier` is how many identical calls
+// already ran, so the model is pointed at results already in its context.
+std::string repeat_message(const std::string& tool, int earlier);
+
 // What the model is told in place of the tool result. Must read as final —
 // a model that takes it for a transient error retries and burns its steps.
 // `key` is whichever key ran out, so an exhausted script says which script.

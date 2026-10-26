@@ -131,6 +131,14 @@ tool_limits:
 system_prompt: Read what you need, then answer.
 YAML
 
+cat > "$AGENTS/repeat-tester.yaml" <<'YAML'
+name: repeat-tester
+description: Test fixture — an agent whose model repeats one identical call.
+tools: [read_file]
+max_steps: 8
+system_prompt: Read what you need, then answer.
+YAML
+
 # A file well over kInlineLimit (2048 bytes), for the result-store scenario.
 python3 -c "open('$WORKSPACE/big.txt','w').write('BIGFILESTART' + 'm'*8000 + 'BIGFILEEND')"
 # A small one, for the empty-completion salvage scenario: it stays inline, so
@@ -467,6 +475,22 @@ if [ "$(echo "$OUT" | grep -c 'event: tool_result')" = "3" ]; then
     echo "  ok: no further calls attempted after the refusal"
 else
     echo "  FAIL: expected 3 tool results, got $(echo "$OUT" | grep -c 'event: tool_result')"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo "— identical repeats: refused, then withdrawn, never a killed run"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"repeat-stubborn please","session":"it-session-repeat","agent":"repeat-tester"}')
+# The third identical call used to end the run with FAILED. Now it is refused
+# with a message pointing at the result already in context, and the fourth
+# also takes the tool away — which is what makes a stubborn model answer.
+check "repeat answered"              "$OUT" 'MOCK-REPEAT-CONCLUSION'
+check "repeat refusal is explained"  "$OUT" 'same arguments'
+check_absent "repeat not a failed run" "$OUT" 'FAILED —'
+if [ "$(echo "$OUT" | grep -c 'event: tool_result')" = "4" ]; then
+    echo "  ok: two ran, two refused, then the answer"
+else
+    echo "  FAIL: expected 4 tool results, got $(echo "$OUT" | grep -c 'event: tool_result')"
     FAILURES=$((FAILURES + 1))
 fi
 

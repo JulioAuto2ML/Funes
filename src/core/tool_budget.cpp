@@ -36,6 +36,20 @@ int effective_limit(const ToolLimits& limits, const std::string& tool,
     return default_ceiling;
 }
 
+RepeatAction repeat_action(int identical_calls) {
+    if (identical_calls <= 2) return RepeatAction::Run;
+    if (identical_calls == 3) return RepeatAction::Refuse;
+    return RepeatAction::RefuseAndWithdraw;
+}
+
+std::string repeat_message(const std::string& tool, int earlier) {
+    return "You already called " + tool + " with these same arguments " +
+           std::to_string(earlier) + " time(s) in this run; the result is above "
+           "and would not change. This call did not run. Answer now from what "
+           "you already have — if it is genuinely not enough, say what is "
+           "missing instead of asking again.";
+}
+
 std::string budget_message(const std::string& key, int limit) {
     // A qualified key ("run_script:backup_workspace") reads as one thing here
     // on purpose: what is used up is that script, not run_script as a whole,

@@ -299,6 +299,21 @@ class Handler(BaseHTTPRequestHandler):
                                  stream)
             return
 
+        # Identical repeats (core/tool_budget.h, repeat_action). On 2026-10-26
+        # funes sent the same recall three times and the exact-repeat detector
+        # killed the run. This mock repeats one call forever and answers only
+        # once the tool is gone from its schema, so the run ends with an answer
+        # only if repeats are refused and then withdrawn rather than killed.
+        if mentions(messages, "repeat-stubborn"):
+            if not req.get("tools"):
+                self._reply_text("MOCK-REPEAT-CONCLUSION", stream)
+            else:
+                self._reply_tool({"id": "call_repeat", "type": "function",
+                                  "function": {"name": "read_file",
+                                               "arguments": json.dumps({"path": "small.txt"})}},
+                                 stream)
+            return
+
         # The same shape again, but what runs out is steps rather than a
         # per-tool budget. This mock calls read_file forever if allowed to, so
         # the run ends with an answer only if the framework withholds tools on

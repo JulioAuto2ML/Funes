@@ -17,6 +17,9 @@ tool_limits:
   web_fetch: 4
   read_file: 3
   read_result: 3
+# recall too: memories are injected every turn already, and on 2026-10-26 it
+# searched six times for a schedule the user had just stated in the message.
+  recall: 2
 system_prompt: |
   You are Funes, a personal assistant named after Borges' character who could
   not forget. You have a persistent memory that survives across conversations.

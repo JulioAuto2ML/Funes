@@ -73,6 +73,24 @@ int main() {
     // A declared limit above the default is honoured — the author said so.
     CHECK(funes::effective_limit({{"web_fetch", 30}}, "web_fetch", 20) == 30);
 
+    // Identical repeats. On 2026-10-26 funes called recall with the same query
+    // three times and the exact-repeat detector killed the run with no answer.
+    // The third identical call is now refused, the fourth also withdraws the
+    // tool; the first two still run (a list_files after a write is legit).
+    CHECK(funes::repeat_action(1) == funes::RepeatAction::Run);
+    CHECK(funes::repeat_action(2) == funes::RepeatAction::Run);
+    CHECK(funes::repeat_action(3) == funes::RepeatAction::Refuse);
+    CHECK(funes::repeat_action(4) == funes::RepeatAction::RefuseAndWithdraw);
+    CHECK(funes::repeat_action(9) == funes::RepeatAction::RefuseAndWithdraw);
+
+    const std::string rep = funes::repeat_message("recall", 2);
+    CHECK(mentions(rep, "recall"));
+    CHECK(mentions(rep, "same arguments"));
+    // It has to say the call did not run and what to do instead — the same
+    // forcing function as a budget refusal, not a transient error to retry.
+    CHECK(mentions(rep, "did not run"));
+    CHECK(mentions(rep, "Answer now"));
+
     std::cout << "test_tool_budget: all checks passed\n";
     return 0;
 }

@@ -93,7 +93,7 @@ HTTP request
          Safety checks at every step:
            - Tool in allowlist?
            - Over budget? (tool_limits)
-           - Same call 3x? (loop detection)
+           - Same call 3x? (refused; 4x withdraws the tool)
            - Same tool too many times? (default ceiling, refused like tool_limits)
            - Trying to finish early? (completion contract)
            - Answer wrong shape? (answer_schema)
@@ -115,7 +115,8 @@ production incidents (all documented in comments with dates):
    the model is told to conclude from what it has. After refusal, schemas are
    withheld on the next turn.
 
-3. **Loop detection** (agent.cpp) -- exact-signature (3x same call = kill) and
+3. **Loop detection** (agent.cpp) -- exact-signature (3rd identical call
+   refused, 4th also withdraws the tool; since 2026-10-26, was a kill) and
    near-duplicate (same tool name more than max(max_steps, 6) times). Since
    2026-10-26 the near-duplicate count is a default `tool_limits` ceiling for
    any tool without one: refused and withdrawn, not killed. It kills only when
