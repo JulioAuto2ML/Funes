@@ -40,6 +40,7 @@ produces text and tool calls; this code decides whether to execute them.
 |---|---|
 | `completion_contract.h/cpp` | Tools that must succeed before an answer is accepted. Prevents "described the work" from passing as "did the work." |
 | `tool_budget.h/cpp` | Per-tool call ceilings. Refuses over-budget calls and withholds tool schemas to force synthesis. Also owns `call_keys`: the keys a call counts against, which for `run_script` include `run_script:<script>` so a budget, a completion contract or a permission entry can name one program rather than the tool that runs all of them. |
+| `tool_log.h/cpp` | One stderr line per tool call: `[tool] <agent> (depth N) <call key> args=<redacted, 120 chars> → ok / error: … / refused: budget spent / refused: permissions`. The loop also logs a tool withdrawn from the schema by its budget and the last-step withholding, so "the tool wasn't available" can be told apart from "it was called and failed". |
 | `run_outcome.h/cpp` | Structured failure signals (`FAILED -- ...`) detectable by delegation. Prevents raw tool dumps from becoming answers. |
 | `answer_schema.h/cpp` | JSON shape validation on final answers. Extraction handles fenced blocks, wrapped JSON, bare objects. |
 | `context_compressor.h/cpp` | Folds old conversation turns into a rolling summary when approaching context limits. |

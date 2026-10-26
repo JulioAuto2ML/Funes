@@ -85,6 +85,7 @@ add_library(funes_core STATIC
     src/core/answer_schema.cpp
     src/core/run_outcome.cpp
     src/core/tool_budget.cpp
+    src/core/tool_log.cpp
     src/core/result_store.cpp
     src/core/lang_detect.cpp
     src/core/text_utils.cpp

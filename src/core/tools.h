@@ -155,5 +155,8 @@ void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const Agen
                               std::function<AgentConfig(const std::string&)> find_agent,
                               std::function<std::vector<std::string>()> list_agent_names);
                                                                      // delegate_to_agent
+// How many delegate_to_agent hops deep the current thread is: 0 for the agent
+// a person (or cron) is talking to, 1 inside its specialist. For logging.
+int delegation_depth();
 void register_classify_decision_tool(ToolRegistry& reg,
                                      const AgentDefaults& defaults);  // classify_decision

@@ -14,6 +14,7 @@
 #include "script_library.h"
 #include "text_utils.h"
 #include "tool_budget.h"
+#include "tool_log.h"
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
@@ -183,10 +184,9 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
     // wholesale or one script by name (`run_script:backup_workspace`) — a
     // script is a capability in its own right, and an account that may run two
     // of an agent's three scripts is a real thing to want.
+    // (run() logs the refusal on its per-call line.)
     for (const auto& key : funes::call_keys(name, args)) {
         if (ctx.permissions.allows_tool(key)) continue;
-        std::cerr << "[agent:" << ctx.agent << "] user " << ctx.user_id
-                  << " denied tool '" << key << "' by permissions\n";
         return {"You do not have permission to use " +
                 (key == name ? "the tool '" + name + "'" : "'" + key + "'") +
                 ". Continue without it.", /*error=*/true};
@@ -574,6 +574,10 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             emit("delta", {{"text", text}});
         };
 
+    // For the per-call log lines: 0 for the agent a person or cron talks to,
+    // 1+ inside a delegate_to_agent hop. Thread-local and stable for the run.
+    const int depth = delegation_depth();
+
     for (int step = 0; step < cfg_.max_steps; ++step) {
         if (auto* cf = funes::cancel_flag();
             cf && cf->load(std::memory_order_relaxed)) {
@@ -598,6 +602,10 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         // concluded. Better to spend the last step on the owed call and fail
         // for want of an answer than to answer with the floor unmet.
         const bool withhold = !force_tool_call && last_step;
+        if (withhold && !tools_schema_.empty())
+            std::cerr << "[agent:" << cfg_.name << "] (depth " << depth << ") last step "
+                      << step + 1 << "/" << cfg_.max_steps
+                      << ": tools withheld, synthesis only\n";
 
         // Vision routing: step 0 with images goes to the vision model,
         // which understands the image; subsequent steps (tool calls,
@@ -852,32 +860,55 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             if (emit) emit("tool_call", {{"name", tc.name}, {"args", tc.arguments}});
 
             if (refused) {
-                std::cerr << "[agent:" << cfg_.name << "] " << refused_key
-                          << " refused: budget of " << refused_limit
-                          << " call(s) used up\n";
                 // Only an exhausted *tool* can leave the schema — there is one
                 // run_script entry for every script, so withholding it over
                 // one spent script would take away the other two the agent was
                 // granted. A spent script keeps being refused at this point
                 // instead, with a message naming it.
-                if (refused_key == tc.name) exhausted_tools.insert(tc.name);
+                if (refused_key == tc.name && exhausted_tools.insert(tc.name).second)
+                    std::cerr << "[agent:" << cfg_.name << "] (depth " << depth << ") "
+                              << tc.name << " withdrawn from schema: budget of "
+                              << refused_limit << " call(s) spent\n";
             }
 
-            if (duplicate) {
-                std::cerr << "[agent:" << cfg_.name << "] " << tc.name
-                          << " repeated with identical arguments (" << sig_calls
-                          << "x): refused\n";
-                if (repeat == funes::RepeatAction::RefuseAndWithdraw
-                    && exhausted_tools.insert(tc.name).second)
-                    std::cerr << "[agent:" << cfg_.name << "] " << tc.name
-                              << " withdrawn from schema: identical repeats\n";
-            }
+            // The refusal itself is on the per-call line below.
+            if (repeat == funes::RepeatAction::RefuseAndWithdraw
+                && exhausted_tools.insert(tc.name).second)
+                std::cerr << "[agent:" << cfg_.name << "] (depth " << depth << ") "
+                          << tc.name << " withdrawn from schema: identical repeats\n";
 
             ToolResult result = refused
                 ? ToolResult{funes::budget_message(refused_key, refused_limit), true}
                 : duplicate
                 ? ToolResult{funes::repeat_message(tc.name, sig_calls - 1), true}
                 : dispatch_tool(tc.name, tc.arguments, ctx);
+
+            // One line per call (core/tool_log.h). A permission refusal is
+            // recognised here rather than reported out of dispatch_tool,
+            // which re-derives the same answer from the same keys.
+            {
+                funes::ToolCallOutcome outcome = funes::ToolCallOutcome::Ok;
+                std::string detail;
+                if (refused) {
+                    outcome = funes::ToolCallOutcome::BudgetRefused;
+                    detail  = refused_key + " limit " + std::to_string(refused_limit);
+                } else if (duplicate) {
+                    outcome = funes::ToolCallOutcome::RepeatRefused;
+                    detail  = std::to_string(sig_calls) + "x";
+                } else if (result.error) {
+                    outcome = funes::ToolCallOutcome::Error;
+                    detail  = result.text;
+                    for (const auto& key : keys) {
+                        if (ctx.permissions.allows_tool(key)) continue;
+                        outcome = funes::ToolCallOutcome::PermissionDenied;
+                        detail  = "user " + std::to_string(ctx.user_id) + " denied " + key;
+                        break;
+                    }
+                }
+                std::cerr << funes::format_tool_call_line(
+                    cfg_.name, depth, keys.back(),
+                    funes::summarize_tool_args(tc.arguments), outcome, detail);
+            }
 
             if (emit) {
                 // Truncate on bytes first (result.text may be arbitrarily

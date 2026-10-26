@@ -116,6 +116,8 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
 
 } // namespace
 
+int delegation_depth() { return g_delegation_depth; }
+
 void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,
                               std::function<AgentConfig(const std::string&)> find_agent,
                               std::function<std::vector<std::string>()> list_agent_names) {
