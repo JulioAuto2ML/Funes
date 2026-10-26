@@ -56,9 +56,12 @@ std::string search(const Query& q, std::vector<Hit>& out);
 // search result is a list of leads; reading one is web_fetch's job.
 constexpr size_t kSnippetLimit = 300;
 
-// The text web_search returns: title, snippet (cut to kSnippetLimit on a UTF-8
-// boundary, marked with "…" when cut) and URL per hit, at most `max_results`
-// hits. Bounded so web_search can be exempt from the result store.
-std::string format_hits(const std::vector<Hit>& hits, int max_results);
+// The text web_search returns: title (with its publication date when known), snippet (cut to `snippet_limit` on a
+// UTF-8 boundary, marked with "…" when cut) and URL per hit, at most
+// `max_results` hits. Bounded so web_search can be exempt from the result
+// store. A backend with better excerpts passes a longer cut
+// (search_backends.h).
+std::string format_hits(const std::vector<Hit>& hits, int max_results,
+                        size_t snippet_limit = kSnippetLimit);
 
 } // namespace funes::tavily

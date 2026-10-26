@@ -13,6 +13,8 @@
 
 #include <mutex>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace funes {
 
@@ -49,6 +51,12 @@ public:
     mcp::json list_resource_templates() override;
     bool is_running() const override { return initialized_; }
 
+    // Sent on every request, e.g. an Authorization header for a server that
+    // takes a key. Set before initialize().
+    void set_header(const std::string& name, const std::string& value) {
+        extra_headers_.emplace_back(name, value);
+    }
+
 private:
     // POSTs one message; returns the reply body ("" for a 202) and its content type.
     std::string post(const mcp::json& message, std::string& content_type);
@@ -57,6 +65,7 @@ private:
     int         timeout_;
     std::mutex  mutex_;          // one request at a time; also guards session_id_
     std::string session_id_;
+    std::vector<std::pair<std::string, std::string>> extra_headers_;
     bool        initialized_ = false;
     int         next_id_ = 1;
     mcp::json   capabilities_ = mcp::json::object();

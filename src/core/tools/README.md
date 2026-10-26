@@ -10,7 +10,7 @@ hop, no protocol overhead.
 
 | Tool | File | What it does |
 |---|---|---|
-| `web_search` | `web_search.cpp` | Tavily API search with topic/time filters. Social platforms excluded. |
+| `web_search` | `web_search.cpp` | Web search through Tavily or Parallel (`FUNES_SEARCH_BACKEND`, Tavily the fallback). Short snippets, exempt from the result store. Social platforms excluded. |
 | `web_fetch` | `web_fetch.cpp` | Fetches a URL, converts HTML to readable text (8 KB cap). SSRF-protected. |
 | `remember` | `memory_tools.cpp` | Stores a fact in persistent long-term memory. |
 | `recall` | `memory_tools.cpp` | Semantic (or keyword) search over stored memories. |
@@ -58,7 +58,9 @@ its own README documents them.
 | `fs_guard.h/cpp` | Filesystem path confinement plus `workspace_for`, the single resolver for which directory a call operates in (`<root>/<user_id>`, with an agent's own `workspace_dir` nested inside when relative). Catches `..` traversal, symlinks, absolute escapes. Used by read/write_file, shell, and /api/upload -- keep it the only resolver, or the confinement check ends up guarding a different root than the one being written to. |
 | `net_guard.h/cpp` | SSRF protection. Blocks requests to private/loopback hosts. Used by web_fetch and HTTP template tools. |
 | `process_runner.h/cpp` | Fork/exec engine with timeout, process-group kill, output cap. Used by execute_shell, read_file (PDF), publish_issue, run_script. Optionally passes extra environment (a script manifest's `env:`, so a credential never enters the model's context) and optionally keeps stderr separate — a script whose stdout is a declared JSON contract must not have it corrupted by a library's deprecation warning. |
-| `tavily.h/cpp` | Tavily Search API HTTP client. Used by web_search (and by extensions that need the same call). |
+| `tavily.h/cpp` | Tavily Search API HTTP client and `format_hits`. Used by web_search (and by extensions that need the same call). |
+| `parallel_search.h/cpp` | Parallel's search MCP (streamable HTTP) as a web_search backend, reached as a backend rather than an agent MCP server because its tool names clash with the native ones. |
+| `search_backends.h/cpp` | Backend order from `FUNES_SEARCH_BACKEND` and the fallback loop. |
 | `../answer_schema.h/cpp` | The JSON-Schema subset used for both an agent's `answer_schema:` and a pipeline stage's `schema:` — one validator, so the two fail identically and read identically to a small local model. |
 | `../script_library.h/cpp` | The script library: manifest parsing, the `[a-z0-9_-]` name alphabet, and argv construction from declared parameters. Split from `script_tools.cpp` so the allowlist and argument rules are testable without starting a process. |
 | `page_text.h/cpp` | URL fetching + HTML-to-text extraction. Manual scan (no regex -- avoids stack overflow on large inline scripts). |

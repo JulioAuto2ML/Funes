@@ -33,6 +33,12 @@ int main() {
     const std::string one = format_hits({hit(1, "short")}, 8);
     CHECK(one == "Title 1\nshort\nhttps://example.com/1");
 
+    // A known publication date follows the title — recency is half of what a
+    // research question about "2026" needs, and Parallel dates most hits.
+    funes::tavily::Hit dated = hit(2, "s");
+    dated.published = "2026-09-07";
+    CHECK(format_hits({dated}, 8) == "Title 2 (2026-09-07)\ns\nhttps://example.com/2");
+
     // max_results caps the count, whatever the transport returned.
     std::vector<funes::tavily::Hit> many;
     for (int i = 0; i < 12; ++i) many.push_back(hit(i, std::string(1500, 'x')));
@@ -49,6 +55,11 @@ int main() {
     // makes. 11 KB for eight is what started this.
     const std::string ten = format_hits(many, 10);
     CHECK(ten.size() < 10 * (kSnippetLimit + 64));
+
+    // A backend can ask for a longer cut (Parallel's excerpts are the content).
+    const std::string longer = format_hits({hit(1, std::string(1500, 'x'))}, 8, 600);
+    CHECK(longer.find(std::string(600, 'x')) != std::string::npos);
+    CHECK(longer.find(std::string(601, 'x')) == std::string::npos);
 
     // Cut on a UTF-8 boundary: "é" is two bytes, so an odd byte cap would
     // otherwise split one, and the result has to survive json::dump().

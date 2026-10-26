@@ -91,18 +91,21 @@ std::string search(const Query& q, std::vector<Hit>& out) {
     return {};
 }
 
-std::string format_hits(const std::vector<Hit>& hits, int max_results) {
+std::string format_hits(const std::vector<Hit>& hits, int max_results,
+                        size_t snippet_limit) {
     std::ostringstream oss;
     int n = 0;
     for (const auto& hit : hits) {
         if (n >= max_results) break;
         if (n > 0) oss << "\n\n";
         std::string snippet = hit.snippet;
-        if (snippet.size() > kSnippetLimit) {
-            truncate_utf8_safe(snippet, kSnippetLimit);
+        if (snippet.size() > snippet_limit) {
+            truncate_utf8_safe(snippet, snippet_limit);
             snippet += "…";
         }
-        oss << hit.title << "\n" << snippet << "\n" << hit.url;
+        oss << hit.title;
+        if (!hit.published.empty()) oss << " (" << hit.published << ")";
+        oss << "\n" << snippet << "\n" << hit.url;
         ++n;
     }
     return oss.str();

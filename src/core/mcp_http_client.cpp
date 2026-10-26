@@ -66,6 +66,7 @@ std::string HttpMcpClient::post(const json& message, std::string& content_type) 
         {"MCP-Protocol-Version", "2025-03-26"},
     };
     if (!session_id_.empty()) headers.emplace("Mcp-Session-Id", session_id_);
+    for (const auto& [name, value] : extra_headers_) headers.emplace(name, value);
 
     auto res = cli.Post(url_.path, headers, message.dump(), "application/json");
     if (!res)

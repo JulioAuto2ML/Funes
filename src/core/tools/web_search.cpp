@@ -12,6 +12,7 @@
 // published artifact, flat text is the right shape and the cheaper one.
 
 #include "../tools.h"
+#include "search_backends.h"
 #include "tavily.h"
 #include <algorithm>
 
@@ -32,14 +33,16 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
     if (args.contains("max_results") && args["max_results"].is_number_integer())
         q.max_results = std::clamp(args["max_results"].get<int>(), 1, 10);
 
+    const std::vector<funes::search::Backend> backends = funes::search::configured_backends();
     std::vector<funes::tavily::Hit> hits;
-    const std::string error = funes::tavily::search(q, hits);
+    int used = -1;
+    const std::string error = funes::search::run(backends, q, hits, used);
     if (!error.empty())
         return {error, /*error=*/true};
     if (hits.empty())
         return {"No results found."};
 
-    return {funes::tavily::format_hits(hits, q.max_results)};
+    return {funes::tavily::format_hits(hits, q.max_results, backends[used].snippet_limit)};
 }
 
 } // namespace
@@ -47,7 +50,7 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
 void register_web_search(ToolRegistry& reg) {
     reg.add({
         "web_search",
-        "Search the web (Tavily API). Returns the top result titles, short snippets, and URLs "
+        "Search the web. Returns the top result titles, short snippets, and URLs "
         "— leads, not content: web_fetch the ones worth reading. "
         "Social platforms (TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest) are "
         "excluded — they serve a JS shell with no content to a plain fetch, so they're never "

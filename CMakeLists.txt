@@ -101,6 +101,8 @@ add_library(funes_core STATIC
     src/core/tools/process_runner.cpp
     src/core/tools/pdf_extract.cpp
     src/core/tools/tavily.cpp
+    src/core/tools/parallel_search.cpp
+    src/core/tools/search_backends.cpp
     src/core/tools/page_text.cpp
     src/core/tools/web_search.cpp
     src/core/tools/web_fetch.cpp
