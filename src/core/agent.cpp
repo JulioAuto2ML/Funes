@@ -510,7 +510,10 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // instead of repeating them verbatim, which the exact-signature check
     // above can't catch. Cap total calls to the same tool per turn — scaled
     // to the agent's step budget so it doesn't clip legitimately
-    // tool-heavy workflows, with a floor for very short budgets.
+    // tool-heavy workflows, with a floor for very short budgets. Counted per
+    // call, not per step: a model issuing parallel calls reaches it before the
+    // last-step reservation. Enforced as a default tool_limits ceiling (a
+    // recoverable refusal) unless a declared limit is higher.
     std::map<std::string, int> name_counts;
     const int max_same_tool = std::max(cfg_.max_steps, 6);
     std::string last_tool_name;
@@ -808,13 +811,21 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // the agent's author has said how many calls are reasonable, that
             // answer wins; max_steps remains the backstop if the model spends
             // the rest of its budget asking anyway.
+            //
+            // A tool with no declared ceiling gets max_same_tool as one, so
+            // the near-duplicate count is a refusal too, not a kill: on
+            // 2026-10-26 an uncapped read_result ended researcher and then
+            // funes with nothing said. The detector below is now reached only
+            // by a declared limit set above max_same_tool.
             std::string refused_key;
             int         refused_limit = 0;
             for (const auto& key : keys) {
                 const int key_calls = (key == tc.name) ? name_calls : ++name_counts[key];
-                if (funes::over_budget(cfg_.tool_limits, key, key_calls)) {
+                const int limit = funes::effective_limit(
+                    cfg_.tool_limits, key, key == tc.name ? max_same_tool : -1);
+                if (limit >= 0 && key_calls > limit) {
                     refused_key   = key;
-                    refused_limit = cfg_.tool_limits.at(key);
+                    refused_limit = limit;
                     break;   // the aggregate ceiling is checked first and wins
                 }
             }

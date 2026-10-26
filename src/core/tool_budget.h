@@ -64,6 +64,20 @@ std::vector<std::string> call_keys(const std::string& tool, const nlohmann::json
 bool over_budget(const ToolLimits& limits, const std::string& tool,
                  int calls_including_this);
 
+// The ceiling a call is actually held to: the declared limit when there is a
+// usable one (>= 0), otherwise `default_ceiling`. A negative return means no
+// ceiling at all.
+//
+// The agent loop passes max_same_tool as the default for a call's plain tool
+// name, so an undeclared tool is refused — recoverably — at the same count
+// the near-duplicate detector used to kill the run at. On 2026-10-26
+// read_result had no entry in either researcher or funes; both paged stored
+// search results until the detector fired, and the user got two FAILEDs and
+// no answer. A refusal leaves the model a turn to conclude in. Qualified
+// script keys get no default (pass -1): one script has no "too many".
+int effective_limit(const ToolLimits& limits, const std::string& tool,
+                    int default_ceiling);
+
 // What the model is told in place of the tool result. Must read as final —
 // a model that takes it for a transient error retries and burns its steps.
 // `key` is whichever key ran out, so an exhausted script says which script.

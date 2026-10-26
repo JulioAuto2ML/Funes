@@ -49,4 +49,16 @@ const std::vector<std::string>& default_exclude_domains();
 // says what failed and, where there is one, what to do about it.
 std::string search(const Query& q, std::vector<Hit>& out);
 
+// How much of each hit's snippet web_search shows. Tavily's extract runs to
+// ~1.3 KB, so eight of them came to 11 KB: stored as a preview, and on
+// 2026-10-26 researcher and then funes paged the snippets back 2 KB at a time
+// instead of fetching a page, until the loop detector killed both runs. A
+// search result is a list of leads; reading one is web_fetch's job.
+constexpr size_t kSnippetLimit = 300;
+
+// The text web_search returns: title, snippet (cut to kSnippetLimit on a UTF-8
+// boundary, marked with "…" when cut) and URL per hit, at most `max_results`
+// hits. Bounded so web_search can be exempt from the result store.
+std::string format_hits(const std::vector<Hit>& hits, int max_results);
+
 } // namespace funes::tavily

@@ -10,10 +10,13 @@ context_limit: 8192
 # to searching itself, made 7 of its 8 permitted calls and still concluded
 # nothing. A low ceiling turns that into an early conclusion — usually "the
 # research phase failed", which is the useful answer. See src/core/tool_budget.h.
+# read_result was uncapped until 2026-10-26, when the same fallback paged two
+# stored searches 2 KB at a time until the loop detector killed the run.
 tool_limits:
   web_search: 3
   web_fetch: 4
   read_file: 3
+  read_result: 3
 system_prompt: |
   You are Funes, a personal assistant named after Borges' character who could
   not forget. You have a persistent memory that survives across conversations.

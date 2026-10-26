@@ -29,6 +29,13 @@ bool over_budget(const ToolLimits& limits, const std::string& tool,
     return calls_including_this > it->second;
 }
 
+int effective_limit(const ToolLimits& limits, const std::string& tool,
+                    int default_ceiling) {
+    auto it = limits.find(tool);
+    if (it != limits.end() && it->second >= 0) return it->second;
+    return default_ceiling;
+}
+
 std::string budget_message(const std::string& key, int limit) {
     // A qualified key ("run_script:backup_workspace") reads as one thing here
     // on purpose: what is used up is that script, not run_script as a whole,

@@ -56,6 +56,23 @@ int main() {
     // forcing function over killing the run.
     CHECK(mentions(msg, "Answer now"));
 
+    // effective_limit: the ceiling a call is held to when the agent loop also
+    // has a default of its own (max_same_tool). On 2026-10-26 read_result had
+    // no entry, so the only thing that ever stopped it was the loop detector,
+    // which killed researcher and then funes with no answer. A default
+    // ceiling makes that a refusal the model can conclude from instead.
+    CHECK(funes::effective_limit(limits, "web_search", 20) == 5);   // declared wins
+    CHECK(funes::effective_limit(limits, "read_result", 20) == 20); // default applies
+    CHECK(funes::effective_limit({{"web_search", 0}}, "web_search", 20) == 0);
+    // A typo'd negative entry is "not declared", so the default still holds —
+    // it must not turn a tool into one nothing can stop.
+    CHECK(funes::effective_limit({{"web_search", -1}}, "web_search", 20) == 20);
+    // A negative default means none: qualified script keys only have a
+    // ceiling when one is written down.
+    CHECK(funes::effective_limit(limits, "run_script:x", -1) < 0);
+    // A declared limit above the default is honoured — the author said so.
+    CHECK(funes::effective_limit({{"web_fetch", 30}}, "web_fetch", 20) == 30);
+
     std::cout << "test_tool_budget: all checks passed\n";
     return 0;
 }

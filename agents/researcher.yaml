@@ -14,9 +14,12 @@ context_limit: 8192
 # "conclude from what you have" message instead, so the run still produces
 # something. With max_results 8-10, six searches is ~50 candidate articles;
 # the failure was never a shortage of results. See src/core/tool_budget.h.
+# read_result too: on 2026-10-26 it paged stored search results 2 KB at a time
+# (parallel calls, two per step) past 20 calls and was killed with no answer.
 tool_limits:
   web_search: 6
   web_fetch: 8
+  read_result: 8
 system_prompt: |
   You are a research assistant with persistent memory.
 

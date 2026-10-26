@@ -94,7 +94,7 @@ HTTP request
            - Tool in allowlist?
            - Over budget? (tool_limits)
            - Same call 3x? (loop detection)
-           - Same tool too many times? (near-dup detection)
+           - Same tool too many times? (default ceiling, refused like tool_limits)
            - Trying to finish early? (completion contract)
            - Answer wrong shape? (answer_schema)
            - Last step? (reserve for synthesis)
@@ -116,7 +116,10 @@ production incidents (all documented in comments with dates):
    withheld on the next turn.
 
 3. **Loop detection** (agent.cpp) -- exact-signature (3x same call = kill) and
-   near-duplicate (same tool name too many times = kill).
+   near-duplicate (same tool name more than max(max_steps, 6) times). Since
+   2026-10-26 the near-duplicate count is a default `tool_limits` ceiling for
+   any tool without one: refused and withdrawn, not killed. It kills only when
+   a declared limit is set above it.
 
 4. **Last-step reservation** (agent.cpp) -- final step always withholds tools
    and sends a "synthesize now" notice.

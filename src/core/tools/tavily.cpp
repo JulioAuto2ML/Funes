@@ -12,6 +12,7 @@
 #include "httplib.h"
 #include "json.hpp"
 #include <algorithm>
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -88,6 +89,23 @@ std::string search(const Query& q, std::vector<Hit>& out) {
         out.push_back(std::move(hit));
     }
     return {};
+}
+
+std::string format_hits(const std::vector<Hit>& hits, int max_results) {
+    std::ostringstream oss;
+    int n = 0;
+    for (const auto& hit : hits) {
+        if (n >= max_results) break;
+        if (n > 0) oss << "\n\n";
+        std::string snippet = hit.snippet;
+        if (snippet.size() > kSnippetLimit) {
+            truncate_utf8_safe(snippet, kSnippetLimit);
+            snippet += "…";
+        }
+        oss << hit.title << "\n" << snippet << "\n" << hit.url;
+        ++n;
+    }
+    return oss.str();
 }
 
 } // namespace funes::tavily

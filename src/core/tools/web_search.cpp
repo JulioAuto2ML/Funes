@@ -14,7 +14,6 @@
 #include "../tools.h"
 #include "tavily.h"
 #include <algorithm>
-#include <sstream>
 
 namespace {
 
@@ -40,15 +39,7 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
     if (hits.empty())
         return {"No results found."};
 
-    std::ostringstream oss;
-    int n = 0;
-    for (const auto& hit : hits) {
-        if (n >= q.max_results) break;
-        if (n > 0) oss << "\n\n";
-        oss << hit.title << "\n" << hit.snippet << "\n" << hit.url;
-        ++n;
-    }
-    return {oss.str()};
+    return {funes::tavily::format_hits(hits, q.max_results)};
 }
 
 } // namespace
@@ -56,7 +47,8 @@ ToolResult web_search_handler(const json& args, const ToolContext&) {
 void register_web_search(ToolRegistry& reg) {
     reg.add({
         "web_search",
-        "Search the web (Tavily API). Returns the top result titles, snippets, and URLs. "
+        "Search the web (Tavily API). Returns the top result titles, short snippets, and URLs "
+        "— leads, not content: web_fetch the ones worth reading. "
         "Social platforms (TikTok, Instagram, Facebook, X/Twitter, YouTube, Pinterest) are "
         "excluded — they serve a JS shell with no content to a plain fetch, so they're never "
         "usable as source links anyway.",
@@ -73,6 +65,9 @@ void register_web_search(ToolRegistry& reg) {
             }},
             {"required", json::array({"query"})}
         },
-        web_search_handler
+        web_search_handler,
+        // A list of leads, not a document: a preview would show two of them.
+        // format_hits bounds the output instead (tavily.h).
+        /*inline_result=*/true
     });
 }

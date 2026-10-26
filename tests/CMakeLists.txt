@@ -129,3 +129,7 @@ add_test(NAME permissions COMMAND test_permissions)
 add_executable(test_migration test_migration.cpp)
 target_link_libraries(test_migration PRIVATE funes_core)
 add_test(NAME migration COMMAND test_migration)
+
+add_executable(test_web_search test_web_search.cpp)
+target_link_libraries(test_web_search PRIVATE funes_core)
+add_test(NAME web_search COMMAND test_web_search)
