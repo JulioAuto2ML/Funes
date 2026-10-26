@@ -1,8 +1,8 @@
 name: gmail-assistant
-description: Searches, reads, and drafts Gmail via IMAP/SMTP (imap-email-mcp), reusing the same Gmail App Password already set up for the newsletter sender. No send or delete capability.
+description: Searches, reads, and drafts Gmail via IMAP/SMTP (imap-email-mcp). No send or delete capability.
 delegation_notes: >
   When the user says "draft" or "borrador" about an email, delegate here
-  to create a real Gmail Draft — don't use write_file for it.
+  to create a real Gmail Draft — don't use write_file for it. When the user wants any info about an email, delegate here.
 shared_identity: >
   the installation's Gmail mailbox (one IMAP account, shared by the whole install)
 model: default
