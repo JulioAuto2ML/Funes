@@ -1,0 +1,35 @@
+description: >-
+  Show an image on the living-room Samsung Frame TV's Art Mode, switch Art
+  Mode on or off, or report what it is showing. `show` uploads an image from
+  your workspace and replaces the previous one this script put there.
+run: tv_art.sh
+timeout_seconds: 120
+params:
+  - name: action
+    description: status | show | artmode_on | artmode_off
+    type: string
+    required: true
+    choices: [status, show, artmode_on, artmode_off]
+  - name: image
+    description: For action=show only. A .jpg/.jpeg/.png path relative to your workspace (e.g. art/today.jpg).
+    type: string
+    required: false
+  - name: keep
+    description: For action=show only. Keep the previously shown image on the TV instead of deleting it.
+    type: boolean
+    required: false
+output:
+  format: json
+  schema:
+    type: object
+    required: [ok, action, artmode, content_id]
+    properties:
+      ok:         {type: boolean}
+      action:     {type: string}
+      artmode:    {type: string}
+      content_id: {type: string}
+env:
+  FUNES_TV_HOST: "${FUNES_TV_HOST}"
+  FUNES_TV_TOKEN_FILE: "${FUNES_TV_TOKEN_FILE}"
+  FUNES_TV_MAC: "${FUNES_TV_MAC}"
+  FUNES_TV_BROADCAST: "${FUNES_TV_BROADCAST}"

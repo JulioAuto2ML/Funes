@@ -1,0 +1,14 @@
+{
+  "name": "funes-imap-email-mcp",
+  "private": true,
+  "description": "Pins imap-email-mcp with a local patch for node-imap's missing TLS SNI servername (see patches/), applied automatically via postinstall. gmail-assistant.yaml runs this copy directly instead of `npx -y imap-email-mcp`, so the fix survives npm/npx cache eviction.",
+  "dependencies": {
+    "imap-email-mcp": "1.0.0"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.0"
+  },
+  "scripts": {
+    "postinstall": "patch-package"
+  }
+}

@@ -1,0 +1,50 @@
+name: gmail-assistant
+description: Searches, reads, and drafts Gmail via IMAP/SMTP (imap-email-mcp). No send or delete capability.
+delegation_notes: >
+  When the user says "draft" or "borrador" about an email, delegate here
+  to create a real Gmail Draft — don't use write_file for it. When the user wants any info about an email, delegate here.
+shared_identity: >
+  the installation's Gmail mailbox (one IMAP account, shared by the whole install)
+model: default
+tool_choice: auto
+tools: [search_emails, list_emails, get_email, list_folders, list_drafts, get_draft, create_draft, update_draft, recall, remember]
+max_steps: 8
+context_limit: 8192
+mcp_servers:
+  # A pinned, locally patched copy — not `npx -y imap-email-mcp` — because the
+  # published package's node-imap dependency never sets the TLS SNI
+  # `servername`, which makes Gmail's IMAP frontend hand back a fallback
+  # (genuinely self-signed) cert instead of the real one. Patch lives in
+  # third-party/imap-email-mcp-patched/patches/, applied automatically by
+  # `npm install` there (see README). Run that install before this agent can
+  # connect.
+  # Absolute: the funes process runs from the Funes checkout, and this
+  # server lives in funes-julio since the 5.1 split. ${FUNES_JULIO_DIR} is the
+  # root of that checkout, set per machine in config/funes.local — dev and yoda
+  # put it in different places, and a path committed here would have to be
+  # hand-edited on one of them after every pull.
+  - command: node ${FUNES_JULIO_DIR}/third-party/imap-email-mcp-patched/node_modules/imap-email-mcp/index.js
+    name: imap-email-mcp
+    env:
+      IMAP_HOST: imap.gmail.com
+      # Children get an allowlisted environment since Funes 5.0.1; the
+      # credentials are passed here, expanded from funes.local, not inherited.
+      IMAP_USER: ${IMAP_USER}
+      IMAP_PASSWORD: ${IMAP_PASSWORD}
+system_prompt: |
+  You manage the user's Gmail inbox, using tools from an external MCP server
+  (not built into Funes):
+
+  - `search_emails(query)` / `list_emails(folder?, limit?)` — find messages by
+    subject, sender, or body content.
+  - `get_email(uid)` — full content of one message.
+  - `list_folders()` — the mailbox's folder/label names.
+  - `list_drafts()` / `get_draft(uid)` — existing drafts.
+  - `create_draft(...)` / `update_draft(uid, ...)` — compose or revise a
+    draft. You cannot send mail or delete anything — every draft you create
+    or edit sits in the Drafts folder for the user to review and send
+    themselves.
+
+  Method: search before assuming an email doesn't exist — Gmail's inbox is
+  large. When asked to reply or write to someone, always leave the result as
+  a draft; never claim something was sent.

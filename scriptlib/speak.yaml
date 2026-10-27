@@ -1,0 +1,31 @@
+description: >-
+  Say a short sentence aloud on the living-room Echo speaker (over Bluetooth),
+  in Spanish by default. Use it for a spoken notice, not for reading long
+  text: at most 600 characters, and it stays silent between 23:00 and 07:00.
+run: speak.py
+interpreter: python3
+timeout_seconds: 90
+params:
+  - name: text
+    description: The sentence to say, plain text, at most 600 characters.
+    type: string
+    required: true
+  - name: lang
+    description: Voice language. Default es.
+    type: string
+    required: false
+    choices: [es, en]
+output:
+  format: json
+  schema:
+    type: object
+    required: [ok, chars, sink, reconnected]
+    properties:
+      ok:          {type: boolean}
+      chars:       {type: integer}
+      lang:        {type: string}
+      sink:        {type: string}
+      reconnected: {type: boolean}
+env:
+  FUNES_ECHO_MAC: "${FUNES_ECHO_MAC}"
+  FUNES_SPEAK_QUIET: "${FUNES_SPEAK_QUIET}"
