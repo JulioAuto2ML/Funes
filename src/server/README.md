@@ -14,7 +14,7 @@ Everything runs in a single `funes` binary.
 
 ## Startup sequence
 
-1. **Load config** -- layered: shell env > `config/funes.local` > `config/funes.conf` > `~/.funes/config`
+1. **Load config** -- layered: shell env > `config/funes.local` > `config/funes.conf`
 2. **Resolve paths** -- data directories, agents directory, workspace, publications.
    A CLI subcommand is dispatched here and exits; the workspace is migrated to
    its per-user layout (`<root>/<user_id>/`) before any tool can look in it

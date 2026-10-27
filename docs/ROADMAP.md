@@ -8,10 +8,11 @@ Current release: **5.1** (security fixes + the core/extension split, `project(Fu
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
 | **4.1** | Generalization: config over prose, tools over model arithmetic | generalization plan, phases 1, 4, 5 (moved to funes-julio with the pipelines it analysed) | shipped |
-| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | same plan, phases 2, 3 | moved to funes-julio |
+| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | same plan, phases 2, 3 | deferred (see docs/julio-README.md) |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
 | **5.0.1** | Security: shell-job permission bypass, child env allowlist, resolving SSRF guard, hashed tokens, login throttle, body cap | review of 2026-09-18 | done |
-| **5.1** | Split: the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
+| **5.1** | Split (undone in 5.2): the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
+| **5.2** | One checkout: funes-julio merged back with history, `src/julio` always built, all runtime state under `data/`, units renamed `funes` / `whatsapp-autoresponder` | — | done |
 | **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
 
 ## Why this order

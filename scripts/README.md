@@ -4,12 +4,11 @@ Operational scripts and systemd service files for running Funes and its
 companion services.
 
 
-The units are still named `funes-v4.service` and `whatsapp-autoresponder-v4.service`
-while the checkout they point at is `~/Funes` running 5.1. The directory was
-renamed because its name was actively misleading; the unit names were left
-alone because renaming a unit means disable/enable and a window where nothing
-starts at boot, for no gain beyond tidiness. Read `-v4` as "the install that
-replaced 3.x", not as a version number.
+Everything these units read and write is inside the `~/Funes` checkout:
+configuration in `config/`, state in `data/`. Until 5.2 the units were
+`funes-v4.service` / `whatsapp-autoresponder-v4.service` and state lived in
+`~/.funes-v4`, `~/Documents/X_posts` and `~/whatsapp-bridge`;
+`migrate_to_one_checkout.sh` is the one-off that moved it.
 
 ## Scripts
 
@@ -48,21 +47,21 @@ Features:
   `[Document received: <path>]` markers to the agent
 - Expired upload cleanup (default 30 days), sweeping every account's upload
   folder rather than one shared directory
-- State persistence in `~/.funes/whatsapp_autoresponder_state.json`, or
-  `WHATSAPP_STATE_PATH` if set. Two installs on one box share one bridge
-  store, so a second poller must have its own watermark — otherwise the
-  symptom is not an error, it is one poller silently skipping messages the
-  other consumed
+- State persistence in `data/whatsapp/whatsapp_autoresponder_state.json`,
+  or `WHATSAPP_STATE_PATH` if set. Two pollers on one bridge store must not
+  share a watermark — the symptom is not an error, it is one poller silently
+  skipping messages the other consumed
 - First-run state seeds from the bridge DB's max timestamp (no backlog replay)
 
 ## Service files
 
 | File | Purpose |
 |---|---|
-| `whatsapp-autoresponder-v4.service` | the autoresponder script against the 4.0 install on :8485. The 3.x counterpart was removed on 2026-08-31 when 3.x was retired, so there is no longer a second unit to conflict with. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST`, `FUNES_API_URL`, `WHATSAPP_STATE_PATH` and `WHATSAPP_DB_PATH` in the v4 clone's `config/funes.local`, plus a `funes jid-map` per sender |
-| `whatsapp-bridge.service` | systemd user service for the personal WhatsApp bridge (port 8090). Runs from `~/whatsapp-bridge/`, deliberately outside either clone |
-| `whatsapp-bridge-funes.service` | systemd user service for the dedicated Funes WhatsApp bridge (port 8091). Same directory, `WHATSAPP_STORE_DIR=store-funes` |
-| `funes-v4.service` | systemd user service for Funes on yoda — since 3.x was retired on 2026-08-31 this is the only install. Every path and port is still set explicitly so a config file can never point it at the dormant 3.x database. See [docs/deploy-v4-yoda.md](../docs/deploy-v4-yoda.md) |
+| `funes.service` | Funes on yoda (:8485), from `~/Funes` |
+| `whatsapp-autoresponder.service` | the autoresponder script against funes on :8485. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST` and `FUNES_API_URL` in `config/funes.local`, plus a `funes jid-map` per sender |
+| `whatsapp-bridge.service` | the personal WhatsApp bridge (port 8090), binary in `third-party/whatsapp-mcp/whatsapp-bridge/`, session in `data/whatsapp/store` |
+| `whatsapp-bridge-funes.service` | the dedicated Funes WhatsApp bridge (port 8091), same binary, session in `data/whatsapp/store-funes` |
+| `migrate_to_one_checkout.sh` | one-off (5.2): moved yoda's state from `~/.funes-v4`, `~/Documents/X_posts`, `~/whatsapp-bridge` and `~/funes-julio` into the checkout |
 
 Two WhatsApp numbers, two bridge instances: the personal number is used by
 `whatsapp-assistant` (interactive, delegated from funes), and the dedicated
@@ -76,8 +75,7 @@ is trusted; it does not say who the message is *for*. The script sends the
 sender's `chat_jid` alongside it, and Funes maps that jid to an account:
 
 ```bash
-cd ~/Funes && FUNES_DB=~/.funes-v4/memory.db \
-    ./bin/funes jid-map '<chat_jid>' <username>
+cd ~/Funes && ./bin/funes jid-map '<chat_jid>' <username>
 ```
 
 An unmapped jid resolves to nobody, never to a default account — so adding a

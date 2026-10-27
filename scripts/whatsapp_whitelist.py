@@ -43,7 +43,7 @@ def load_config() -> dict:
 CFG = load_config()
 DB_PATH = CFG.get(
     "WHATSAPP_DB_PATH",
-    str(REPO_ROOT / "third-party/whatsapp-mcp/whatsapp-bridge/store/messages.db"),
+    str(REPO_ROOT / "data/whatsapp/store-funes/messages.db"),
 )
 
 

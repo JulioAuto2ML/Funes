@@ -1,121 +1,75 @@
-# funes-julio
+# The personal half of Funes
 
-Julio's own agents, tools, pipelines and deployment for [Funes](../Funes) —
-everything in the Funes tree that had a personal path, a personal identity or
-a single consumer. Funes is the harness; this is one operator's use of it.
-Split out in Funes 5.1 so the core stops being 19% one person's habits and so
-this repository can hold what only makes sense on one machine: a newsletter
-with subscribers, a WhatsApp number, a Gmail mailbox, a manuscript.
+Julio's own agents, tools, pipelines and deployment: everything with a
+personal path, a personal identity or a single consumer — a newsletter with
+subscribers, a WhatsApp number, a Gmail mailbox, the living-room TV, a
+manuscript.
 
-**This repository does not run on its own, and is not meant to.** It has no
-`main()`, no UI and none of the seven general-purpose agents: it is a set of
-tools, agents and scripts that compile into the Funes binary and load
-alongside the core's own. Cloning it without Funes gets you source files with
-nothing to link against. That asymmetry is the point of the split — the core
-is complete without this, and this is deliberately incomplete without the
-core.
-
-Built into the `funes` binary as an *extension* (see `src/core/extension.h`
-in Funes):
-
-```bash
-cd ../Funes
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DFUNES_EXTENSIONS=$PWD/../funes-julio
-cmake --build build -j$(nproc)
-cd build && ctest            # core tests + this repo's, prefixed julio_
-```
-
-and run with both agent directories and both script libraries:
-
-```bash
-FUNES_AGENTS_DIR=./agents:../funes-julio/agents \
-FUNES_SCRIPTS_DIR=./scriptlib:../funes-julio/scriptlib ./bin/funes
-```
-
-Settings this extension reads are listed in `config/funes.conf.example`; they
-go in Funes's `config/funes.local`. Nothing here is read by the core.
-
-## Layout
+From 5.1 to 5.2 this was a separate repository, `funes-julio`, compiled into
+the binary with `-DFUNES_EXTENSIONS` so the core could be sold on its own. The
+sale is off, the split cost more than it protected, and in 5.2 it was merged
+back with its history. It is now ordinary parts of the tree, always built:
 
 ```
-funes-julio/
-├── extension.cmake     # what the core includes: adds src/*.cpp to the funes target, tests/
-├── src/                # native tools: harvest_candidates, publish_issue,
-│   │                   # write_structured/read_structured, merge_rankings,
-│   │                   # + publication/pipeline config loaders; register.cpp plugs them in
-├── agents/             # curator, voc-researcher, council-chair/-panelist, content-writer,
-│                       # mvp-builder, whatsapp-assistant/-autoresponder, gmail-assistant,
-│                       # rss-reader, book-editor, home, noticiero (+ templates/)
-├── scriptlib/          # scripts for run_script: tv_art, tv_weather_art (Samsung Frame),
-│                       # speak, news_headlines + publish_briefing (Echo news feed)
-├── publications/       # one YAML + one voice file per publication (ai-pulse, voc-insights)
-├── pipelines/          # voc.yaml — stage dirs, filenames, schemas for the VoC chain
-├── publishing/         # Python: render, link-check, send, post an issue (+ its tests)
-├── scripts/            # WhatsApp autoresponder + whitelist, systemd units, benchmark
-├── config/             # funes.conf.example — the variables this extension reads
-├── tests/              # C++ tests for src/, run under the core's ctest
-└── third-party/        # whatsapp-mcp (Go bridge), imap-email-mcp-patched (Node) — the MCP
-                        # servers the WhatsApp and Gmail agents spawn (moved from Funes)
+src/julio/        harvest_candidates, publish_issue, write_structured/read_structured,
+                  merge_rankings + publication/pipeline config loaders; register.cpp plugs them in
+tests/julio/      their C++ tests + the publishing/ and autoresponder Python suites (ctest julio_*)
+agents/           curator, voc-researcher, council-chair/-panelist, content-writer, mvp-builder,
+                  whatsapp-assistant/-autoresponder, gmail-assistant, rss-reader, book-editor,
+                  home, noticiero (+ templates/) — beside the core's own
+scriptlib/        tv_art, tv_weather_art (Samsung Frame), speak, news_headlines + publish_briefing
+publications/     one YAML + one voice file per publication (ai-pulse, ai-pulse-es)
+pipelines/        voc.yaml — stage dirs, filenames, schemas for the VoC chain
+publishing/       Python + shell: render, link-check, send, post, illustrate an issue (+ tests)
+scripts/          WhatsApp autoresponder + whitelist, systemd units, benchmark
+third-party/      whatsapp-mcp (Go bridge + Python server), imap-email-mcp-patched (Node)
+data/newsletter/  (gitignored) issues, harvests, images, logs, .env with X/SMTP/LinkedIn creds,
+                  subscribers.txt — outside every workspace, so no agent's read_file reaches them
 ```
 
-## How an extension plugs in
+Settings are at the end of `config/funes.conf`; secrets go in
+`config/funes.local`.
 
-`src/register.cpp` has one static initializer that queues a function; the core
-runs it after its built-in tools with `{tools, memory, workspace_dir}`. The
-function resolves this repository's own directories (`FUNES_PUBLICATIONS_DIR`
-etc., defaulting to this checkout — `extension.cmake` bakes the path in) and
-calls the four `register_*` functions. `harvest_candidates` registers with
-`inline_result = true`: its output is a numbered menu the model must see whole,
-and the core's result store honours that flag instead of knowing the tool's
-name.
+## How the tools plug in
 
-The sources include core headers by bare name (`tools.h`, `memory.h`,
-`fs_guard.h`); `extension.cmake` adds `src/core` and `src/core/tools` to the
-include path. They are sources of the *executable*, not of `funes_core`, for
-the reason the core's generated HTTP tools are: a static library drops an
-object file nothing references, and nothing references a self-registering one.
+`src/julio/register.cpp` has one static initializer that queues a function
+(`src/core/extension.h`); the core runs it after its built-in tools with
+`{tools, memory, workspace_dir}`. The function resolves its directories
+(`FUNES_PUBLICATIONS_DIR` etc., defaulting to the checkout — CMake bakes
+`FUNES_ROOT` in), publishes `${FUNES_ROOT}` to the environment for agent YAML,
+and calls the four `register_*` functions. `harvest_candidates` registers with
+`inline_result = true`: its output is a numbered menu the model must see
+whole, and the core's result store honours that flag instead of knowing the
+tool's name.
 
-## Deployment notes (from the split)
+They are sources of the *executable*, not of `funes_core`, for the reason the
+core's generated HTTP tools are: a static library drops an object file nothing
+references, and nothing references a self-registering one.
 
-- Funes 5.0.1 stopped children inheriting the server's environment. The
-  publishing scripts read credentials from `<publish dir>/.env` first and from
-  the environment second; after the split only `.env` reaches them unless the
-  variable is named in `FUNES_CHILD_ENV`. Put SMTP/LinkedIn credentials in
-  `X_posts/.env`.
-- `FUNES_ALLOW_SHELL` now defaults to `0` in the core's `funes.conf`. `operator`
-  and `mvp-builder` want it on: set it in `funes.local`.
-- Session tokens are hashed at rest since 5.0.1; every browser signs in once
-  more after the upgrade. The WhatsApp autoresponder is unaffected (service
-  token).
-- `min_count` in `src/publication.h` is back to 8, below the default `count`
-  of 10. Funes `fb54ffa` had raised it to 10 to get more items into an issue,
-  but `publications/ai-pulse.yaml` sets `min_count: 6` explicitly, so the
-  default never applied to the one publication that runs; what it did change is
-  a bare config, where `min_count == count` refuses to publish unless the
-  harvest fills every slot.
-- The MCP servers the `gmail-assistant` and `whatsapp-assistant` agents spawn
-  live in this checkout, and their YAML names them as
-  `${FUNES_JULIO_DIR}/third-party/...`. That variable is published at startup
-  by `src/register.cpp` from the path `extension.cmake` baked into the binary,
-  so nothing has to be configured per machine — but it also means **the binary
-  must be rebuilt after this repository moves**, not just after it changes.
-  `funes.local` can set `FUNES_JULIO_DIR` to override.
-- Their dependencies are not in git and do not move themselves:
-  `third-party/imap-email-mcp-patched/node_modules` (`npm install` there, which
-  applies the SNI patch) and `third-party/whatsapp-mcp/whatsapp-mcp-server/.venv`
-  (`uv sync`), and `scriptlib/.venv` (`python3 -m venv scriptlib/.venv &&
-  scriptlib/.venv/bin/pip install -r scriptlib/requirements.txt`). On an upgrade from a pre-5.1 tree, move the existing ones over
-  from the Funes checkout rather than re-fetching.
-- Two systemd units name paths that the split moved; both are copies under
-  `~/.config/systemd/user/`, so editing the files here changes nothing until
-  they are copied over and `systemctl --user daemon-reload` is run:
-  `funes-v4.service` needs `FUNES_AGENTS_DIR=<Funes>/agents:<here>/agents`
-  (and, for `tv_art`, `FUNES_SCRIPTS_DIR=<Funes>/scriptlib:<here>/scriptlib`) —
-  without the second entry all eleven agents in this repository are missing and
-  both cron jobs fail to resolve their agent — and
-  `whatsapp-autoresponder-v4.service` runs `scripts/whatsapp_autoresponder.py`,
-  which is now in this repository (its `WorkingDirectory` stays the Funes
-  checkout, which is what makes the script find `config/funes.local`).
+## Deployment notes
+
+- Children do not inherit the server's environment (5.0.1). The publishing
+  scripts read credentials from `<publish dir>/.env` first and the environment
+  second; put SMTP/LinkedIn/X credentials in `data/newsletter/.env`.
+- `FUNES_ALLOW_SHELL` defaults to `0`. `operator` and `mvp-builder` want it
+  on: set it in `funes.local` (yoda's unit forces it off).
+- `min_count` in `src/julio/publication.h` is 8, below the default `count` of
+  10; `publications/ai-pulse.yaml` sets `min_count: 6` explicitly.
+- The MCP servers `gmail-assistant` and `whatsapp-assistant` spawn are named
+  in their YAML as `${FUNES_ROOT}/third-party/...`, published at startup from
+  the path baked into the binary — so **the binary must be rebuilt after the
+  checkout moves**, not just after it changes. `funes.local` can set
+  `FUNES_ROOT` to override.
+- Their dependencies are not in git:
+  `third-party/imap-email-mcp-patched/node_modules` (`npm install` there,
+  which applies the SNI patch), `third-party/whatsapp-mcp/whatsapp-mcp-server/.venv`
+  (`uv sync`), `scriptlib/.venv` (`python3 -m venv scriptlib/.venv &&
+  scriptlib/.venv/bin/pip install -r scriptlib/requirements.txt`), and the
+  bridge binary (`go build -o whatsapp-bridge main.go` in
+  `third-party/whatsapp-mcp/whatsapp-bridge/`).
+- systemd units are copies under `~/.config/systemd/user/`: editing
+  `scripts/*.service` changes nothing until they are copied over and
+  `systemctl --user daemon-reload` is run.
 
 ## 4.2 — per-user publications
 
@@ -126,7 +80,7 @@ other two (channel adapter, `mcp-builder`) still have no second consumer and
 stay deferred.
 
 **The goal.** `curator` loses its absolute `workspace_dir`
-(`/home/julio/Documents/X_posts`) and resolves per-user like every other
+(`${FUNES_ROOT}/data/newsletter`, formerly `/home/julio/Documents/X_posts`) and resolves per-user like every other
 agent, so publishing is something an account does rather than something the
 installation does.
 

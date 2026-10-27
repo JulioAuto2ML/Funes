@@ -16,8 +16,8 @@ remembers (and lets you delete any of it).
   containers, no external database.
 - **Memory in a single file.** SQLite + [sqlite-vec](https://github.com/asg017/sqlite-vec)
   (vendored). Semantic search when an embedding model is available, keyword
-  search when it isn't. Your entire memory is `~/.funes/memory.db` — back it up
-  with `cp`.
+  search when it isn't. Your entire memory is `data/memory.db` in the checkout —
+  back it up with `cp`.
 - **Works with any LLM.** OpenAI-compatible endpoints (llama.cpp, Groq, OpenAI…)
   and Anthropic's native API, with token streaming. Fully local or cloud — your
   choice per config.
@@ -102,10 +102,9 @@ appears.
 
 **Optional — MCP-based agents.** An agent can reach an external service
 through an MCP server it spawns or connects to; nothing of the sort ships
-here, because an MCP server is a credential and an account, not a feature of
-the harness. See *External tools (MCP)* below for how to wire one up, and
-[funes-julio](../funes-julio) for a worked example of a repository that adds
-its own servers, agents and tools to this binary without forking it.
+in the core, because an MCP server is a credential and an account, not a
+feature of the harness. See *External tools (MCP)* below for how to wire one
+up; `gmail-assistant` and `whatsapp-assistant` are worked examples.
 
 **Run it:**
 
@@ -271,7 +270,8 @@ id it can read at its own pace.
 ## Configuration
 
 Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
-`config/funes.conf` (committed defaults) > `~/.funes/config`.
+`config/funes.conf` (committed defaults). Everything Funes and its scripts
+write lives under `data/` in the checkout (gitignored).
 
 | Variable | Default | Description |
 |---|---|---|
@@ -283,14 +283,15 @@ Config is layered: shell env > `config/funes.local` (gitignored, secrets) >
 | `FUNES_EMBED_MODEL` | `default` | Embedding model name |
 | `FUNES_EMBED_KEY` | *(empty)* | Embeddings API key |
 | `FUNES_HOST` / `FUNES_PORT` | `127.0.0.1` / `8484` | Where the UI/API listens |
-| `FUNES_DB` | `~/.funes/memory.db` | The memory file |
+| `FUNES_DATA_DIR` | `<checkout>/data` | Root of everything written at runtime |
+| `FUNES_DB` | `data/memory.db` | The memory file |
 | `FUNES_DEFAULT_AGENT` | `funes` | Agent used when none is selected |
 | `FUNES_MEMORY_RECALL_K` | `4` | Memories injected per answer |
 | `FUNES_MEMORY_TURNS` | `10` | Past turns loaded per answer |
 | `FUNES_AUTO_MEMORY` | `1` | Store each exchange as an `auto` memory |
 | `FUNES_MCP_SERVERS` | *(empty)* | Extra MCP servers for every agent, `;`-separated URLs (SSE only — stdio servers are per-agent, see below) |
 | `FUNES_ALLOW_LOCAL_FETCH` | `0` | Let `web_fetch` reach private/loopback hosts |
-| `FUNES_WORKSPACE_DIR` | `~/.funes/workspace` | Sandbox root for `read_file`/`write_file`/`execute_shell` and uploads |
+| `FUNES_WORKSPACE_DIR` | `data/workspace` | Sandbox root for `read_file`/`write_file`/`execute_shell` and uploads |
 | `FUNES_ALLOW_SHELL` | `0` | Let `execute_shell` actually run commands (real code execution — see below) |
 | `FUNES_SCRIPTS_DIR` | `./scriptlib` | The script library `run_script` starts scripts from, granted per agent by name (does *not* need `FUNES_ALLOW_SHELL`) |
 | `FUNES_RESULT_TTL_DAYS` | `7` | Age at which stored tool results are swept at startup |
@@ -554,8 +555,8 @@ cheapest way to stop it getting a step wrong is not to ask it. The worked
 example — a daily newsletter that went from three agents and 46 steps to one
 agent and about four, by moving search, dedup, fetch, link-check, render and
 send into two tools and leaving the model only the judgement — lives with the
-newsletter itself, in the [funes-julio](../funes-julio) extension (its README
-carries the full incident write-up). The rule it left behind is general:
+newsletter itself (`src/julio/`, `publishing/`, `publications/`;
+`docs/julio-README.md` carries the full incident write-up). The rule it left behind is general:
 
 - **A URL is never retyped.** A tool hands the model a numbered pool; the model
   picks by number; a tool resolves the number back. What the model never saw a
@@ -571,29 +572,19 @@ carries the full incident write-up). The rule it left behind is general:
 
 The pieces of the core that carry this rule — `answer_schema`, `require_tools`,
 `tool_limits`, `scriptlib`'s `output:` contract, `NativeTool::inline_result` —
-stayed. The tools that first needed it (`harvest_candidates`, `publish_issue`,
-`write_structured`/`read_structured`, `merge_rankings`) moved out as the first
-extension; see "Extensions" below for how they plug back in.
+are the core. The tools that first needed it (`harvest_candidates`,
+`publish_issue`, `write_structured`/`read_structured`, `merge_rankings`) live
+in `src/julio/`.
 
-### Extensions: native tools that live somewhere else
+### Self-registering tool packs
 
-A tool is C++ and needs a rebuild to add, which is right for the generic set
-and wrong for one operator's workflow. An extension is a directory outside
-this tree with an `extension.cmake` and self-registering sources
-(`src/core/extension.h`):
+`src/julio/` (newsletter, VoC pipeline) registers its tools through
+`src/core/extension.h`'s static-initializer queue rather than through
+`main()`, with the same registry, memory store and workspace root as a
+built-in. From 5.1 to 5.2 it lived in a separate repository compiled in with
+`-DFUNES_EXTENSIONS`; it is back in this tree and always built.
 
-```bash
-cmake -B build -DFUNES_EXTENSIONS=/path/to/my-extension
-cmake --build build -j$(nproc)
-FUNES_AGENTS_DIR=./agents:/path/to/my-extension/agents ./bin/funes
-```
-
-The extension's tools register beside the built-ins with the same registry,
-memory store and workspace root, and nothing else; its agents load from a
-second `agents/` directory (`FUNES_AGENTS_DIR` is colon-separated, later
-entries shadow earlier ones by name); its configuration is its own. A core
-build with no extension has eight agents and no publishing pipeline, and every
-test still passes.
+### External tools (MCP)
 
 To give an agent tools from an external MCP server, over HTTP+SSE:
 

@@ -65,7 +65,7 @@ produces text and tool calls; this code decides whether to execute them.
 
 | File | Purpose |
 |---|---|
-| `extension.h/cpp` | Registration queue for native tools compiled in from another repository (`-DFUNES_EXTENSIONS`). Static initializers queue; `main()` applies once with `{tools, memory, workspace_dir}`. The newsletter and pipeline modules that used to sit here (`publication`, `pipeline`, `harvest`, `issue`, `structured`, `rankings`) are the first extension, `funes-julio`. |
+| `extension.h/cpp` | Registration queue for self-registering tool packs. Static initializers queue; `main()` applies once with `{tools, memory, workspace_dir}`. Used by `src/julio/` (`publication`, `pipeline`, `harvest`, `issue`, `structured`, `rankings`), which was a separate repository from 5.1 to 5.2. |
 
 ### Utilities
 

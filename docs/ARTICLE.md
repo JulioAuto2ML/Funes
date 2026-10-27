@@ -114,7 +114,7 @@ Three layers work together:
 
 Semantic search uses an embedding model (nomic-embed-text on a local llama.cpp instance). When the embedding endpoint is down, recall degrades gracefully to keyword search. When it comes back, a background thread backfills the missing vectors. If the embedding model changes dimension, the vector table is rebuilt automatically.
 
-Your entire memory is `~/.funes/memory.db`. Back it up with `cp`.
+Your entire memory is `data/memory.db`. Back it up with `cp`.
 
 ---
 

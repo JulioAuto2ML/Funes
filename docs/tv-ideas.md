@@ -30,7 +30,7 @@ Navidad, Halloween and birthdays (plus whatever else fits: Argentine holidays su
 Where it hooks in: `scriptlib/tv_weather_art.py` already picks one work per day at the day's first render from `queries(kind, season)` and `season()`; the date → occasion check would sit next to them and take priority over weather/season when it matches (the pick is cached in `today.json`, so a special date just changes that one decision). The placard (`tv_canvas.compose`) would need an optional greeting line ("Feliz Navidad", "Feliz cumpleaños, <nombre>").
 
 Open design points to settle before building:
-- **Where the dates live.** A small YAML in `funes-julio/scriptlib/` (fixed dates like 25/12, 31/10) vs. Funes memory for birthdays. Birthdays and names are personal and the TV is shared: opt-in, and decide whether the placard names the person.
+- **Where the dates live.** A small YAML in `scriptlib/` (fixed dates like 25/12, 31/10) vs. Funes memory for birthdays. Birthdays and names are personal and the TV is shared: opt-in, and decide whether the placard names the person.
 - **Window.** A few days around the date (Christmas: ~20–25 dic; Halloween: ~28–31 oct) or the day only.
 - **What counts as "fitting art".** Met searches with public-domain paintings: Christmas → "nativity", "winter snow", "epiphany"; Halloween → "witches", "skeleton", "night"/Goya, Fuseli; birthdays → "festival", "feast", "garden party", or a generated card via ComfyUI (item 3) in the GPU window. Check results exist at ≥2500 px landscape (MIN_PX, RATIO) — special themes may need a looser fallback to a hand-picked list of object ids.
 - **Priority** between weather, season, and occasion, and what a manual `query` does on a special day (should still win, a person asked).

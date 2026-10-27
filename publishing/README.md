@@ -43,9 +43,9 @@ artifacts, channels and CTA into the issue JSON, and these read them from there
 ```sh
 # Normally the publish_issue tool does this; by hand for a re-run or a rehearsal.
 python3 publishing/publish_issue.py 2026-07-31 --publication ai-pulse \
-        --dir ~/Documents/X_posts --send
+        --dir data/newsletter --send
 
-python3 publishing/post_tweet.py 3 --dir ~/Documents/X_posts --dry-run
+python3 publishing/post_tweet.py 3 --dir data/newsletter --dry-run
 python3 publishing/publish_newsletter.py --self-test
 ```
 
@@ -115,11 +115,11 @@ English at :00, Spanish at :30, so a feed sees one post every half hour.
 
 ```cron
 # Produce and send the issue, then post from it through the day.
-0  9 * * * /path/to/Funes/publishing/run_publication.sh ai-pulse >> ~/Documents/X_posts/publication_log.txt 2>&1
-30 12 * * * /usr/bin/python3 /path/to/Funes/publishing/post_tweet.py 1  >> ~/Documents/X_posts/post_log.txt 2>&1
-30 13 * * * /usr/bin/python3 /path/to/Funes/publishing/post_tweet.py 2  >> ~/Documents/X_posts/post_log.txt 2>&1
+0  9 * * * /path/to/Funes/publishing/run_publication.sh ai-pulse >> ~/Funes/data/newsletter/publication_log.txt 2>&1
+30 12 * * * /usr/bin/python3 /path/to/Funes/publishing/post_tweet.py 1  >> ~/Funes/data/newsletter/post_log.txt 2>&1
+30 13 * * * /usr/bin/python3 /path/to/Funes/publishing/post_tweet.py 2  >> ~/Funes/data/newsletter/post_log.txt 2>&1
 ...
-30 21 * * * /usr/bin/python3 /path/to/Funes/publishing/post_tweet.py 10 >> ~/Documents/X_posts/post_log.txt 2>&1
+30 21 * * * /usr/bin/python3 /path/to/Funes/publishing/post_tweet.py 10 >> ~/Funes/data/newsletter/post_log.txt 2>&1
 ```
 
 Both ends read the same run record, so they agree on what "today went out"
@@ -134,8 +134,8 @@ and its own images follow at 11:00:
 
 ```cron
 # Spanish edition: issue 10:30, images 11:00, posts on the half hour.
-0 11 * * * /home/julio/funes-julio/publishing/run_images.sh ai-pulse-es >> ~/Documents/X_posts/images_log.txt 2>&1
-30 13 * * * /usr/bin/python3 /home/julio/funes-julio/publishing/post_tweet.py 1 --publication ai-pulse-es --dir ~/Documents/X_posts >> ~/Documents/X_posts/post_log.txt 2>&1
+0 11 * * * /home/julio/Funes/publishing/run_images.sh ai-pulse-es >> ~/Funes/data/newsletter/images_log.txt 2>&1
+30 13 * * * /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 1 --publication ai-pulse-es --dir data/newsletter >> ~/Funes/data/newsletter/post_log.txt 2>&1
 30 14 * * * … post_tweet.py 2 --publication ai-pulse-es …
 ...
 30 21 * * * … post_tweet.py 9 --publication ai-pulse-es …

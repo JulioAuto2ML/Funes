@@ -6,9 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Funes is a self-hosted AI assistant with persistent memory: a single C++17
 binary (`funes`) that serves the web UI, chat API, agent runtime, and a
-SQLite-backed memory engine. No Python/Node/containers/external DB at
-runtime — Python does not appear at runtime at all; the
-`funes-julio` extension brings its own where it needs it.
+SQLite-backed memory engine. No Python/Node/containers/external DB in the
+core runtime; the personal half (`src/julio/`, `publishing/`, some of
+`scriptlib/`, the WhatsApp/IMAP MCP servers) brings its own where it needs it.
+
+**One checkout holds everything** (5.2): code, agents, scripts, `config/`
+(committed `funes.conf` + gitignored `funes.local`, old copies in
+`config/backups/`) and `data/` (gitignored — `memory.db`, `workspace/`,
+`newsletter/`, `tv/`, `public/noticias/`, `whatsapp/{store,store-funes}`,
+`backups/`). Nothing Funes runs writes to `~/.funes*`, `~/Documents/X_posts`
+or `~/whatsapp-bridge` any more; if you find a path pointing there, it is a
+bug. `data/` is anchored on the binary (`<bin>/../data`, `FUNES_DATA_DIR` to
+move it) — never `git clean -x` this checkout.
 
 As of 4.0 it is multi-user (households and small teams): every `/api/` route
 requires authentication, and memories, conversations, stored tool results,
@@ -56,13 +65,26 @@ Passwords are always prompted, never taken as arguments.
 the subcommands. **An argument that isn't one of the above is refused with exit
 2, not run.** Before 5.1 anything unrecognised fell through to "start the
 server", so `funes --version` answered a harmless question by opening the
-default port and creating a fresh database at `~/.funes/memory.db` — the flags
+default port and creating a fresh database — the flags
 are handled before `load_config()` precisely so a refusal touches nothing.
+
+## Deployment (yoda)
+
+Production is `~/Funes` on yoda, same layout as here: `git pull --ff-only`,
+rebuild, then `systemctl --user restart funes`. Units (copied from
+`scripts/*.service` to `~/.config/systemd/user/`): `funes` (:8485),
+`whatsapp-bridge` (:8090, personal number), `whatsapp-bridge-funes` (:8091,
+dedicated number), `whatsapp-autoresponder`. The user crontab runs
+`publishing/run_images.sh` and `publishing/post_tweet.py` against
+`data/newsletter`; tailscale funnel serves `data/public/noticias` at
+`/noticias/`. (Until 5.2 the units were `funes-v4` / `whatsapp-autoresponder-v4`
+and state lived in `~/.funes-v4`, `~/Documents/X_posts`, `~/whatsapp-bridge`;
+`scripts/migrate_to_one_checkout.sh` is the one-off that moved it.)
 
 ## Tests
 
 ```bash
-cd build && ctest --output-on-failure     # all C++ unit tests (+ an extension's, if built in)
+cd build && ctest --output-on-failure     # all C++ unit tests + the julio_* Python suites
 ctest -R memory                            # single test, e.g. test_memory.cpp -> `memory`
 bash tests/integration.sh                  # full-stack integration test, mock LLM, no network
 ```
@@ -70,8 +92,9 @@ bash tests/integration.sh                  # full-stack integration test, mock L
 Test names in `ctest -R <name>` are the `test_*.cpp` filename with the
 `test_` prefix stripped (registered in `tests/CMakeLists.txt`). Each unit test
 is a standalone binary with its own `main()` and a minimal `CHECK()` macro —
-no external test framework. With `-DFUNES_EXTENSIONS=...` the extension's
-tests join the same `ctest` run (prefixed `julio_`).
+no external test framework. `src/julio`'s tests and the Python suites for
+`publishing/` and `scripts/` run in the same `ctest` (prefixed `julio_`,
+registered in `tests/julio/CMakeLists.txt`).
 
 There is no separate lint step; treat `cmake --build build` warnings and
 `ctest` as the correctness gate.
@@ -164,29 +187,26 @@ Two rules there that are easy to undo by accident:
   so every hop is checked — httplib's own `set_follow_location` skips the
   guard, and is off everywhere.
 
-### Extensions: one operator's tools live outside this repository
+### src/julio: the newsletter and VoC tools
 
-`src/core/extension.h`. A directory passed as `-DFUNES_EXTENSIONS=<dir>` (a
-semicolon-separated list) provides `extension.cmake`, which adds its sources to
-the `funes` executable; each source queues a registration function from a
-static initializer and `main()` runs the queue after the built-in tools, handing
-it `{tools, memory, workspace_dir}` and nothing else. `FUNES_AGENTS_DIR` is
-colon-separated for the same reason, so an extension's `agents/` loads beside
-the repo's seven (later directories shadow earlier ones by name; `create_agent`
-writes into the first). `FUNES_SCRIPTS_DIR` is colon-separated the same way,
-so an extension's `scriptlib/` does too; a manifest's `run:` resolves only in
-its own directory. Rule: the core never names an extension's tool, file or
-directory — if a core header needs to know about one, that is a flag on the
-registration (`NativeTool::inline_result` is the example), not a string.
+`src/julio/` holds the newsletter (`harvest_candidates`/`publish_issue`, with
+`publications/` and `publishing/`) and the VoC pipeline
+(`write_structured`/`read_structured`/`merge_rankings`, `pipelines/`). From
+5.1 to 5.2 it was a separate repository, `funes-julio`, compiled in with
+`-DFUNES_EXTENSIONS`; that split was undone because nothing is going to be
+sold, and its history was merged in. It is always built (CMakeLists.txt) but
+still registers through `src/core/extension.h`'s static-initializer queue,
+which `main()` runs after the built-in tools, handing it
+`{tools, memory, workspace_dir}`. `register.cpp` resolves its directories from
+`FUNES_*_DIR`, else `FUNES_ROOT` (the checkout, baked in as a compile
+definition), and publishes `${FUNES_ROOT}` into the environment so agent YAML
+can name checkout paths without a per-machine literal (`gmail-assistant`,
+`whatsapp-assistant`, and `curator`'s `workspace_dir:
+${FUNES_ROOT}/data/newsletter` — `workspace_dir` is `${VAR}`-expanded).
 
-The first extension is `funes-julio` (sibling repository): the newsletter
-(`harvest_candidates`/`publish_issue`, `publications/`, `publishing/`), the
-VoC pipeline (`write_structured`/`read_structured`/`merge_rankings`,
-`pipelines/`), and the agents that use them plus WhatsApp, Gmail, RSS and the
-book editor. Its README carries the "don't ask the model for what a tool can
-supply" incident write-up that used to be here; the principle stays in the
-core — `answer_schema`, `require_tools`, `tool_limits`, `scriptlib`'s `output:`
-contract — the worked example moved with the code it was about.
+The "don't ask the model for what a tool can supply" incident write-up is in
+`docs/julio-README.md`; the principle is in the core — `answer_schema`,
+`require_tools`, `tool_limits`, `scriptlib`'s `output:` contract.
 
 ### Scripts an agent may run
 
@@ -257,7 +277,7 @@ shell. See `scriptlib/README.md`.
 ### Memory
 
 `src/core/memory.cpp` (`MemoryStore`) — SQLite + vendored sqlite-vec, one
-file (`~/.funes/memory.db` by default). Semantic search when an embedding
+file (`data/memory.db` by default). Semantic search when an embedding
 endpoint is configured, keyword fallback otherwise (and automatic vector
 backfill once one appears). `Memory::source` (`user`/`tool`/`auto`/
 `consolidated`) affects recall ranking, not just display —
@@ -293,7 +313,7 @@ capped run that re-asked the questions it already answered would never reach
 the end of the pool.
 
 Each agent has an isolated memory namespace by name unless it sets
-`memory_scope:` to share another agent's pool (the funes-julio
+`memory_scope:` to share another agent's pool (the
 WhatsApp autoresponder uses it to share `funes`'s memory). That is orthogonal to
 the per-user scoping below: `memory_scope` picks *which agent's* pool,
 `user_id` picks *whose*.
@@ -424,19 +444,21 @@ failure surfaces at whichever fires first.
 ## Directory map
 
 ```
-agents/        the nine shipped agent YAMLs (see agents/README.md)
-config/        funes.conf (committed defaults) + funes.local (gitignored secrets)
+agents/        every agent YAML, core and personal (see agents/README.md)
+config/        funes.conf (committed defaults) + funes.local (gitignored secrets) + backups/
+data/          gitignored runtime state: memory.db, workspace/, newsletter/, tv/, public/, whatsapp/
 scriptlib/     central script library: what agents may run by name (see scriptlib/README.md)
 src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety, extension hook)
 src/core/tools/  individual tool implementations
+src/julio/     newsletter + VoC pipeline tools (harvest, publish_issue, structured, rankings)
 src/server/    HTTP API + SSE + entry point + the admin user CLI
-tests/         C++ unit tests + bash integration test + mock LLM
-third-party/   vendored: sqlite, sqlite-vec, cpp-mcp (httplib, json)
+publications/  newsletter definitions (ai-pulse, ai-pulse-es)
+publishing/    the newsletter's render/send/post/image scripts (Python + shell, run from cron)
+pipelines/     VoC pipeline stage contracts
+scripts/       systemd units, whatsapp_autoresponder.py, funesctl.sh, one-off migrations
+tests/         C++ unit tests + bash integration test + mock LLM; tests/julio for src/julio
+third-party/   vendored: sqlite, sqlite-vec, cpp-mcp, whatsapp-mcp (bridge + server), imap-email-mcp
 ui/            web UI (vanilla JS)
-
-Not here any more (5.1): pipelines/, publications/, publishing/, scripts/, the
-WhatsApp and IMAP MCP servers, and eleven agents — all in the funes-julio
-extension repository.
 ```
 
 Nearly every directory has its own `README.md` with more detail than this

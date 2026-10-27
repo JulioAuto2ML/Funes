@@ -25,15 +25,12 @@ hop, no protocol overhead.
 | `list_tools` | `introspection.cpp` | Lists every registered tool with its description. |
 | `delegate_to_agent` | `delegation.cpp` | Hands a task to a specialist agent. Self-delegation refused, depth-2 cap. |
 
-### Extension tools
+### src/julio tools
 
-Tools that belong to one operator's workflow are not in this directory. They
-are compiled in from another repository through `src/core/extension.h`
-(`-DFUNES_EXTENSIONS=<dir>`) and register themselves into the same
-`ToolRegistry`. The first such extension, `funes-julio`, carries the newsletter
-tools (`harvest_candidates`, `publish_issue`) and the pipeline tools
-(`write_structured`, `read_structured`, `merge_rankings`) that used to be here;
-its own README documents them.
+The newsletter tools (`harvest_candidates`, `publish_issue`) and the pipeline
+tools (`write_structured`, `read_structured`, `merge_rankings`) are not in this
+directory: they live in `src/julio/` and register into the same `ToolRegistry`
+through `src/core/extension.h`'s queue. `docs/julio-README.md` documents them.
 
 ### Scheduling tools
 
