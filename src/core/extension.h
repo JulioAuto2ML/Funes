@@ -1,23 +1,17 @@
 // =============================================================================
-// src/core/extension.h — native tools that live outside this repository
+// src/core/extension.h — self-registering native tool packs
 // =============================================================================
 //
-// Funes's own tools are C++ and need a rebuild to add, which is fine for the
-// generic ones (memory, files, web, scripts, cron, delegation) and wrong for
-// the ones that belong to one person's workflow: a newsletter harvester with
-// its publication YAMLs, a Borda count for one debate pipeline, a WhatsApp
-// autoresponder's identity mapping. Those used to be compiled in beside the
-// generic set, and the repository ended up 19% one operator's habits.
+// Used by src/julio/ (newsletter harvester, publish_issue, the VoC pipeline's
+// structured tools). Between 5.1 and 5.2 that code lived in a second
+// repository compiled in with -DFUNES_EXTENSIONS; it is back in this tree and
+// built unconditionally (CMakeLists.txt), but it still plugs in through this
+// queue rather than through main(), which keeps its directories and its
+// FUNES_ROOT knowledge out of the server.
 //
-// An *extension* is a directory outside this tree that the build pulls in:
-//
-//     cmake -B build -DFUNES_EXTENSIONS=/path/to/my-extension
-//
-// The directory provides `extension.cmake`, which adds its sources to the
-// `funes` executable (target_sources) and, if it likes, its tests. Each source
-// registers its tools the way generated HTTP tools already do — a file-scope
-// static initializer queues a function, and main() applies the queue once the
-// core services exist:
+// Each source registers its tools the way generated HTTP tools already do — a
+// file-scope static initializer queues a function, and main() applies the
+// queue once the core services exist:
 //
 //     static const bool registered = (funes::ext::register_extension(
 //         [](const funes::ext::Services& s) { register_my_tool(s.tools); }), true);

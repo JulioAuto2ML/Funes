@@ -9,7 +9,10 @@ files override earlier ones.
 1. Shell environment variables (e.g. `FUNES_LLM_URL=... ./funes`)
 2. `config/funes.local` -- gitignored, machine-specific secrets and overrides
 3. `config/funes.conf` -- version-controlled defaults
-4. `~/.funes/config` -- user-level fallback
+
+All configuration lives here; there is no user-level file (`~/.funes/config`
+was dropped in 5.2). Old `funes.local` copies go in `config/backups/`
+(gitignored).
 
 ## Files
 
@@ -31,7 +34,10 @@ files override earlier ones.
 - Falls back to keyword search when unavailable
 
 ### Memory
-- `FUNES_DB_PATH` -- SQLite database path (default: `~/.funes/memory.db`)
+- `FUNES_DATA_DIR` -- where everything Funes writes lives (default: `data/`
+  in the checkout, beside `bin/`)
+- `FUNES_DB` -- SQLite database path (default: `data/memory.db`)
+- `FUNES_WORKSPACE_DIR` -- per-user workspaces (default: `data/workspace`)
 - `FUNES_MEMORY_RECALL_K` -- memories injected per answer (default: 6)
 
 ### Server
@@ -61,11 +67,10 @@ files override earlier ones.
   `funes jid-map <jid> <username>` to let an external identity act as a user.
   There is no self-registration and no user-CRUD API
 
-### Extensions
-An out-of-tree extension (`-DFUNES_EXTENSIONS`) reads its own settings from
-this same pair of files, but documents them in its own repository -- mail
-accounts, message bridges, publishing credentials and the like are an
-installation's, not the harness's, and none of them appear in `funes.conf`.
+### Newsletter, Gmail, WhatsApp, TV, news feed
+Documented at the end of `funes.conf`. Secrets (Gmail app password, service
+token, whitelist) go in `funes.local`; the newsletter's X/SMTP credentials in
+`data/newsletter/.env`.
 
 ### Search
 - `FUNES_TAVILY_API_KEY` -- Tavily Search API key

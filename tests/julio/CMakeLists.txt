@@ -1,10 +1,10 @@
-# Tests for the funes-julio extension. Added by extension.cmake into the core
-# build's ctest, so `cd build && ctest` runs them beside the core's own.
+# Tests for src/julio and the Python beside it (publishing/, scripts/). Added
+# from tests/CMakeLists.txt, so `cd build && ctest` runs them with the rest.
 #
 # Each test links funes_core and compiles the extension source it exercises
 # directly, the same way the core's test_meta_tools compiles in
 # http_tool_runtime.cpp: these sources are not in the library.
-set(EXT_SRC ${FUNES_EXTENSION_DIR}/src)
+set(EXT_SRC ${CMAKE_SOURCE_DIR}/src/julio)
 set(EXT_INCLUDES ${EXT_SRC} ${CMAKE_SOURCE_DIR}/src/core/tools)
 
 function(julio_test name)   # julio_test(<name> <extension sources...>)
@@ -14,7 +14,7 @@ function(julio_test name)   # julio_test(<name> <extension sources...>)
     # From this repository's root: several cases load publications/*.yaml and
     # pipelines/*.yaml, the configs the live agents actually run on.
     add_test(NAME julio_${name} COMMAND test_${name}
-             WORKING_DIRECTORY ${FUNES_EXTENSION_DIR})
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endfunction()
 
 julio_test(publication      ${EXT_SRC}/publication.cpp)
@@ -31,14 +31,13 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
     add_test(NAME julio_publishing
              COMMAND ${Python3_EXECUTABLE}
-                     ${FUNES_EXTENSION_DIR}/publishing/publish_newsletter.py --self-test)
-    # scripts/ (Python). whatsapp_autoresponder.py reads the *Funes* checkout's
-    # config while living in this one; where it looks is the kind of thing that
-    # breaks silently on a move, so it is pinned by tests rather than by a
-    # comment.
+                     ${CMAKE_SOURCE_DIR}/publishing/publish_newsletter.py --self-test)
+    # scripts/ (Python). Where whatsapp_autoresponder.py looks for its config
+    # is the kind of thing that breaks silently on a move, so it is pinned by
+    # tests rather than by a comment.
     add_test(NAME julio_autoresponder
              COMMAND ${Python3_EXECUTABLE}
-                     ${FUNES_EXTENSION_DIR}/scripts/whatsapp_autoresponder.py --self-test)
+                     ${CMAKE_SOURCE_DIR}/scripts/whatsapp_autoresponder.py --self-test)
 else()
     message(STATUS "python3 not found — skipping the publishing/ tests")
 endif()

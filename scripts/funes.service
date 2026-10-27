@@ -1,0 +1,55 @@
+# systemd --user unit for Funes on yoda.
+#
+# Everything lives in one checkout, /home/julio/Funes: code, agents, scripts,
+# config/ (funes.conf + the gitignored funes.local) and data/ (gitignored:
+# memory.db, workspaces, newsletter output, TV state, WhatsApp stores). The
+# binary's own defaults already point at <checkout>/data, so FUNES_DB and
+# FUNES_WORKSPACE_DIR are spelled out here only to make the unit readable on
+# its own — the real environment beats both config files (setenv overwrite=0).
+#
+# Install (on yoda):
+#   cp scripts/funes.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now funes
+#   journalctl --user -u funes -f
+#
+# (Was funes-v4.service until 5.2, from when 3.x and 4.0 ran side by side.)
+
+[Unit]
+Description=Funes
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/julio/Funes
+ExecStart=/home/julio/Funes/bin/funes
+
+Environment=FUNES_DB=/home/julio/Funes/data/memory.db
+Environment=FUNES_WORKSPACE_DIR=/home/julio/Funes/data/workspace
+Environment=FUNES_PORT=8485
+Environment=FUNES_HOST=0.0.0.0
+
+# ── LLM backends (always local) ──────────────────────────────────────────────
+# 127.0.0.1, not the hostname: llama-server binds 0.0.0.0 (IPv4 only), and
+# when the wired interface is down the hostname resolves to IPv6 first,
+# which times out silently — broke every cron job on 2026-09-05.
+Environment=FUNES_LLM_URL=http://127.0.0.1:8080
+Environment=FUNES_EMBED_URL=http://127.0.0.1:8081
+
+# ── deliberately off ─────────────────────────────────────────────────────────
+# Empty, not absent: an empty value still blocks a config file from filling it
+# in, and Funes reads set-but-empty as unset. Images go to the main model on
+# :8080, which needs an --mmproj loaded to actually read them.
+Environment=FUNES_VISION_URL=
+# funes.conf ships FUNES_ALLOW_SHELL=1. This install runs no shell commands
+# and no scheduled shell jobs.
+Environment=FUNES_ALLOW_SHELL=0
+# config/funes.local sets FUNES_CRON_ENABLED=0 so that a hand-run of
+# ./bin/funes does NOT fire the schedule; this line wins for the service.
+Environment=FUNES_CRON_ENABLED=1
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

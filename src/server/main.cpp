@@ -59,6 +59,24 @@ static std::string resolve_dir(const std::string& configured, const std::string&
     return fs::absolute(relative).string();
 }
 
+// Where runtime state lives unless FUNES_DB / FUNES_WORKSPACE_DIR say
+// otherwise: data/ beside bin/, inside the checkout, so one directory holds
+// the code, its configuration and everything it writes (5.2 — before that the
+// default was ~/.funes, and production had drifted into ~/.funes-v4).
+// Anchored on the binary rather than the cwd, so a CLI subcommand run from
+// somewhere else still opens the same database the service does.
+static std::string data_dir() {
+    const std::string configured = funes::env("FUNES_DATA_DIR");
+    if (!configured.empty()) return fs::absolute(configured).string();
+    char buf[4096];
+    ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (n > 0) {
+        buf[n] = '\0';
+        return (fs::path(buf).parent_path().parent_path() / "data").string();
+    }
+    return fs::absolute("data").string();
+}
+
 // A colon-separated directory list (FUNES_AGENTS_DIR, FUNES_SCRIPTS_DIR):
 // each entry made absolute, empty entries dropped, the default used only when
 // nothing is configured at all. Order is kept — later entries shadow earlier
@@ -223,7 +241,7 @@ int main(int argc, char** argv) {
     // a database path, because the failure this prevents is exactly that: an
     // unrecognised argument used to fall through to "start the server", so
     // `funes --version` asked a harmless question and got a live server on the
-    // default port plus a fresh database at ~/.funes/memory.db. Nothing below
+    // default port plus a fresh database. Nothing below
     // this block runs unless argv names something real.
     if (argc > 1 && argv[1] != nullptr) {
         const std::string arg = argv[1];
@@ -277,10 +295,11 @@ int main(int argc, char** argv) {
 
     std::string db_path = funes::env("FUNES_DB");
     if (db_path.empty()) {
-        const std::string home = funes::env("HOME", ".");
         std::error_code ec;
-        fs::create_directories(home + "/.funes", ec);
-        db_path = home + "/.funes/memory.db";
+        fs::create_directories(data_dir(), ec);
+        db_path = data_dir() + "/memory.db";
+    } else {
+        db_path = fs::absolute(db_path).string();
     }
 
     // Account management (`funes useradd` …) runs against the same database
@@ -296,10 +315,8 @@ int main(int argc, char** argv) {
 
     // read_file/write_file/execute_shell are confined to this directory.
     std::string workspace_dir = funes::env("FUNES_WORKSPACE_DIR");
-    if (workspace_dir.empty()) {
-        const std::string home = funes::env("HOME", ".");
-        workspace_dir = home + "/.funes/workspace";
-    }
+    workspace_dir = workspace_dir.empty() ? data_dir() + "/workspace"
+                                          : fs::absolute(workspace_dir).string();
     {
         std::error_code ec;
         fs::create_directories(workspace_dir, ec);
@@ -374,9 +391,9 @@ int main(int argc, char** argv) {
     register_script_tools(tools, workspace_dir, scripts_dir);
     funes::tools::register_all_generated_tools(tools);
     register_tool_builder(tools, generated_tools_dir);
-    // Out-of-tree native tools (see src/core/extension.h). Nothing here knows
-    // what they are; each was compiled in by -DFUNES_EXTENSIONS and queued
-    // itself from a static initializer.
+    // Self-registering tool packs (src/julio; see src/core/extension.h).
+    // Nothing here knows what they are; each queued itself from a static
+    // initializer.
     {
         const size_t n = funes::ext::register_all_extensions({tools, memory, workspace_dir});
         if (n > 0) std::cerr << "[funes] " << n << " extension(s) registered tools\n";

@@ -9,7 +9,9 @@
 //   1. Shell environment (already set — always wins)
 //   2. ./config/funes.local   (gitignored local overrides / secrets)
 //   3. ./config/funes.conf    (version-controlled defaults)
-//   4. ~/.funes/config        (user-level config)
+//
+// (A fourth, ~/.funes/config, was dropped in 5.2: all configuration lives in
+// the checkout's config/.)
 //
 // Usage (once at the top of main(), before any getenv calls):
 //   funes::load_config();
@@ -53,8 +55,6 @@ inline void load_config_file(const std::string& path) {
 inline void load_config() {
     load_config_file("./config/funes.local");
     load_config_file("./config/funes.conf");
-    if (const char* home = std::getenv("HOME"))
-        load_config_file(std::string(home) + "/.funes/config");
 }
 
 // getenv with a default.

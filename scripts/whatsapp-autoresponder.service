@@ -1,0 +1,46 @@
+# systemd --user unit for scripts/whatsapp_autoresponder.py: polls the
+# dedicated number's bridge store and answers whitelisted chats through
+# funes.service.
+#
+# Configuration is the checkout's config/funes.local (WorkingDirectory below):
+#
+#   FUNES_SERVICE_TOKEN   shared secret; the SAME value authenticates the
+#                         script to funes, which reads this file too
+#   WHATSAPP_WHITELIST    comma-separated chat_jids allowed to trigger a reply
+#   FUNES_API_URL         http://localhost:8485
+#
+# The store (data/whatsapp/store-funes/messages.db), the read watermark
+# (data/whatsapp/whatsapp_autoresponder_state.json) and the workspace root
+# (data/workspace) default to the checkout's data/, so they need no setting.
+#
+# Only one poller per bridge store: two would not error, one would silently
+# consume messages the other never sees.
+#
+# A service token says the caller is trusted; it does not say who for. Each
+# sender's jid has to be mapped to an account before Funes will answer:
+#
+#   cd ~/Funes && ./bin/funes jid-map '<chat_jid>' <username>
+#
+# Install (on yoda):
+#   cp scripts/whatsapp-autoresponder.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now whatsapp-autoresponder
+#   journalctl --user -u whatsapp-autoresponder -f
+#
+# (Was whatsapp-autoresponder-v4.service until 5.2.)
+
+[Unit]
+Description=WhatsApp auto-responder poller for Funes (whitelisted chats only)
+After=network.target funes.service whatsapp-bridge-funes.service
+Wants=funes.service whatsapp-bridge-funes.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/julio/Funes
+ExecStart=/usr/bin/python3 /home/julio/Funes/scripts/whatsapp_autoresponder.py
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -27,22 +27,22 @@
 #   6  another run is in progress
 #
 # Environment (defaults suit yoda; the *_CMD ones exist so tests can swap them):
-#   FUNES_PUBLISH_DIR  default ~/Documents/X_posts
+#   FUNES_PUBLISH_DIR  default <checkout>/data/newsletter
 #   LLAMA_CTL          default ~/launch_llama.sh        LLM_MODEL  default: whatever serves :8080, else qwen9b
 #   COMFY_DIR / COMFY_PYTHON / COMFY_PORT / COMFY_ARGS
 #   WAIT_SENT_S        how long to wait for the run record (default 3600)
 #   GENERATE_TIMEOUT_S hard ceiling on rendering (default 2400)
 #
 # Crontab (yoda) — after the newsletter run, before the first LinkedIn slot:
-#   0 11 * * * /home/julio/funes-julio/publishing/run_images.sh ai-pulse \
-#                >> ~/Documents/X_posts/images_log.txt 2>&1
+#   0 11 * * * /home/julio/Funes/publishing/run_images.sh ai-pulse \
+#                >> ~/Funes/data/newsletter/images_log.txt 2>&1
 # =============================================================================
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PUBLICATION="${1:-ai-pulse}"
-PUBLISH_DIR="${FUNES_PUBLISH_DIR:-$HOME/Documents/X_posts}"
+PUBLISH_DIR="${FUNES_PUBLISH_DIR:-$(cd "$(dirname "$0")/.." && pwd)/data/newsletter}"
 DAY="${RUN_DATE:-$(date +%F)}"
 RECORD="$PUBLISH_DIR/runs/$PUBLICATION/$DAY.json"
 

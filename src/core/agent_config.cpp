@@ -47,7 +47,9 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
     cfg.system_prompt = root["system_prompt"] ? root["system_prompt"].as<std::string>() : "";
     cfg.tool_choice   = root["tool_choice"]   ? root["tool_choice"].as<std::string>()   : "auto";
     if (root["temperature"]) cfg.temperature = root["temperature"].as<float>();
-    cfg.workspace_dir    = root["workspace_dir"]    ? root["workspace_dir"].as<std::string>()    : "";
+    // Expanded so an absolute shared folder can be spelled ${FUNES_ROOT}/data/...
+    // instead of one machine's literal path (curator's publication directory).
+    cfg.workspace_dir    = root["workspace_dir"]    ? expand_env(root["workspace_dir"].as<std::string>()) : "";
     cfg.delegation_notes = root["delegation_notes"] ? root["delegation_notes"].as<std::string>() : "";
     cfg.shared_identity  = root["shared_identity"]  ? root["shared_identity"].as<std::string>()  : "";
     cfg.memory_scope     = root["memory_scope"]     ? root["memory_scope"].as<std::string>()     : cfg.name;

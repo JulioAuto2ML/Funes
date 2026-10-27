@@ -11,7 +11,7 @@ shared_identity: >
 model: default
 tool_choice: auto
 tools: [harvest_candidates, read_result, publish_issue]
-workspace_dir: /home/julio/Documents/X_posts
+workspace_dir: ${FUNES_ROOT}/data/newsletter
 max_steps: 28
 context_limit: 32768
 require_tools: [harvest_candidates, publish_issue]

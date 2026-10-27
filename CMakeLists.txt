@@ -151,26 +151,16 @@ add_executable(funes
 )
 target_link_libraries(funes PRIVATE funes_core)
 
-# ── extensions (native tools that live in another repository) ─────────────────
-# See src/core/extension.h. Each directory named here provides extension.cmake,
-# which is included with `funes` already defined and adds what it wants to it
-# (sources, include dirs, compile definitions, tests). Semicolon-separated.
-#
-#     cmake -B build -DFUNES_EXTENSIONS=/home/me/funes-julio
-#
-# The core build carries no knowledge of what is in there; an extension that
-# fails to build fails here, at configure or compile time, not at runtime.
-set(FUNES_EXTENSIONS "" CACHE STRING "Semicolon-separated extension directories (each with extension.cmake)")
+# ── src/julio: newsletter, VoC pipeline and their tools ──────────────────────
+# Was the funes-julio extension until it was folded back in (5.2). Still
+# registered through src/core/extension.h's queue, so these are sources of the
+# *executable* for the same reason as the generated tools above: register.cpp is
+# reached only through its static initializer, which a static library drops.
+file(GLOB FUNES_JULIO_SOURCES CONFIGURE_DEPENDS src/julio/*.cpp)
+target_sources(funes PRIVATE ${FUNES_JULIO_SOURCES})
+target_include_directories(funes PRIVATE src/julio src/core/tools)
+target_compile_definitions(funes PRIVATE FUNES_ROOT="${CMAKE_SOURCE_DIR}")
 enable_testing()
-foreach(ext_dir IN LISTS FUNES_EXTENSIONS)
-    get_filename_component(ext_dir "${ext_dir}" ABSOLUTE)
-    if(NOT EXISTS "${ext_dir}/extension.cmake")
-        message(FATAL_ERROR "FUNES_EXTENSIONS: no extension.cmake in ${ext_dir}")
-    endif()
-    message(STATUS "Funes extension: ${ext_dir}")
-    set(FUNES_EXTENSION_DIR "${ext_dir}")
-    include("${ext_dir}/extension.cmake")
-endforeach()
 
 # ── tests ─────────────────────────────────────────────────────────────────────
 add_subdirectory(tests)

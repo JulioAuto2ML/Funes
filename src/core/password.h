@@ -6,7 +6,7 @@
 // already requires it for HTTPS (cloud LLM APIs, web_search, web_fetch), so
 // authentication adds nothing to the build. bcrypt or argon2 would resist
 // offline GPU cracking better, but each costs a vendored crypto library for a
-// threat model — someone already holding a copy of ~/.funes/memory.db — that a
+// threat model — someone already holding a copy of memory.db — that a
 // household appliance mostly addresses by not handing out the file.
 //
 // Stored form is self-describing so the cost can be raised later without

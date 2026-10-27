@@ -325,23 +325,23 @@ check "cron-cleanup rejects a missing value" "$OUT" 'Missing value'
 echo "— argv: nothing unrecognised may start the server"
 # The trap this closes: `funes --version` was not a subcommand, so it fell
 # through to "start the server" — against an unset FUNES_DB, which means a new
-# database at ~/.funes/memory.db and a second process on the port. An operator
+# database under the data directory and a second process on the port. An operator
 # reaching for a harmless question got a running server instead.
 PROBE_HOME=$(mktemp -d /tmp/funes_it_home_XXXX)
-OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" --version 2>&1); RC=$?
+OUT=$(FUNES_DATA_DIR="$PROBE_HOME/data" FUNES_DB= timeout 5 "$FUNES_BIN" --version 2>&1); RC=$?
 check "--version prints the version"  "$OUT" '^funes [0-9]\+\.[0-9]\+\.[0-9]\+$'
 [ "$RC" = 0 ] && ok "--version exits 0" || fail "--version exits 0 (got $RC)"
-[ ! -e "$PROBE_HOME/.funes" ] && ok "--version touched no database" \
-                              || fail "--version created $PROBE_HOME/.funes"
-OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" version 2>&1)
+[ ! -e "$PROBE_HOME/data" ] && ok "--version touched no database" \
+                              || fail "--version created $PROBE_HOME/data"
+OUT=$(FUNES_DATA_DIR="$PROBE_HOME/data" FUNES_DB= timeout 5 "$FUNES_BIN" version 2>&1)
 check "bare 'version' works too"      "$OUT" '^funes [0-9]'
-OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" --help 2>&1)
+OUT=$(FUNES_DATA_DIR="$PROBE_HOME/data" FUNES_DB= timeout 5 "$FUNES_BIN" --help 2>&1)
 check "--help lists the subcommands"  "$OUT" 'cron-cleanup'
-OUT=$(HOME="$PROBE_HOME" FUNES_DB= timeout 5 "$FUNES_BIN" --bogus 2>&1); RC=$?
+OUT=$(FUNES_DATA_DIR="$PROBE_HOME/data" FUNES_DB= timeout 5 "$FUNES_BIN" --bogus 2>&1); RC=$?
 check "an unknown argument is refused" "$OUT" "unknown command '--bogus'"
 [ "$RC" = 2 ] && ok "unknown argument exits 2" || fail "unknown argument exits 2 (got $RC)"
-[ ! -e "$PROBE_HOME/.funes" ] && ok "a refused argument touched no database" \
-                              || fail "a refused argument created $PROBE_HOME/.funes"
+[ ! -e "$PROBE_HOME/data" ] && ok "a refused argument touched no database" \
+                              || fail "a refused argument created $PROBE_HOME/data"
 rm -rf "$PROBE_HOME"
 
 echo "— completion contract (require_tools): premature answer gets nudged, not accepted"

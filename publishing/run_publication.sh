@@ -19,7 +19,7 @@
 #
 # Environment:
 #   FUNES_URL          default http://127.0.0.1:8484
-#   FUNES_PUBLISH_DIR  where runs/ lives; default ~/Documents/X_posts
+#   FUNES_PUBLISH_DIR  where runs/ lives; default <checkout>/data/newsletter
 #
 # Exit codes:
 #   0  the issue was sent
@@ -29,13 +29,13 @@
 #
 # Crontab (yoda), with the LinkedIn posts that depend on it downstream:
 #   0 9 * * * /path/to/Funes/publishing/run_publication.sh ai-pulse \
-#               >> ~/Documents/X_posts/publication_log.txt 2>&1
+#               >> ~/Funes/data/newsletter/publication_log.txt 2>&1
 
 set -uo pipefail
 
 PUBLICATION="${1:-ai-pulse}"
 FUNES_URL="${FUNES_URL:-http://127.0.0.1:8484}"
-PUBLISH_DIR="${FUNES_PUBLISH_DIR:-$HOME/Documents/X_posts}"
+PUBLISH_DIR="${FUNES_PUBLISH_DIR:-$(cd "$(dirname "$0")/.." && pwd)/data/newsletter}"
 TODAY="$(date +%F)"
 RECORD="$PUBLISH_DIR/runs/$PUBLICATION/$TODAY.json"
 

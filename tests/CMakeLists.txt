@@ -141,3 +141,6 @@ add_test(NAME web_search COMMAND test_web_search)
 add_executable(test_parallel_search test_parallel_search.cpp)
 target_link_libraries(test_parallel_search PRIVATE funes_core)
 add_test(NAME parallel_search COMMAND test_parallel_search)
+
+# src/julio and the Python beside it.
+add_subdirectory(julio)

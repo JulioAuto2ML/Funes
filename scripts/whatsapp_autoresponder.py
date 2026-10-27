@@ -60,13 +60,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def config_dir():
     """Which config/ holds funes.conf and funes.local.
 
-    Not a fixed offset from __file__ any more: the 5.1 split moved this script
-    into funes-julio while the configuration stayed in the Funes checkout, and
-    resolving it relative to the script silently found an empty directory —
-    the service then exited on "WHATSAPP_WHITELIST is empty" with the variable
-    plainly set. In order: $FUNES_CONFIG_DIR, the working directory (the
-    systemd unit points it at the Funes checkout for exactly this reason),
-    then this repository, which is what a bare `git clone` run gets."""
+    Not only a fixed offset from __file__: while this script lived in a second
+    repository (5.1), resolving config relative to it silently found an empty
+    directory — the service then exited on "WHATSAPP_WHITELIST is empty" with
+    the variable plainly set. In order: $FUNES_CONFIG_DIR, the working
+    directory, then this repository's config/."""
     explicit = os.environ.get("FUNES_CONFIG_DIR", "").strip()
     if explicit:
         return Path(explicit).expanduser()
@@ -100,10 +98,10 @@ def load_config():
 
 CFG = load_config()
 
-DB_PATH = CFG.get(
-    "WHATSAPP_DB_PATH",
-    str(REPO_ROOT / "third-party/whatsapp-mcp/whatsapp-bridge/store/messages.db"),
-)
+DATA_DIR = Path(os.path.expanduser(CFG.get("FUNES_DATA_DIR", str(REPO_ROOT / "data"))))
+
+# The dedicated number's bridge store (whatsapp-bridge-funes.service).
+DB_PATH = CFG.get("WHATSAPP_DB_PATH", str(DATA_DIR / "whatsapp/store-funes/messages.db"))
 FUNES_API_URL = CFG.get("FUNES_API_URL", "http://localhost:8484")
 BRIDGE_API_URL = CFG.get("WHATSAPP_BRIDGE_URL", "http://localhost:8090")
 AGENT_NAME = CFG.get("WHATSAPP_AUTORESPONDER_AGENT", "whatsapp-autoresponder")
@@ -132,7 +130,7 @@ WHITELIST = {
 # the whatsapp-autoresponder agent's read_file is allowed to look (its
 # `workspace_dir: whatsapp-uploads` in the yaml resolves relative to it).
 WORKSPACE_ROOT = Path(os.path.expanduser(
-    CFG.get("FUNES_WORKSPACE_DIR", "~/.funes/workspace")))
+    CFG.get("FUNES_WORKSPACE_DIR", str(DATA_DIR / "workspace"))))
 # The folder name inside each user's workspace. Must match `workspace_dir` in
 # agents/whatsapp-autoresponder.yaml.
 UPLOAD_SUBDIR = CFG.get("WHATSAPP_UPLOAD_SUBDIR", "whatsapp-uploads")
@@ -140,14 +138,11 @@ MAX_MEDIA_BYTES = int(CFG.get("WHATSAPP_MAX_MEDIA_BYTES", str(20 * 1024 * 1024))
 UPLOAD_MAX_AGE_DAYS = int(CFG.get("WHATSAPP_UPLOAD_MAX_AGE_DAYS", "30"))
 CLEANUP_INTERVAL_SECONDS = 24 * 3600
 
-# How far this poller has read. Configurable, and it has to be, because two
-# installs on one box share one bridge store: the default below lives under
-# ~/.funes, so a second poller pointed at a 4.0 install would advance the same
-# watermark the 3.x one reads. The visible symptom would not be an error — it
-# is one poller silently skipping messages the other consumed. The default is
-# unchanged so an existing 3.x install keeps its watermark on upgrade.
+# How far this poller has read. Two pollers sharing one watermark would not
+# error — one would silently skip messages the other consumed — so it lives
+# beside the store it watermarks.
 STATE_PATH = Path(os.path.expanduser(
-    CFG.get("WHATSAPP_STATE_PATH", "~/.funes/whatsapp_autoresponder_state.json")))
+    CFG.get("WHATSAPP_STATE_PATH", str(DATA_DIR / "whatsapp/whatsapp_autoresponder_state.json"))))
 
 
 def log(msg):

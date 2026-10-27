@@ -8,12 +8,25 @@ node_modules/
 
 # Local secrets and machine-local overrides
 config/funes.local
+config/backups/
 
-# Runtime data
+# Runtime data. Everything Funes and its scripts write lives under data/:
+# memory.db, workspaces, newsletter output, TV state, the WhatsApp stores
+# (a paired session — committing one would publish a logged-in account).
+# voc-pipeline/ keeps its tracked .gitkeep skeleton.
+/data/*
+!/data/voc-pipeline/
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+
+# The WhatsApp bridge binary (go build in its own directory). Its `store`
+# beside it is a tracked symlink into data/whatsapp/store, for the MCP server.
+third-party/whatsapp-mcp/whatsapp-bridge/whatsapp-bridge
+# tv_art's own Python environment (scriptlib/requirements.txt).
+scriptlib/.venv/
+.pytest_cache/
 
 # Editor / OS noise
 .vscode/
