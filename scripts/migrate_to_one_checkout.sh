@@ -121,7 +121,7 @@ systemctl --user enable --now whatsapp-bridge whatsapp-bridge-funes funes
 systemctl --user enable --now whatsapp-autoresponder
 
 # ── tailscale funnel ─────────────────────────────────────────────────────────
-tailscale serve --bg --set-path /noticias "$DATA/public/noticias" \
-    || log "could not repoint the funnel — run: tailscale serve --bg --set-path /noticias $DATA/public/noticias"
+tailscale funnel --bg --set-path /noticias/ "$DATA/public/noticias" \
+    || log "could not repoint the funnel — run: tailscale funnel --bg --set-path /noticias/ $DATA/public/noticias"
 
 log "done. backup: $BACKUP"
