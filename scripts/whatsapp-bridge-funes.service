@@ -32,7 +32,7 @@ WorkingDirectory=/home/julio/whatsapp-bridge
 Environment=WHATSAPP_STORE_DIR=store-funes
 Environment=WHATSAPP_BRIDGE_PORT=8091
 ExecStart=/home/julio/whatsapp-bridge/whatsapp-bridge
-Restart=on-failure
+Restart=always
 RestartSec=5
 
 [Install]
