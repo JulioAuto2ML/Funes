@@ -63,16 +63,21 @@ def met_object(oid, w_cm=80, h_cm=45, pd=True, image=True, **extra):
 class FakeMet:
     """search(query) -> ids; obj(id) -> dict; image(url) -> JPEG bytes."""
 
-    def __init__(self, objects, by_query=None, pixels=(3000, 1700)):
+    def __init__(self, objects, by_query=None, pixels=(3000, 1700), by_scope=None):
         self.objects = {o["objectID"]: o for o in objects}
         self.by_query = by_query or {}
+        self.by_scope = by_scope or {}
         self.pixels = pixels
         self.queries = []
+        self.scopes = []
         self.downloads = []
 
-    def search(self, query):
+    def search(self, query, scope="any"):
         self.queries.append(query)
-        return self.by_query.get(query, list(self.objects))
+        self.scopes.append(scope)
+        ids = self.by_query.get(query, list(self.objects))
+        allowed = self.by_scope.get(scope)
+        return ids if allowed is None else [i for i in ids if i in allowed]
 
     def obj(self, oid):
         return self.objects[oid]
@@ -137,6 +142,20 @@ class TestPick(unittest.TestCase):
         art = twa.pick_artwork(met, ["spring rain", "rain"], DAY, history=[])
         self.assertEqual(art["objectID"], 7)
         self.assertEqual(met.queries[:2], ["spring rain", "rain"])
+
+    def test_western_paintings_first(self):
+        # The Met's "Paintings" medium is mostly Asian Art scrolls: six of the
+        # first seven works on the Frame (2026-10-21..27) were Japanese ink.
+        met = FakeMet([met_object(i) for i in range(1, 21)],
+                      by_scope={"western": {20}})
+        self.assertEqual(twa.pick_artwork(met, ["rain"], DAY, history=[])["objectID"], 20)
+        self.assertEqual(met.scopes, ["western"])
+
+    def test_any_painting_when_western_has_none(self):
+        met = FakeMet([met_object(8)], by_scope={"western": set()})
+        art = twa.pick_artwork(met, ["spring rain", "rain"], DAY, history=[])
+        self.assertEqual(art["objectID"], 8)
+        self.assertEqual(met.scopes, ["western", "western", "any"])
 
     def test_nothing_usable_is_an_error_not_a_blank_wall(self):
         met = FakeMet([met_object(1, pd=False)])

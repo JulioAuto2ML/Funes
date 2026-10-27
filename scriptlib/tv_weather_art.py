@@ -81,6 +81,14 @@ UA = {"User-Agent": "Funes tv_weather_art (home use)"}
 MIN_PX = 2500                 # original's width; the panel is 3840
 RATIO = (1.2, 2.4)            # landscape works only; hanging scrolls look lost
 CHECK_PER_QUERY = 25          # objects examined per search before moving on
+# Searched in this order. The Met's "Paintings" medium alone is mostly Asian Art
+# scrolls (six of the first seven works shown were Japanese ink), so European
+# Paintings and the American Wing go first; any painting is the fallback for
+# weather they have little of ("fog": 3 and 2 results).
+SCOPES = {
+    "western": [{"departmentId": 11}, {"departmentId": 1, "medium": "Paintings"}],
+    "any": [{"medium": "Paintings"}],
+}
 HISTORY = 60                  # days before a work may come back
 RETRY_SECONDS = 5
 LLM_WAIT_SECONDS = 30         # a person's request waits this long for a busy LLM
@@ -143,10 +151,12 @@ class Met:
             data = r.read()
         return data if raw else json.loads(data)
 
-    def search(self, query):
-        q = urllib.parse.quote(query)
-        r = self._get(f"{MET}/v1.1/search?hasImages=true&medium=Paintings&q={q}&limit=80")
-        return r.get("objectIDs") or []
+    def search(self, query, scope="any"):
+        ids = []
+        for f in SCOPES[scope]:
+            params = urllib.parse.urlencode({"hasImages": "true", **f, "q": query, "limit": 80})
+            ids += self._get(f"{MET}/v1.1/search?{params}").get("objectIDs") or []
+        return list(dict.fromkeys(ids))
 
     def obj(self, oid):
         return self._get(f"{MET}/v1/objects/{oid}")
@@ -167,9 +177,9 @@ def catalogue_ratio(o):
 
 def pick_artwork(met, query_list, day, history):
     seen = set(history)
-    for q in query_list:
+    for scope, q in ((scope, q) for scope in SCOPES for q in query_list):
         try:
-            ids = [i for i in met.search(q) if i not in seen]
+            ids = [i for i in met.search(q, scope) if i not in seen]
         except Exception as e:
             log(f"search {q!r} failed: {e}")
             continue
@@ -189,7 +199,7 @@ def pick_artwork(met, query_list, day, history):
                 continue
             if w < MIN_PX or not RATIO[0] <= w / h <= RATIO[1]:
                 continue
-            log(f"chose {oid} for {q!r}: {o.get('title')} ({w}x{h})")
+            log(f"chose {oid} for {q!r} ({scope}): {o.get('title')} ({w}x{h})")
             return {**o, "_image": data}
     raise NoArtwork(f"no usable public-domain landscape for {query_list}")
 
