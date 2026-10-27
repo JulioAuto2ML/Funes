@@ -342,8 +342,43 @@ int test_shell_jobs_need_execute_shell_permission() {
     return 0;
 }
 
+// A job's `running` flag is cleared only when its run finishes, and runs are
+// threads of this process — so a restart mid-run (a deploy, 2026-10-23 17:12)
+// left the flag set with nothing behind it, and due_cron_jobs skipped the job
+// from then on. The TV publish job sat like that for four days.
+int test_stale_running_flags_cleared_at_startup() {
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_stale.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+
+    MemoryStore::CronJob job;
+    job.name = "publish";
+    job.kind = "shell";
+    job.command = "true";
+    job.schedule = "* * * * *";
+    job.user_id = 1;
+    job.next_run_at = 1000;
+    const int64_t stuck = memory.create_cron_job(job);
+    job.name = "idle";
+    const int64_t idle = memory.create_cron_job(job);
+    memory.mark_cron_job_running(stuck, true);
+
+    CHECK(memory.due_cron_jobs(2000).size() == 1);  // only `idle`
+
+    CHECK(memory.clear_stale_cron_runs() == 1);     // counts what it freed
+    auto due = memory.due_cron_jobs(2000);
+    CHECK(due.size() == 2);
+    CHECK((due[0].id == stuck || due[1].id == stuck));
+    CHECK(memory.clear_stale_cron_runs() == 0);
+    (void)idle;
+
+    fs::remove(db);
+    return 0;
+}
+
 int main() {
     int rc = 0;
+    rc |= test_stale_running_flags_cleared_at_startup();
     rc |= test_schedule_job_validation();
     rc |= test_schedule_list_cancel_roundtrip();
     rc |= test_run_job_now();

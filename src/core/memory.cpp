@@ -1855,6 +1855,13 @@ void MemoryStore::mark_cron_job_running(int64_t id, bool running) {
     s.step();
 }
 
+int MemoryStore::clear_stale_cron_runs() {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE cron_jobs SET running = 0 WHERE running = 1");
+    s.step();
+    return sqlite3_changes(db_);
+}
+
 void MemoryStore::record_cron_job_run(int64_t id, bool ok, const std::string& output_preview,
                                       int64_t next_run_at) {
     std::lock_guard<std::mutex> lock(mu_);

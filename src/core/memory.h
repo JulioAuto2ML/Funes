@@ -422,6 +422,12 @@ public:
 
     void mark_cron_job_running(int64_t id, bool running);
 
+    // Clears every `running` flag; returns how many were set. Only correct at
+    // startup, before the runner fires anything: runs are threads of this
+    // process, so a flag that survived a restart has no run behind it, and
+    // due_cron_jobs would skip that job forever.
+    int clear_stale_cron_runs();
+
     // Records the outcome of a run and advances next_run_at for the next tick.
     void record_cron_job_run(int64_t id, bool ok, const std::string& output_preview,
                              int64_t next_run_at);

@@ -256,6 +256,10 @@ void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
                        const AgentDefaults& defaults, const std::string& workspace_dir,
                        FindAgentFn find_agent, FindPermissionsFn find_permissions,
                        int poll_seconds) {
+    // Before the first poll, so nothing this process started can be cleared.
+    if (int stale = memory.clear_stale_cron_runs(); stale > 0)
+        std::cerr << "[cron] cleared " << stale
+                  << " job(s) left marked running by a previous process\n";
     std::thread([&memory, &tools, defaults, workspace_dir, find_agent,
                  find_permissions, poll_seconds] {
         for (;;) {
