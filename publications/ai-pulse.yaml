@@ -1,4 +1,9 @@
-# AI Pulse — the daily AI/LLM/AGI newsletter.
+# AI Pulse — the AI/LLM/AGI newsletter, Monday, Wednesday and Friday.
+#
+# Since 2026-11-02 the two editions alternate: English Mon/Wed/Fri, Spanish
+# Tue/Thu/Sat, nothing on Sunday but the weekly carousels
+# (publishing/weekly_carousel.py). The days live in the schedulers, not here —
+# see publishing/README.md "Scheduling".
 #
 # Everything in this file is a setting. Nothing in it is a judgement: the one
 # thing that needs a human's taste rather than a number lives in the voice file
@@ -14,7 +19,7 @@ subject: "AI Pulse · {date}"
 
 # Appended to every LinkedIn post by publishing/post_tweet.py.
 cta: |-
-  📧 Enjoying this? Subscribe to my daily AI newsletter — email
+  📧 Enjoying this? Subscribe to my AI newsletter (Mon · Wed · Fri) — email
   julio.rodriguezmartino@gmail.com with subject: SUBSCRIBE TO AI NEWS
 
 voice:
@@ -33,7 +38,10 @@ sources:
     - "AI startup funding"
     - "AI open source model"
     - "robotics automation"
-  time_range: day
+  # `week`, not `day`, since the issue went to every other day (2026-11-02):
+  # Monday's issue has to reach back over the weekend. max_age_days below is
+  # what actually bounds how old a story may be.
+  time_range: week
   # Raised from 10/25 on 2026-08-11: build_issue's content-word substitution
   # (issue.cpp) — swapping in whichever pool candidate a post's text actually
   # matches, when the model names the wrong id for an otherwise-accurate

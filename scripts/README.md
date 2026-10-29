@@ -61,6 +61,8 @@ Features:
 | `whatsapp-autoresponder.service` | the autoresponder script against funes on :8485. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST` and `FUNES_API_URL` in `config/funes.local`, plus a `funes jid-map` per sender |
 | `whatsapp-bridge.service` | the personal WhatsApp bridge (port 8090), binary in `third-party/whatsapp-mcp/whatsapp-bridge/`, session in `data/whatsapp/store` |
 | `whatsapp-bridge-funes.service` | the dedicated Funes WhatsApp bridge (port 8091), same binary, session in `data/whatsapp/store-funes` |
+| `yoda.crontab` | the whole of yoda's crontab (newsletter images, LinkedIn posts, Sunday carousels); install with `crontab scripts/yoda.crontab` |
+| `deploy_alternating_editions.sh` | one-off (2026-11-02): pull, build, put the issue cron jobs on alternate days, install `yoda.crontab`, restart |
 | `migrate_to_one_checkout.sh` | one-off (5.2): moved yoda's state from `~/.funes-v4`, `~/Documents/X_posts`, `~/whatsapp-bridge` and `~/funes-julio` into the checkout |
 
 Two WhatsApp numbers, two bridge instances: the personal number is used by

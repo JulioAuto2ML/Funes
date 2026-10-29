@@ -376,6 +376,44 @@ int test_stale_running_flags_cleared_at_startup() {
     return 0;
 }
 
+// Changing when a job fires has to move next_run_at with it: the runner only
+// reads `schedule` after a run, so a job rescheduled from daily to Tuesdays
+// would otherwise still fire once at its old next time (2026-11, the newsletter
+// split into English Mon/Wed/Fri and Spanish Tue/Thu/Sat).
+int test_reschedule_moves_next_run() {
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_reschedule.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+
+    MemoryStore::CronJob job;
+    job.name = "newsletter";
+    job.kind = "agent";
+    job.agent = "curator";
+    job.task = "publish";
+    job.schedule = "30 10 * * *";
+    job.user_id = 1;
+    job.next_run_at = 1000;
+    const int64_t id = memory.create_cron_job(job);
+
+    // Someone else's job is "not there", same as cancel_job.
+    CHECK(!memory.reschedule_cron_job(2, id, "30 10 * * 2,4,6", 5000));
+    CHECK(memory.get_cron_job(-1, id)->schedule == "30 10 * * *");
+
+    CHECK(memory.reschedule_cron_job(1, id, "30 10 * * 2,4,6", 5000));
+    auto after = memory.get_cron_job(-1, id);
+    CHECK(after->schedule == "30 10 * * 2,4,6");
+    CHECK(after->next_run_at == 5000);
+    CHECK(memory.due_cron_jobs(2000).empty());
+
+    // user_id < 0 is the admin path the CLI uses.
+    CHECK(memory.reschedule_cron_job(-1, id, "0 9 * * 1", 6000));
+    CHECK(memory.get_cron_job(-1, id)->next_run_at == 6000);
+    CHECK(!memory.reschedule_cron_job(-1, id + 99, "0 9 * * 1", 6000));
+
+    fs::remove(db);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_stale_running_flags_cleared_at_startup();
@@ -384,6 +422,7 @@ int main() {
     rc |= test_run_job_now();
     rc |= test_script_jobs();
     rc |= test_shell_jobs_need_execute_shell_permission();
+    rc |= test_reschedule_moves_next_run();
     if (rc == 0) std::cout << "test_cron_tool: all tests passed\n";
     return rc;
 }

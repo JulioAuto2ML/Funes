@@ -1824,6 +1824,20 @@ bool MemoryStore::delete_cron_job(int64_t user_id, int64_t id) {
     return sqlite3_changes(db_) > 0;
 }
 
+bool MemoryStore::reschedule_cron_job(int64_t user_id, int64_t id,
+                                      const std::string& schedule, int64_t next_run_at) {
+    std::lock_guard<std::mutex> lock(mu_);
+    std::string sql = "UPDATE cron_jobs SET schedule = ?, next_run_at = ? WHERE id = ?";
+    if (user_id >= 0) sql += " AND user_id = ?";
+    Stmt s(db_, sql.c_str());
+    s.bind_text(1, schedule);
+    s.bind_int64(2, next_run_at);
+    s.bind_int64(3, id);
+    if (user_id >= 0) s.bind_int64(4, user_id);
+    s.step();
+    return sqlite3_changes(db_) > 0;
+}
+
 std::vector<MemoryStore::CronJob> MemoryStore::due_cron_jobs(int64_t now) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +

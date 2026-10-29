@@ -1,11 +1,13 @@
 // =============================================================================
-// src/server/maint_cli.cpp — one-off database maintenance subcommands
+// src/server/maint_cli.cpp — database maintenance subcommands
 // =============================================================================
 
 #include "maint_cli.h"
+#include "../core/cron_schedule.h"
 #include "../core/memory.h"
 #include "../core/users.h"
 #include <cstring>
+#include <ctime>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -13,7 +15,7 @@
 namespace funes {
 namespace {
 
-const char* const COMMANDS[] = {"cron-cleanup"};
+const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule"};
 
 void usage() {
     std::cerr <<
@@ -27,7 +29,13 @@ void usage() {
         "  --drop-sessions  also delete the per-run transcripts. Off by\n"
         "                   default: they are already hidden from the\n"
         "                   conversation list, and they are the only record\n"
-        "                   of what a run older than the last one did.\n";
+        "                   of what a run older than the last one did.\n"
+        "\n"
+        "  funes cron-schedule <job-id> \"<m h dom mon dow>\"\n"
+        "\n"
+        "Changes when a scheduled job fires, and moves its next run to match\n"
+        "(any user's job — this is the admin path). Safe while the server runs:\n"
+        "the runner reads the table on every tick.\n";
 }
 
 int cmd_cron_cleanup(const std::string& db_path, const std::vector<std::string>& args) {
@@ -83,6 +91,39 @@ int cmd_cron_cleanup(const std::string& db_path, const std::vector<std::string>&
     return 0;
 }
 
+// The schedule is parsed here, not stored raw: a typo must be refused before it
+// reaches a table the runner trusts, and next_run_at has to come from the same
+// next_run_after the runner itself uses.
+int cmd_cron_schedule(const std::string& db_path, const std::vector<std::string>& args) {
+    if (args.size() != 2) { usage(); return 2; }
+    int64_t id = 0;
+    try { id = std::stoll(args[0]); } catch (const std::exception&) {
+        std::cerr << "Not a job id: " << args[0] << "\n";
+        return 2;
+    }
+    const std::string& schedule = args[1];
+    cron::CronExpr expr;
+    try { expr = cron::parse_cron_expr(schedule); } catch (const std::exception& e) {
+        std::cerr << "Bad schedule: " << e.what() << "\n";
+        return 2;
+    }
+
+    MemoryStore memory(db_path, nullptr);
+    auto job = memory.get_cron_job(-1, id);
+    if (!job) { std::cerr << "No such job: " << id << "\n"; return 1; }
+
+    const time_t next = cron::next_run_after(expr, std::time(nullptr));
+    if (!memory.reschedule_cron_job(-1, id, schedule, next)) {
+        std::cerr << "No such job: " << id << "\n";
+        return 1;
+    }
+    char when[32];
+    std::strftime(when, sizeof when, "%a %F %R", std::localtime(&next));
+    std::cout << "#" << id << " " << job->name << ": \"" << job->schedule
+              << "\" -> \"" << schedule << "\", next run " << when << "\n";
+    return 0;
+}
+
 } // namespace
 
 bool is_maint_cli_command(int argc, char** argv) {
@@ -98,7 +139,8 @@ int run_maint_cli(int argc, char** argv, const std::string& db_path) {
     std::vector<std::string> args(argv + 2, argv + argc);
 
     try {
-        if (cmd == "cron-cleanup") return cmd_cron_cleanup(db_path, args);
+        if (cmd == "cron-cleanup")  return cmd_cron_cleanup(db_path, args);
+        if (cmd == "cron-schedule") return cmd_cron_schedule(db_path, args);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;

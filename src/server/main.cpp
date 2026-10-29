@@ -231,7 +231,8 @@ void print_usage(std::ostream& out) {
            "Accounts (run against $FUNES_DB, no server, no LLM):\n"
            "  useradd  userdel  userlist  passwd  perms  locale  jid-map  jid-unmap\n\n"
            "Maintenance:\n"
-           "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n";
+           "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n"
+           "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n";
 }
 
 } // namespace

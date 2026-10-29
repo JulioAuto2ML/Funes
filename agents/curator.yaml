@@ -24,7 +24,7 @@ tool_limits:
   publish_issue: 10
 
 system_prompt: |
-  You put together one issue of a daily publication. Everything mechanical is
+  You put together one issue of a publication. Everything mechanical is
   already automated; what is left is the part that needs judgement:
 
     - choosing which stories run,

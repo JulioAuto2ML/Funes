@@ -13,6 +13,7 @@ decides whether mail goes out.
 | `post_tweet.py` | One LinkedIn post per invocation, from the issue JSON — and only if the day's run record says the issue was sent. The post is the text and image; the source link goes in the **first comment**, a second API call (see below). |
 | `generate_images.py` | One LinkedIn illustration per item, from each item's `image_prompt`, through a running ComfyUI (Qwen Image 2.1). Writes `images/<pub>/<date>/<n>.png`. |
 | `run_images.sh` | The cron entry for the above: lends the GPU from the LLM for a window and always gives it back (EXIT trap). Does nothing, GPU untouched, if there is nothing to render. |
+| `weekly_carousel.py` | Sunday's LinkedIn carousel, one per edition: a PDF (cover, one slide per story, closing CTA) posted as a LinkedIn document. The stories are the first two items of each issue sent Monday–Saturday — the curator's own order, no model call. Links go in the first comment; `carousels/<pub>/<date>.json` stops a second post. `--dry-run` renders only. |
 | `run_publication.sh` | The cron entry: runs the curator, then checks the run record rather than believing it. |
 | `publish_newsletter.py` | The older path, reading the hand-written `X_posts_<date>.txt`. Still works, still tested; kept until the new path has run a clean week. Also the entry point to the test suite (`--self-test`). |
 
@@ -26,6 +27,7 @@ not, and stay on the sending host:
 | the scripts above | `issues/<pub>/<date>.json` — the source of truth |
 | `newsletter_template.html` (default) | `runs/<pub>/<date>.json` — what happened |
 | `../publications/*.yaml` — the settings | `X_posts_<date>.txt`, `newsletter_<date>.html` — generated |
+| — | `carousels/<pub>/<sunday>.{pdf,json}` — the weekly carousel and its post record |
 | — | `.env` (Gmail + LinkedIn credentials), `subscribers.txt` |
 
 The issue directory is `--dir PATH`, else `$FUNES_PUBLISH_DIR`, else the current
@@ -110,8 +112,23 @@ the gap that mattered — the newsletter was started by hand while the LinkedIn
 posts consuming it were on cron, so a failed newsletter still left cron posting
 yesterday's items.
 
-Two editions share this machinery (`ai-pulse`, `ai-pulse-es`), interleaved:
-English at :00, Spanish at :30, so a feed sees one post every half hour.
+Two editions share this machinery (`ai-pulse`, `ai-pulse-es`). Since
+2026-11-02 they **alternate days**: English Monday, Wednesday and Friday,
+Spanish Tuesday, Thursday and Saturday. Sunday has no issue; at 13:00 and 13:30
+`weekly_carousel.py` posts each edition's carousel of the week instead. Both
+editions harvest with `time_range: week` (bounded by `max_age_days`) so an
+issue reaches back over the day without one.
+
+The days are set in two places, and both have to agree:
+
+- the issue itself is a Funes cron job per edition — change its days with
+  `funes cron-schedule <id> "<expr>"`, which also moves the next run (the
+  runner only re-reads a schedule after firing);
+- images, posts and carousels are in the crontab, whose source is
+  `scripts/yoda.crontab` — edit that and install it, not `crontab -e`.
+
+Within a day the old timetable is unchanged: English posts on the hour, Spanish
+on the half hour.
 
 ```cron
 # Produce and send the issue, then post from it through the day.

@@ -54,7 +54,8 @@ Create one from the web UI's first-run screen, or from the CLI:
 ```
 
 Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
-`locale`, `jid-map`, `jid-unmap`, and one maintenance command, `cron-cleanup`.
+`locale`, `jid-map`, `jid-unmap`, and two maintenance commands, `cron-cleanup`
+and `cron-schedule` (change a job's schedule and its next run together).
 (`locale` is how an admin sets *another* account's language —
 `PUT /api/me/locale` only ever changes the caller's own, so a new account
 can't be set up in its owner's language before they first log in without it.) They run
@@ -75,8 +76,10 @@ rebuild, then `systemctl --user restart funes`. Units (copied from
 `scripts/*.service` to `~/.config/systemd/user/`): `funes` (:8485),
 `whatsapp-bridge` (:8090, personal number), `whatsapp-bridge-funes` (:8091,
 dedicated number), `whatsapp-autoresponder`. The user crontab runs
-`publishing/run_images.sh` and `publishing/post_tweet.py` against
-`data/newsletter`; tailscale funnel serves `data/public/noticias` at
+`publishing/run_images.sh`, `publishing/post_tweet.py` and (Sundays)
+`publishing/weekly_carousel.py` against `data/newsletter` — its source is
+`scripts/yoda.crontab`; since 2026-11-02 the English issue runs Mon/Wed/Fri and
+the Spanish one Tue/Thu/Sat; tailscale funnel serves `data/public/noticias` at
 `/noticias/`. (Until 5.2 the units were `funes-v4` / `whatsapp-autoresponder-v4`
 and state lived in `~/.funes-v4`, `~/Documents/X_posts`, `~/whatsapp-bridge`;
 `scripts/migrate_to_one_checkout.sh` is the one-off that moved it.)

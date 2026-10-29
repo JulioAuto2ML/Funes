@@ -1,0 +1,44 @@
+# =============================================================================
+# scripts/yoda.crontab — julio's crontab on yoda, the whole of it
+# =============================================================================
+# The copy that counts is this file: scripts/deploy_alternating_editions.sh
+# installs it with `crontab scripts/yoda.crontab`, so edit here and deploy, not
+# `crontab -e` on the box. (The newsletter issues themselves are Funes cron
+# jobs, not lines here — `funes cron-schedule` changes those.)
+#
+# Since 2026-11-02: English Mon/Wed/Fri, Spanish Tue/Thu/Sat, Sunday carousels.
+
+
+# AI Pulse (English) LinkedIn posts, Mon/Wed/Fri on the hour
+00 13 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 1  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 14 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 2  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 15 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 3  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 16 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 4  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 17 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 5  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 18 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 6  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 19 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 7  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 20 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 8  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 21 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 9  --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+00 22 * * 1,3,5 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 10 --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+
+#00 23 * * * sleep 9h && systemctl suspend
+
+# AI Pulse (English, Mon/Wed/Fri) illustrations — after the 09:00 issue, before the 13:00 posts.
+# Lends the GPU from qwen9b for ~17 min and always gives it back.
+30 9 * * 1,3,5 /home/julio/Funes/publishing/run_images.sh ai-pulse >> /home/julio/Funes/data/newsletter/images_log.txt 2>&1
+
+# AI Pulse en Español (Tue/Thu/Sat) — issue 10:30, images after it, posts on the half hour
+0 11 * * 2,4,6 /home/julio/Funes/publishing/run_images.sh ai-pulse-es >> /home/julio/Funes/data/newsletter/images_log.txt 2>&1
+30 13 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 1 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 14 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 2 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 15 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 3 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 16 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 4 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 17 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 5 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 18 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 6 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 19 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 7 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 20 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 8 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+30 21 * * 2,4,6 /usr/bin/python3 /home/julio/Funes/publishing/post_tweet.py 9 --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/post_log.txt 2>&1
+
+# Sunday: no issue. One LinkedIn carousel per edition with the week's leading stories.
+0 13 * * 0 /usr/bin/python3 /home/julio/Funes/publishing/weekly_carousel.py --publication ai-pulse --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/carousel_log.txt 2>&1
+30 13 * * 0 /usr/bin/python3 /home/julio/Funes/publishing/weekly_carousel.py --publication ai-pulse-es --dir /home/julio/Funes/data/newsletter >> /home/julio/Funes/data/newsletter/carousel_log.txt 2>&1

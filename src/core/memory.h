@@ -411,6 +411,14 @@ public:
 
     bool delete_cron_job(int64_t user_id, int64_t id);
 
+    // Replaces a job's schedule and its next fire time together — the runner
+    // reads `schedule` only after a run, so changing one without the other
+    // fires once more on the old timetable. user_id < 0 is the admin path
+    // (`funes cron-schedule`); otherwise the owner predicate is on the UPDATE,
+    // as with delete_cron_job. False when no such job (for that owner).
+    bool reschedule_cron_job(int64_t user_id, int64_t id, const std::string& schedule,
+                             int64_t next_run_at);
+
     // Not currently running, and due at or before `now`. Deliberately spans
     // every user: the poll loop serves all of them, and each returned job
     // carries the owner the runner must act as.
