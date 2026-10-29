@@ -143,11 +143,13 @@ int test_the_shipped_spanish_config_loads() {
     CHECK(pub.queries.size() >= 3);
     // Spanish-language search needs an allowlist: there is no language filter.
     CHECK(pub.include_domains.size() >= 8);
-    CHECK(!pub.cta.empty());
-    CHECK(pub.cta.find("SUSCRIBIR") != std::string::npos);
+    // Since 2026-10-29 neither edition asks LinkedIn readers to subscribe: the
+    // newsletter still goes to those already on the list, but is not offered.
+    CHECK(pub.cta.empty());
 
     Publication en;
     CHECK(Publication::load("publications", "ai-pulse", en).empty());
+    CHECK(en.cta.empty());
     CHECK(en.language == "en");
     CHECK(en.include_domains.empty());
 

@@ -17,10 +17,9 @@ title: "AI Pulse"
 # {date} is the long form ("Thursday, July 30, 2026"); {iso_date} is 2026-07-30.
 subject: "AI Pulse · {date}"
 
-# Appended to every LinkedIn post by publishing/post_tweet.py.
-cta: |-
-  📧 Enjoying this? Subscribe to my AI newsletter (Mon · Wed · Fri) — email
-  julio.rodriguezmartino@gmail.com with subject: SUBSCRIBE TO AI NEWS
+# No `cta:` since 2026-10-29: the newsletter is no longer offered on LinkedIn.
+# It still goes to those already in subscribers.txt (and to Julio, as a check).
+# A `cta:` here would be appended to every post and to the Sunday carousel.
 
 voice:
   prompt_file: voice/ai-pulse.md      # relative to this directory

@@ -13,7 +13,7 @@ decides whether mail goes out.
 | `post_tweet.py` | One LinkedIn post per invocation, from the issue JSON — and only if the day's run record says the issue was sent. The post is the text and image; the source link goes in the **first comment**, a second API call (see below). |
 | `generate_images.py` | One LinkedIn illustration per item, from each item's `image_prompt`, through a running ComfyUI (Qwen Image 2.1). Writes `images/<pub>/<date>/<n>.png`. |
 | `run_images.sh` | The cron entry for the above: lends the GPU from the LLM for a window and always gives it back (EXIT trap). Does nothing, GPU untouched, if there is nothing to render. |
-| `weekly_carousel.py` | Sunday's LinkedIn carousel, one per edition: a PDF (cover, one slide per story, closing CTA) posted as a LinkedIn document. The stories are the first two items of each issue sent Monday–Saturday — the curator's own order, no model call. Links go in the first comment; `carousels/<pub>/<date>.json` stops a second post. `--dry-run` renders only. |
+| `weekly_carousel.py` | Sunday's LinkedIn carousel, one per edition: a PDF (cover, one slide per story, a closing slide) posted as a LinkedIn document. The stories are the first two items of each issue sent Monday–Saturday — the curator's own order, no model call. Links go in the first comment; `carousels/<pub>/<date>.json` stops a second post. `--dry-run` renders only. |
 | `run_publication.sh` | The cron entry: runs the curator, then checks the run record rather than believing it. |
 | `publish_newsletter.py` | The older path, reading the hand-written `X_posts_<date>.txt`. Still works, still tested; kept until the new path has run a clean week. Also the entry point to the test suite (`--self-test`). |
 

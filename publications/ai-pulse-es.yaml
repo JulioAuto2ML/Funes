@@ -16,10 +16,9 @@ language: es
 # {date} is spelled in Spanish: "jueves, 30 de julio de 2026".
 subject: "AI Pulse en Español · {date}"
 
-# Appended to every LinkedIn post by publishing/post_tweet.py.
-cta: |-
-  📧 ¿Te gustó? Suscríbete a mi newsletter de IA (mar · jue · sáb) — escribe a
-  julio.rodriguezmartino@gmail.com con el asunto: SUSCRIBIR NOTICIAS IA
+# No `cta:` since 2026-10-29: the newsletter is no longer offered on LinkedIn.
+# It still goes to those already in subscribers.txt (and to Julio, as a check).
+# A `cta:` here would be appended to every post and to the Sunday carousel.
 
 voice:
   prompt_file: voice/ai-pulse-es.md      # relative to this directory

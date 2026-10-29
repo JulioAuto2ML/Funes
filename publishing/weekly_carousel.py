@@ -77,13 +77,13 @@ COPY = {
            "intro": "🗓️ The week in AI: the {n} stories that led AI Pulse "
                     "this week, in one swipe.",
            "links": "🔗 Sources, in slide order:",
-           "close": "That was the week.", "close2": "New issue Monday."},
+           "close": "That was the week.", "close2": "Back on Monday."},
     "es": {"kicker": "LA SEMANA EN IA", "swipe": "Desliza →",
            "story": "Historia {n} de {total}",
            "intro": "🗓️ La semana en IA: las {n} historias que encabezaron "
                     "AI Pulse en Español esta semana, de un vistazo.",
            "links": "🔗 Fuentes, en el orden de las diapositivas:",
-           "close": "Eso fue la semana.", "close2": "Nuevo número el martes."},
+           "close": "Eso fue la semana.", "close2": "Volvemos el martes."},
 }
 MONTHS = {"en": ["January", "February", "March", "April", "May", "June", "July",
                  "August", "September", "October", "November", "December"],
