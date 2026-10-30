@@ -80,6 +80,45 @@ class Handler(BaseHTTPRequestHandler):
         system_text = next((m["content"] for m in messages
                             if m.get("role") == "system"), "")
 
+        # In-run context budget (core/context_budget.h). Two tool calls whose
+        # own arguments are large, then a server that refuses the prompt as
+        # over its context for as long as the *first* call's arguments are
+        # still in it. The run only finishes if the agent trims the old call
+        # and retries — exactly what a llama.cpp n_ctx refusal needs.
+        if mentions(messages, "context-overflow"):
+            filler = "padding " * 400
+            calls = [m for m in messages if m.get("role") == "assistant"
+                     and m.get("tool_calls")]
+            if len(calls) < 2:
+                n = len(calls) + 1
+                tool_call = {"id": f"call_big_{n}", "type": "function",
+                             "function": {"name": "recall", "arguments": json.dumps(
+                                 {"query": f"overflow probe {n} {filler}"})}}
+                if stream:
+                    self._stream_tool_call(tool_call)
+                else:
+                    self._json(200, {"choices": [{"message": {
+                        "role": "assistant", "content": None,
+                        "tool_calls": [tool_call]}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+                return
+            first_args = calls[0]["tool_calls"][0]["function"]["arguments"]
+            if "overflow probe 1" in first_args:
+                self._json(400, {"error": {
+                    "code": 400, "type": "exceed_context_size_error",
+                    "message": "request (999999 tokens) exceeds the available "
+                               "context size (32768 tokens), try increasing it",
+                    "n_prompt_tokens": 999999, "n_ctx": 32768}})
+                return
+            text = "MOCK-CONTEXT-TRIMMED: answered after the old call was elided"
+            if stream:
+                self._stream_text(text)
+            else:
+                self._json(200, {"choices": [{"message": {
+                    "role": "assistant", "content": text}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+            return
+
         if "use-tool" in last_user and not has_tool_result:
             tool_call = {"id": "call_1", "type": "function",
                          "function": {"name": "recall",

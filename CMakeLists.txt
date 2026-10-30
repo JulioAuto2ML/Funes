@@ -81,6 +81,7 @@ add_library(funes_core STATIC
     src/core/agent_roster.cpp
     src/core/script_library.cpp
     src/core/context_compressor.cpp
+    src/core/context_budget.cpp
     src/core/completion_contract.cpp
     src/core/answer_schema.cpp
     src/core/run_outcome.cpp

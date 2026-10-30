@@ -140,6 +140,11 @@ list with incident context):
    out-of-transcript; the model sees a head/tail preview + `result_id` and
    dereferences on demand via `read_result`, so a big scrape can't eat the
    context window or become the answer verbatim.
+9. **In-run context budget** (`context_budget.cpp`) — before each completion
+   the run's oldest tool results, call arguments and prose are trimmed so the
+   prompt fits `context_limit` minus the reply's share; a backend's
+   context-overflow refusal gets one trim-harder retry instead of killing the
+   run (curator's ES issue, 2026-10-30).
 
 When touching the agent loop, know which of these layers a change interacts
 with — they compose, and several were added specifically because an earlier

@@ -125,6 +125,7 @@ chunked SSE response. Events streamed during a chat:
 | `contract_nudge` | Completion contract reminder |
 | `schema_nudge` | Answer schema correction |
 | `context_compressed` | Turns folded into summary |
+| `context_trimmed` | Old tool results/call arguments shortened mid-run to fit the window |
 | `usage` | Token count + context limit |
 | `done` | Final answer text |
 | `error` | Error message |

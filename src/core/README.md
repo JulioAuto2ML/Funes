@@ -44,6 +44,7 @@ produces text and tool calls; this code decides whether to execute them.
 | `run_outcome.h/cpp` | Structured failure signals (`FAILED -- ...`) detectable by delegation. Prevents raw tool dumps from becoming answers. |
 | `answer_schema.h/cpp` | JSON shape validation on final answers. Extraction handles fenced blocks, wrapped JSON, bare objects. |
 | `context_compressor.h/cpp` | Folds old conversation turns into a rolling summary when approaching context limits. |
+| `context_budget.h/cpp` | Keeps one run's own transcript inside the window: before each completion, trims the oldest images, tool results, call arguments and reply prose (never system, user or the step in progress). Also recognises a backend's context-overflow refusal for the one retry. |
 | `result_store.h/cpp` | Stores large tool outputs out-of-transcript with head/tail previews and `read_result` dereference. |
 
 ### Tools
@@ -91,6 +92,8 @@ HTTP request
       4. Build prompt: system + memories + summary + history + user message
       5. Enter tool loop:
          LLM completion -> tool call? -> dispatch -> feed result -> repeat
+         Before each completion: trim the run's oldest material to fit
+         (context_budget); on a context-overflow refusal, trim harder, retry once
          Safety checks at every step:
            - Tool in allowlist?
            - Over budget? (tool_limits)
@@ -140,6 +143,20 @@ production incidents (all documented in comments with dates):
 
 9. **Context compression** (context_compressor) -- automatic and manual, keeps
    conversations alive indefinitely within fixed context windows.
+
+10. **In-run context budget** (context_budget) -- compression runs once, before
+    the loop; nothing bounded what a run piles up while it runs. On 2026-10-30
+    curator's ES issue died at step ~26 with llama.cpp's "request (32849
+    tokens) exceeds the available context size (32768 tokens)". Before every
+    completion the prompt is held to `context_limit - context_limit/4` (the
+    reply's max_tokens comes out of the same window) by shortening, oldest
+    first: images, tool results, old calls' arguments (kept as a JSON stub so
+    the call→result pairing stays valid), assistant prose. System and user
+    messages and the step in progress are never touched. The chars/4 estimate
+    is scaled by the ratio the server's reported `prompt_tokens` reveals; if
+    the server still refuses, the ratio is taken from the refusal, the trim
+    re-run and the call retried once. Logged as `context trimmed` and emitted
+    as `context_trimmed`.
 
 ## Per-user isolation (4.0)
 

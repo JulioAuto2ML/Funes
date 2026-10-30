@@ -69,6 +69,10 @@ add_executable(test_tool_call_recovery test_tool_call_recovery.cpp)
 target_link_libraries(test_tool_call_recovery PRIVATE funes_core)
 add_test(NAME tool_call_recovery COMMAND test_tool_call_recovery)
 
+add_executable(test_context_budget test_context_budget.cpp)
+target_link_libraries(test_context_budget PRIVATE funes_core)
+add_test(NAME context_budget COMMAND test_context_budget)
+
 add_executable(test_label_probs test_label_probs.cpp)
 target_link_libraries(test_label_probs PRIVATE funes_core)
 add_test(NAME label_probs COMMAND test_label_probs)

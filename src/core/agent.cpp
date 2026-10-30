@@ -7,6 +7,7 @@
 #include "users.h"   // funes::language_name
 #include "answer_schema.h"
 #include "completion_contract.h"
+#include "context_budget.h"
 #include "mcp_sse_client.h"
 #include "mcp_stdio_client.h"
 #include "result_store.h"
@@ -578,6 +579,35 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
     // 1+ inside a delegate_to_agent hop. Thread-local and stable for the run.
     const int depth = delegation_depth();
 
+    // In-run context budget (see core/context_budget.h): what the run
+    // accumulates — tool results, call arguments — is trimmed oldest-first
+    // before each completion so the prompt stays inside the window. The
+    // reply's max_tokens comes out of the same window, so the prompt gets the
+    // rest. The full schema is counted even on steps that send less of it.
+    const int    prompt_budget = cfg_.context_limit - cfg_.context_limit / 4;
+    const int    schema_tokens = estimate_tokens(tools_schema_.dump());
+    double       token_ratio   = 1.0;    // real tokens per estimated token, ≥ 1
+    bool         overflow_retried = false;
+    auto keep_in_window = [&](int step) {
+        const int budget = static_cast<int>(prompt_budget / token_ratio);
+        const funes::TrimOutcome t = funes::trim_to_fit(history, budget, schema_tokens);
+        if (!t.trimmed()) return;
+        std::cerr << "[agent:" << cfg_.name << "] (depth " << depth << ") step " << step + 1
+                  << ": context trimmed " << t.before << " → " << t.after
+                  << " est. tokens (budget " << budget << ", x" << token_ratio << "): "
+                  << t.tool_results << " tool result(s), " << t.tool_calls
+                  << " call argument set(s), " << t.assistant_texts << " reply text(s), "
+                  << t.images << " image(s)"
+                  << (t.fits ? "" : " — still over: what is left is protected") << "\n";
+        if (emit)
+            emit("context_trimmed", {{"before", t.before}, {"after", t.after},
+                                     {"budget", budget}, {"fits", t.fits},
+                                     {"tool_results", t.tool_results},
+                                     {"tool_calls", t.tool_calls},
+                                     {"assistant_texts", t.assistant_texts},
+                                     {"images", t.images}});
+    };
+
     for (int step = 0; step < cfg_.max_steps; ++step) {
         if (auto* cf = funes::cancel_flag();
             cf && cf->load(std::memory_order_relaxed)) {
@@ -629,6 +659,8 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         if (force_tool_call) active_llm.set_tool_choice("required");
         else if (withhold)   active_llm.set_tool_choice("none");
 
+        keep_in_window(step);
+
         // Withholding is announced as well as performed. Dropping the schema
         // decides what the server will accept; this decides what the model
         // thinks it is doing, and a model imitating a transcript full of tool
@@ -637,36 +669,79 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         // history would have every later turn reading a claim about tools that
         // stopped being true the moment the turn ended.
         std::vector<ChatMessage> withheld_turn;
-        if (withhold) {
+        auto build_withheld_turn = [&] {
+            if (!withhold) return;
             withheld_turn = history;
             ChatMessage notice;
             notice.role    = "user";
             notice.content = funes::withheld_notice();
             withheld_turn.push_back(std::move(notice));
-        }
+        };
+        build_withheld_turn();
         const std::vector<ChatMessage>& msgs = withhold ? withheld_turn : history;
 
         try {
-            resp = active_llm.complete(msgs, active_schema, on_delta);
+            try {
+                resp = active_llm.complete(msgs, active_schema, on_delta);
+            } catch (const std::exception& e) {
+                // Some OpenAI-compatible servers reject stream=true — retry once
+                // without streaming before giving up. Not for a context
+                // overflow: the same prompt without streaming is just as big.
+                if (on_delta && !funes::is_context_overflow(e.what())) {
+                    std::cerr << "[agent:" << cfg_.name << "] streaming failed ("
+                              << e.what() << "), retrying without stream\n";
+                    resp = active_llm.complete(msgs, active_schema);
+                    if (emit && !resp.content.empty())
+                        emit("delta", {{"text", resp.content}});
+                } else {
+                    throw;
+                }
+            }
         } catch (const std::exception& e) {
-            // Some OpenAI-compatible servers reject stream=true — retry once
-            // without streaming before giving up.
-            if (on_delta) {
-                std::cerr << "[agent:" << cfg_.name << "] streaming failed ("
-                          << e.what() << "), retrying without stream\n";
-                resp = active_llm.complete(msgs, active_schema);
-                if (emit && !resp.content.empty())
-                    emit("delta", {{"text", resp.content}});
-            } else {
+            // The estimate said it fit and the server says it doesn't: chars/4
+            // undercounted. Learn the real ratio from the refusal, trim to it,
+            // and try once more — the alternative is losing the whole run at
+            // step 26 for want of a few hundred tokens, which is what happened
+            // to the ES issue on 2026-10-30.
+            if (!funes::is_context_overflow(e.what()) || overflow_retried) {
                 active_llm.set_tool_choice(cfg_.tool_choice);
                 throw;
             }
+            overflow_retried = true;
+            const int sent     = estimate_tokens(msgs) + estimate_tokens(active_schema.dump());
+            const int reported = funes::reported_prompt_tokens(e.what());
+            token_ratio = std::max(token_ratio * 1.25,
+                                   reported > 0 && sent > 0 ? double(reported) / sent : 0.0);
+            std::cerr << "[agent:" << cfg_.name << "] (depth " << depth << ") step "
+                      << step + 1 << ": server refused the prompt as over its context ("
+                      << (reported > 0 ? std::to_string(reported) : std::string("?"))
+                      << " tokens, estimated " << sent << "); re-estimating at x"
+                      << token_ratio << " and retrying once\n";
+            keep_in_window(step);
+            build_withheld_turn();
+            try {
+                resp = active_llm.complete(msgs, active_schema);
+            } catch (...) {
+                active_llm.set_tool_choice(cfg_.tool_choice);
+                throw;
+            }
+            if (emit && !resp.content.empty())
+                emit("delta", {{"text", resp.content}});
         }
         if (force_tool_call || withhold) {
             active_llm.set_tool_choice(cfg_.tool_choice);
             force_tool_call = false;
         }
-        if (resp.prompt_tokens > 0) prompt_tokens_out = resp.prompt_tokens;
+        if (resp.prompt_tokens > 0) {
+            prompt_tokens_out = resp.prompt_tokens;
+            // chars/4 undercounts JSON, emoji and non-English text. Once the
+            // server has said what a prompt really cost, scale the estimate by
+            // what it missed; never below 1, so a server that reports cached
+            // tokens only can't talk the budget into overspending.
+            const int sent = estimate_tokens(msgs) + estimate_tokens(active_schema.dump());
+            if (sent > 0)
+                token_ratio = std::max(1.0, double(resp.prompt_tokens) / sent);
+        }
 
         if (resp.tool_calls.empty()) {
             // The model wants to stop. If it still owes tool calls, it doesn't

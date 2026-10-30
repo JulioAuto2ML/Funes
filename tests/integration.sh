@@ -226,6 +226,13 @@ check "tool_call event"    "$OUT" 'event: tool_call'
 check "tool_result event"  "$OUT" 'event: tool_result'
 check "loop completed"     "$OUT" 'with-tool-result'
 
+echo "— chat (SSE, server refuses the prompt as over its context; agent trims and retries)"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"please context-overflow now","session":"it-session-overflow"}')
+check "overflow: context_trimmed event" "$OUT" 'event: context_trimmed'
+check "overflow: run finished"          "$OUT" 'MOCK-CONTEXT-TRIMMED'
+check_absent "overflow: no error event" "$OUT" 'event: error'
+
 echo "— chat (SSE, answer_from_tool skips the narration completion)"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"please use-tool now","session":"it-session-answer-from-tool","agent":"answer-from-tool-tester"}')
