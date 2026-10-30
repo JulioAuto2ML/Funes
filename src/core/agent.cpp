@@ -608,7 +608,11 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                                      {"images", t.images}});
     };
 
-    for (int step = 0; step < cfg_.max_steps; ++step) {
+    // max_steps, plus one synthesis-only step for each schema nudge issued on
+    // what was the last step (see the schema branch below).
+    int step_limit = cfg_.max_steps;
+
+    for (int step = 0; step < step_limit; ++step) {
         if (auto* cf = funes::cancel_flag();
             cf && cf->load(std::memory_order_relaxed)) {
             std::cerr << "[agent:" << cfg_.name << "] cancelled at step " << step << "\n";
@@ -626,7 +630,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         // This is a forced *synthesis*, not a salvage: the model still writes
         // the answer from its own history, and if it produces nothing the run
         // still fails honestly rather than relaying raw tool output.
-        const bool last_step = (step + 1 == cfg_.max_steps);
+        const bool last_step = (step + 1 >= step_limit);
         // A pending contract nudge outranks both: require_tools is a floor,
         // and a run that skips a required call is invalid however politely it
         // concluded. Better to spend the last step on the owed call and fail
@@ -634,7 +638,7 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
         const bool withhold = !force_tool_call && last_step;
         if (withhold && !tools_schema_.empty())
             std::cerr << "[agent:" << cfg_.name << "] (depth " << depth << ") last step "
-                      << step + 1 << "/" << cfg_.max_steps
+                      << step + 1 << "/" << step_limit
                       << ": tools withheld, synthesis only\n";
 
         // Vision routing: step 0 with images goes to the vision model,
@@ -845,6 +849,19 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                         std::cerr << "[agent:" << cfg_.name << "] answer rejected at step "
                                   << step << ": " << err << "; nudging (" << nudges_used
                                   << "/" << nudge_budget << ")\n";
+                        // A nudge on the last step would otherwise never be
+                        // answered: the loop ends and the run fails on the
+                        // answer it just rejected. council-panelist's buyer
+                        // did exactly that on 2026-10-30, twice. The extra
+                        // step is last too, so tools stay withheld — this
+                        // buys a rewrite, never another call — and the nudge
+                        // budget bounds how many there can be.
+                        if (step + 1 >= step_limit) {
+                            ++step_limit;
+                            std::cerr << "[agent:" << cfg_.name << "] (depth " << depth
+                                      << ") schema retry after the last step: one more "
+                                         "synthesis-only step\n";
+                        }
                         continue;
                     }
                     return funes::schema_failure(err, answer);

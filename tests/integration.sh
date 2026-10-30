@@ -95,6 +95,24 @@ answer_schema:
       items: { type: string }
       minItems: 1
 YAML
+# Same contract with no step to spare: the one step is also the last, so the
+# nudge after a rejected answer lands after the budget is gone.
+cat > "$AGENTS/schema-last-step-tester.yaml" <<'YAML'
+name: schema-last-step-tester
+description: Test fixture — a schema-bound agent rejected on its final step.
+tools: [recall]
+max_steps: 1
+system_prompt: Answer the question.
+answer_schema:
+  type: object
+  required: [summary, sources]
+  properties:
+    summary: { type: string }
+    sources:
+      type: array
+      items: { type: string }
+      minItems: 1
+YAML
 cat > "$AGENTS/contract-schema-tester.yaml" <<'YAML'
 name: contract-schema-tester
 description: Test fixture — both contracts at once, to pin down their ordering.
@@ -616,6 +634,16 @@ check "schema failure reported" "$OUT" 'FAILED'
 OUT=$(curl -s "$BASE/api/history?session=it-session-schema-2")
 check "stored answer is the failure"       "$OUT" 'FAILED'
 check "failure quotes the prose as unverified" "$OUT" 'MOCK-PROSE-ANSWER'
+
+echo "— answer schema: a rejection on the last step still gets its retry"
+# council-panelist, 2026-10-30: the buyer spent its steps on tools, answered in
+# prose on the last one, and the nudge had no step left to be answered in.
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"schema-comply please","session":"it-session-schema-last","agent":"schema-last-step-tester"}')
+check "schema nudge emitted"        "$OUT" 'event: schema_nudge'
+OUT=$(curl -s "$BASE/api/history?session=it-session-schema-last")
+check "retry answered after the last step" "$OUT" 'the mock answer'
+check_absent "no max_steps failure"        "$OUT" 'FAILED'
 
 echo "— answer schema + require_tools: side effects come before formatting"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \

@@ -133,7 +133,9 @@ production incidents (all documented in comments with dates):
    Early answers get nudged; exhausted budget produces `FAILED --`.
 
 6. **Answer schema** (answer_schema) -- JSON shape validation on final answer.
-   Shares nudge budget with completion contract.
+   Shares nudge budget with completion contract. A rejection on the last step
+   adds one more synthesis-only step, so the nudge can be answered (tools stay
+   withheld; the nudge budget caps the extension).
 
 7. **Run outcome** (run_outcome) -- every failure exit carries `FAILED --`
    prefix. `delegation.cpp` turns this into a tool error instead of content.
