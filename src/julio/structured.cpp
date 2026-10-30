@@ -164,6 +164,13 @@ ToolResult write_handler(const fs::path& workspace_root, const std::string& pipe
     if (!args.contains("content"))
         return {"Missing 'content' argument.", true};
 
+    // The entry's date is the tool's, not the model's: the filename always
+    // used it, and a stage that declares a `date` field gets the same one.
+    // council-chair filed a 2026-10-30 debate as "2026-09-14" when the field
+    // was left to the model.
+    const std::string asked_date = funes::safe_date(arg_str(args, "date"));
+    const std::string date = asked_date.empty() ? funes::today_iso() : asked_date;
+
     std::string body;
     if (stage->format == "json") {
         json content = args["content"];
@@ -177,6 +184,9 @@ ToolResult write_handler(const fs::path& workspace_root, const std::string& pipe
                         stage_contract(p, *stage), true};
             content = std::move(parsed);
         }
+        if (content.is_object() && stage->schema.contains("properties") &&
+            stage->schema["properties"].contains("date"))
+            content["date"] = date;
         const std::string violation = funes::validate_answer(stage->schema, content);
         if (!violation.empty())
             return {"Refusing to write " + stage->dir + "/: " + violation +
@@ -192,7 +202,6 @@ ToolResult write_handler(const fs::path& workspace_root, const std::string& pipe
         return {"Content is " + std::to_string(body.size()) + " bytes; the limit is " +
                 std::to_string(MAX_WRITE_BYTES) + ".", true};
 
-    const std::string date    = funes::safe_date(arg_str(args, "date"));
     const std::string relpath = funes::stage_relpath(*stage, date, slug);
     const fs::path root       = pipeline_root(workspace_root, p, ctx);
     auto resolved = funes::fsguard::resolve(root, relpath);

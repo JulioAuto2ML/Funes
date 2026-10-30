@@ -40,6 +40,7 @@ stages:
       required: [topic, pain_points, status]
       properties:
         topic: {type: string}
+        date: {type: string}
         pain_points:
           type: array
           minItems: 2
@@ -293,6 +294,37 @@ int test_entries_are_per_user() {
     return 0;
 }
 
+int test_the_record_date_is_the_tools_not_the_models() {
+    const Env e = setup();
+    ToolRegistry reg;
+    register_structured_tools(reg, e.workspace.string(), e.pipelines.string());
+    ToolContext ctx{"council-chair", "s1"};
+
+    // council-chair filed a 2026-10-30 debate with "date": "2026-09-14". The
+    // filename was right because the tool supplied it; the field inside was
+    // whatever the model typed. A stage
+    // that declares `date` gets the same date the filename does.
+    json content = good_topic();
+    content["date"] = "2026-09-14";
+    auto r = reg.call("write_structured",
+                      {{"pipeline", "demo"}, {"stage", "topic"}, {"slug", "today"},
+                       {"content", content}}, ctx);
+    CHECK(!r.error);
+    const fs::path written = e.stage_dir / (funes::today_iso() + "-today.json");
+    CHECK(fs::exists(written));
+    json on_disk = json::parse(std::ifstream(written), nullptr, false);
+    CHECK(on_disk["date"] == funes::today_iso());
+
+    // An explicit `date` argument names the entry, and so names the field too.
+    r = reg.call("write_structured",
+                 {{"pipeline", "demo"}, {"stage", "topic"}, {"slug", "dated"},
+                  {"date", "2026-01-02"}, {"content", content}}, ctx);
+    CHECK(!r.error);
+    on_disk = json::parse(std::ifstream(e.stage_dir / "2026-01-02-dated.json"), nullptr, false);
+    CHECK(on_disk["date"] == "2026-01-02");
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_a_valid_write_lands_where_the_config_says();
@@ -302,6 +334,7 @@ int main() {
     rc |= test_text_stages_take_prose();
     rc |= test_read_lists_and_finds_without_a_path();
     rc |= test_entries_are_per_user();
+    rc |= test_the_record_date_is_the_tools_not_the_models();
     if (rc == 0) std::cout << "test_structured_tools: all passed\n";
     return rc;
 }

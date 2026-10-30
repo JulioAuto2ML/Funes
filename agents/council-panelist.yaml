@@ -9,7 +9,11 @@ delegation_notes: >
 model: default
 tool_choice: auto
 tools: [read_file, recall]
-max_steps: 4
+max_steps: 6
+# One recall is context; three ate the steps the answer schema needed to retry
+# a non-JSON reply (the buyer panelist, 2026-10-30).
+tool_limits:
+  recall: 1
 context_limit: 8192
 workspace_dir: data/voc-pipeline
 

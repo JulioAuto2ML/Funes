@@ -68,13 +68,13 @@ system_prompt: |
   write_structured(pipeline: "voc", stage: "debate", slug: <the slug>,
                    content: {
                      "topic": "the topic phrase",
-                     "date": "YYYY-MM-DD",
                      "panelists": {"builder": …, "buyer": …, "critic": …},
                      "merged_ranking": <merge_rankings' merged_ranking>,
                      "winner": <merge_rankings' winner>,
                      "status": "decided"
                    })
   ```
+  Leave `date` out: the tool fills it in with today's date.
   `status` is always "decided" — only a human promotes a debate to
   "approved", and mvp-builder refuses to build anything that isn't.
 
