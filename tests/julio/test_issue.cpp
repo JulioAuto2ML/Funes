@@ -631,6 +631,24 @@ int test_build_issue_still_rejects_contract_violations() {
     return 0;
 }
 
+// A contract violation rejects the issue, but the rejection still has to name
+// the items the grounding check would have dropped. On 2026-10-30 the ES issue
+// was refused for one duplicate id while four other items were ungroundable;
+// the message named only the duplicate, so the model "fixed" nothing it had
+// been told about the rest and resubmitted until the loop detector fired.
+int test_contract_rejection_also_names_the_drops() {
+    json out;
+    Selection dup = good_selection();          // same id as item 1
+    const std::string why = build_issue(pool_with_two_candidates(),
+                                        {good_selection(), ungroundable_on_id7(), dup},
+                                        out, /*min_items=*/1);
+    CHECK(out.is_null());
+    CHECK(why.find("every item must be a different story") != std::string::npos);
+    CHECK(why.find("does not appear to be about this page") != std::string::npos);
+    CHECK(why.find("item 2") != std::string::npos);
+    return 0;
+}
+
 // ── which pool gets published ────────────────────────────────────────────────
 
 int test_pool_date_uses_today_when_todays_pool_exists() {
@@ -780,6 +798,7 @@ int main() {
     rc |= test_build_issue_renumbers_after_a_drop();
     rc |= test_build_issue_rejects_when_too_few_survive();
     rc |= test_build_issue_still_rejects_contract_violations();
+    rc |= test_contract_rejection_also_names_the_drops();
     rc |= test_pool_date_uses_today_when_todays_pool_exists();
     rc |= test_pool_date_refuses_to_fall_back_to_a_stale_pool();
     rc |= test_pool_date_honours_an_explicit_older_date();

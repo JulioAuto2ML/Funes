@@ -574,6 +574,14 @@ std::string build_issue(const nlohmann::json& pool,
             if (i > 0) combined += "\n";
             combined += errors[i];
         }
+        // The drops travel with a contract rejection too. On 2026-10-30 one
+        // duplicate id was the only thing named while four other posts were
+        // ungroundable; the model fixed nothing and resubmitted until the
+        // loop detector fired. Everything wrong goes in the one round trip.
+        if (!drops.empty()) {
+            combined += "\nThese would also be dropped — no page in the pool supports them:";
+            for (const auto& d : drops) combined += "\n" + d;
+        }
         return combined;
     }
 

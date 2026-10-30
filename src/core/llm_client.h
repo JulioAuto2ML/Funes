@@ -141,6 +141,13 @@ public:
         const std::string& cache_id,
         int n_probs = 40);
 
+    // Re-parse tool calls that some local models emit as plain text content.
+    // `tools_withheld` says the completion was asked for with no tools at all;
+    // a call written as prose is then discarded rather than recovered.
+    // Public so the parsing can be tested without a server.
+    static void recover_tool_calls_from_content(CompletionResponse& out,
+                                                bool tools_withheld);
+
 private:
     std::string host_;
     int         port_;
@@ -176,12 +183,6 @@ private:
     std::pair<std::string, json> build_anthropic_messages(
         const std::vector<ChatMessage>& messages);
     static json openai_tools_to_anthropic(const json& openai_tools);
-
-    // Re-parse tool calls that some local models emit as plain text content.
-    // `tools_withheld` says the completion was asked for with no tools at all;
-    // a call written as prose is then discarded rather than recovered.
-    static void recover_tool_calls_from_content(CompletionResponse& out,
-                                                bool tools_withheld);
 };
 
 // Ask an OpenAI-compatible server which model it serves (GET /v1/models).

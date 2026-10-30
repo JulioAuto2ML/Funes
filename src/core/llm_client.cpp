@@ -338,9 +338,23 @@ static bool recover_xml_tool_calls(CompletionResponse& out) {
         call.id   = "call_" + std::to_string(out.tool_calls.size());
         call.name = name;
 
+        // A parameter's body is text, so an array or object argument arrives
+        // as its JSON spelling; decode those. Scalars stay strings — with no
+        // schema here, a "2026" query can't be told from an integer. On
+        // 2026-10-30 curator's publish_issue `items` came back as a string five
+        // calls running, each refused as missing, until the context ran out.
         json args = json::object();
-        for (auto& [pname, pval] : extract_xml_blocks(body, "<parameter=", "</parameter>"))
-            args[pname] = trim(pval);
+        for (auto& [pname, pval] : extract_xml_blocks(body, "<parameter=", "</parameter>")) {
+            std::string value = trim(pval);
+            if (!value.empty() && (value.front() == '[' || value.front() == '{')) {
+                json decoded = json::parse(value, nullptr, /*allow_exceptions=*/false);
+                if (decoded.is_array() || decoded.is_object()) {
+                    args[pname] = std::move(decoded);
+                    continue;
+                }
+            }
+            args[pname] = std::move(value);
+        }
         call.arguments = std::move(args);
         out.tool_calls.push_back(std::move(call));
         recovered = true;
