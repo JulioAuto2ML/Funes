@@ -5,8 +5,9 @@ publish_voc_post.py — Posts approved VoC articles to LinkedIn.
 Usage:
     python3 publish_voc_post.py --dir PATH [--dry-run] [--env-dir PATH]
 
-Scans data/voc-pipeline/articles/ for directories that have a final.md
-but no matching record in data/voc-pipeline/published/. For each, extracts
+Scans <dir>/articles/ for directories that have a final.md but no matching
+record in <dir>/published/ (the pipeline lives in the caller's workspace:
+data/workspace/<user_id>/data/voc-pipeline). For each, extracts
 the LinkedIn post text from a <!-- linkedin: ... --> block in final.md,
 and posts it.
 
