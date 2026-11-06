@@ -66,6 +66,28 @@ int main() {
     // The model's own claim is preserved but clearly quoted as unverified.
     CHECK(fail.find("All done, sent!") != std::string::npos);
 
+    // record_call: a call that ran decides; a call the loop refused before
+    // running it (budget spent, identical repeat) says nothing about the tool.
+    // 2026-10-31: curator's fourth harvest_candidates was refused by its
+    // budget, that refusal erased the three successes, and the nudge for the
+    // now-"missing" harvest (withdrawn, uncallable) made the model publish the
+    // Spanish issue a second time.
+    std::set<std::string> sat;
+    funes::record_call(sat, {"harvest_candidates"}, /*ran=*/true, /*error=*/false);
+    CHECK(sat.count("harvest_candidates"));
+    funes::record_call(sat, {"harvest_candidates"}, /*ran=*/false, /*error=*/true);
+    CHECK(sat.count("harvest_candidates"));
+    // A real failure still undoes an earlier success (the ai-newsletter case above).
+    funes::record_call(sat, {"harvest_candidates"}, /*ran=*/true, /*error=*/true);
+    CHECK(!sat.count("harvest_candidates"));
+    // Every key of a qualified call moves together.
+    funes::record_call(sat, {"run_script", "run_script:backup"}, true, false);
+    CHECK(sat.count("run_script") && sat.count("run_script:backup"));
+    // A refusal never satisfies anything either.
+    std::set<std::string> none_yet;
+    funes::record_call(none_yet, {"publish_issue"}, false, true);
+    CHECK(none_yet.empty());
+
     std::cout << "test_completion_contract: all tests passed\n";
     return 0;
 }

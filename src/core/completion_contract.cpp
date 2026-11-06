@@ -18,6 +18,15 @@ std::vector<std::string> CompletionContract::missing(
     return out;
 }
 
+void record_call(std::set<std::string>& satisfied,
+                 const std::vector<std::string>& keys, bool ran, bool error) {
+    if (!ran) return;
+    for (const auto& key : keys) {
+        if (!error) satisfied.insert(key);
+        else        satisfied.erase(key);
+    }
+}
+
 // Joins as "a, b and c" — the nudge is read by a model, and a bare
 // comma-separated tail reads as one more item rather than the last one.
 static std::string join_tools(const std::vector<std::string>& tools) {

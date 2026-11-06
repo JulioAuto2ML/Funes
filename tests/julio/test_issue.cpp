@@ -725,6 +725,22 @@ int test_a_sent_record_is_never_overwritten_by_a_failure() {
     return 0;
 }
 
+// 2026-10-31 and 2026-11-05: the Spanish issue went out twice, seconds apart,
+// because a second publish_issue call in the same run sent again. Once the
+// day's record says `sent`, a further call reports that and sends nothing.
+int test_a_sent_issue_is_not_sent_again() {
+    const std::string msg = already_sent_message(
+        json{{"status", "sent"}, {"recipients", 1}}, "ai-pulse-es", "2026-11-05");
+    CHECK(!msg.empty());
+    CHECK(msg.find("ai-pulse-es") != std::string::npos);
+    CHECK(msg.find("2026-11-05") != std::string::npos);
+    CHECK(msg.find("already") != std::string::npos);
+    CHECK(already_sent_message(json{{"status", "blocked"}}, "ai-pulse-es", "2026-11-05").empty());
+    CHECK(already_sent_message(json{{"status", "rendered"}}, "ai-pulse-es", "2026-11-05").empty());
+    CHECK(already_sent_message(json(), "ai-pulse-es", "2026-11-05").empty());
+    return 0;
+}
+
 // The illustration prompt is garnish: it rides along when it is sensible and
 // never costs the issue anything when it is not.
 int test_build_issue_carries_the_image_prompt() {
@@ -807,6 +823,7 @@ int main() {
     rc |= test_publication_from_pool_filename();
     rc |= test_publication_omitted_means_the_one_just_harvested();
     rc |= test_a_sent_record_is_never_overwritten_by_a_failure();
+    rc |= test_a_sent_issue_is_not_sent_again();
     if (rc == 0) std::cout << "test_issue: all tests passed\n";
     return rc;
 }

@@ -1031,10 +1031,9 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             //
             // Recorded per key, so `require_tools: [run_script:publish_issue]`
             // means that script succeeded and not merely that some script did.
-            for (const auto& key : keys) {
-                if (!result.error) satisfied.insert(key);
-                else               satisfied.erase(key);
-            }
+            // A call refused here without running (budget, repeat) is not a
+            // failure of the tool and leaves the record alone (record_call).
+            funes::record_call(satisfied, keys, !refused && !duplicate, result.error);
 
             // answer_from_tool: this tool's own result IS the final answer —
             // skip the completion call that would otherwise have the model

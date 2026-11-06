@@ -32,8 +32,8 @@ struct CompletionContract {
     // `required` entries absent from `satisfied`, in declaration order.
     // Duplicates in `required` are reported once. `satisfied` is built by
     // agent.cpp's run_loop as "the MOST RECENT call to this tool name
-    // succeeded" — a later failure erases an earlier success (see the
-    // insert/erase pair around ToolResult.error there) — not "succeeded at
+    // succeeded" — a later failure erases an earlier success (record_call,
+    // below) — not "succeeded at
     // least once ever". That distinction matters for an agent that calls the
     // same required tool more than once for different purposes, e.g.
     // ai-newsletter's delegate_to_agent (once to research, once to publish):
@@ -46,6 +46,15 @@ struct CompletionContract {
     // slack for a model that stalls twice on the same one.
     int nudge_budget() const { return static_cast<int>(required.size()) + 2; }
 };
+
+// Updates `satisfied` after one tool call, for each of its call keys. `ran` is
+// false when the loop refused the call without dispatching it (tool budget
+// spent, identical repeat): that says nothing about whether the tool worked,
+// so it neither satisfies nor erases. On 2026-10-31 a budget refusal of
+// curator's fourth harvest_candidates erased its three successes; the nudge for
+// a tool that was by then withdrawn made the model publish the issue again.
+void record_call(std::set<std::string>& satisfied,
+                 const std::vector<std::string>& keys, bool ran, bool error);
 
 // Injected as a user turn when the model answers with `missing` outstanding.
 // Phrased as a correction of the immediate move, not a restatement of the task

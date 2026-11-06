@@ -157,6 +157,14 @@ std::string infer_publication(const std::vector<std::pair<std::string, int64_t>>
 // later failure for the same publication and date may replace it.
 bool record_is_final(const nlohmann::json& record);
 
+// What publish_issue answers, without sending, when the day's record already
+// says `sent`; "" when it does not. Not an error: the issue went out, and a
+// model told "error" retries. On 2026-10-31 and 2026-11-05 a second call in the
+// same run mailed the Spanish issue again, seconds after the first.
+std::string already_sent_message(const nlohmann::json& record,
+                                 const std::string& publication,
+                                 const std::string& date);
+
 // The link label: the candidate's own headline, trimmed at a word boundary.
 // Derived rather than asked for — it is the article's title, and the pool
 // already holds it.

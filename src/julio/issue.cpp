@@ -314,6 +314,16 @@ bool record_is_final(const nlohmann::json& record) {
     return record.is_object() && record.value("status", "") == "sent";
 }
 
+std::string already_sent_message(const nlohmann::json& record,
+                                 const std::string& publication,
+                                 const std::string& date) {
+    if (!record_is_final(record)) return "";
+    return "The " + publication + " issue for " + date + " was already sent" + (record.contains("recipients")
+               ? " (to " + record["recipients"].dump() + " recipient(s))" : "") +
+           ". Nothing was sent again. Publishing is done: write your final "
+           "report now, without calling publish_issue.";
+}
+
 std::string headline_from_title(const std::string& title, size_t max_chars) {
     std::string clean = trim(title);
     // Outlets append their own name after a separator; the link already says
@@ -755,6 +765,20 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
 
     const std::filesystem::path run_path =
         workspace / "runs" / publication / (date + ".json");
+
+    // Checked before anything else can run: a second call re-checks links and
+    // mails every subscriber again. A dry run or render-only call sends
+    // nothing, so it may still go ahead.
+    if (args.value("send", true) && !args.value("dry_run", false)) {
+        std::ifstream in(run_path);
+        const nlohmann::json existing = nlohmann::json::parse(in, nullptr, false);
+        const std::string sent = already_sent_message(existing, publication, date);
+        if (!sent.empty()) {
+            std::cerr << "[publish_issue] refused a re-send: " << publication << " "
+                      << date << " is already 'sent'\n";
+            return {sent};
+        }
+    }
 
     const int min_items = std::max(1, args.value("min_items", pub.min_count));
     // One line per call, before any check can refuse it: on 2026-10-21 an
