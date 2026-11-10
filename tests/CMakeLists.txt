@@ -26,6 +26,10 @@ add_executable(test_meta_tools test_meta_tools.cpp
 target_link_libraries(test_meta_tools PRIVATE funes_core)
 add_test(NAME meta_tools COMMAND test_meta_tools)
 
+add_executable(test_auto_memory test_auto_memory.cpp)
+target_link_libraries(test_auto_memory PRIVATE funes_core)
+add_test(NAME auto_memory COMMAND test_auto_memory)
+
 add_executable(test_text_utils test_text_utils.cpp)
 target_link_libraries(test_text_utils PRIVATE funes_core)
 add_test(NAME text_utils COMMAND test_text_utils)

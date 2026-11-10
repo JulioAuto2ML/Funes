@@ -11,14 +11,25 @@
 
 namespace {
 
+constexpr size_t kMaxRememberChars = 500;
+
 ToolResult remember_handler(MemoryStore& store, const json& args, const ToolContext& ctx) {
     if (!args.contains("text") || !args["text"].is_string()
         || args["text"].get<std::string>().empty())
         return {"Missing or invalid 'text' argument", /*error=*/true};
 
+    // One sentence, not a document (docs/memory-plan.md, phase 2). Counted in
+    // characters so Spanish isn't charged twice for its accents. A paragraph
+    // stored here is recalled whole into every prompt it matches; the text
+    // belongs in a file and the memory in a sentence that points at it.
     const std::string text = args["text"].get<std::string>();
-    if (text.size() > 2000)
-        return {"Memory text too long (max 2000 chars) — store a summary instead", true};
+    size_t chars = 0;
+    for (unsigned char c : text) chars += (c & 0xC0) != 0x80;
+    if (chars > kMaxRememberChars)
+        return {"Memory text too long (" + std::to_string(chars) + " characters, max "
+                + std::to_string(kMaxRememberChars) + "). Store one self-contained sentence; "
+                "if the detail matters, write it to a file with write_file and remember "
+                "where it is.", true};
 
     int64_t id = store.remember(ctx.user_id, ctx.memory_scope, text, "tool");
     return {"Remembered (memory #" + std::to_string(id) + ")."};

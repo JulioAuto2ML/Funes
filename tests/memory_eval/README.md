@@ -51,3 +51,4 @@ Semantic, k=4, 30 queries, nomic-embed-text-v1.5 Q4_K_M on CPU.
 | change | recall@4 | hit@1 | stale-first | contamination@4 |
 |---|---|---|---|---|
 | baseline (7.0.1) | 0.750 | 0.700 | 0.167 | 0.142 |
+| bounded writes (phase 2): attachments by name, both halves ≤300 | 0.817 | 0.700 | 0.167 | 0.142 |
