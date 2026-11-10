@@ -273,6 +273,14 @@ void MemoryStore::migrate() {
     add_column_if_missing(db_, "memories", "superseded_at", "TEXT");
     add_column_if_missing(db_, "memories", "archived", "INTEGER NOT NULL DEFAULT 0");
 
+    // ── 7.3: citations (memory plan, phase 7) ────────────────────────────────
+    // cited_since is when counting began on this database: eviction by
+    // citation waits a full window after it, see archive_uncited.
+    add_column_if_missing(db_, "memories", "cited_count", "INTEGER NOT NULL DEFAULT 0");
+    add_column_if_missing(db_, "memories", "last_cited_at", "TEXT");
+    exec_or_throw(db_, "INSERT OR IGNORE INTO meta(key, value) "
+                       "VALUES('cited_since', datetime('now'));");
+
     // ── 5.0: connected memories ───────────────────────────────────────────────
     // Links between memories. ON DELETE CASCADE matters more than it looks:
     // memory ids are recycled by SQLite, so a dangling link does not merely
@@ -1127,7 +1135,8 @@ std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
     std::lock_guard<std::mutex> lock(mu_);
 
     std::string sql = "SELECT id, agent, text, source, created_at, recall_count, user_id, "
-                      "origin, tainted, superseded_by, archived FROM memories WHERE user_id = ?";
+                      "origin, tainted, superseded_by, archived, cited_count "
+                      "FROM memories WHERE user_id = ?";
     if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ? OFFSET ?";
 
@@ -1152,6 +1161,7 @@ std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
         m.tainted      = s.col_int64(8) != 0;
         m.superseded_by = s.col_int64(9);
         m.archived     = s.col_int64(10) != 0;
+        m.cited_count  = s.col_int64(11);
         out.push_back(std::move(m));
     }
     return out;
@@ -1472,6 +1482,8 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
 
     // Step 2 — prune. Runs with or without an embedder.
     report.pruned = prune_stale(opt);
+    // Step 3 — archive what no reply ever drew on.
+    report.archived = archive_uncited(opt);
     return report;
 }
 

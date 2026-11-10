@@ -54,8 +54,9 @@ Create one from the web UI's first-run screen, or from the CLI:
 ```
 
 Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
-`locale`, `jid-map`, `jid-unmap`, and two maintenance commands, `cron-cleanup`
-and `cron-schedule` (change a job's schedule and its next run together).
+`locale`, `jid-map`, `jid-unmap`, and three maintenance commands, `cron-cleanup`,
+`cron-schedule` (change a job's schedule and its next run together) and
+`memory-migrate` (queue stored exchange logs for fact extraction, 7.3).
 (`locale` is how an admin sets *another* account's language —
 `PUT /api/me/locale` only ever changes the caller's own, so a new account
 can't be set up in its owner's language before they first log in without it.) They run
@@ -335,6 +336,16 @@ expansion, backfill, consolidation) but stays in the table; `unsupersede` /
 `POST /api/memories/<id>/restore` undoes it. Its guards live in the UPDATE:
 tainted never retires untainted, only `user` retires `user`. A new query over
 `memories` that feeds recall must filter `superseded_by IS NULL AND archived = 0`.
+
+7.3 adds the two remaining memory-plan phases. `funes memory-migrate [--apply]`
+queues the live `auto` rows for that same pass (`enqueue_auto_migration`,
+dry run by default, `--undo` restores); each log is archived once its
+exchange is handled, facts or none. The worker runs in `log` mode too and
+then handles only migration rows. And every reply records which recalled
+memories it *cited* (`citation.h`: it repeats two and at least half of a
+memory's distinctive terms); consolidation's step 3 archives `extracted`/`auto`
+memories never cited and never linked after `FUNES_ARCHIVE_UNCITED_DAYS` (90),
+counted only from `meta.cited_since` so an upgrade archives nothing at once.
 
 As of 5.0 recall is no longer a single flat similarity search. Two passes run
 after it and **only ever append** to what it found: a one-hop expansion through

@@ -38,6 +38,10 @@ add_executable(test_fact_extraction test_fact_extraction.cpp)
 target_link_libraries(test_fact_extraction PRIVATE funes_core)
 add_test(NAME fact_extraction COMMAND test_fact_extraction)
 
+add_executable(test_citation test_citation.cpp)
+target_link_libraries(test_citation PRIVATE funes_core)
+add_test(NAME citation COMMAND test_citation)
+
 add_executable(test_text_utils test_text_utils.cpp)
 target_link_libraries(test_text_utils PRIVATE funes_core)
 add_test(NAME text_utils COMMAND test_text_utils)
@@ -185,3 +189,8 @@ target_link_libraries(memory_eval PRIVATE funes_core)
 target_compile_definitions(memory_eval PRIVATE
     FUNES_EVAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/memory_eval/fixture.json")
 add_test(NAME memory_eval_runs COMMAND memory_eval --no-embed)
+
+# What a phase-6 migration does to a real pool: top-k before and after, on a
+# copy of a memory.db. A tool for reading, not a test — see the file header.
+add_executable(memory_probe memory_eval/memory_probe.cpp)
+target_link_libraries(memory_probe PRIVATE funes_core)

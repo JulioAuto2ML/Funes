@@ -235,7 +235,8 @@ void print_usage(std::ostream& out) {
            "  useradd  userdel  userlist  passwd  perms  locale  jid-map  jid-unmap\n\n"
            "Maintenance:\n"
            "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n"
-           "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n";
+           "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n"
+           "  memory-migrate              queue stored exchange logs for fact extraction\n";
 }
 
 } // namespace
@@ -560,6 +561,7 @@ int main(int argc, char** argv) {
     if (funes::env("FUNES_CONSOLIDATE", "on") != "off") {
         MemoryStore::ConsolidationOptions opt;
         opt.prune_after_days = funes::env_int("FUNES_CONSOLIDATE_PRUNE_DAYS", 30);
+        opt.archive_uncited_after_days = funes::env_int("FUNES_ARCHIVE_UNCITED_DAYS", 90);
         opt.max_clusters     = static_cast<size_t>(funes::env_int("FUNES_CONSOLIDATE_MAX_CLUSTERS", 20));
         const int every_hours = std::max(1, funes::env_int("FUNES_CONSOLIDATE_HOURS", 6));
 
@@ -575,11 +577,12 @@ int main(int argc, char** argv) {
                             funes::load::wait_until_quiet();
                             return merge_memories(llm, texts);
                         }, opt);
-                    if (report.merged || report.pruned || report.clusters_seen)
+                    if (report.merged || report.pruned || report.clusters_seen || report.archived)
                         std::cerr << "[funes] consolidation: " << report.clusters_seen
                                   << " cluster(s), merged " << report.merged
                                   << ", kept " << report.kept
-                                  << ", pruned " << report.pruned << "\n";
+                                  << ", pruned " << report.pruned
+                                  << ", archived uncited " << report.archived << "\n";
                 } catch (const std::exception& e) {
                     std::cerr << "[funes] consolidation run failed: " << e.what() << "\n";
                 }
@@ -588,12 +591,14 @@ int main(int argc, char** argv) {
     }
 
     // Fact extraction (7.2, fact_extraction.h): turns queued exchanges into
-    // the facts they established. On whenever FUNES_AUTO_MEMORY is extract,
-    // the default. Polls rather than being woken by the chat path, and only
+    // the facts they established. Runs unless FUNES_AUTO_MEMORY is off: in
+    // extract mode (the default) it handles new exchanges; in log mode
+    // nothing new is queued and it handles only what `funes memory-migrate`
+    // queued (7.3). Polls rather than being woken by the chat path, and only
     // takes exchanges a couple of minutes old, so a conversation in progress
     // is not competing with its own memory for the GPU; each call also waits
     // for busy_gate like the passes below.
-    if (defaults.auto_memory == AgentDefaults::AutoMemory::Extract) {
+    if (defaults.auto_memory != AgentDefaults::AutoMemory::Off) {
         funes::FactExtractionOptions opt;
         opt.max_items       = static_cast<size_t>(funes::env_int("FUNES_EXTRACT_MAX_ITEMS", 20));
         opt.min_age_seconds = funes::env_int("FUNES_EXTRACT_MIN_AGE", 120);
@@ -615,6 +620,7 @@ int main(int argc, char** argv) {
                         std::cerr << "[funes] fact extraction: " << report.seen
                                   << " exchange(s), " << report.facts << " fact(s), "
                                   << report.replaced << " superseded, "
+                                  << report.archived << " log(s) archived, "
                                   << report.failed << " failed\n";
                 } catch (const std::exception& e) {
                     std::cerr << "[funes] fact extraction run failed: " << e.what() << "\n";

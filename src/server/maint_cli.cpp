@@ -15,7 +15,7 @@
 namespace funes {
 namespace {
 
-const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule"};
+const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule", "memory-migrate"};
 
 void usage() {
     std::cerr <<
@@ -35,7 +35,17 @@ void usage() {
         "\n"
         "Changes when a scheduled job fires, and moves its next run to match\n"
         "(any user's job — this is the admin path). Safe while the server runs:\n"
-        "the runner reads the table on every tick.\n";
+        "the runner reads the table on every tick.\n"
+        "\n"
+        "  funes memory-migrate [--apply] [--user <username>] [--limit <n>]\n"
+        "  funes memory-migrate --undo [--user <username>]\n"
+        "\n"
+        "Queues the stored `User said … I replied …` memories for fact\n"
+        "extraction (docs/memory-plan.md, phase 6). The running server's\n"
+        "background pass does the work, one model call per exchange, when the\n"
+        "machine is quiet; each log is archived (kept, out of recall) once its\n"
+        "facts are stored. Reports without queueing unless --apply. --undo\n"
+        "brings every archived log back; the extracted facts stay.\n";
 }
 
 int cmd_cron_cleanup(const std::string& db_path, const std::vector<std::string>& args) {
@@ -124,6 +134,58 @@ int cmd_cron_schedule(const std::string& db_path, const std::vector<std::string>
     return 0;
 }
 
+int cmd_memory_migrate(const std::string& db_path, const std::vector<std::string>& args) {
+    bool apply = false, undo = false;
+    std::string username;
+    size_t limit = 100000;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--dry-run") { apply = false; continue; }
+        if (args[i] == "--apply")   { apply = true;  continue; }
+        if (args[i] == "--undo")    { undo = true;   continue; }
+        if (args[i] == "--user" || args[i] == "--limit") {
+            if (i + 1 >= args.size()) { std::cerr << "Missing value for " << args[i] << "\n"; return 2; }
+            const std::string v = args[++i];
+            if (args[i - 1] == "--user") { username = v; continue; }
+            try { limit = static_cast<size_t>(std::stoull(v)); } catch (const std::exception&) {
+                std::cerr << "Not a number: " << v << "\n";
+                return 2;
+            }
+            continue;
+        }
+        std::cerr << "Unknown option: " << args[i] << "\n";
+        usage();
+        return 2;
+    }
+
+    int64_t user_id = -1;
+    if (!username.empty()) {
+        UserStore users(db_path);
+        auto user = users.find_by_username(username);
+        if (!user) { std::cerr << "No such user: " << username << "\n"; return 1; }
+        user_id = user->id;
+    }
+
+    // No embedder and no model: this only writes queue rows (or clears the
+    // archive flag). The server's extraction thread does the model work.
+    MemoryStore memory(db_path, nullptr);
+    if (undo) {
+        std::cout << "Restored " << memory.unarchive_migrated(user_id)
+                  << " archived exchange log(s) to recall.\n";
+        return 0;
+    }
+    const auto r = memory.enqueue_auto_migration(user_id, limit, !apply);
+    std::cout << (apply ? "Queued " : "Would queue ") << r.candidates
+              << " exchange log(s) for fact extraction";
+    if (r.unparsed) std::cout << " (" << r.unparsed << " auto memories not in that shape, left alone)";
+    std::cout << ".\n";
+    if (!apply)
+        std::cout << "\nDry run — nothing was queued. Re-run with --apply.\n";
+    else
+        std::cout << "Already queued: " << memory.count_pending_exchanges()
+                  << " pending. The server works through them in the background.\n";
+    return 0;
+}
+
 } // namespace
 
 bool is_maint_cli_command(int argc, char** argv) {
@@ -141,6 +203,7 @@ int run_maint_cli(int argc, char** argv, const std::string& db_path) {
     try {
         if (cmd == "cron-cleanup")  return cmd_cron_cleanup(db_path, args);
         if (cmd == "cron-schedule") return cmd_cron_schedule(db_path, args);
+        if (cmd == "memory-migrate") return cmd_memory_migrate(db_path, args);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;

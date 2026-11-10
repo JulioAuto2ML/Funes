@@ -69,6 +69,7 @@ public:
         // Only list() fills these; recall never returns a retired memory.
         int64_t     superseded_by = 0;
         bool        archived = false;
+        int64_t     cited_count = 0;   // replies that drew on it (citation.h); list() only
 
         // The text as the model and the person should read it: a tainted
         // memory is shown as its source's claim ("per <origin>: …"). Added
@@ -134,8 +135,10 @@ public:
     // most similar to `text`, and its cosine similarity. {0, 0} without an
     // embedder or a vector index. Raw similarity, no source weighting: the
     // extraction pass asks "has this already been said?", not "what ranks?".
+    // exclude_id: a memory not to count (the exchange log a fact came from,
+    // during migration — the fact always resembles its own source).
     std::pair<int64_t, double> nearest_live(int64_t user_id, const std::string& agent,
-                                            const std::string& text);
+                                            const std::string& text, int64_t exclude_id = 0);
     // Undo: brings `id` back into recall. False if it is not this user's or
     // was not superseded.
     bool unsupersede(int64_t user_id, int64_t id);
@@ -273,6 +276,27 @@ public:
     int64_t count_pending_exchanges();
     static constexpr int kMaxExtractAttempts = 3;
 
+    // ── Migrating stored exchange logs (7.3, memory plan phase 6) ────────────
+    // Queues live `auto` rows — the pre-7.2 `User said … I replied …`
+    // memories — for the same extraction pass, each carrying its own date and
+    // provenance and pointing back at its row (source_memory). When the pass
+    // has handled one, that row is archived: out of recall, still in the
+    // table. A row already queued once (whatever the outcome) is not queued
+    // again, so this is resumable and idempotent. user_id < 0 = every user.
+    struct MigrationReport {
+        int candidates = 0;   // live auto rows not yet queued
+        int queued     = 0;   // 0 on a dry run
+        int unparsed   = 0;   // auto rows not in the exchange-log shape; left alone
+    };
+    MigrationReport enqueue_auto_migration(int64_t user_id, size_t limit, bool dry_run);
+    // Out of recall / back into it. Owner-checked like everything else.
+    bool archive(int64_t user_id, int64_t id);
+    // A reply drew on these (citation.h): cited_count + 1, last_cited_at.
+    void mark_cited(int64_t user_id, const std::vector<int64_t>& ids);
+    // Undo the migration: every row archived because its exchange was
+    // extracted comes back. The facts extracted from them stay. Returns rows.
+    int unarchive_migrated(int64_t user_id);
+
     // ── Consolidation (offline reflection pass) ───────────────────────────────
     // remember() never merges and never forgets: near-duplicates accumulate and
     // recall precision decays. consolidate() is the periodic cleanup — merge
@@ -294,6 +318,13 @@ public:
         std::string agent;                  // empty = every agent
         double      min_similarity = 0.92;  // cosine; below this they're distinct facts
         int         prune_after_days = 30;  // age threshold for step 2; <0 disables it
+        // Step 3 (7.3): `extracted` and `auto` memories never cited by a
+        // reply (citation.h) and not linked to anything, older than this,
+        // are archived — kept, out of recall. Not judged at all until
+        // citations have been counted for this long (meta `cited_since`), so
+        // an upgrade does not archive a pool that had no chance to be cited.
+        // <0 disables it.
+        int         archive_uncited_after_days = 90;
         size_t      max_clusters = 20;      // cap LLM calls per run; the next run continues
     };
 
@@ -301,6 +332,7 @@ public:
         int clusters_seen = 0;  // near-duplicate clusters found
         int merged        = 0;  // memories replaced by a merged row
         int pruned        = 0;  // stale, never-recalled auto memories deleted
+        int archived      = 0;  // never-cited extracted/auto memories archived (step 3)
         int kept          = 0;  // clusters the merge function declined to merge
     };
 
@@ -536,6 +568,7 @@ private:
     void insert_vector(int64_t user_id, int64_t memory_id, const std::vector<float>& vec);
     void touch_recalled(const std::vector<Memory>& hits);  // recall bookkeeping
     int  prune_stale(const ConsolidationOptions& opt);      // consolidate() step 2
+    int  archive_uncited(const ConsolidationOptions& opt);  // step 3, memory_facts.cpp
     std::vector<Memory> recall_semantic(int64_t user_id, const std::string& agent,
                                         const std::vector<float>& qvec, int k);
     std::vector<Memory> recall_keyword(int64_t user_id, const std::string& agent,

@@ -5,6 +5,7 @@
 #include "agent.h"
 #include "auto_memory.h"
 #include "busy_gate.h"
+#include "citation.h"
 #include "mcp_http_client.h"
 #include "users.h"   // funes::language_name
 #include "answer_schema.h"
@@ -267,8 +268,10 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
+    std::vector<MemoryStore::Memory> recalled;   // for citation bookkeeping, step 5
     if (defaults_.memory_recall_k > 0) {
         auto memories = memory_.recall(user_id, cfg_.memory_scope, user_message, defaults_.memory_recall_k);
+        recalled = memories;
         if (!memories.empty()) {
             json items = json::array();
             std::ostringstream oss;
@@ -473,6 +476,22 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     //    which is a lie for a scheduled job and a lie that gets *recalled*:
     //    the cron-authored ones on the deployment had been injected into real
     //    conversations a dozen times each.
+    // Which recalled memories the reply actually drew on (citation.h). Counted
+    // for every run that recalled anything — eviction reads it, and a memory
+    // a scheduled job keeps citing is in use.
+    if (!recalled.empty() && !final_text.empty()) {
+        std::vector<int64_t> cited;
+        for (const auto& m : recalled)
+            if (funes::is_cited(m.text, final_text)) cited.push_back(m.id);
+        if (!cited.empty()) {
+            try { memory_.mark_cited(user_id, cited); }
+            catch (const std::exception& e) {
+                std::cerr << "[agent:" << cfg_.name << "] citation bookkeeping failed: "
+                          << e.what() << "\n";
+            }
+        }
+    }
+
     if (writes_history) {
         memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);

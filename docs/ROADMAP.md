@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.2.0** (memory plan phases 4–5: facts extracted from exchanges instead of exchange logs; supersession with undo).
+Current release: **7.3.0** (memory plan phases 6–7: migrating stored exchange logs; eviction by citation).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
@@ -17,7 +17,7 @@ Current release: **7.2.0** (memory plan phases 4–5: facts extracted from excha
 | **7.x** | OS plan phases 1–7: cgroup per tool call, Landlock/seccomp, `funes.sock`, the machine as a memory owner, effects as proposals | [os-plan.md](os-plan.md) | next: phase 1 |
 | **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
 | **7.2** | Memory plan phases 4–5: exchanges queued and reduced to facts by a gated background pass; newer facts and `contradicts` verdicts supersede older ones, reversibly | [memory-plan.md](memory-plan.md) | done |
-| **7.x** | Memory plan phases 6–7: migrate the existing pool's exchange logs, cited-not-recalled eviction | [memory-plan.md](memory-plan.md) | next: phase 6 |
+| **7.3** | Memory plan phases 6–7: `funes memory-migrate` (logs → facts, archived, undoable), uncited memories archived after a window | [memory-plan.md](memory-plan.md) | built; migration not yet applied on yoda |
 | **8.0** | Voice: STT + TTS sidecars | v6 voice research | deprioritised |
 
 ## Why this order

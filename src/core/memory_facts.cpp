@@ -5,6 +5,7 @@
 // largest in the core. See memory.h, "Fact extraction queue".
 
 #include "memory.h"
+#include "auto_memory.h"
 #include "sqlite_util.h"
 #include <iostream>
 #include <mutex>
@@ -147,7 +148,7 @@ bool MemoryStore::unsupersede(int64_t user_id, int64_t id) {
 }
 
 std::pair<int64_t, double> MemoryStore::nearest_live(int64_t user_id, const std::string& agent,
-                                                     const std::string& text) {
+                                                     const std::string& text, int64_t exclude_id) {
     std::vector<float> vec;
     if (!try_embed(text, vec)) return {0, 0.0};
     std::lock_guard<std::mutex> lock(mu_);
@@ -163,7 +164,135 @@ std::pair<int64_t, double> MemoryStore::nearest_live(int64_t user_id, const std:
     s.bind_blob(2, vec.data(), vec.size() * sizeof(float));
     while (s.step()) {
         if (s.col_text(2) != agent || s.col_int64(3) == 0) continue;
+        if (s.col_int64(0) == exclude_id) continue;
         return {s.col_int64(0), 1.0 - s.col_double(1)};
     }
     return {0, 0.0};
+}
+
+// ── migrating exchange logs (phase 6) ────────────────────────────────────────
+
+MemoryStore::MigrationReport MemoryStore::enqueue_auto_migration(int64_t user_id, size_t limit,
+                                                                 bool dry_run) {
+    MigrationReport report;
+    std::lock_guard<std::mutex> lock(mu_);
+
+    struct Row { int64_t id, user_id; std::string agent, text, created_at, origin; bool tainted; };
+    std::vector<Row> rows;
+    {
+        std::string sql = R"sql(
+            SELECT m.id, m.user_id, m.agent, m.text, m.created_at, m.origin, m.tainted
+            FROM memories m
+            WHERE m.source = 'auto' AND m.superseded_by IS NULL AND m.archived = 0
+              AND NOT EXISTS (SELECT 1 FROM memory_extract_queue q
+                              WHERE q.source_memory = m.id)
+        )sql";
+        if (user_id > 0) sql += " AND m.user_id = ?";
+        sql += " ORDER BY m.id LIMIT ?";
+        Stmt s(db_, sql.c_str());
+        int i = 1;
+        if (user_id > 0) s.bind_int64(i++, user_id);
+        s.bind_int64(i, static_cast<int64_t>(limit));
+        while (s.step())
+            rows.push_back({s.col_int64(0), s.col_int64(1), s.col_text(2), s.col_text(3),
+                            s.col_text(4), s.col_text(5), s.col_int64(6) != 0});
+    }
+
+    exec_or_throw(db_, "BEGIN IMMEDIATE");
+    try {
+        for (const auto& r : rows) {
+            std::string user_text, reply;
+            if (!funes::parse_auto_memory_text(r.text, user_text, reply)) {
+                ++report.unparsed;
+                continue;
+            }
+            ++report.candidates;
+            if (dry_run) continue;
+            // Bounded like a live exchange (agent.cpp): a pre-7.1 row can
+            // still hold a whole attached document.
+            Stmt s(db_, "INSERT INTO memory_extract_queue(user_id, agent, session, user_text, "
+                        "reply, origin, tainted, source_memory, created_at) "
+                        "VALUES(?,?,?,?,?,?,?,?,?)");
+            s.bind_int64(1, r.user_id);
+            s.bind_text(2, r.agent);
+            s.bind_text(3, "memory-" + std::to_string(r.id));
+            s.bind_text(4, funes::shorten_on_sentence(funes::without_attachments(user_text), 2000));
+            s.bind_text(5, funes::shorten_on_sentence(reply, 2000));
+            // The log's own origin when it has one (7.1+); "memory:<id>"
+            // otherwise, so every fact can be traced to the row it came from.
+            const std::string origin = r.origin.empty() ? "memory:" + std::to_string(r.id)
+                                                        : r.origin;
+            s.bind_text(6, origin);
+            s.bind_int64(7, r.tainted ? 1 : 0);
+            s.bind_int64(8, r.id);
+            s.bind_text(9, r.created_at);   // the date "tomorrow" meant
+            s.step();
+            ++report.queued;
+        }
+        exec_or_throw(db_, "COMMIT");
+    } catch (...) {
+        exec_or_throw(db_, "ROLLBACK");
+        throw;
+    }
+    return report;
+}
+
+bool MemoryStore::archive(int64_t user_id, int64_t id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE memories SET archived = 1 WHERE id = ? AND user_id = ? AND archived = 0");
+    s.bind_int64(1, id);
+    s.bind_int64(2, user_id);
+    s.step();
+    return sqlite3_changes(db_) > 0;
+}
+
+int MemoryStore::unarchive_migrated(int64_t user_id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    std::string sql = "UPDATE memories SET archived = 0 WHERE archived = 1 AND id IN "
+                      "(SELECT source_memory FROM memory_extract_queue WHERE status = 'done' "
+                      "AND source_memory > 0)";
+    if (user_id > 0) sql += " AND user_id = ?";
+    Stmt s(db_, sql.c_str());
+    if (user_id > 0) s.bind_int64(1, user_id);
+    s.step();
+    return sqlite3_changes(db_);
+}
+
+// ── citations (phase 7) ──────────────────────────────────────────────────────
+
+void MemoryStore::mark_cited(int64_t user_id, const std::vector<int64_t>& ids) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE memories SET cited_count = cited_count + 1, "
+                "last_cited_at = datetime('now') WHERE id = ? AND user_id = ?");
+    for (int64_t id : ids) {
+        sqlite3_reset(s.p);
+        s.bind_int64(1, id);
+        s.bind_int64(2, user_id);
+        s.step();
+    }
+}
+
+int MemoryStore::archive_uncited(const ConsolidationOptions& opt) {
+    if (opt.archive_uncited_after_days < 0) return 0;
+    std::lock_guard<std::mutex> lock(mu_);
+    // `user`, `tool` and `consolidated` memories are never archived for this:
+    // they were written on purpose. A linked memory is in use by definition —
+    // something else reaches it.
+    std::string sql = R"sql(
+        UPDATE memories SET archived = 1
+        WHERE source IN ('extracted', 'auto') AND cited_count = 0
+          AND archived = 0 AND superseded_by IS NULL
+          AND created_at <= datetime('now', ?1)
+          AND (SELECT value FROM meta WHERE key = 'cited_since') <= datetime('now', ?1)
+          AND NOT EXISTS (SELECT 1 FROM memory_links l
+                          WHERE l.from_id = memories.id OR l.to_id = memories.id)
+    )sql";
+    if (opt.user_id >= 0)   sql += " AND user_id = ?2";
+    if (!opt.agent.empty()) sql += " AND agent = ?3";
+    Stmt s(db_, sql.c_str());
+    s.bind_text(1, "-" + std::to_string(opt.archive_uncited_after_days) + " days");
+    if (opt.user_id >= 0)   s.bind_int64(2, opt.user_id);
+    if (!opt.agent.empty()) s.bind_text(3, opt.agent);
+    s.step();
+    return sqlite3_changes(db_);
 }

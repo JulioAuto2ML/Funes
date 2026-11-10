@@ -1,6 +1,8 @@
 # Memory architecture — diagnosis and plan
 
-Status: phases 1–3 **done** in 7.1.0, 4–5 in 7.2.0 (2026-11-10); 6–7 proposed. Numbers
+Status: phases 1–3 **done** in 7.1.0, 4–5 in 7.2.0, 6–7 built in 7.3.0
+(2026-11-10). yoda runs FUNES_AUTO_MEMORY=log; the migration has been run
+only on a copy of its pool. Numbers
 in the diagnosis are from yoda's `data/memory.db`, read-only, on 2026-11-10.
 
 ## Progress

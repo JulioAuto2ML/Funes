@@ -10,7 +10,7 @@ Everything runs in a single `funes` binary.
 | `main.cpp` | Entry point. Config loading, service construction, background threads, HTTP server startup. |
 | `api.h/cpp` | `FunesApi` -- route handlers, agent table, SSE streaming, authentication. |
 | `user_cli.h/cpp` | `funes useradd/userdel/userlist/passwd/perms/jid-map/jid-unmap`. Runs against the database and exits without starting the server, so account management never needs a reachable LLM. |
-| `maint_cli.h/cpp` | `funes cron-cleanup` (one-off, destructive: removes pre-4.1 scheduled-run leftovers) and `funes cron-schedule <id> "<expr>"` (changes when any user's job fires and moves its next run to match). Separate from `user_cli` because they operate on stored data rather than accounts. |
+| `maint_cli.h/cpp` | `funes cron-cleanup` (one-off, destructive: removes pre-4.1 scheduled-run leftovers) `funes cron-schedule <id> "<expr>"` (changes when any user's job fires and moves its next run to match), and `funes memory-migrate [--apply|--undo]` (queues stored exchange logs for fact extraction; reversible). Separate from `user_cli` because they operate on stored data rather than accounts. |
 
 ## Startup sequence
 

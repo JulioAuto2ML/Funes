@@ -81,4 +81,19 @@ std::string auto_memory_text(const std::string& user_message, const std::string&
          + "\" — I replied: \"" + shorten_on_sentence(reply, kHalfCap) + "\"";
 }
 
+bool parse_auto_memory_text(const std::string& text, std::string& user_message,
+                            std::string& reply) {
+    static const std::string kHead = "User said: \"";
+    static const std::string kSep  = "\" — I replied: \"";
+    if (text.rfind(kHead, 0) != 0 || text.size() < kHead.size() + kSep.size() + 1
+        || text.back() != '"')
+        return false;
+    const size_t sep = text.find(kSep, kHead.size());
+    if (sep == std::string::npos) return false;
+    user_message = text.substr(kHead.size(), sep - kHead.size());
+    const size_t r = sep + kSep.size();
+    reply = text.substr(r, text.size() - 1 - r);
+    return true;
+}
+
 } // namespace funes

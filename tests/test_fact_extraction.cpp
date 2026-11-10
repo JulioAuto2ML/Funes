@@ -11,6 +11,7 @@
 // The model is scripted throughout: these test what the code does with an
 // answer, not what a model answers. tests/memory_eval measures the latter.
 
+#include "auto_memory.h"
 #include "fact_extraction.h"
 #include "memory.h"
 #include <cmath>
@@ -335,6 +336,104 @@ int test_restatement_is_not_stored() {
     return 0;
 }
 
+// ── migrating stored exchange logs (phase 6) ─────────────────────────────────
+
+int test_auto_text_round_trips() {
+    std::string u, r;
+    const std::string text = funes::auto_memory_text("me llamo \"Julio\"", "¡Hola, Julio!");
+    CHECK(funes::parse_auto_memory_text(text, u, r));
+    CHECK(u == "me llamo \"Julio\"");
+    CHECK(r == "¡Hola, Julio!");
+    CHECK(!funes::parse_auto_memory_text("El usuario se llama Julio.", u, r));
+    CHECK(!funes::parse_auto_memory_text("User said: \"unterminated", u, r));
+    return 0;
+}
+
+int test_migration_queues_logs_once_and_archives_them() {
+    MemoryStore m(fresh_db("migrate"), nullptr);
+    const int64_t neg  = m.remember(1, "funes", funes::auto_memory_text(
+        "what's my name?", "I don't have your name recorded yet."), "auto");
+    const int64_t name = m.remember(1, "funes", funes::auto_memory_text(
+        "me llamo Julio", "¡Encantado, Julio!"), "auto");
+    const int64_t odd  = m.remember(1, "funes", "an auto memory in no known shape", "auto");
+    const int64_t fact = m.remember(1, "funes", "Julio drinks mate.", "tool");
+    const int64_t other = m.remember(2, "funes", funes::auto_memory_text("hola", "hola"), "auto");
+
+    // Dry run: counts, queues nothing.
+    auto dry = m.enqueue_auto_migration(1, 100, true);
+    CHECK(dry.candidates == 2);
+    CHECK(dry.unparsed == 1);
+    CHECK(dry.queued == 0);
+    CHECK(m.count_pending_exchanges() == 0);
+
+    // Apply, for user 1 only; a second apply finds nothing new.
+    auto applied = m.enqueue_auto_migration(1, 100, false);
+    CHECK(applied.queued == 2);
+    CHECK(m.enqueue_auto_migration(1, 100, false).queued == 0);
+    const auto pending = m.pending_exchanges(10);
+    CHECK(pending.size() == 2);
+    CHECK(pending[0].source_memory == neg);
+    CHECK(pending[0].user_text == "what's my name?");
+    CHECK(pending[0].origin == "memory:" + std::to_string(neg));
+
+    int calls = 0;
+    bool own_log_shown_as_known = false;
+    const auto r = funes::run_fact_extraction(m,
+        [&](const std::vector<ChatMessage>& msgs) -> std::string {
+            ++calls;
+            // The log a fact is being extracted from is not shown as known.
+            const std::string& c = msgs[1].content;
+            const std::string known_part = c.substr(0, c.find("Exchange ("));
+            if (c.find("what's my name?") != std::string::npos
+                && known_part.find("what's my name?") != std::string::npos)
+                own_log_shown_as_known = true;
+            if (msgs[1].content.find("me llamo Julio") != std::string::npos)
+                return R"({"facts":[{"text":"El usuario se llama Julio.","kind":"about_person"}]})";
+            return R"({"facts":[]})";
+        });
+    CHECK(calls == 2);
+    CHECK(!own_log_shown_as_known);
+    CHECK(r.archived == 2);                     // both logs, with or without facts
+    CHECK(r.facts == 1);
+
+    // Archived: out of recall, still in the table; the others untouched.
+    CHECK(!recalled(m, "name", neg));
+    CHECK(!recalled(m, "Julio", name));
+    CHECK(recalled(m, "known shape", odd));
+    CHECK(recalled(m, "mate", fact));
+    CHECK(m.count(1, "funes") == 5);            // 4 + the extracted fact
+    bool saw_fact = false;
+    for (const auto& mem : m.list(1, "funes")) {
+        if (mem.id == neg || mem.id == name) CHECK(mem.archived);
+        if (mem.source == "extracted") {
+            saw_fact = true;
+            CHECK(mem.origin == "memory:" + std::to_string(name));
+        }
+    }
+    CHECK(saw_fact);
+    for (const auto& mem : m.list(2, "funes"))
+        if (mem.id == other) CHECK(!mem.archived);   // another account's log
+
+    // Undo brings the logs back; the extracted fact stays.
+    CHECK(m.unarchive_migrated(1) == 2);
+    CHECK(recalled(m, "name", neg));
+    CHECK(m.count(1, "funes") == 5);
+    return 0;
+}
+
+int test_failed_migration_leaves_the_log_live() {
+    MemoryStore m(fresh_db("migrate_fail"), nullptr);
+    const int64_t log = m.remember(1, "funes", funes::auto_memory_text(
+        "me llamo Julio", "Encantado"), "auto");
+    m.enqueue_auto_migration(1, 10, false);
+    const auto r = funes::run_fact_extraction(m,
+        [](const std::vector<ChatMessage>&) -> std::string { return "I cannot do that."; });
+    CHECK(r.failed == 1);
+    CHECK(r.archived == 0);
+    CHECK(recalled(m, "Julio", log));
+    return 0;
+}
+
 // The link judge's "contradicts" verdict retires the older of the two.
 int test_contradicts_verdict_supersedes_older() {
     FakeEmbedder emb;
@@ -365,6 +464,9 @@ int main() {
     rc |= test_supersede_guards();
     rc |= test_pass_supersedes_what_a_fact_replaces();
     rc |= test_restatement_is_not_stored();
+    rc |= test_auto_text_round_trips();
+    rc |= test_migration_queues_logs_once_and_archives_them();
+    rc |= test_failed_migration_leaves_the_log_live();
     rc |= test_contradicts_verdict_supersedes_older();
     if (rc == 0) std::cout << "test_fact_extraction: all tests passed\n";
     return rc;

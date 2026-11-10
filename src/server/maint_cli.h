@@ -25,6 +25,14 @@
 //
 // Reports without deleting unless --apply. This is not reversible and there is
 // no downgrade, so read the numbers first.
+//
+//   funes memory-migrate [--apply] [--user <username>] [--limit <n>]
+//   funes memory-migrate --undo [--user <username>]
+//
+// Queues the stored exchange logs for fact extraction (docs/memory-plan.md,
+// phase 6); the running server does the model work. Unlike cron-cleanup this
+// one is reversible: a log is archived, never deleted, and --undo restores
+// every archived one.
 // =============================================================================
 
 #pragma once

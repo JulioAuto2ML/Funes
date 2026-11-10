@@ -80,6 +80,7 @@ struct FactExtractionReport {
     int facts  = 0;   // stored
     int replaced = 0; // older memories superseded by a fact (phase 5)
     int restated = 0; // facts dropped as restatements of a live memory
+    int archived = 0; // migrated exchange logs retired after extraction (phase 6)
 };
 
 // Works through the queue, oldest first. `complete` is the model call; the

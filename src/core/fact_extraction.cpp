@@ -146,8 +146,13 @@ FactExtractionReport run_fact_extraction(MemoryStore& memory, const CompleteFn& 
     FactExtractionReport report;
     for (const auto& e : memory.pending_exchanges(opt.max_items, opt.min_age_seconds)) {
         ++report.seen;
-        const auto known = memory.recall(e.user_id, e.agent, e.user_text, opt.known_k,
-                                         /*touch=*/false);
+        // A migrated log is not "already remembered" as far as its own facts
+        // are concerned — it is what they are being extracted from.
+        std::vector<MemoryStore::Memory> known;
+        for (auto& m : memory.recall(e.user_id, e.agent, e.user_text, opt.known_k + 1,
+                                     /*touch=*/false))
+            if (m.id != e.source_memory && static_cast<int>(known.size()) < opt.known_k)
+                known.push_back(std::move(m));
         const std::string date = e.created_at.substr(0, 10);
 
         std::string answer;
@@ -176,7 +181,9 @@ FactExtractionReport run_fact_extraction(MemoryStore& memory, const CompleteFn& 
 
         Provenance prov;
         prov.tainted = e.tainted;
-        prov.origin  = e.tainted ? e.origin : "session:" + e.session;
+        // A tainted run's sources, or for a migrated log the log's own
+        // origin ("memory:<id>" before 7.1), so a fact can be traced back.
+        prov.origin  = e.tainted || e.source_memory > 0 ? e.origin : "session:" + e.session;
         int stored = 0;
         for (const auto& f : facts) {
             try {
@@ -184,7 +191,8 @@ FactExtractionReport run_fact_extraction(MemoryStore& memory, const CompleteFn& 
                 // was taught, not extracted) is still stored; the link judge's
                 // contradicts verdict decides between the two.
                 if (!f.claims_replacement) {
-                    const auto [near_id, sim] = memory.nearest_live(e.user_id, e.agent, f.text);
+                    const auto [near_id, sim] = memory.nearest_live(e.user_id, e.agent, f.text,
+                                                                    e.source_memory);
                     if (near_id && sim >= opt.restatement_similarity) {
                         ++report.restated;
                         std::cerr << "[facts] exchange " << e.id << ": restates #" << near_id
@@ -204,6 +212,10 @@ FactExtractionReport run_fact_extraction(MemoryStore& memory, const CompleteFn& 
             }
         }
         memory.finish_exchange(e.id, true, stored);
+        // A migrated exchange log has given up its facts (often none): it
+        // leaves recall. Archived, not deleted — unarchive_migrated undoes it.
+        if (e.source_memory > 0 && memory.archive(e.user_id, e.source_memory))
+            ++report.archived;
         ++report.done;
         report.facts += stored;
     }

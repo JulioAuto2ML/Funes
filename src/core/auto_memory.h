@@ -32,4 +32,9 @@ std::string without_attachments(const std::string& user_message);
 // The memory text for one exchange: `User said: "…" — I replied: "…"`.
 std::string auto_memory_text(const std::string& user_message, const std::string& reply);
 
+// The inverse, for migrating stored exchange logs into the extraction queue
+// (memory plan, phase 6). False if `text` is not in that shape.
+bool parse_auto_memory_text(const std::string& text, std::string& user_message,
+                            std::string& reply);
+
 } // namespace funes
