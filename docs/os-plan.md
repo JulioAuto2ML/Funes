@@ -1,0 +1,282 @@
+# Funes in the OS — research and plan
+
+Status: **proposed** (2026-11-10). Nothing here is built. Facts marked
+*(unverified)* were not checked against a primary source or against yoda.
+
+## The question, restated
+
+Funes began as two ideas: a personal assistant, and AI embedded as deep as
+possible in a Linux system. Five releases built the first one. Of the second,
+what exists is `execute_shell`, `run_script` and a cron table — a web
+application that happens to be able to start processes. Nothing in the tree
+needs C++ yet: HTTP, SQLite and JSON are the same work in any language. This
+plan is the first that would cash that cheque, because everything in it is a
+direct syscall or a kernel interface with no FFI in between.
+
+"As deep as possible" is not a goal, though, and taken literally it leads
+somewhere wrong. So the first job is to decide what depth is *for*.
+
+## What "deep" should not mean
+
+Three directions were researched and rejected.
+
+| Direction | State of the art | Why not |
+|---|---|---|
+| **The model in the kernel's path** — inference as a kernel primitive, LLM-tuned schedulers | ProbeLogits (2026, single-author preprint); assorted "AI-native OS" projects | A kernel decision takes microseconds, a model call takes seconds and is sometimes wrong. Anything a model decides per-syscall is either too slow to enforce or too unreliable to trust. This is the "don't ask the model for what a tool can supply" incident, one layer down. |
+| **A new agent OS** — AIOS, WASM-isolate "agent kernels" | AIOS, Rivet agentOS, nanos | They reimplement scheduling, isolation and IPC in userspace for agents. Linux already has all three, kernel-enforced. A single-host household install gains nothing from a second, weaker kernel. |
+| **A tool per subsystem** — `systemctl`, `journalctl`, `nmcli` behind MCP | A dozen systemd-MCP servers already exist | Useful, commodity, and not depth: it is `execute_shell` with nicer names. It also gives a 13B local model root-adjacent verbs with nothing underneath to catch a mistake. Buildable in a weekend *after* the layers below exist; dangerous before. |
+
+## The thesis
+
+> **The model never sits in the kernel's path. It compiles to it.**
+
+Funes already works this way one level up: agents are config, grants are
+written down, isolation lives in the SQL statement rather than in the handler.
+Every one of those is a declaration that a deterministic layer enforces while
+the model is absent. The OS plan is the same move with the kernel as the
+enforcing layer:
+
+- what an agent **may do** becomes kernel policy (Landlock, seccomp, cgroups),
+  not a path check in Funes's own code;
+- what the machine **did** becomes memory, attributed to the tool call that
+  caused it by the kernel, not by a log-correlation heuristic;
+- what an agent **wants to change** becomes a proposal the filesystem can
+  discard, not an action it has to be trusted with;
+- who is **asking** is answered by the kernel (`SO_PEERCRED`), not by a token.
+
+The model's role in each is the slow, reviewable one: reading evidence,
+proposing a policy, explaining a diff. Enforcement never waits for it.
+
+## What Funes already has that makes this cheap
+
+| Existing piece | What it becomes |
+|---|---|
+| `proc::run_argv` — one fork/exec path for scripts, shell, MCP stdio | the one place a sandbox has to be applied |
+| script manifests (`params`, `env`, `output`) — "the model supplies arguments, never a command" | the place a script declares what it touches |
+| `fs_guard::workspace_for` — one resolver for every path | the source of a Landlock ruleset |
+| `child_environment()` allowlist | same idea, extended from env to filesystem and network |
+| `tool_log`, run/step ids | the join key for kernel events (see Pillar 1) |
+| `MemoryStore`: `source` weights, links with recorded judgments, consolidation, per-`user_id` partitions | the store for a machine's history |
+| result store — big outputs out of transcript, by id | where a pending diff lives |
+| cron's fire-time permission re-resolution | the model for "revoking stops the timer" on any standing grant |
+| `jid_users` — service token says *trusted*, jid says *who for* | `uid_users` — the socket says *who*, nothing else needed |
+| `systemd --user` service | a delegated cgroup subtree, for free, without root |
+
+The constraint that shapes everything: **Funes runs unprivileged**, as a user
+unit. eBPF (AgentSight's approach: intercept TLS to recover intent, trace
+syscalls for effect) needs root. Everything below is chosen to work without it.
+
+## Pillar 1 — Grants become kernel policy
+
+Today's honest sentence in `scriptlib/README.md` is "this is an allowlist, not
+a sandbox", and `operator`'s prompt has to tell the model that `execute_shell`
+is not confined. A prompt is carrying a security boundary. The fix is that the
+grant *is* the sandbox.
+
+**Mechanism.** A hidden `funes _exec` subcommand: `run_argv` execs the same
+binary with a policy on an inherited fd; the trampoline applies it and execs
+the real program. This keeps the existing rule that the child does nothing
+between `fork` and `exec` but exec, keeps the single binary, and puts
+`landlock_restrict_self` in a process that is about to be replaced anyway.
+
+The trampoline applies, in order:
+
+1. **cgroup** — the parent creates `…/funes.service/run-<run>-<step>/` in its
+   delegated subtree and moves the child in. `memory.max`, `pids.max`,
+   `cpu.weight` from the manifest; `cgroup.kill` replaces `kill(-pgid)`, which
+   a double-forking child escapes today.
+2. **Landlock** — filesystem rules derived from what Funes already knows: the
+   caller's workspace read-write, the interpreter and library paths read-only,
+   plus an optional manifest `access:` block. TCP rules by port (ABI 4+);
+   signal and abstract-socket scoping (ABI 6+). Rights are masked against the
+   running ABI so an older kernel degrades instead of failing.
+3. **seccomp** — a small static denylist (`ptrace`, `mount`, `bpf`, `keyctl`,
+   module loading, `io_uring`), not a per-script allowlist nobody will maintain.
+
+**The novel part: intent-stamped effects.** AgentSight exists because an
+outside observer cannot tell which LLM decision caused which syscall — the
+"semantic gap" — and it closes that gap with timing heuristics. Funes is not
+outside. It names the cgroup after the run and step, so every kernel-side fact
+about that cgroup (peak memory, OOM kill, CPU time, PSI, a Landlock denial in
+the audit log) is attributed to one tool call *by construction*. The cgroup
+path is the join key between intent and effect. No eBPF, no root, no guessing.
+
+**Second novel part: learned least privilege.** Nobody writes minimal sandbox
+profiles by hand, which is why most sandboxes ship permissive. So:
+
+1. A new script runs in **learn mode**: sandboxed widely, with every file and
+   socket it touches recorded. Unprivileged route: a seccomp user-notification
+   supervisor (the Sandlock design) observing `openat`/`connect`; simpler
+   fallback: Landlock audit denials (ABI 7, Linux 6.15) if the service user
+   can read the audit stream on yoda *(unverified)*.
+2. The observations are plain data. A deterministic tool folds them into a
+   candidate `access:` block; the model's only job is to explain it and flag
+   what looks wrong ("why does a TV script read `~/.ssh`?").
+3. An admin commits the manifest — the same "installing a script is an admin
+   editing the repo" rule as today.
+4. From then on the kernel enforces it, and a denial is a recorded event that
+   says *this script changed behaviour*, which is a supply-chain signal
+   `pip`-installed dependencies otherwise never give you.
+
+The model is in the review seat, not the enforcement seat.
+
+**What this does not fix, stated so nobody assumes it:** Landlock's network
+rules are per-port, not per-address, so it does not close the DNS-rebinding
+gap `ROADMAP.md` lists as open. That one has a cheaper fix — see Phase 0.
+
+## Pillar 2 — The machine as a memory owner
+
+Borges's Funes remembered every leaf on every tree and could not think,
+because thinking is forgetting differences. `journald` is already that Funes.
+What no Linux box has is the other half: a memory of the machine that
+*abstracts* — baselines, changes, and which change preceded which failure.
+
+**Design.** A reserved account, `machine`, owns a memory pool like any user's
+(so isolation and the partitioned vector index apply unchanged, and
+`test_user_isolation` gains a case: only admins recall it). A collector thread
+ingests structured events — no free text where a field will do:
+
+| Source | Interface | Privilege |
+|---|---|---|
+| unit state changes, failures, restarts | systemd Varlink `io.systemd.Unit` (v258+) or D-Bus signals; `journalctl -o json --follow` as the dependency-free fallback | user units: none; system units: `systemd-journal` group |
+| package installs/upgrades | `/var/log/dpkg.log` via inotify | read |
+| boots, kernel version, OOM kills | journal fields | as above |
+| pressure | `/proc/pressure/*`, per-cgroup `*.pressure` | none |
+| disk, SMART, temperatures | `statvfs`, sysfs | none |
+| Funes's own runs | Pillar 1 cgroup stats | none |
+
+Three rules, each from an incident class this repo has already met:
+
+- **Events are not memories.** Raw events go to a plain ring table with a
+  retention window. Only two things are promoted to `memories`: a *change*
+  ("`llama-server` unit file edited", "kernel 6.17 → 6.18") and an *anomaly
+  against a baseline* ("backup took 41 min; median 4"). Baselines are
+  arithmetic in C++, never the model's.
+- **Links are the product.** "What changed before it broke" is a link between
+  a change and a failure. Candidate pairs come from time adjacency and shared
+  unit/package names, and go through the existing `backfill_links` judge with
+  its recorded negatives. A deterministic `host_changes(since, unit?)` tool
+  answers the common question with no model call at all.
+- **Log text is hostile input.** Any process can write to the journal; an SSH
+  login attempt puts an attacker-chosen username in it. Roadmap item 5.0.1 #8
+  (tool-sourced text stored verbatim) is still open and this pillar would make
+  it much worse. Machine memories are built from *fields* (unit, exit code,
+  version), and message text is stored quoted, length-capped and never
+  promoted to `source=user` weight.
+
+What this buys that a log viewer does not: `funes` answering "why is the
+newsletter late?" with "the embedding server was OOM-killed at 05:58, eleven
+minutes after `llama.cpp` was rebuilt; it has been killed after 2 of the last
+3 rebuilds" — each clause a recalled record with an id, not a guess.
+
+## Pillar 3 — Effects as proposals
+
+The gap between "read-only tools" and "`execute_shell`" is where every useful
+sysadmin task lives, and today the only thing in it is trust. Recent work
+(BranchFS, DeltaBox — both 2026) shows filesystem branching with commit and
+rollback at millisecond cost. Funes needs less than they build.
+
+Each manifest declares an `effects:` class:
+
+| Class | Meaning | How it runs |
+|---|---|---|
+| `none` | reads only | Pillar 1 sandbox, read-only rules |
+| `workspace` | writes inside the caller's workspace | sandbox; no ceremony (today's behaviour, now enforced) |
+| `host` | writes files outside it | **staged**: runs against an overlay in a user+mount namespace; the upper layer is the diff |
+| `external` | talks to something that cannot be un-told (send mail, restart a unit, call an API) | needs approval *before* running, or a declared `undo:` script |
+
+For `host`, the run's result is a diff stored in the result store. The model
+sees a summary and a `result_id`; the person sees the diff in the UI (or a
+one-line summary on WhatsApp) and commits or discards. Commit replays the
+upper layer; discard deletes a directory. The completion contract then gets a
+new, honest state: *proposed, not applied* — a run cannot report a change as
+done while it is still a diff.
+
+`external` gets no magic. Network effects cannot be rolled back and both
+papers above list that as future work. The plan's position is that pretending
+otherwise is worse than an approval prompt.
+
+**Risk to check first:** unprivileged user namespaces are restricted by
+AppArmor on recent Ubuntu. If yoda blocks them, the fallback is a copy-on-write
+staging directory for scripts that take their target root as a parameter —
+less general, zero privilege.
+
+## Pillar 4 — Funes as a system service
+
+Depth in the other direction: not Funes reaching into the OS, but the OS
+reaching Funes.
+
+- **A Unix socket with kernel-attested identity.** `$XDG_RUNTIME_DIR/funes.sock`
+  (and optionally a system-wide one), `SO_PEERCRED` → `uid_users` → account.
+  Same shape as `jid_users`, minus the service token: the kernel already
+  vouches for the peer. Every local program gets memory and a model with no
+  credential to leak.
+- **`funes ask`** — a subcommand that is a client of that socket.
+  `journalctl -u foo -n 200 | funes ask "what went wrong"`. Stdin is framed as
+  data, as recalled memories are. This is the Unix-shaped interface the web UI
+  never was: composable with pipes.
+- **Proper systemd citizenship.** `Type=notify` + watchdog (a hung LLM call
+  today looks healthy to systemd), socket activation, and
+  **`LoadCredential=`** for secrets. That last one removes the root cause of
+  5.0.1 defect #2: secrets stop being environment variables at all, so there
+  is nothing for a child to inherit and `child_environment()` becomes
+  defence in depth rather than the only wall.
+- **Pressure-aware background work.** `FUNES_LINK_BACKFILL` is off by default
+  because it competes with chat for the GPU. Gate the background passes on
+  Funes's own in-flight request count (it knows when the model is busy) and
+  on PSI for CPU/IO. Then the backfill can default to on, and 5.0's connected
+  memories stop depending on someone remembering to enable them.
+- Publish the interface in systemd 260's Varlink registry
+  (`/run/varlink/registry/`) if yoda's systemd is new enough *(unverified)*.
+
+## Order of work
+
+Ordered so each phase is useful alone and none requires the next.
+
+| Phase | Deliverable | Depends on | Size |
+|---|---|---|---|
+| **0** | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | days |
+| **1** | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
+| **2** | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
+| **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week |
+| **4** | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | ~3 weeks |
+| **5** | Learn mode → proposed `access:` blocks | 2 | ~2 weeks |
+| **6** | `effects:` classes, overlay staging, diff in result store, commit/discard in UI | 2 | ~3 weeks |
+| **7** | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | small |
+
+Phase 7 is the thing most projects build first. It is last here on purpose:
+by then a wrong call is confined, attributed, remembered and, where the
+filesystem allows, undoable.
+
+Tests follow the house rule — every claim gets one that fails without the
+code. Phase 2's are the important ones: a script that tries to read
+`config/funes.local`, another user's workspace, and `memory.db` must get
+`EACCES` from the kernel with `fs_guard` *deliberately bypassed* in the test,
+or the sandbox is only being tested through the layer it is meant to back up.
+
+## Open questions to settle before Phase 1
+
+1. **Which machine?** yoda is a headless server. OS embedding pays most on the
+   machine a person sits at, and Funes is a multi-user web service. Pillars 1
+   and 3 are host-agnostic; 2 and 4 are much more interesting on a desktop.
+   Is the target yoda, a laptop, or both with one as a remote "machine" account?
+2. **yoda's kernel and systemd versions.** Landlock ABI ≥ 4 (6.7) is the floor
+   for network rules, ≥ 6 (6.12) for scoping, ≥ 7 (6.15) for audit. Varlink
+   unit APIs need systemd ≥ 258. Is cgroup delegation to the user manager on,
+   and are unprivileged user namespaces allowed?
+3. **6.0 voice is "next" in the roadmap.** Phases 0–2 are security debt in the
+   same sense 5.0.1 was and arguably outrank a feature by the same principle.
+   Phases 4–6 are features and do not.
+4. **Does the machine pool share the embedding model's budget?** A noisy host
+   could out-write every human account. The ring table and promotion rules
+   exist to prevent that, but the ceiling should be a number in `funes.conf`.
+
+## Sources
+
+- Sandlock — unprivileged Landlock + seccomp-notify sandbox for agent code: https://arxiv.org/abs/2605.26298
+- AgentSight — eBPF boundary tracing, the "semantic gap": https://arxiv.org/abs/2508.02736
+- BranchFS — branch contexts with commit/rollback: https://arxiv.org/abs/2602.08199
+- DeltaBox — overlayfs-based checkpoint/rollback for agents: https://arxiv.org/abs/2605.22781
+- ProbeLogits — kernel-level inference primitives (preprint): https://arxiv.org/abs/2604.11943
+- Landlock userspace API (ABI history): https://docs.kernel.org/userspace-api/landlock.html
+- systemd NEWS (Varlink unit API in 258/259, registry in 260): https://github.com/systemd/systemd/blob/main/NEWS

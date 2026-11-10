@@ -14,6 +14,7 @@ Current release: **5.1** (security fixes + the core/extension split, `project(Fu
 | **5.1** | Split (undone in 5.2): the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
 | **5.2** | One checkout: funes-julio merged back with history, `src/julio` always built, all runtime state under `data/`, units renamed `funes` / `whatsapp-autoresponder` | — | done |
 | **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
+| **7.x** | OS embedding: grants as kernel policy, the machine as a memory owner, effects as proposals, Funes as a system service | [os-plan.md](os-plan.md) | proposed |
 
 ## Why this order
 
