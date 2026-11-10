@@ -24,6 +24,9 @@ test framework -- a minimal `CHECK(cond)` macro keeps things zero-dependency.
 | `test_agent_config` | YAML parsing, defaults, answer_schema type preservation |
 | `test_tools` | ToolRegistry dispatch, schema generation, error handling, memory scoping |
 | `test_memory` | MemoryStore: keyword/semantic recall, source weighting, turns, consolidation, prune/merge, backfill draining (one capped call is not "the backfill"), cron sessions hidden from the conversation list, `cron-cleanup` scoping |
+| `test_auto_memory` | Bounded writes: an attachment is stored as its name, each half of an exchange ≤300 bytes cut at a sentence and never mid-character, `remember` refuses >500 characters (counted as characters, not bytes) |
+| `test_memory_provenance` | Which tools taint (deny by default), `remember` after a fetch stores the bare claim tainted and `recall` shows it attributed, tainted memories rank at 1.0 and anchor no link expansion, and end to end through a scripted agent run |
+| `memory_eval_runs` | `bin/memory_eval` completes keyword-only. The eval itself is a report, not a test — see `tests/memory_eval/README.md` |
 | `test_user_isolation` | **The one to keep green.** No account can read, delete or overwrite another's memories, turns, summaries, results, cron jobs or files. Also *fidelity* -- a user still gets their own recall hits when another pool is 200x larger -- plus regressions for the two 4.0 migration bugs (pre-4.0 vec table rebuilt before the first recall; merged memories keeping their vector) |
 | `test_users` | Accounts, login, token expiry and revocation, delete-cascades-tokens, unmapped jid resolves to nobody |
 | `test_password` | Malformed stored hashes fail closed, iteration downgrade rejected, salt randomness, constant-time compare |

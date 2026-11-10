@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.0.1** (OS plan phase 0; 7.0.1 shortens an embedding input longer than the model's context instead of treating it as the endpoint being down).
+Current release: **7.1.0** (memory plan phases 1–3: a recall eval, bounded writes, provenance and taint).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
@@ -15,7 +15,8 @@ Current release: **7.0.1** (OS plan phase 0; 7.0.1 shortens an embedding input l
 | **5.2** | One checkout: funes-julio merged back with history, `src/julio` always built, all runtime state under `data/`, units renamed `funes` / `whatsapp-autoresponder` | — | done |
 | **7.0** | OS plan phase 0: connections pinned to the address `net_guard` judged, `Type=notify` + self-probing watchdog, background passes yield to people (in-flight runs + PSI); link backfill on by default | [os-plan.md](os-plan.md) | done |
 | **7.x** | OS plan phases 1–7: cgroup per tool call, Landlock/seccomp, `funes.sock`, the machine as a memory owner, effects as proposals | [os-plan.md](os-plan.md) | next: phase 1 |
-| **7.x** | Memory architecture: facts instead of exchanges, provenance/taint, supersession, an eval set first | [memory-plan.md](memory-plan.md) | proposed |
+| **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
+| **7.x** | Memory plan phases 4–7: facts instead of exchanges, supersession, migrating the existing pool, cited-not-recalled eviction | [memory-plan.md](memory-plan.md) | next: phase 4 |
 | **8.0** | Voice: STT + TTS sidecars | v6 voice research | deprioritised |
 
 ## Why this order
@@ -65,7 +66,7 @@ feature in the next one.
 | 5 | No throttle on `/api/login`; each guess cost the server ~200 ms of PBKDF2. | Per-address and per-username lock after 5 failures, doubling to 300 s, 429 + `Retry-After`, checked before hashing. | `integration.sh` "login throttle" |
 | 6 | No request body cap; httplib buffers the body before the auth gate. | `set_payload_max_length(64 MB)`. | — |
 | 7 | `/api/status` said `4.0.0`. | `FUNES_VERSION` from `project()`. | — |
-| 8 | Recalled memories injected into the system prompt with no framing; `remember` stores model-chosen text from web pages verbatim. | Prompt frames them as records, not instructions. **Mitigation only** — the design fix (don't store tool-sourced text verbatim) is open. | — |
+| 8 | Recalled memories injected into the system prompt with no framing; `remember` stores model-chosen text from web pages verbatim. | Prompt frames them as records, not instructions. **Closed in 7.1:** a `remember` after third-party content is tainted — weight capped at 1.0, never a link anchor, shown as "per <origin>: …" (memory plan, phase 3). | 7.1 |
 
 Still open from the same review, deliberately not done here: one httplib
 worker thread per chat for the whole run (concurrency ceiling ≈ pool size);

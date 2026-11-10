@@ -309,6 +309,18 @@ things the person had said. Scheduled sessions (`cron-<id>-<epoch>`) are hidden
 from `list_sessions` unless asked for; `funes cron-cleanup` removes what an
 older database already holds.
 
+As of 7.1 a memory also records where it came from (`origin`, `tainted`;
+`src/core/memory_provenance.h`). The agent loop keeps a `RunProvenance` on the
+`ToolContext` and adds an origin after every successful call to a tool not on
+the own-data list — deny by default, so an MCP tool or one added tomorrow
+taints. `remember` after a page/search/email/delegation stores the claim
+*bare* with `tainted=1`: weight capped at 1.0, never a link-expansion anchor,
+and shown as "per <origin>: …" by `Memory::presented()`. Don't store the
+prefix — it moves the vector and buries the memory for its own question.
+Writes are bounded (`auto_memory.h`): attachments become `[attached: name]`,
+each half of an exchange ≤300 bytes, `remember` ≤500 characters. Measure any
+recall change with `bin/memory_eval` (`tests/memory_eval/README.md`).
+
 As of 5.0 recall is no longer a single flat similarity search. Two passes run
 after it and **only ever append** to what it found: a one-hop expansion through
 `memory_links` (an explicit "these belong together", stored between two of one

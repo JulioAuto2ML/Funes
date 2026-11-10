@@ -30,6 +30,10 @@ add_executable(test_auto_memory test_auto_memory.cpp)
 target_link_libraries(test_auto_memory PRIVATE funes_core)
 add_test(NAME auto_memory COMMAND test_auto_memory)
 
+add_executable(test_memory_provenance test_memory_provenance.cpp)
+target_link_libraries(test_memory_provenance PRIVATE funes_core)
+add_test(NAME memory_provenance COMMAND test_memory_provenance)
+
 add_executable(test_text_utils test_text_utils.cpp)
 target_link_libraries(test_text_utils PRIVATE funes_core)
 add_test(NAME text_utils COMMAND test_text_utils)

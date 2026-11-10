@@ -726,8 +726,10 @@ void FunesApi::mount(httplib::Server& srv) {
             arr.push_back({
                 {"id",         m.id},
                 {"agent",      m.agent},
-                {"text",       m.text},
+                {"text",       m.presented()},
                 {"source",     m.source},
+                {"origin",     m.origin},
+                {"tainted",    m.tainted},
                 {"score",      m.score},
                 {"created_at", m.created_at},
                 // Consolidation prunes on this (never-recalled auto memories),
@@ -759,7 +761,9 @@ void FunesApi::mount(httplib::Server& srv) {
         if (find_agent(agent).name.empty())
             return json_error(res, 404, "Unknown agent: " + agent);
 
-        int64_t id = memory_.remember(user->id, agent, text, "user");
+        funes::Provenance prov;
+        prov.origin = "ui";
+        int64_t id = memory_.remember(user->id, agent, text, "user", prov);
         json_reply(res, 200, {{"ok", true}, {"id", id}});
     });
 

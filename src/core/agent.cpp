@@ -263,6 +263,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     ToolContext ctx{cfg_.name, session, cfg_.workspace_dir, cfg_.memory_scope,
                     user_id, perms, cfg_.scripts};
     ctx.task_text = user_message;
+    ctx.provenance = std::make_shared<funes::RunProvenance>();
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
@@ -272,10 +273,10 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
             json items = json::array();
             std::ostringstream oss;
             for (const auto& m : memories) {
-                oss << "- [" << m.created_at << "] " << m.text << "\n";
+                oss << "- [" << m.created_at << "] " << m.presented() << "\n";
                 items.push_back({
                     {"id",         m.id},
-                    {"text",       m.text},
+                    {"text",       m.presented()},
                     {"source",     m.source},
                     {"score",      m.score},
                     {"created_at", m.created_at}
@@ -477,10 +478,17 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
         if (writes_memory && defaults_.auto_memory && !final_text.empty()) {
+            // The reply half of a run that read a page or an email may be
+            // that page's words. Not re-attributed — `I replied:` already says
+            // whose words they are — but marked, so it anchors no expansion.
+            funes::Provenance prov;
+            prov.origin  = ctx.provenance->tainted() ? ctx.provenance->describe()
+                                                     : "session:" + session;
+            prov.tainted = ctx.provenance->tainted();
             try {
                 memory_.remember(user_id, cfg_.memory_scope,
                                  funes::auto_memory_text(user_message, final_text),
-                                 "auto");
+                                 "auto", prov);
             } catch (const std::exception& e) {
                 std::cerr << "[agent:" << cfg_.name << "] auto-memory failed: "
                           << e.what() << "\n";
@@ -977,6 +985,14 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 : duplicate
                 ? ToolResult{funes::repeat_message(tc.name, sig_calls - 1), true}
                 : dispatch_tool(tc.name, tc.arguments, ctx);
+
+            // Provenance (memory_provenance.h): a result the model has now
+            // read. Only a call that ran and succeeded — a refusal or an error
+            // put no third-party text in front of it.
+            if (ctx.provenance && !refused && !duplicate && !result.error) {
+                const std::string origin = funes::third_party_origin(tc.name, tc.arguments);
+                if (!origin.empty()) ctx.provenance->sources.insert(origin);
+            }
 
             // One line per call (core/tool_log.h). A permission refusal is
             // recognised here rather than reported out of dispatch_tool,

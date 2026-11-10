@@ -160,8 +160,9 @@ Three rules, each from an incident class this repo has already met:
   answers the common question with no model call at all.
 - **Log text is hostile input.** Any process can write to the journal; an SSH
   login attempt puts an attacker-chosen username in it. Roadmap item 5.0.1 #8
-  (tool-sourced text stored verbatim) is still open and this pillar would make
-  it much worse. Machine memories are built from *fields* (unit, exit code,
+  (tool-sourced text stored verbatim) was closed in 7.1 by provenance and
+  taint (memory-plan.md, phase 3); machine memories should carry
+  `tainted=1` with their unit as origin, which is that mechanism reused. Machine memories are built from *fields* (unit, exit code,
   version), and message text is stored quoted, length-capped and never
   promoted to `source=user` weight.
 

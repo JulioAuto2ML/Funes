@@ -129,6 +129,8 @@ int main(int argc, char** argv) {
                 text   = m["text"];
                 source = m.value("source", "tool");
             }
+            // A memory written after the run read third-party content, stored
+            // the way the remember tool stores it.
             funes::Provenance prov;
             prov.origin = m.value("tainted_by", "fixture");
             prov.tainted = m.contains("tainted_by");

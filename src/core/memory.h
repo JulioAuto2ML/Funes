@@ -64,6 +64,16 @@ public:
         // whatever their source and anchor no link expansion.
         std::string origin;
         bool        tainted = false;
+
+        // The text as the model and the person should read it: a tainted
+        // memory is shown as its source's claim ("per <origin>: …"). Added
+        // here rather than stored, so the vector, the FTS index and the
+        // duplicate check all see the claim itself — a stored prefix moved
+        // the embedding enough to bury the memory for the questions it
+        // answers (tests/memory_eval).
+        std::string presented() const {
+            return tainted ? funes::attributed(text, origin) : text;
+        }
     };
 
     // embedder may be null — memory then works in keyword-only mode.
@@ -80,9 +90,9 @@ public:
     // and the existing id is returned. Embedding failures are non-fatal
     // (stored without a vector, picked up later by backfill_embeddings).
     //
-    // prov records where the text came from (memory_provenance.h). A tainted
-    // write is stored as given: attributing the text ("per <origin>: …") is
-    // the caller's job, since only it knows what the person will read.
+    // prov records where the text came from (memory_provenance.h). The text
+    // is stored as given; a tainted memory is attributed when it is read back
+    // (Memory::presented), not here.
     int64_t remember(int64_t user_id, const std::string& agent,
                      const std::string& text, const std::string& source,
                      const funes::Provenance& prov = {});
@@ -486,4 +496,6 @@ private:
     // Ranking boost by Memory::source — see the .cpp for rationale. Static
     // since it needs no instance state.
     static double source_weight(const std::string& source);
+    // source_weight, capped at 1.0 for a tainted memory (memory_provenance.h).
+    static double weight_of(const std::string& source, bool tainted);
 };

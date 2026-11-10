@@ -1,7 +1,36 @@
 # Memory architecture — diagnosis and plan
 
-Status: **proposed** (2026-11-10). Nothing here is built. Numbers are from
-yoda's `data/memory.db`, read-only, on 2026-11-10.
+Status: phases 1–3 **done** in 7.1.0 (2026-11-10); 4–7 proposed. Numbers
+in the diagnosis are from yoda's `data/memory.db`, read-only, on 2026-11-10.
+
+## Progress
+
+`tests/memory_eval` (semantic, k=4, 30 queries over a synthetic pool shaped
+like yoda's):
+
+| after | recall@4 | hit@1 | stale-first | contamination@4 |
+|---|---|---|---|---|
+| baseline, 7.0.1 | 0.750 | 0.700 | 0.167 | 0.142 |
+| phase 2, bounded writes | 0.817 | 0.700 | 0.167 | 0.142 |
+| phase 3, provenance + taint | 0.833 | 0.700 | 0.100 | 0.108 |
+
+What changed from the proposal while building it:
+
+- **Attribution is applied when a memory is read, not stored.** Storing
+  "per url:host: …" moved the vector enough to bury a web fact for the very
+  question it answers (GPT-6 query: found → not in the top 4). The claim is
+  stored bare with `origin`/`tainted` beside it, and `Memory::presented()`
+  adds the attribution in the agent's memory block, the `recall` tool and
+  `GET /api/memories`.
+- **Taint is deny-by-default.** Every tool taints except a short list of
+  built-ins that return the caller's own data (`memory_provenance.cpp`,
+  `kOwnData`) — MCP tools, generated HTTP tools, `run_script`,
+  `delegate_to_agent` and `read_result` included. A run's auto-memory is
+  marked tainted too (not re-attributed; `I replied:` already says whose
+  words they are), so it anchors no link expansion.
+- **What 1–3 cannot fix:** "what's my name?" still ranks the stored "I don't
+  have your name" exchange first. That is defect 1 and 3 — exchanges stored
+  as memories, nothing superseded — which is phases 4 and 5.
 
 ## The question
 

@@ -17,6 +17,7 @@
 #include <vector>
 #include "json.hpp"
 #include "llm_client.h"
+#include "memory_provenance.h"
 #include "permissions.h"
 
 using json = nlohmann::json;
@@ -74,6 +75,13 @@ struct ToolContext {
     // positional ToolContext(...) call site needs updating; left empty
     // there is simply nothing to fall back to.
     std::string task_text;
+    // The third-party content this run has read so far (memory_provenance.h).
+    // FunesAgent::run creates it and the tool loop adds to it after each call;
+    // remember reads it to decide whether what it is about to store came from
+    // the person or from a page. Shared so the const ToolContext& handlers
+    // receive still sees the loop's updates. Null anywhere else — a context
+    // that does not track provenance has seen nothing third-party.
+    std::shared_ptr<funes::RunProvenance> provenance;
 
     ToolContext(std::string agent_, std::string session_,
                 std::string workspace_dir_ = "", std::string memory_scope_ = "",

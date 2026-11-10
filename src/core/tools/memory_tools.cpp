@@ -31,7 +31,21 @@ ToolResult remember_handler(MemoryStore& store, const json& args, const ToolCont
                 "if the detail matters, write it to a file with write_file and remember "
                 "where it is.", true};
 
-    int64_t id = store.remember(ctx.user_id, ctx.memory_scope, text, "tool");
+    // After a page, a search or an email, what the model writes down may be
+    // that source's claim rather than the person's (5.0.1 review, #8). Marked
+    // tainted: weighted like a conversation log, not like a taught fact, and
+    // shown back as an attribution — see memory_provenance.h.
+    funes::Provenance prov;
+    if (ctx.provenance && ctx.provenance->tainted()) {
+        prov.origin  = ctx.provenance->describe();
+        prov.tainted = true;
+    } else {
+        prov.origin = "session:" + ctx.session;
+    }
+    int64_t id = store.remember(ctx.user_id, ctx.memory_scope, text, "tool", prov);
+    if (prov.tainted)
+        return {"Remembered as a claim from " + prov.origin + " (memory #"
+                + std::to_string(id) + ")."};
     return {"Remembered (memory #" + std::to_string(id) + ")."};
 }
 
@@ -55,7 +69,7 @@ ToolResult recall_handler(MemoryStore& store, const json& args, const ToolContex
     std::ostringstream oss;
     for (size_t i = 0; i < results.size(); ++i) {
         if (i > 0) oss << "\n";
-        oss << "- [" << results[i].created_at << "] " << results[i].text;
+        oss << "- [" << results[i].created_at << "] " << results[i].presented();
     }
     return {oss.str()};
 }

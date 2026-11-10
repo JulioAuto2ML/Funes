@@ -764,10 +764,13 @@ void MemoryStore::expand_links(int64_t user_id, const std::string& agent,
     std::vector<Memory> found;
     for (size_t i = 0; i < anchor_count; ++i) {
         const Memory anchor = hits[i];
+        // A memory copied out of a page is evidence of what the page said, not
+        // a reason to pull the person's own memories in beside it.
+        if (anchor.tainted) continue;
 
         Stmt s(db_, R"sql(
             SELECT m.id, m.agent, m.text, m.source, m.created_at, m.recall_count,
-                   m.user_id, l.weight
+                   m.user_id, l.weight, m.origin, m.tainted
             FROM memory_links l
             JOIN memories m
               ON m.id = CASE WHEN l.from_id = ?1 THEN l.to_id ELSE l.from_id END
@@ -793,6 +796,8 @@ void MemoryStore::expand_links(int64_t user_id, const std::string& agent,
             // it has no similarity of its own to report. What it has is a
             // relationship to something that did.
             m.score        = anchor.score * s.col_double(7) * LINK_DECAY;
+            m.origin       = s.col_text(8);
+            m.tainted      = s.col_int64(9) != 0;
             present.insert(m.id);
             found.push_back(std::move(m));
         }
@@ -825,7 +830,8 @@ void MemoryStore::fts_fill(int64_t user_id, const std::string& agent,
     // is the only thing standing between one account's search terms and
     // another account's memories.
     std::string sql = R"sql(
-        SELECT m.id, m.agent, m.text, m.source, m.created_at, m.recall_count, m.user_id
+        SELECT m.id, m.agent, m.text, m.source, m.created_at, m.recall_count, m.user_id,
+               m.origin, m.tainted
         FROM memories_fts f
         JOIN memories m ON m.id = f.rowid
         WHERE memories_fts MATCH ? AND m.user_id = ?
@@ -852,6 +858,8 @@ void MemoryStore::fts_fill(int64_t user_id, const std::string& agent,
             m.created_at   = s.col_text(4);
             m.recall_count = s.col_int64(5);
             m.user_id      = s.col_int64(6);
+            m.origin       = s.col_text(7);
+            m.tainted      = s.col_int64(8) != 0;
             // Strictly decreasing in bm25 order, and strictly below `base`, so
             // term matches rank among themselves without ever interleaving
             // with the direct hits.
@@ -1027,6 +1035,15 @@ double MemoryStore::source_weight(const std::string& source) {
     return 1.0;                                              // "auto" and anything else
 }
 
+// Provenance outranks source (memory_provenance.h): a "tool" memory written
+// after the run read a page is the page's claim, and gets no more weight than
+// a conversation log. Capped rather than set, so nothing tainted can ever
+// rank above what its source alone would earn.
+double MemoryStore::weight_of(const std::string& source, bool tainted) {
+    const double w = source_weight(source);
+    return tainted ? std::min(w, 1.0) : w;
+}
+
 std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
     int64_t user_id, const std::string& agent, const std::vector<float>& qvec, int k) {
     // The user_id predicate is a vec0 PARTITION KEY (see ensure_vec_table), so
@@ -1045,7 +1062,7 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
 
     Stmt s(db_, R"sql(
         SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance,
-               m.recall_count, m.user_id
+               m.recall_count, m.user_id, m.origin, m.tainted
         FROM vec_memories v
         JOIN memories m ON m.id = v.memory_id
         WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = ?
@@ -1070,9 +1087,11 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
         m.source     = s.col_text(3);
         m.created_at   = s.col_text(4);
         double similarity = 1.0 - s.col_double(5);  // cosine distance → similarity
-        m.score         = similarity * source_weight(m.source);
         m.recall_count  = s.col_int64(6);
         m.user_id       = s.col_int64(7);
+        m.origin        = s.col_text(8);
+        m.tainted       = s.col_int64(9) != 0;
+        m.score         = similarity * weight_of(m.source, m.tainted);
         out.push_back(std::move(m));
     }
 
@@ -1085,8 +1104,8 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
 std::vector<MemoryStore::Memory> MemoryStore::recall_keyword(
     int64_t user_id, const std::string& agent, const std::string& query, int k) {
     std::string sql =
-        "SELECT id, agent, text, source, created_at, recall_count, user_id FROM memories "
-        "WHERE user_id = ? AND text LIKE ? ESCAPE '\\'";
+        "SELECT id, agent, text, source, created_at, recall_count, user_id, origin, tainted "
+        "FROM memories WHERE user_id = ? AND text LIKE ? ESCAPE '\\'";
     if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ?";
 
@@ -1107,12 +1126,14 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_keyword(
         m.created_at   = s.col_text(4);
         m.recall_count = s.col_int64(5);
         m.user_id      = s.col_int64(6);
+        m.origin       = s.col_text(7);
+        m.tainted      = s.col_int64(8) != 0;
         // Keyword mode has no similarity to report, but a hit still needs a
         // score: link expansion inherits it (5.0), and a list of zeroes would
         // make every expanded memory rank equal to the memory it came from.
         // source_weight alone, so the ordering within one source is the
         // newest-first order this query already produced.
-        m.score        = source_weight(m.source);
+        m.score        = weight_of(m.source, m.tainted);
         out.push_back(std::move(m));
     }
     return out;
@@ -1123,8 +1144,8 @@ std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
                                                    int limit, int offset) {
     std::lock_guard<std::mutex> lock(mu_);
 
-    std::string sql = "SELECT id, agent, text, source, created_at, recall_count, user_id "
-                      "FROM memories WHERE user_id = ?";
+    std::string sql = "SELECT id, agent, text, source, created_at, recall_count, user_id, "
+                      "origin, tainted FROM memories WHERE user_id = ?";
     if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ? OFFSET ?";
 
@@ -1145,6 +1166,8 @@ std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
         m.created_at   = s.col_text(4);
         m.recall_count = s.col_int64(5);
         m.user_id      = s.col_int64(6);
+        m.origin       = s.col_text(7);
+        m.tainted      = s.col_int64(8) != 0;
         out.push_back(std::move(m));
     }
     return out;
@@ -1345,7 +1368,8 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                 if (vec.empty() || static_cast<int>(vec.size()) != dim_) continue;
 
                 Stmt s(db_, R"sql(
-                    SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance
+                    SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance,
+                           m.tainted
                     FROM vec_memories v
                     JOIN memories m ON m.id = v.memory_id
                     WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = 8
@@ -1363,6 +1387,7 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                     m.source     = s.col_text(3);
                     m.created_at = s.col_text(4);
                     m.score      = 1.0 - s.col_double(5);
+                    m.tainted    = s.col_int64(6) != 0;
                     if (m.id == seed) seed_agent = m.agent;
                     if (claimed.count(m.id)) continue;
                     if (m.score < opt.min_similarity) continue;
@@ -1404,11 +1429,18 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                 exec_or_throw(db_, "BEGIN IMMEDIATE");
                 int64_t new_id = 0;
                 {
-                    Stmt s(db_, "INSERT OR IGNORE INTO memories(user_id, agent, text, source) "
-                                "VALUES(?,?,?,'consolidated')");
+                    // A merge inherits taint from any of its parts: rewording a
+                    // page's claim alongside the person's own does not make it
+                    // theirs.
+                    const bool any_tainted = std::any_of(cluster.begin(), cluster.end(),
+                        [](const Memory& m) { return m.tainted; });
+                    Stmt s(db_, "INSERT OR IGNORE INTO memories"
+                                "(user_id, agent, text, source, origin, tainted) "
+                                "VALUES(?,?,?,'consolidated','consolidated',?)");
                     s.bind_int64(1, opt.user_id);
                     s.bind_text(2, cluster.front().agent);
                     s.bind_text(3, merged);
+                    s.bind_int64(4, any_tainted ? 1 : 0);
                     s.step();
                     new_id = sqlite3_last_insert_rowid(db_);
                     if (sqlite3_changes(db_) == 0) {

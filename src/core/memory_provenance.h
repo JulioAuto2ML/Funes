@@ -14,9 +14,9 @@
 //   tainted  the run had read third-party content (a web page, a search
 //            result, an email, another agent's answer) before this write
 //
-// A tainted memory is stored as an attribution ("per <origin>: …"), ranked at
-// weight 1.0 whatever its source, and is never the anchor of a link
-// expansion. See memory.cpp, MemoryStore::weight_of.
+// A tainted memory is shown as an attribution ("per <origin>: …",
+// MemoryStore::Memory::presented), ranked at weight 1.0 whatever its source
+// (MemoryStore::weight_of), and is never the anchor of a link expansion.
 
 #pragma once
 #include "json.hpp"
@@ -52,7 +52,7 @@ struct RunProvenance {
 // generated HTTP tool all taint until someone writes down that they don't.
 std::string third_party_origin(const std::string& tool, const nlohmann::json& args);
 
-// The text a tainted memory is stored as: "per <origin>: <text>".
+// The text a tainted memory is shown as: "per <origin>: <text>".
 std::string attributed(const std::string& text, const std::string& origin);
 
 } // namespace funes
