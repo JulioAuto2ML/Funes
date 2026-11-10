@@ -805,6 +805,20 @@ async function refreshMemories() {
         score.textContent = (m.score * 100).toFixed(0) + '% match';
         meta.appendChild(score);
       }
+      if (m.superseded_by) {
+        // Retired by a newer memory: out of recall, kept, and reversible.
+        item.classList.add('retired');
+        const by = document.createElement('span');
+        by.textContent = 'replaced by #' + m.superseded_by;
+        meta.appendChild(by);
+        const restore = document.createElement('button');
+        restore.textContent = 'Restore';
+        restore.addEventListener('click', async () => {
+          await fetch('/api/memories/' + m.id + '/restore', { method: 'POST' });
+          refreshMemories();
+        });
+        meta.appendChild(restore);
+      }
       item.appendChild(meta);
 
       const del = document.createElement('button');

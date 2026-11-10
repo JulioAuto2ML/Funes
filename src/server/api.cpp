@@ -734,7 +734,12 @@ void FunesApi::mount(httplib::Server& srv) {
                 {"created_at", m.created_at},
                 // Consolidation prunes on this (never-recalled auto memories),
                 // so it's worth being able to see it from outside.
-                {"recall_count", m.recall_count}
+                {"recall_count", m.recall_count},
+                // Retired from recall but kept (7.2): what replaced it, and
+                // whether its facts were extracted. 0 / false from recall,
+                // which never returns a retired memory.
+                {"superseded_by", m.superseded_by},
+                {"archived",      m.archived}
             });
         }
         json_reply(res, 200, {{"ok", true}, {"memories", arr},
@@ -775,6 +780,19 @@ void FunesApi::mount(httplib::Server& srv) {
         int64_t id = std::stoll(req.matches[1].str());
         if (!memory_.forget(user->id, id))
             return json_error(res, 404, "No memory with id " + std::to_string(id));
+        json_reply(res, 200, {{"ok", true}});
+    });
+
+    // Undo a supersession (memory plan, phase 5): the memory comes back into
+    // recall. Not-yours and not-superseded are the same 404, like forget.
+    srv.Post(R"(/api/memories/(\d+)/restore)", [this](const httplib::Request& req,
+                                                       httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+
+        int64_t id = std::stoll(req.matches[1].str());
+        if (!memory_.unsupersede(user->id, id))
+            return json_error(res, 404, "No superseded memory with id " + std::to_string(id));
         json_reply(res, 200, {{"ok", true}});
     });
 

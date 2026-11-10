@@ -20,6 +20,7 @@
 #include "mcp_stdio_client.h"
 #include "maint_cli.h"
 #include "busy_gate.h"
+#include "fact_extraction.h"
 #include "sd_notify.h"
 #include "user_cli.h"
 #include "users.h"
@@ -275,7 +276,14 @@ int main(int argc, char** argv) {
     defaults.vision_url      = funes::env("FUNES_VISION_URL");
     defaults.memory_turns    = funes::env_int("FUNES_MEMORY_TURNS", 10);
     defaults.memory_recall_k = funes::env_int("FUNES_MEMORY_RECALL_K", 4);
-    defaults.auto_memory     = funes::env("FUNES_AUTO_MEMORY", "1") != "0";
+    {
+        // "1" was the pre-7.2 spelling of "on" and meant the exchange log;
+        // it now means the default, extraction. Only "log" keeps the old rows.
+        const std::string mode = funes::env("FUNES_AUTO_MEMORY", "extract");
+        defaults.auto_memory = mode == "0" || mode == "off" ? AgentDefaults::AutoMemory::Off
+                             : mode == "log"                ? AgentDefaults::AutoMemory::Log
+                                                            : AgentDefaults::AutoMemory::Extract;
+    }
 
     const std::string host          = funes::env("FUNES_HOST", "127.0.0.1");
     const int         port          = funes::env_int("FUNES_PORT", 8484);
@@ -579,6 +587,42 @@ int main(int argc, char** argv) {
         }).detach();
     }
 
+    // Fact extraction (7.2, fact_extraction.h): turns queued exchanges into
+    // the facts they established. On whenever FUNES_AUTO_MEMORY is extract,
+    // the default. Polls rather than being woken by the chat path, and only
+    // takes exchanges a couple of minutes old, so a conversation in progress
+    // is not competing with its own memory for the GPU; each call also waits
+    // for busy_gate like the passes below.
+    if (defaults.auto_memory == AgentDefaults::AutoMemory::Extract) {
+        funes::FactExtractionOptions opt;
+        opt.max_items       = static_cast<size_t>(funes::env_int("FUNES_EXTRACT_MAX_ITEMS", 20));
+        opt.min_age_seconds = funes::env_int("FUNES_EXTRACT_MIN_AGE", 120);
+        const int poll = std::max(10, funes::env_int("FUNES_EXTRACT_POLL", 60));
+
+        std::thread([&memory, &defaults, opt, poll] {
+            LLMClient llm(defaults.llm_url, defaults.llm_api_key,
+                          defaults.llm_model, defaults.llm_provider);
+            llm.set_max_tokens(512);
+            for (;;) {
+                std::this_thread::sleep_for(std::chrono::seconds(poll));
+                try {
+                    const auto report = funes::run_fact_extraction(memory,
+                        [&llm](const std::vector<ChatMessage>& msgs) {
+                            funes::load::wait_until_quiet();
+                            return llm.complete(msgs).content;
+                        }, opt);
+                    if (report.seen)
+                        std::cerr << "[funes] fact extraction: " << report.seen
+                                  << " exchange(s), " << report.facts << " fact(s), "
+                                  << report.replaced << " superseded, "
+                                  << report.failed << " failed\n";
+                } catch (const std::exception& e) {
+                    std::cerr << "[funes] fact extraction run failed: " << e.what() << "\n";
+                }
+            }
+        }).detach();
+    }
+
     // Link backfill (5.0, see MemoryStore::backfill_links): propose links
     // between memories that are related without being duplicates. Deliberately
     // the slowest of the background passes — it is one model call per candidate
@@ -613,6 +657,7 @@ int main(int argc, char** argv) {
                         std::cerr << "[funes] link backfill: " << report.anchors_seen
                                   << " anchor(s), judged " << report.judged
                                   << ", linked " << report.linked
+                                  << ", superseded " << report.superseded
                                   << ", skipped " << report.skipped << "\n";
                 } catch (const std::exception& e) {
                     std::cerr << "[funes] link backfill run failed: " << e.what() << "\n";

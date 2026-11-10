@@ -186,7 +186,7 @@ int test_tainted_memory_anchors_no_expansion() {
 
 // End to end through the agent loop: the run fetches (a tool not on the
 // own-data list), then remembers. The tool memory is attributed and tainted,
-// and the run's auto-memory is marked tainted too.
+// and the exchange queued for fact extraction is marked tainted too.
 int test_agent_loop_tracks_what_it_read() {
     ScriptedLLM llm;
     const fs::path db = fresh_db("agent");
@@ -213,7 +213,7 @@ int test_agent_loop_tracks_what_it_read() {
         CHECK(reply == "Noted.");
 
         const auto all = memory.list(1, "funes");
-        bool saw_tool = false, saw_auto = false;
+        bool saw_tool = false;
         for (const auto& m : all) {
             if (m.source == "tool") {
                 saw_tool = true;
@@ -221,13 +221,15 @@ int test_agent_loop_tracks_what_it_read() {
                 CHECK(m.origin == "tool:fake_fetch");
                 CHECK(m.presented() == "per tool:fake_fetch: The user's name is Pedro.");
             }
-            if (m.source == "auto") {
-                saw_auto = true;
-                CHECK(m.tainted);
-            }
+            CHECK(m.source != "auto");   // 7.2: exchanges are queued, not stored
         }
         CHECK(saw_tool);
-        CHECK(saw_auto);
+        // The exchange is queued for fact extraction carrying the run's taint,
+        // so whatever is extracted from it is marked too.
+        const auto queued = memory.pending_exchanges(10);
+        CHECK(queued.size() == 1);
+        CHECK(queued[0].tainted);
+        CHECK(queued[0].origin == "tool:fake_fetch");
     }
     fs::remove(db);
     return 0;

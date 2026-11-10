@@ -64,6 +64,11 @@ public:
         // whatever their source and anchor no link expansion.
         std::string origin;
         bool        tainted = false;
+        // Retired from recall but kept (7.2): the memory that replaced this
+        // one (0 = none), and whether its facts were extracted (phase 6).
+        // Only list() fills these; recall never returns a retired memory.
+        int64_t     superseded_by = 0;
+        bool        archived = false;
 
         // The text as the model and the person should read it: a tainted
         // memory is shown as its source's claim ("per <origin>: …"). Added
@@ -115,6 +120,25 @@ public:
     // ownership predicate any account could delete another's memories by
     // counting upwards.
     bool    forget(int64_t user_id, int64_t id);
+
+    // ── Supersession (7.2, memory plan phase 5) ──────────────────────────────
+    // `newer` makes `older` outdated: older leaves recall, stays in the table,
+    // and records what replaced it. False — and nothing changes — unless both
+    // belong to user_id, they differ, older is not already retired, and the
+    // two guards hold: a tainted memory never retires an untainted one (a page
+    // does not get to overrule the person), and a `user` memory is retired
+    // only by another `user` memory (what the person taught by hand is changed
+    // by hand). Implemented in memory_facts.cpp.
+    bool supersede(int64_t user_id, int64_t older, int64_t newer);
+    // The live memory (not superseded, not archived) of user_id and agent
+    // most similar to `text`, and its cosine similarity. {0, 0} without an
+    // embedder or a vector index. Raw similarity, no source weighting: the
+    // extraction pass asks "has this already been said?", not "what ranks?".
+    std::pair<int64_t, double> nearest_live(int64_t user_id, const std::string& agent,
+                                            const std::string& text);
+    // Undo: brings `id` back into recall. False if it is not this user's or
+    // was not superseded.
+    bool unsupersede(int64_t user_id, int64_t id);
     // user_id < 0 counts every user's memories — for the startup banner and
     // other server-wide reporting, never for anything a user sees about
     // themselves.
@@ -202,6 +226,7 @@ public:
         int judged       = 0;   // pairs actually put to the model
         int linked       = 0;   // pairs it said were related
         int skipped      = 0;   // pairs judged before, or the judge threw
+        int superseded   = 0;   // "contradicts" verdicts that retired the older one
     };
 
     // Safe to call from a background thread. Every pair the judge sees is
@@ -211,6 +236,42 @@ public:
     // neighbours to propose and this does nothing.
     LinkBackfillReport backfill_links(const LinkJudgeFn& judge,
                                       const LinkBackfillOptions& opt);
+
+    // ── Fact extraction queue (7.2, docs/memory-plan.md phase 4) ─────────────
+    // A person's exchange is not stored as a memory any more; it is queued,
+    // and a background pass (fact_extraction.h) asks the model which durable
+    // facts it established. Queued in the database rather than in memory so a
+    // restart loses nothing, and so phase 6 can feed the existing `auto` rows
+    // through the same path. Implemented in memory_facts.cpp.
+    struct PendingExchange {
+        int64_t     id = 0;
+        int64_t     user_id = 0;
+        std::string agent;        // memory scope the facts land in
+        std::string session;
+        std::string user_text;    // bounded: attachments by name, see auto_memory.h
+        std::string reply;
+        std::string origin;       // provenance of the run (memory_provenance.h)
+        bool        tainted = false;
+        int64_t     source_memory = 0;   // an `auto` row being migrated (phase 6), else 0
+        int         attempts = 0;
+        std::string created_at;   // UTC; the date "tomorrow" in the exchange meant
+    };
+
+    int64_t enqueue_exchange(int64_t user_id, const std::string& agent,
+                             const std::string& session, const std::string& user_text,
+                             const std::string& reply, const funes::Provenance& prov,
+                             int64_t source_memory = 0);
+    // Oldest first; every user's. Only `pending` rows queued at least
+    // min_age_seconds ago — a conversation still under way is left alone
+    // rather than competing with itself for the model.
+    std::vector<PendingExchange> pending_exchanges(size_t limit, int min_age_seconds = 0);
+    // ok: the model answered and its answer was used (facts may be 0, the
+    // common case). !ok: a failed call or an unusable answer; the row is
+    // retried until kMaxExtractAttempts, then left as `failed` for a person
+    // to look at rather than asked forever.
+    void finish_exchange(int64_t id, bool ok, int facts);
+    int64_t count_pending_exchanges();
+    static constexpr int kMaxExtractAttempts = 3;
 
     // ── Consolidation (offline reflection pass) ───────────────────────────────
     // remember() never merges and never forgets: near-duplicates accumulate and
@@ -469,6 +530,7 @@ private:
     int              dim_ = 0;             // 0 until the vec table exists
 
     void migrate();
+    void migrate_facts();   // memory_facts.cpp
     void ensure_vec_table(int dim);        // creates/recreates vec_memories
     bool try_embed(const std::string& text, std::vector<float>& out);
     void insert_vector(int64_t user_id, int64_t memory_id, const std::vector<float>& vec);

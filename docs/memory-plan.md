@@ -1,6 +1,6 @@
 # Memory architecture — diagnosis and plan
 
-Status: phases 1–3 **done** in 7.1.0 (2026-11-10); 4–7 proposed. Numbers
+Status: phases 1–3 **done** in 7.1.0, 4–5 in 7.2.0 (2026-11-10); 6–7 proposed. Numbers
 in the diagnosis are from yoda's `data/memory.db`, read-only, on 2026-11-10.
 
 ## Progress
@@ -13,6 +13,38 @@ like yoda's):
 | baseline, 7.0.1 | 0.750 | 0.700 | 0.167 | 0.142 |
 | phase 2, bounded writes | 0.817 | 0.700 | 0.167 | 0.142 |
 | phase 3, provenance + taint | 0.833 | 0.700 | 0.100 | 0.108 |
+
+Phases 4–5 needed a model, so they were measured against yoda (Qwen 27B
+IQ4_XS on :8080, nomic on :8081). yoda's vectors score the same 7.1 pool
+slightly higher than the laptop's CPU run, so the comparison row is re-run:
+
+| yoda, k=4 | recall@4 | hit@1 | stale-first | contamination@4 |
+|---|---|---|---|---|
+| 7.1, exchanges logged | 0.858 | 0.700 | 0.100 | 0.100 |
+| 7.2, extracted, run 1 | 0.767 | 0.700 | 0.067 | 0.108 |
+| 7.2, extracted, run 2 (with retries) | 0.742 | 0.700 | 0.067 | 0.075 |
+
+Read honestly: extraction makes the pool cleaner (stale-first and
+contamination down, 22 memories instead of 38) and costs recall@4. The
+recall lost is answers that lived only inside an exchange — the assistant's
+opinion of a car, its yerba suggestion, the amount it read off an attached
+bill. The 27B declines to store those because the prompt forbids storing the
+assistant's answers (one of them, "the Spanish edition goes out every
+weekday", was wrong). The transcript still holds them. Two runs also
+differed — the CV's facts were extracted once and not the second time — so a
+single run is not a measurement of a prompt change.
+
+Qwen3-8B (CPU, laptop) was worse than logging on every metric: it extracted
+the assistant's recap of its own memory as new facts and used `replaces` to
+retire richer memories. Three changes came out of that run and stay:
+restatements (≥0.85 cosine to a live memory) are dropped unless the model
+claims they replace something; `replaces` may only retire `extracted` or
+`auto` memories; `extracted` weighs 1.15, not 1.3.
+
+"What's my name?" still fails, now for a different reason: the stale
+negative is gone (no fact is extracted from it), but the English question
+does not reach the Spanish "El usuario se llama Julio." That is a
+cross-language recall problem, not a memory-model one.
 
 What changed from the proposal while building it:
 

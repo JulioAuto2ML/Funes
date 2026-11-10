@@ -13,7 +13,13 @@
 // The ctest entry only checks that it runs.
 //
 //   memory_eval [--fixture PATH] [--k N] [--embed-url URL] [--embed-model M]
-//               [--verbose] [--json]
+//               [--extract-llm URL] [--extract-model M] [--verbose] [--json]
+//
+// With --extract-llm, exchanges are not stored as `User said …` logs: they
+// are queued and put through the fact extraction pass (fact_extraction.h)
+// against that model, as FUNES_AUTO_MEMORY=extract does. A fact counts as its
+// exchange for scoring (a fact from x_bill answers what x_bill answered); an
+// exchange that yields nothing simply is not in the pool any more.
 //
 // Without an embedding endpoint (--embed-url, else FUNES_EMBED_URL) recall is
 // keyword-only, which is what a deployment without one gets — and is a
@@ -29,6 +35,7 @@
 //                    this query, or marked noise and not relevant to it
 
 #include "auto_memory.h"
+#include "fact_extraction.h"
 #include "json.hpp"
 #include "llm_client.h"
 #include "memory.h"
@@ -57,6 +64,8 @@ struct Args {
     std::string embed_model = "default";
     bool        verbose = false;
     bool        as_json = false;
+    std::string extract_url;
+    std::string extract_model = "default";
 };
 
 bool parse_args(int argc, char** argv, Args& a) {
@@ -70,6 +79,8 @@ bool parse_args(int argc, char** argv, Args& a) {
         else if (arg == "--embed-url")   a.embed_url = next();
         else if (arg == "--embed-model") a.embed_model = next();
         else if (arg == "--no-embed")    a.embed_url.clear();
+        else if (arg == "--extract-llm")   a.extract_url = next();
+        else if (arg == "--extract-model") a.extract_model = next();
         else if (arg == "--verbose")     a.verbose = true;
         else if (arg == "--json")        a.as_json = true;
         else { std::cerr << "memory_eval: unknown argument " << arg << "\n"; return false; }
@@ -115,6 +126,7 @@ int main(int argc, char** argv) {
     double sum_recall = 0, sum_hit1 = 0, sum_stale_first = 0, sum_contam = 0;
     size_t n = 0;
     bool semantic = false;
+    size_t pool = 0;                        // memories in the pool when queried
 
     {
         MemoryStore memory(db.string(), embedder.get());
@@ -122,6 +134,15 @@ int main(int argc, char** argv) {
         for (const auto& m : fixture["memories"]) {
             const std::string key = m["key"];
             std::string text, source;
+            if (m.contains("user") && !args.extract_url.empty()) {
+                // Queued the way agent.cpp queues it; scored after the pass.
+                memory.enqueue_exchange(kUser, kAgent, "eval:" + key,
+                    funes::shorten_on_sentence(funes::without_attachments(m["user"]), 2000),
+                    funes::shorten_on_sentence(m["reply"].get<std::string>(), 2000),
+                    {"session:eval:" + key, false});
+                if (m.value("noise", false)) noise.insert(key);
+                continue;
+            }
             if (m.contains("user")) {
                 text   = funes::auto_memory_text(m["user"], m["reply"]);
                 source = "auto";
@@ -139,7 +160,46 @@ int main(int argc, char** argv) {
             keys[id] = key;
             if (m.value("noise", false)) noise.insert(key);
         }
+        if (!args.extract_url.empty()) {
+            LLMClient llm(args.extract_url, "", args.extract_model, "openai");
+            llm.set_max_tokens(512);
+            // As many passes as production gets (a failed exchange is
+            // retried on later polls until kMaxExtractAttempts).
+            funes::FactExtractionReport r;
+            for (int pass = 0; pass < MemoryStore::kMaxExtractAttempts
+                               && memory.count_pending_exchanges() > 0; ++pass) {
+                const auto p = funes::run_fact_extraction(memory,
+                    [&](const std::vector<ChatMessage>& msgs) { return llm.complete(msgs).content; },
+                    funes::FactExtractionOptions{1000, 6, 0});
+                r.seen += p.done + (pass == 0 ? p.failed : 0);
+                r.facts += p.facts;
+                r.failed = p.failed;
+                r.restated += p.restated;
+            }
+            // Each fact answers for the exchange it came from.
+            for (const auto& mem : memory.list(kUser, kAgent, 10000)) {
+                if (mem.source != "extracted") continue;
+                const std::string prefix = "session:eval:";
+                if (mem.origin.rfind(prefix, 0) == 0) keys[mem.id] = mem.origin.substr(prefix.size());
+            }
+            int retired = 0;
+            for (const auto& mem : memory.list(kUser, kAgent, 10000))
+                if (mem.superseded_by) {
+                    ++retired;
+                    if (args.verbose && !args.as_json)
+                        std::cout << "  retired " << label(keys, mem.id) << " by "
+                                  << label(keys, mem.superseded_by) << "\n";
+                }
+            report["extraction"] = {{"exchanges", r.seen}, {"facts", r.facts},
+                                    {"failed", r.failed}, {"restated", r.restated},
+                                    {"superseded", retired}};
+            if (args.verbose && !args.as_json)
+                for (const auto& mem : memory.list(kUser, kAgent, 10000))
+                    if (mem.source == "extracted")
+                        std::cout << "  fact " << label(keys, mem.id) << ": " << mem.text << "\n";
+        }
         semantic = memory.semantic_available();
+        pool = static_cast<size_t>(memory.count(kUser, kAgent));
 
         for (const auto& q : fixture["queries"]) {
             const std::string question = q["q"];
@@ -193,7 +253,7 @@ int main(int argc, char** argv) {
     report["mode"]            = semantic ? "semantic" : "keyword";
     report["k"]               = args.k;
     report["queries_n"]       = n;
-    report["memories_n"]      = ids.size();
+    report["memories_n"]      = pool;
     report["recall_at_k"]     = sum_recall / dn;
     report["hit_at_1"]        = sum_hit1 / dn;
     report["stale_first"]     = sum_stale_first / dn;
@@ -203,8 +263,10 @@ int main(int argc, char** argv) {
         std::cout << report.dump(2) << "\n";
     } else {
         std::cout << std::fixed << std::setprecision(3)
-                  << "memory_eval: " << n << " queries over " << ids.size() << " memories, "
-                  << report["mode"].get<std::string>() << " recall, k=" << args.k << "\n"
+                  << "memory_eval: " << n << " queries over " << pool << " memories, "
+                  << report["mode"].get<std::string>() << " recall, k=" << args.k
+                  << (args.extract_url.empty() ? ", exchanges logged" : ", exchanges extracted")
+                  << "\n"
                   << "  recall@" << args.k << "        " << sum_recall / dn << "\n"
                   << "  hit@1           " << sum_hit1 / dn << "\n"
                   << "  stale-first     " << sum_stale_first / dn << "   (lower is better)\n"

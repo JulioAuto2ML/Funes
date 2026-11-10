@@ -321,6 +321,21 @@ Writes are bounded (`auto_memory.h`): attachments become `[attached: name]`,
 each half of an exchange ≤300 bytes, `remember` ≤500 characters. Measure any
 recall change with `bin/memory_eval` (`tests/memory_eval/README.md`).
 
+As of 7.2 an exchange is not a memory. `FUNES_AUTO_MEMORY=extract` (default)
+queues it (`memory_extract_queue`, `memory_facts.cpp`) and a background thread
+in `main.cpp` runs `run_fact_extraction` (`fact_extraction.h`): one gated model
+call per exchange, answer checked against `fact_schema()`, each fact stored as
+source `extracted` (weight 1.15) carrying the run's taint; a fact within 0.85
+cosine of a live memory is a restatement and is dropped. `log` keeps the old
+`User said …` rows. A fact's `replaces` (honoured only for an `extracted` or
+`auto` target — a taught fact is not the extractor's to retire), or a link
+judge's `contradicts`, calls `MemoryStore::supersede(older, newer)`: the older row gets
+`superseded_by` and leaves every recall path (semantic, keyword, FTS, link
+expansion, backfill, consolidation) but stays in the table; `unsupersede` /
+`POST /api/memories/<id>/restore` undoes it. Its guards live in the UPDATE:
+tainted never retires untainted, only `user` retires `user`. A new query over
+`memories` that feeds recall must filter `superseded_by IS NULL AND archived = 0`.
+
 As of 5.0 recall is no longer a single flat similarity search. Two passes run
 after it and **only ever append** to what it found: a one-hop expansion through
 `memory_links` (an explicit "these belong together", stored between two of one

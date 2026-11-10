@@ -34,6 +34,10 @@ add_executable(test_memory_provenance test_memory_provenance.cpp)
 target_link_libraries(test_memory_provenance PRIVATE funes_core)
 add_test(NAME memory_provenance COMMAND test_memory_provenance)
 
+add_executable(test_fact_extraction test_fact_extraction.cpp)
+target_link_libraries(test_fact_extraction PRIVATE funes_core)
+add_test(NAME fact_extraction COMMAND test_fact_extraction)
+
 add_executable(test_text_utils test_text_utils.cpp)
 target_link_libraries(test_text_utils PRIVATE funes_core)
 add_test(NAME text_utils COMMAND test_text_utils)

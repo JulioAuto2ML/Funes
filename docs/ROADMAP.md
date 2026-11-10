@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.1.0** (memory plan phases 1–3: a recall eval, bounded writes, provenance and taint).
+Current release: **7.2.0** (memory plan phases 4–5: facts extracted from exchanges instead of exchange logs; supersession with undo).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
@@ -16,7 +16,8 @@ Current release: **7.1.0** (memory plan phases 1–3: a recall eval, bounded wri
 | **7.0** | OS plan phase 0: connections pinned to the address `net_guard` judged, `Type=notify` + self-probing watchdog, background passes yield to people (in-flight runs + PSI); link backfill on by default | [os-plan.md](os-plan.md) | done |
 | **7.x** | OS plan phases 1–7: cgroup per tool call, Landlock/seccomp, `funes.sock`, the machine as a memory owner, effects as proposals | [os-plan.md](os-plan.md) | next: phase 1 |
 | **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
-| **7.x** | Memory plan phases 4–7: facts instead of exchanges, supersession, migrating the existing pool, cited-not-recalled eviction | [memory-plan.md](memory-plan.md) | next: phase 4 |
+| **7.2** | Memory plan phases 4–5: exchanges queued and reduced to facts by a gated background pass; newer facts and `contradicts` verdicts supersede older ones, reversibly | [memory-plan.md](memory-plan.md) | done |
+| **7.x** | Memory plan phases 6–7: migrate the existing pool's exchange logs, cited-not-recalled eviction | [memory-plan.md](memory-plan.md) | next: phase 6 |
 | **8.0** | Voice: STT + TTS sidecars | v6 voice research | deprioritised |
 
 ## Why this order

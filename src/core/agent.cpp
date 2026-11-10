@@ -477,18 +477,31 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
         memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
-        if (writes_memory && defaults_.auto_memory && !final_text.empty()) {
+        using AutoMemory = AgentDefaults::AutoMemory;
+        if (writes_memory && defaults_.auto_memory != AutoMemory::Off && !final_text.empty()) {
             // The reply half of a run that read a page or an email may be
             // that page's words. Not re-attributed — `I replied:` already says
-            // whose words they are — but marked, so it anchors no expansion.
+            // whose words they are — but marked, so it anchors no expansion,
+            // and whatever facts are extracted from it are marked too.
             funes::Provenance prov;
             prov.origin  = ctx.provenance->tainted() ? ctx.provenance->describe()
                                                      : "session:" + session;
             prov.tainted = ctx.provenance->tainted();
             try {
-                memory_.remember(user_id, cfg_.memory_scope,
-                                 funes::auto_memory_text(user_message, final_text),
-                                 "auto", prov);
+                if (defaults_.auto_memory == AutoMemory::Extract) {
+                    // Queued, not judged here: nothing on the chat path waits
+                    // for a model call that only memory needs. Wider than the
+                    // 300-byte log halves — the extractor needs the context —
+                    // but attachments are still names, not documents.
+                    memory_.enqueue_exchange(
+                        user_id, cfg_.memory_scope, session,
+                        funes::shorten_on_sentence(funes::without_attachments(user_message), 2000),
+                        funes::shorten_on_sentence(final_text, 2000), prov);
+                } else {
+                    memory_.remember(user_id, cfg_.memory_scope,
+                                     funes::auto_memory_text(user_message, final_text),
+                                     "auto", prov);
+                }
             } catch (const std::exception& e) {
                 std::cerr << "[agent:" << cfg_.name << "] auto-memory failed: "
                           << e.what() << "\n";

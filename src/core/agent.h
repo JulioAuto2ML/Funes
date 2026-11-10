@@ -47,7 +47,12 @@ struct AgentDefaults {
     std::string vision_url;             // if set, image-bearing turns use this endpoint
     int         memory_turns = 10;      // past turns loaded per run
     int         memory_recall_k = 4;    // memories injected per run
-    bool        auto_memory  = true;    // store each exchange as a memory
+    // What a person's exchange leaves in long-term memory (FUNES_AUTO_MEMORY).
+    // Extract (7.2): queued, and a background pass stores the facts it
+    // established (fact_extraction.h). Log: the pre-7.2 `User said … I
+    // replied …` memory. Off: nothing; the transcript is in turns either way.
+    enum class AutoMemory { Off, Log, Extract };
+    AutoMemory  auto_memory  = AutoMemory::Extract;
 
     // The caller's view of the other loaded agents, excluding itself: the ones
     // it may delegate to, and the ones it may not with the reason why. Wired

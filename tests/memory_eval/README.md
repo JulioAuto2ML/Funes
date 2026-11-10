@@ -53,3 +53,11 @@ Semantic, k=4, 30 queries, nomic-embed-text-v1.5 Q4_K_M on CPU.
 | baseline (7.0.1) | 0.750 | 0.700 | 0.167 | 0.142 |
 | bounded writes (phase 2): attachments by name, both halves ≤300 | 0.817 | 0.700 | 0.167 | 0.142 |
 | provenance + taint (phase 3): tainted memories weight 1.0, attributed when shown | 0.833 | 0.700 | 0.100 | 0.108 |
+
+Phases 4–5, with `--extract-llm`: measured on yoda (Qwen 27B, nomic on GPU),
+whose vectors score the 7.1 pool at 0.858 / 0.700 / 0.100 / 0.100.
+
+| change | recall@4 | hit@1 | stale-first | contamination@4 |
+|---|---|---|---|---|
+| facts extracted (7.2), run 1 | 0.767 | 0.700 | 0.067 | 0.108 |
+| facts extracted (7.2), run 2 | 0.742 | 0.700 | 0.067 | 0.075 |

@@ -550,6 +550,7 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   line-height: 1.45;
   position: relative;
 }
+.memory-item.retired { opacity: 0.55; }
 .memory-item .meta {
   display: flex;
   align-items: center;

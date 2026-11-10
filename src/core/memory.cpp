@@ -17,6 +17,7 @@
 #include "sqlite3.h"
 #include "sqlite-vec.h"
 #include "lang_detect.h"
+#include "sqlite_util.h"
 #include "text_utils.h"
 #include <algorithm>
 #include <cctype>
@@ -37,66 +38,9 @@ void register_vec_extension() {
     (void)done;
 }
 
-struct Stmt {
-    sqlite3_stmt* p = nullptr;
-    Stmt(sqlite3* db, const char* sql) {
-        if (sqlite3_prepare_v2(db, sql, -1, &p, nullptr) != SQLITE_OK)
-            throw std::runtime_error(std::string("sqlite prepare failed: ") +
-                                     sqlite3_errmsg(db) + " — SQL: " + sql);
-    }
-    ~Stmt() { sqlite3_finalize(p); }
-    Stmt(const Stmt&) = delete;
-    Stmt& operator=(const Stmt&) = delete;
-
-    void bind_text(int i, const std::string& s) {
-        sqlite3_bind_text(p, i, s.c_str(), static_cast<int>(s.size()), SQLITE_TRANSIENT);
-    }
-    void bind_int64(int i, int64_t v) { sqlite3_bind_int64(p, i, v); }
-    void bind_double(int i, double v)  { sqlite3_bind_double(p, i, v); }
-    void bind_blob(int i, const void* data, size_t bytes) {
-        sqlite3_bind_blob(p, i, data, static_cast<int>(bytes), SQLITE_TRANSIENT);
-    }
-    bool step() {
-        int rc = sqlite3_step(p);
-        if (rc == SQLITE_ROW)  return true;
-        if (rc == SQLITE_DONE) return false;
-        throw std::runtime_error(std::string("sqlite step failed: rc=") + std::to_string(rc));
-    }
-    std::string col_text(int i) {
-        const unsigned char* t = sqlite3_column_text(p, i);
-        return t ? reinterpret_cast<const char*>(t) : "";
-    }
-    int64_t col_int64(int i) { return sqlite3_column_int64(p, i); }
-    double  col_double(int i) { return sqlite3_column_double(p, i); }
-    std::vector<float> col_floats(int i) {
-        const void* data = sqlite3_column_blob(p, i);
-        const int bytes  = sqlite3_column_bytes(p, i);
-        std::vector<float> v(bytes > 0 ? bytes / sizeof(float) : 0);
-        if (data && bytes > 0) std::memcpy(v.data(), data, bytes);
-        return v;
-    }
-};
-
-void exec_or_throw(sqlite3* db, const char* sql) {
-    char* err = nullptr;
-    if (sqlite3_exec(db, sql, nullptr, nullptr, &err) != SQLITE_OK) {
-        std::string msg = err ? err : "unknown sqlite error";
-        sqlite3_free(err);
-        throw std::runtime_error("sqlite exec failed: " + msg + " — SQL: " + sql);
-    }
-}
-
-// ALTER TABLE ADD COLUMN is not idempotent and sqlite has no IF NOT EXISTS for
-// it, so check the current shape first. Used for columns added after v1.0 to
-// databases that are already in the field.
-void add_column_if_missing(sqlite3* db, const char* table, const char* column,
-                           const char* decl) {
-    Stmt s(db, ("PRAGMA table_info(" + std::string(table) + ")").c_str());
-    while (s.step())
-        if (s.col_text(1) == column) return;
-    exec_or_throw(db, ("ALTER TABLE " + std::string(table) + " ADD COLUMN " +
-                       column + " " + decl + ";").c_str());
-}
+using funes::sqlite::Stmt;
+using funes::sqlite::exec_or_throw;
+using funes::sqlite::add_column_if_missing;
 
 // Escape LIKE wildcards in user-supplied search text.
 std::string like_pattern(const std::string& query) {
@@ -318,6 +262,17 @@ void MemoryStore::migrate() {
     add_column_if_missing(db_, "memories", "origin", "TEXT");
     add_column_if_missing(db_, "memories", "tainted", "INTEGER NOT NULL DEFAULT 0");
 
+    // ── 7.2: supersession and archiving (memory plan, phases 5 and 6) ────────
+    // A memory that something newer made outdated, or an exchange whose facts
+    // have been extracted, leaves recall but stays in the table: every one of
+    // these is reversible (unsupersede, and archiving is a flag). SET NULL on
+    // delete: forgetting the replacement brings back what it replaced, rather
+    // than leaving it retired by a memory that no longer exists.
+    add_column_if_missing(db_, "memories", "superseded_by",
+                          "INTEGER REFERENCES memories(id) ON DELETE SET NULL");
+    add_column_if_missing(db_, "memories", "superseded_at", "TEXT");
+    add_column_if_missing(db_, "memories", "archived", "INTEGER NOT NULL DEFAULT 0");
+
     // ── 5.0: connected memories ───────────────────────────────────────────────
     // Links between memories. ON DELETE CASCADE matters more than it looks:
     // memory ids are recycled by SQLite, so a dangling link does not merely
@@ -393,6 +348,8 @@ void MemoryStore::migrate() {
                   << e.what() << "\n";
         fts_available_ = false;
     }
+
+    migrate_facts();
 
     // Restore the vec table dimension recorded by a previous run.
     {
@@ -776,6 +733,7 @@ void MemoryStore::expand_links(int64_t user_id, const std::string& agent,
               ON m.id = CASE WHEN l.from_id = ?1 THEN l.to_id ELSE l.from_id END
             WHERE (l.from_id = ?1 OR l.to_id = ?1)
               AND m.user_id = ?2
+              AND m.superseded_by IS NULL AND m.archived = 0
             ORDER BY l.weight DESC
         )sql");
         s.bind_int64(1, anchor.id);
@@ -835,6 +793,7 @@ void MemoryStore::fts_fill(int64_t user_id, const std::string& agent,
         FROM memories_fts f
         JOIN memories m ON m.id = f.rowid
         WHERE memories_fts MATCH ? AND m.user_id = ?
+          AND m.superseded_by IS NULL AND m.archived = 0
     )sql";
     if (!agent.empty()) sql += " AND m.agent = ?";
     sql += " ORDER BY bm25(memories_fts) LIMIT ?";
@@ -905,7 +864,7 @@ MemoryStore::LinkBackfillReport MemoryStore::backfill_links(
         std::string sql = R"sql(
             SELECT m.id FROM memories m
             JOIN vec_memories v ON v.memory_id = m.id
-            WHERE m.user_id = ?
+            WHERE m.user_id = ? AND m.superseded_by IS NULL AND m.archived = 0
         )sql";
         if (!opt.agent.empty()) sql += " AND m.agent = ?";
         sql += R"sql(
@@ -953,7 +912,8 @@ MemoryStore::LinkBackfillReport MemoryStore::backfill_links(
             }
 
             Stmt s(db_, R"sql(
-                SELECT m.id, m.text, m.agent, v.distance
+                SELECT m.id, m.text, m.agent, v.distance,
+                       m.superseded_by IS NULL AND m.archived = 0
                 FROM vec_memories v
                 JOIN memories m ON m.id = v.memory_id
                 WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = ?
@@ -966,6 +926,7 @@ MemoryStore::LinkBackfillReport MemoryStore::backfill_links(
             while (s.step()) {
                 const int64_t id = s.col_int64(0);
                 if (id == anchor_id) continue;
+                if (s.col_int64(4) == 0) continue;   // retired: not linked to anything new
                 // Two agents' memories are not each other's context, the same
                 // way consolidate() refuses to merge across agents.
                 if (s.col_text(2) != anchor_agent) continue;
@@ -1007,6 +968,15 @@ MemoryStore::LinkBackfillReport MemoryStore::backfill_links(
             if (related) {
                 if (link_memories(opt.user_id, anchor_id, c.id, rel, 1.0)) ++report.linked;
             }
+            // Two memories that cannot both be true: the newer one stands
+            // (memory plan, phase 5). Ids are assigned in write order, so the
+            // larger id is the later claim. supersede() applies the guards —
+            // a tainted claim never retires a clean one, and only a `user`
+            // memory retires a `user` memory — and the link stays, so the
+            // UI can show what replaced what and undo it.
+            if (rel == "contradicts"
+                && supersede(opt.user_id, std::min(anchor_id, c.id), std::max(anchor_id, c.id)))
+                ++report.superseded;
 
             std::lock_guard<std::mutex> lock(mu_);
             Stmt s(db_, "INSERT OR REPLACE INTO memory_link_judgments(lo_id, hi_id, related) "
@@ -1032,6 +1002,12 @@ double MemoryStore::source_weight(const std::string& source) {
     // bump that cleared the observed gap, checked against real scores.
     if (source == "tool" || source == "user") return 1.3;   // deliberately taught
     if (source == "consolidated")              return 1.15;  // survived a merge review
+    // A fact the extraction pass took from what the person said (7.2). Below
+    // a deliberate `remember`: its quality is the extraction model's, and on
+    // tests/memory_eval an 8B model's paraphrases at 1.3 outranked the facts
+    // they paraphrased. Same standing as a merge — a model's reading of
+    // something the person said.
+    if (source == "extracted")                 return 1.15;
     return 1.0;                                              // "auto" and anything else
 }
 
@@ -1062,7 +1038,8 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
 
     Stmt s(db_, R"sql(
         SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance,
-               m.recall_count, m.user_id, m.origin, m.tainted
+               m.recall_count, m.user_id, m.origin, m.tainted,
+               m.superseded_by IS NULL AND m.archived = 0
         FROM vec_memories v
         JOIN memories m ON m.id = v.memory_id
         WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = ?
@@ -1080,6 +1057,10 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_semantic(
         // wrong partition by an older build. Cross-user leakage is the one
         // failure here that must not be possible.
         if (s.col_int64(7) != user_id) continue;
+        // Retired (superseded or archived). Filtered here rather than in the
+        // WHERE: vec0 takes its k before any join predicate would apply, and
+        // the over-fetch above is what leaves room for this.
+        if (s.col_int64(10) == 0) continue;
         Memory m;
         m.id         = s.col_int64(0);
         m.agent      = s.col_text(1);
@@ -1105,7 +1086,8 @@ std::vector<MemoryStore::Memory> MemoryStore::recall_keyword(
     int64_t user_id, const std::string& agent, const std::string& query, int k) {
     std::string sql =
         "SELECT id, agent, text, source, created_at, recall_count, user_id, origin, tainted "
-        "FROM memories WHERE user_id = ? AND text LIKE ? ESCAPE '\\'";
+        "FROM memories WHERE user_id = ? AND text LIKE ? ESCAPE '\\' "
+        "AND superseded_by IS NULL AND archived = 0";
     if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ?";
 
@@ -1145,7 +1127,7 @@ std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
     std::lock_guard<std::mutex> lock(mu_);
 
     std::string sql = "SELECT id, agent, text, source, created_at, recall_count, user_id, "
-                      "origin, tainted FROM memories WHERE user_id = ?";
+                      "origin, tainted, superseded_by, archived FROM memories WHERE user_id = ?";
     if (!agent.empty()) sql += " AND agent = ?";
     sql += " ORDER BY id DESC LIMIT ? OFFSET ?";
 
@@ -1168,6 +1150,8 @@ std::vector<MemoryStore::Memory> MemoryStore::list(int64_t user_id,
         m.user_id      = s.col_int64(6);
         m.origin       = s.col_text(7);
         m.tainted      = s.col_int64(8) != 0;
+        m.superseded_by = s.col_int64(9);
+        m.archived     = s.col_int64(10) != 0;
         out.push_back(std::move(m));
     }
     return out;
@@ -1340,7 +1324,8 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
             std::lock_guard<std::mutex> lock(mu_);
             std::string sql = "SELECT m.id FROM memories m "
                               "JOIN vec_memories v ON v.memory_id = m.id "
-                              "WHERE m.user_id = ?";
+                              "WHERE m.user_id = ? AND m.superseded_by IS NULL "
+                              "AND m.archived = 0";
             if (!opt.agent.empty()) sql += " AND m.agent = ?";
             sql += " ORDER BY m.id";
             Stmt s(db_, sql.c_str());
@@ -1369,7 +1354,7 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
 
                 Stmt s(db_, R"sql(
                     SELECT m.id, m.agent, m.text, m.source, m.created_at, v.distance,
-                           m.tainted
+                           m.tainted, m.superseded_by IS NULL AND m.archived = 0
                     FROM vec_memories v
                     JOIN memories m ON m.id = v.memory_id
                     WHERE v.user_id = ? AND v.embedding MATCH ? AND v.k = 8
@@ -1389,6 +1374,8 @@ MemoryStore::ConsolidationReport MemoryStore::consolidate(
                     m.score      = 1.0 - s.col_double(5);
                     m.tainted    = s.col_int64(6) != 0;
                     if (m.id == seed) seed_agent = m.agent;
+                    // Merging a retired memory into a live one would bring it back.
+                    if (s.col_int64(7) == 0) continue;
                     if (claimed.count(m.id)) continue;
                     if (m.score < opt.min_similarity) continue;
                     cluster.push_back(std::move(m));

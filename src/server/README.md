@@ -67,9 +67,10 @@ and neither alone authenticates anything).
 | `/api/agents` | GET | List agents (name + description) |
 | `/api/agents/reload` | POST | Hot-reload all agent YAMLs |
 | `/api/chat` | POST | Main chat -- returns SSE stream |
-| `/api/memories` | GET | List or search memories |
+| `/api/memories` | GET | List or search memories (each with `origin`, `tainted`, `superseded_by`, `archived`) |
 | `/api/memories` | POST | Create a memory |
 | `/api/memories/<id>` | DELETE | Delete a memory |
+| `/api/memories/<id>/restore` | POST | Undo a supersession: the memory comes back into recall (7.2) |
 | `/api/history` | GET | Get session conversation turns |
 | `/api/sessions` | GET | List sessions with previews. `?cron=1` also lists scheduled-run transcripts, hidden by default |
 | `/api/sessions/<name>` | DELETE | Delete one conversation (turns, summary, stored results; memories survive) |

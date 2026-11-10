@@ -687,9 +687,15 @@ OUT=$(curl -s "$BASE/api/history?session=it-session-1")
 check "history has user turn"      "$OUT" 'hello there'
 check "history has assistant turn" "$OUT" 'MOCK-REPLY'
 
-echo "— auto-memory + forget"
+echo "— auto-memory (7.2: queued for fact extraction, not stored) + forget"
 OUT=$(curl -s "$BASE/api/memories")
-check "auto-memory stored" "$OUT" '"source":"auto"'
+check_absent "no exchange log stored" "$OUT" '"source":"auto"'
+OUT=$(python3 -c "
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+print(c.execute(\"select count(*) from memory_extract_queue where session='it-session-1' and status='pending'\").fetchone()[0])
+" "$DB")
+check_absent "exchange queued for extraction" "q=$OUT" 'q=0'
 OUT=$(curl -s -X DELETE "$BASE/api/memories/$MEM_ID")
 check "memory forgotten" "$OUT" '"ok":true'
 OUT=$(curl -s -X DELETE "$BASE/api/memories/$MEM_ID")
