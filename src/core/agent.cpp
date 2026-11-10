@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "agent.h"
+#include "auto_memory.h"
 #include "busy_gate.h"
 #include "mcp_http_client.h"
 #include "users.h"   // funes::language_name
@@ -476,11 +477,9 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
         memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
 
         if (writes_memory && defaults_.auto_memory && !final_text.empty()) {
-            std::string reply = final_text.substr(0, 300);
-            if (final_text.size() > 300) reply += "…";
             try {
                 memory_.remember(user_id, cfg_.memory_scope,
-                                 "User said: \"" + user_message + "\" — I replied: \"" + reply + "\"",
+                                 funes::auto_memory_text(user_message, final_text),
                                  "auto");
             } catch (const std::exception& e) {
                 std::cerr << "[agent:" << cfg_.name << "] auto-memory failed: "

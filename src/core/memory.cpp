@@ -311,6 +311,13 @@ void MemoryStore::migrate() {
     // the first remember(), which is exactly how this was found.
     add_column_if_missing(db_, "memories", "lang", "TEXT");
 
+    // ── 7.1: provenance (docs/memory-plan.md, phase 3) ───────────────────────
+    // After the 4.0 rebuild for the same reason as `lang` above. Existing rows
+    // get NULL origin ("not recorded", which is the truth) and tainted 0:
+    // nothing before 7.1 tracked it, so there is nothing to mark.
+    add_column_if_missing(db_, "memories", "origin", "TEXT");
+    add_column_if_missing(db_, "memories", "tainted", "INTEGER NOT NULL DEFAULT 0");
+
     // ── 5.0: connected memories ───────────────────────────────────────────────
     // Links between memories. ON DELETE CASCADE matters more than it looks:
     // memory ids are recycled by SQLite, so a dangling link does not merely
@@ -489,7 +496,8 @@ void MemoryStore::insert_vector(int64_t user_id, int64_t memory_id,
 // ── long-term memory ──────────────────────────────────────────────────────────
 
 int64_t MemoryStore::remember(int64_t user_id, const std::string& agent,
-                              const std::string& text, const std::string& source) {
+                              const std::string& text, const std::string& source,
+                              const funes::Provenance& prov) {
     if (agent.empty() || text.empty())
         throw std::runtime_error("remember: agent and text must be non-empty");
     if (user_id <= 0)
@@ -508,14 +516,18 @@ int64_t MemoryStore::remember(int64_t user_id, const std::string& agent,
         // scan over one sentence — see lang_detect.h for why it is not a
         // model call.
         const std::string lang = funes::detect_language(text);
-        Stmt s(db_, "INSERT OR IGNORE INTO memories(user_id, agent, text, source, lang) "
-                    "VALUES(?,?,?,?,?)");
+        Stmt s(db_, "INSERT OR IGNORE INTO memories"
+                    "(user_id, agent, text, source, lang, origin, tainted) "
+                    "VALUES(?,?,?,?,?,?,?)");
         s.bind_int64(1, user_id);
         s.bind_text(2, agent);
         s.bind_text(3, text);
         s.bind_text(4, source);
         if (lang.empty()) sqlite3_bind_null(s.p, 5);
         else              s.bind_text(5, lang);
+        if (prov.origin.empty()) sqlite3_bind_null(s.p, 6);
+        else                     s.bind_text(6, prov.origin);
+        s.bind_int64(7, prov.tainted ? 1 : 0);
         s.step();
     }
 

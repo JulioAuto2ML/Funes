@@ -90,6 +90,8 @@ add_library(funes_core STATIC
     src/core/result_store.cpp
     src/core/lang_detect.cpp
     src/core/text_utils.cpp
+    src/core/auto_memory.cpp
+    src/core/memory_provenance.cpp
     src/core/sd_notify.cpp
     src/core/busy_gate.cpp
     src/core/base64.cpp

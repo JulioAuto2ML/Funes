@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include "llm_client.h"   // EmbeddingClient, ChatMessage
+#include "memory_provenance.h"
 
 struct sqlite3;
 
@@ -58,6 +59,11 @@ public:
         // Not pure cosine similarity; that's why it can slightly exceed 1.0.
         double      score = 0.0;
         int64_t     recall_count = 0;  // times this memory has been recalled
+        // Where it came from and whether the writing run had read third-party
+        // content first (memory_provenance.h). Tainted memories rank at 1.0
+        // whatever their source and anchor no link expansion.
+        std::string origin;
+        bool        tainted = false;
     };
 
     // embedder may be null — memory then works in keyword-only mode.
@@ -73,8 +79,13 @@ public:
     // Store one memory. Duplicate (user_id, agent, text) triples are ignored
     // and the existing id is returned. Embedding failures are non-fatal
     // (stored without a vector, picked up later by backfill_embeddings).
+    //
+    // prov records where the text came from (memory_provenance.h). A tainted
+    // write is stored as given: attributing the text ("per <origin>: …") is
+    // the caller's job, since only it knows what the person will read.
     int64_t remember(int64_t user_id, const std::string& agent,
-                     const std::string& text, const std::string& source);
+                     const std::string& text, const std::string& source,
+                     const funes::Provenance& prov = {});
 
     // Semantic search when embeddings are available, keyword search otherwise.
     // agent filters to that agent's memories; empty = all of this user's agents.

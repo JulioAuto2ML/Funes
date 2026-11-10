@@ -163,3 +163,13 @@ add_test(NAME host_signals COMMAND test_host_signals)
 add_executable(test_embedding_client test_embedding_client.cpp)
 target_link_libraries(test_embedding_client PRIVATE funes_core)
 add_test(NAME embedding_client COMMAND test_embedding_client)
+
+# Recall evaluation (docs/memory-plan.md, phase 1). A report, not a test: run
+# it by hand before and after a memory-model change, against a real embedding
+# endpoint (FUNES_EMBED_URL or --embed-url). The ctest entry runs it
+# keyword-only and checks only that it completes.
+add_executable(memory_eval memory_eval/memory_eval.cpp)
+target_link_libraries(memory_eval PRIVATE funes_core)
+target_compile_definitions(memory_eval PRIVATE
+    FUNES_EVAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/memory_eval/fixture.json")
+add_test(NAME memory_eval_runs COMMAND memory_eval --no-embed)
