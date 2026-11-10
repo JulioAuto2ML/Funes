@@ -15,6 +15,7 @@ Current release: **7.0.1** (OS plan phase 0; 7.0.1 shortens an embedding input l
 | **5.2** | One checkout: funes-julio merged back with history, `src/julio` always built, all runtime state under `data/`, units renamed `funes` / `whatsapp-autoresponder` | — | done |
 | **7.0** | OS plan phase 0: connections pinned to the address `net_guard` judged, `Type=notify` + self-probing watchdog, background passes yield to people (in-flight runs + PSI); link backfill on by default | [os-plan.md](os-plan.md) | done |
 | **7.x** | OS plan phases 1–7: cgroup per tool call, Landlock/seccomp, `funes.sock`, the machine as a memory owner, effects as proposals | [os-plan.md](os-plan.md) | next: phase 1 |
+| **7.x** | Memory architecture: facts instead of exchanges, provenance/taint, supersession, an eval set first | [memory-plan.md](memory-plan.md) | proposed |
 | **8.0** | Voice: STT + TTS sidecars | v6 voice research | deprioritised |
 
 ## Why this order

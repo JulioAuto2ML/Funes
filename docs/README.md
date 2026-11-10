@@ -7,6 +7,8 @@
 | [ARTICLE.md](ARTICLE.md) | "The Harness Pattern" — published article on agent harness engineering, written about this installation |
 | `funes-article.pdf` | PDF render of the article |
 | [generalization-plan.md](generalization-plan.md) | Design analysis of the agents and pipelines: where the same problem got solved twice, once generally and once not. Most of it shipped in 4.1 |
+| [os-plan.md](os-plan.md) | Funes in the OS: grants as kernel policy, the machine as a memory owner, effects as proposals. Phase 0 shipped in 7.0 |
+| [memory-plan.md](memory-plan.md) | Memory architecture: what the production pool holds, six defects, and a phased plan (eval set, bounded writes, taint, fact extraction, supersession) |
 | [tv-ideas.md](tv-ideas.md) | Backlog of ideas for the living-room TV |
 | `screenshot.png` | UI screenshot, referenced by the root README |
 
