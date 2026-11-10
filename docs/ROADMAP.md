@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **5.1** (security fixes + the core/extension split, `project(Funes VERSION 5.1.0)`).
+Current release: **7.0** (OS plan phase 0, `project(Funes VERSION 7.0.0)`).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
@@ -13,8 +13,9 @@ Current release: **5.1** (security fixes + the core/extension split, `project(Fu
 | **5.0.1** | Security: shell-job permission bypass, child env allowlist, resolving SSRF guard, hashed tokens, login throttle, body cap | review of 2026-09-18 | done |
 | **5.1** | Split (undone in 5.2): the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
 | **5.2** | One checkout: funes-julio merged back with history, `src/julio` always built, all runtime state under `data/`, units renamed `funes` / `whatsapp-autoresponder` | — | done |
-| **6.0** | Voice: STT + TTS sidecars | v6 voice research | next |
-| **7.x** | OS embedding: grants as kernel policy, the machine as a memory owner, effects as proposals, Funes as a system service | [os-plan.md](os-plan.md) | proposed |
+| **7.0** | OS plan phase 0: connections pinned to the address `net_guard` judged, `Type=notify` + self-probing watchdog, background passes yield to people (in-flight runs + PSI); link backfill on by default | [os-plan.md](os-plan.md) | done |
+| **7.x** | OS plan phases 1–7: cgroup per tool call, Landlock/seccomp, `funes.sock`, the machine as a memory owner, effects as proposals | [os-plan.md](os-plan.md) | next: phase 1 |
+| **8.0** | Voice: STT + TTS sidecars | v6 voice research | deprioritised |
 
 ## Why this order
 
@@ -34,7 +35,14 @@ requests that have not arrived: a second chat channel and a third tool author.
 Building either now is speculative generality, which is the same mistake the
 plan is about, pointed the other way.
 
-**5.0 before 6.0.** Voice is additive and independent, but on a single-host
+**OS plan before voice.** Reordered 2026-11-10. Phases 0–2 of the OS plan
+are security debt in the sense 5.0.1 was — a prompt currently carries a
+security boundary (`operator`'s warning that `execute_shell` is not confined),
+and an allowlist is described as "not a sandbox" — and by the principle that
+put 5.0.1 ahead of everything, they outrank a feature. Voice keeps its research
+and moves behind them; it was numbered 6.0 and is now 8.0, so 6.x is unused.
+
+**5.0 before voice.** Voice is additive and independent, but on a single-host
 install it needs CPU headroom the memory backfill also wants, and connected
 memories
 change what a voice session recalls. Shipping recall changes first means the
@@ -61,7 +69,8 @@ feature in the next one.
 Still open from the same review, deliberately not done here: one httplib
 worker thread per chat for the whole run (concurrency ceiling ≈ pool size);
 MCP stdio servers spawned per request; DNS rebinding between the guard's
-lookup and httplib's connect (needs address pinning httplib does not offer);
+lookup and httplib's connect (closed in 7.0 — the vendored httplib does pin,
+via `set_hostname_addr_map`; see `net_guard.h::pin_address`);
 memory design (auto-memory is a conversation log, not fact extraction).
 
 ## 5.1 — the split

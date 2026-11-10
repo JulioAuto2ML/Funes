@@ -8,7 +8,9 @@
 // tools.
 
 #pragma once
+#include <functional>
 #include <string>
+#include <vector>
 
 namespace funes::net {
 
@@ -26,6 +28,30 @@ bool parse_http_url(const std::string& url, ParsedUrl& out);
 // comment in net_guard.cpp for what the literal-matching version let through.
 // Unresolvable names count as private (refuse, don't guess).
 bool is_private_host(const std::string& host);
+
+// The guard's verdict on one host *and the address it reached it on*.
+// `address` is numeric (inet_ntop form), IPv4 preferred when the name has
+// both families; empty when the name did not resolve.
+struct HostCheck {
+    bool        is_private = true;
+    std::string address;
+};
+HostCheck check_host(const std::string& host);
+
+// Makes httplib connect to the address check_host judged instead of
+// resolving the name a second time. Without it the guard looked a name up,
+// approved it, and httplib looked it up again to connect — a DNS answer with
+// a zero TTL could say "public" to the first lookup and "127.0.0.1" to the
+// second. The Host header and TLS SNI still carry the name; only the connect
+// is pinned. A no-op when there is nothing to pin to.
+template <class Client>
+void pin_address(Client& cli, const std::string& host, const HostCheck& c) {
+    if (!c.address.empty()) cli.set_hostname_addr_map({{host, c.address}});
+}
+
+// Tests only: replace getaddrinfo with a function returning numeric
+// addresses for a name. An empty function restores the real resolver.
+void set_resolver_for_testing(std::function<std::vector<std::string>(const std::string&)> fn);
 
 // Turns a Location header into an absolute URL against the request it
 // answered: absolute stays as is, "//host/p" takes the scheme, "/p" takes

@@ -40,6 +40,8 @@ check_absent() {  # check_absent <name> <haystack> <needle>
 cleanup() {
     [ -n "${FUNES_PID:-}" ] && kill "$FUNES_PID" 2>/dev/null
     [ -n "${MOCK_PID:-}" ]  && kill "$MOCK_PID" 2>/dev/null
+    [ -n "${NOTIFY_PID:-}" ] && kill "$NOTIFY_PID" 2>/dev/null
+    rm -f "${NOTIFY_SOCK:-}" "${NOTIFY_LOG:-}"
     rm -f "$DB" "$DB-wal" "$DB-shm"
     rm -rf "$WORKSPACE" "$AGENTS"
     rm -f "${COOKIE_JAR:-}" "${MEMBER_JAR:-}"
@@ -167,7 +169,24 @@ echo "— starting mock LLM on :$LLM_PORT"
 python3 tests/mock_llm.py $LLM_PORT &
 MOCK_PID=$!
 
+# A stand-in for systemd's notify socket: every datagram funes sends lands as
+# one line in $NOTIFY_LOG (checked in the "systemd" section at the end).
+NOTIFY_SOCK=$(mktemp -u /tmp/funes_it_notify_XXXX.sock)
+NOTIFY_LOG=$(mktemp /tmp/funes_it_notify_XXXX.log)
+python3 -c '
+import socket, sys
+s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+s.bind(sys.argv[1])
+with open(sys.argv[2], "a") as f:
+    while True:
+        f.write(s.recv(256).decode() + "\n"); f.flush()
+' "$NOTIFY_SOCK" "$NOTIFY_LOG" &
+NOTIFY_PID=$!
+for i in $(seq 1 50); do [ -S "$NOTIFY_SOCK" ] && break; sleep 0.1; done
+
 echo "— starting funes on :$API_PORT"
+NOTIFY_SOCKET="$NOTIFY_SOCK" \
+WATCHDOG_USEC=2000000 \
 FUNES_LLM_URL="http://127.0.0.1:$LLM_PORT" \
 FUNES_EMBED_URL="http://127.0.0.1:$LLM_PORT" \
 FUNES_DB="$DB" \
@@ -1203,6 +1222,18 @@ OUT=$(command curl -s -c "$MEMBER_JAR" -X POST "$BASE/api/login" \
 check "lock expires; a correct login succeeds and clears it" "$OUT" '"ok":true'
 
 rm -f "$MEMBER_JAR"
+
+# ── systemd: readiness and watchdog (7.0, OS plan phase 0) ───────────────────
+# Type=notify needs READY=1 once the port accepts connections; WatchdogSec
+# needs WATCHDOG=1 while the server answers itself. WATCHDOG_USEC=2s above
+# means a ping every second, so by now there have been many.
+echo "— systemd notify"
+NOTES=$(cat "$NOTIFY_LOG")
+check "READY=1 sent once listening" "$NOTES" '^READY=1$'
+check "WATCHDOG=1 pinged while the server answers" "$NOTES" '^WATCHDOG=1$'
+# That pings stop when the self-probe goes unanswered is in
+# tests/test_host_signals.cpp: freezing this process would stop the watchdog
+# thread along with the workers, which proves nothing about the probe.
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

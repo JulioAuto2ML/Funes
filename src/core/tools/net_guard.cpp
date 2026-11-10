@@ -70,31 +70,26 @@ bool is_private_v6(const in6_addr& a) {
 // setup an attacker would build, and "some of the time it hits the LAN" is
 // not a guard.
 //
-// Two honest limits. A name that resolves to nothing is *refused* — the
-// fetch was going to fail anyway, and "could not check" must not read as
-// "checked and fine". And the address is looked up again when httplib
-// connects, so a DNS answer that changes between the two calls (deliberate
-// rebinding with a zero TTL) still gets through; closing that needs the
-// connection pinned to the checked address, which httplib does not offer.
-// The window is one lookup wide instead of a regex wide.
-bool is_private_host(const std::string& raw_host) {
-    std::string host = raw_host;
-    // Bracketed IPv6 literal as it appears in a URL.
-    if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
-        host = host.substr(1, host.size() - 2);
-    // A trailing dot is the same name to the resolver but not to a regex.
-    while (!host.empty() && host.back() == '.') host.pop_back();
-    if (host.empty()) return true;
+// A name that resolves to nothing is *refused* — the fetch was going to fail
+// anyway, and "could not check" must not read as "checked and fine".
+//
+// Until 7.0 the address was looked up again when httplib connected, so a DNS
+// answer that changed between the two lookups (rebinding with a zero TTL) got
+// through. check_host now returns the address it judged and callers pin the
+// connection to it (pin_address); is_private_host is the verdict alone.
+namespace {
 
-    // "localhost" and its subdomains are loopback by convention even where the
-    // resolver has not been told so.
-    {
-        std::string lower;
-        for (char c : host) lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        if (lower == "localhost" || (lower.size() > 10
-            && lower.compare(lower.size() - 10, 10, ".localhost") == 0))
-            return true;
-    }
+std::function<std::vector<std::string>(const std::string&)>& test_resolver() {
+    static std::function<std::vector<std::string>(const std::string&)> fn;
+    return fn;
+}
+
+// Every numeric address the name has, IPv4 first. IPv4 first because pinning
+// gives up httplib's walk down the address list: a dual-stack name pinned to
+// an IPv6 address on a host with no IPv6 route would fail where the unpinned
+// connect used to fall back.
+std::vector<std::string> resolve_all(const std::string& host) {
+    if (test_resolver()) return test_resolver()(host);
 
     addrinfo hints{};
     hints.ai_family   = AF_UNSPEC;
@@ -106,20 +101,66 @@ bool is_private_host(const std::string& raw_host) {
     hints.ai_flags    = 0;
 
     addrinfo* res = nullptr;
-    if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || !res)
-        return true;   // unresolvable: refuse, do not guess
+    if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || !res) return {};
 
-    bool priv = false;
-    for (const addrinfo* p = res; p && !priv; p = p->ai_next) {
-        if (p->ai_family == AF_INET) {
-            priv = is_private_v4(reinterpret_cast<const sockaddr_in*>(p->ai_addr)->sin_addr);
-        } else if (p->ai_family == AF_INET6) {
-            priv = is_private_v6(reinterpret_cast<const sockaddr_in6*>(p->ai_addr)->sin6_addr);
-        }
+    std::vector<std::string> v4, v6;
+    char buf[INET6_ADDRSTRLEN];
+    for (const addrinfo* p = res; p; p = p->ai_next) {
+        if (p->ai_family == AF_INET &&
+            inet_ntop(AF_INET, &reinterpret_cast<const sockaddr_in*>(p->ai_addr)->sin_addr,
+                      buf, sizeof buf))
+            v4.emplace_back(buf);
+        else if (p->ai_family == AF_INET6 &&
+                 inet_ntop(AF_INET6, &reinterpret_cast<const sockaddr_in6*>(p->ai_addr)->sin6_addr,
+                           buf, sizeof buf))
+            v6.emplace_back(buf);
     }
     freeaddrinfo(res);
-    return priv;
+    v4.insert(v4.end(), v6.begin(), v6.end());
+    return v4;
 }
+
+bool is_private_address(const std::string& addr) {
+    in_addr a4;
+    in6_addr a6;
+    if (inet_pton(AF_INET, addr.c_str(), &a4) == 1)  return is_private_v4(a4);
+    if (inet_pton(AF_INET6, addr.c_str(), &a6) == 1) return is_private_v6(a6);
+    return true;   // not an address we can judge: refuse
+}
+
+} // namespace
+
+void set_resolver_for_testing(std::function<std::vector<std::string>(const std::string&)> fn) {
+    test_resolver() = std::move(fn);
+}
+
+HostCheck check_host(const std::string& raw_host) {
+    std::string host = raw_host;
+    // Bracketed IPv6 literal as it appears in a URL.
+    if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
+        host = host.substr(1, host.size() - 2);
+    // A trailing dot is the same name to the resolver but not to a regex.
+    while (!host.empty() && host.back() == '.') host.pop_back();
+    if (host.empty()) return {};
+
+    const std::vector<std::string> addrs = resolve_all(host);
+    HostCheck c;
+    c.address    = addrs.empty() ? "" : addrs.front();
+    c.is_private = addrs.empty();   // unresolvable: refuse, do not guess
+    for (const auto& a : addrs)
+        if (is_private_address(a)) { c.is_private = true; break; }
+
+    // "localhost" and its subdomains are loopback by convention even where the
+    // resolver has not been told so.
+    std::string lower;
+    for (char ch : host) lower += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (lower == "localhost" || (lower.size() > 10
+        && lower.compare(lower.size() - 10, 10, ".localhost") == 0))
+        c.is_private = true;
+    return c;
+}
+
+bool is_private_host(const std::string& host) { return check_host(host).is_private; }
 
 std::string resolve_location(const ParsedUrl& base, const std::string& location) {
     if (location.empty()) return "";

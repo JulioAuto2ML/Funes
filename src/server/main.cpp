@@ -19,6 +19,8 @@
 #include "tools/process_runner.h"
 #include "mcp_stdio_client.h"
 #include "maint_cli.h"
+#include "busy_gate.h"
+#include "sd_notify.h"
 #include "user_cli.h"
 #include "users.h"
 #include "httplib.h"
@@ -562,6 +564,7 @@ int main(int argc, char** argv) {
                 try {
                     auto report = memory.consolidate(
                         [&llm](const std::vector<std::string>& texts) {
+                            funes::load::wait_until_quiet();
                             return merge_memories(llm, texts);
                         }, opt);
                     if (report.merged || report.pruned || report.clusters_seen)
@@ -584,10 +587,12 @@ int main(int argc, char** argv) {
     // recorded), so it drains over several nights instead of one long burst
     // competing with the chat traffic it shares a GPU with.
     //
-    // Off by default: it costs real GPU time on a machine where the chat path
-    // has to stay responsive, and an install that never turns it on keeps
-    // exactly the 4.x recall it had.
-    if (funes::env("FUNES_LINK_BACKFILL", "off") == "on") {
+    // On by default since 7.0. It was off because it cost GPU time on a
+    // machine where the chat path has to stay responsive; each judgment now
+    // waits for no agent run to be in flight and for CPU/IO pressure to be low
+    // (busy_gate.h), so a person waits behind at most one one-word answer.
+    // FUNES_LINK_BACKFILL=off still turns it off.
+    if (funes::env("FUNES_LINK_BACKFILL", "on") == "on") {
         MemoryStore::LinkBackfillOptions opt;
         opt.max_anchors = static_cast<size_t>(funes::env_int("FUNES_LINK_MAX_ANCHORS", 40));
         const int every_hours = std::max(1, funes::env_int("FUNES_LINK_HOURS", 12));
@@ -601,6 +606,7 @@ int main(int argc, char** argv) {
                 try {
                     auto report = memory.backfill_links(
                         [&llm](const std::string& a, const std::string& b) {
+                            funes::load::wait_until_quiet();
                             return judge_link(llm, a, b);
                         }, opt);
                     if (report.judged || report.linked)
@@ -644,10 +650,31 @@ int main(int argc, char** argv) {
 
     signal(SIGPIPE, SIG_IGN);  // dropped SSE clients must not kill the process
 
-    if (!srv.listen(host, port)) {
+    if (!srv.bind_to_port(host, port)) {
         std::cerr << "[funes] FATAL: cannot listen on " << host << ":" << port
                   << " (port in use?)\n";
         return 1;
     }
-    return 0;
+
+    // systemd (Type=notify): READY=1 once requests are actually being
+    // accepted, then WATCHDOG=1 only while a request to ourselves is answered.
+    // Any status counts as an answer — the probe asks "is a worker free to
+    // pick this up", not "is the LLM up"; a slow model is not a dead server,
+    // but every worker stuck behind one is. No-ops outside systemd.
+    const std::string probe_host = (host == "0.0.0.0" || host == "::") ? "127.0.0.1" : host;
+    std::thread([&srv] {
+        for (int i = 0; i < 500 && !srv.is_running(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        funes::sd::notify("READY=1");
+    }).detach();
+    funes::sd::Watchdog watchdog(funes::sd::watchdog_interval(), [probe_host, port] {
+        httplib::Client cli(probe_host, port);
+        cli.set_connection_timeout(5);
+        cli.set_read_timeout(10);
+        return static_cast<bool>(cli.Get("/api/auth/status"));
+    });
+
+    const bool ok = srv.listen_after_bind();
+    funes::sd::notify("STOPPING=1");
+    return ok ? 0 : 1;
 }

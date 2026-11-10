@@ -75,7 +75,9 @@ Production is `~/Funes` on yoda, same layout as here: `git pull --ff-only`,
 rebuild, then `systemctl --user restart funes`. Units (copied from
 `scripts/*.service` to `~/.config/systemd/user/`): `funes` (:8485),
 `whatsapp-bridge` (:8090, personal number), `whatsapp-bridge-funes` (:8091,
-dedicated number), `whatsapp-autoresponder`. The user crontab runs
+dedicated number), `whatsapp-autoresponder`. `funes` is `Type=notify` with a
+watchdog (7.0): a unit file still saying `Type=simple` works, but nothing
+restarts a server whose workers are all stuck. The user crontab runs
 `publishing/run_images.sh`, `publishing/post_tweet.py` and (Sundays)
 `publishing/weekly_carousel.py` against `data/newsletter` — its source is
 `scripts/yoda.crontab`; since 2026-11-02 the English issue runs Mon/Wed/Fri and
@@ -193,7 +195,10 @@ Two rules there that are easy to undo by accident:
   pointed at the LAN). Unresolvable names are refused, not waved through.
   Redirects are followed by hand (`page_text.cpp`, `net::resolve_location`)
   so every hop is checked — httplib's own `set_follow_location` skips the
-  guard, and is off everywhere.
+  guard, and is off everywhere. And the connection goes to the address that
+  was judged (`check_host` → `pin_address`), not to a second lookup of the
+  name: two lookups are a DNS-rebinding window. A new outbound call site that
+  uses `is_private_host` and then lets httplib resolve reopens it.
 
 ### src/julio: the newsletter and VoC tools
 
@@ -314,8 +319,9 @@ about weights — an expanded hit inherits its anchor's score times the link
 weight times a decay below 1, so it can never outrank the memory it was reached
 through, and term matches enter below the weakest direct hit. Links come from
 `backfill_links()`, a capped, resumable background pass that asks the model
-about one candidate pair at a time (`FUNES_LINK_BACKFILL=on`; off by default
-because it is one model call per pair on a GPU the chat path needs). Every
+about one candidate pair at a time (`FUNES_LINK_BACKFILL`, on by default since
+7.0: each call first waits for no agent run in flight and low CPU/IO pressure,
+`src/core/busy_gate.h`, because the GPU it uses is the chat path's). Every
 verdict is recorded in `memory_link_judgments`, including the negatives — a
 capped run that re-asked the questions it already answered would never reach
 the end of the pool.

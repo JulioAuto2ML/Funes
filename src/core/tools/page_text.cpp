@@ -190,18 +190,23 @@ Page fetch_readable(const std::string& url) {
         if (!funes::net::parse_http_url(effective_url, parsed))
             return {"", "Invalid URL (only http:// and https:// are supported): " + effective_url};
 
-        if (funes::net::is_private_host(parsed.host) && !funes::net::local_fetch_allowed())
+        const funes::net::HostCheck checked = funes::net::check_host(parsed.host);
+        if (checked.is_private && !funes::net::local_fetch_allowed())
             return {"", "Refusing to fetch private/loopback host '" + parsed.host +
                         "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)"};
 
+        // Connect to the address just judged, not to a second lookup of the
+        // name (net_guard.h::pin_address).
         if (parsed.https) {
             httplib::SSLClient cli(parsed.host, parsed.port);
+            funes::net::pin_address(cli, parsed.host, checked);
             cli.set_connection_timeout(10);
             cli.set_read_timeout(20);
             cli.set_follow_location(false);
             res = cli.Get(parsed.path.c_str(), headers);
         } else {
             httplib::Client cli(parsed.host, parsed.port);
+            funes::net::pin_address(cli, parsed.host, checked);
             cli.set_connection_timeout(10);
             cli.set_read_timeout(20);
             cli.set_follow_location(false);

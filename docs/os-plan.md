@@ -1,7 +1,8 @@
 # Funes in the OS — research and plan
 
-Status: **proposed** (2026-11-10). Nothing here is built. Facts marked
-*(unverified)* were not checked against a primary source or against yoda.
+Status: **phase 0 done** (7.0, 2026-11-10); phase 1 is next. Facts about
+yoda were checked on 2026-11-10 (see "Open questions", 2); anything still
+marked *(unverified)* was not.
 
 ## The question, restated
 
@@ -107,8 +108,8 @@ profiles by hand, which is why most sandboxes ship permissive. So:
 1. A new script runs in **learn mode**: sandboxed widely, with every file and
    socket it touches recorded. Unprivileged route: a seccomp user-notification
    supervisor (the Sandlock design) observing `openat`/`connect`; simpler
-   fallback: Landlock audit denials (ABI 7, Linux 6.15) if the service user
-   can read the audit stream on yoda *(unverified)*.
+   fallback: Landlock audit denials (ABI 7, Linux 6.15) — **not available on
+   yoda** (6.12, ABI 6), so seccomp user-notification is the route there.
 2. The observations are plain data. A deterministic tool folds them into a
    candidate `access:` block; the model's only job is to explain it and flag
    what looks wrong ("why does a TV script read `~/.ssh`?").
@@ -138,7 +139,7 @@ ingests structured events — no free text where a field will do:
 
 | Source | Interface | Privilege |
 |---|---|---|
-| unit state changes, failures, restarts | systemd Varlink `io.systemd.Unit` (v258+) or D-Bus signals; `journalctl -o json --follow` as the dependency-free fallback | user units: none; system units: `systemd-journal` group |
+| unit state changes, failures, restarts | systemd Varlink `io.systemd.Unit` (v258+; yoda has 257) or D-Bus signals; `journalctl -o json --follow` as the dependency-free fallback — on yoda, the route | user units: none; system units: `systemd-journal` group (julio is not in it) |
 | package installs/upgrades | `/var/log/dpkg.log` via inotify | read |
 | boots, kernel version, OOM kills | journal fields | as above |
 | pressure | `/proc/pressure/*`, per-cgroup `*.pressure` | none |
@@ -196,8 +197,9 @@ done while it is still a diff.
 papers above list that as future work. The plan's position is that pretending
 otherwise is worse than an approval prompt.
 
-**Risk to check first:** unprivileged user namespaces are restricted by
-AppArmor on recent Ubuntu. If yoda blocks them, the fallback is a copy-on-write
+**Risk checked:** unprivileged user namespaces are restricted by AppArmor on
+recent Ubuntu, but yoda is Debian 13 and `unshare -Ur true` succeeds as julio.
+On a host that does block them, the fallback is a copy-on-write
 staging directory for scripts that take their target root as a parameter —
 less general, zero privilege.
 
@@ -227,7 +229,7 @@ reaching Funes.
   on PSI for CPU/IO. Then the backfill can default to on, and 5.0's connected
   memories stop depending on someone remembering to enable them.
 - Publish the interface in systemd 260's Varlink registry
-  (`/run/varlink/registry/`) if yoda's systemd is new enough *(unverified)*.
+  (`/run/varlink/registry/`) — not on yoda's 257; deferred until it is.
 
 ## Order of work
 
@@ -235,7 +237,7 @@ Ordered so each phase is useful alone and none requires the next.
 
 | Phase | Deliverable | Depends on | Size |
 |---|---|---|---|
-| **0** | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | days |
+| **0** ✅ | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | done in 7.0 |
 | **1** | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
 | **2** | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
 | **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week |
@@ -254,19 +256,36 @@ code. Phase 2's are the important ones: a script that tries to read
 `EACCES` from the kernel with `fs_guard` *deliberately bypassed* in the test,
 or the sandbox is only being tested through the layer it is meant to back up.
 
+## Phase 0 — what was built (7.0)
+
+| Piece | Where | Test |
+|---|---|---|
+| `check_host` returns the address it judged (IPv4 preferred — pinning gives up httplib's walk down the address list, and a v6 pin on a host with no v6 route would fail where the unpinned connect fell back); `pin_address` makes httplib connect there. `web_fetch` (every redirect hop) and generated HTTP tools use it. | `src/core/tools/net_guard.{h,cpp}`, `page_text.cpp`, `http_tool_runtime.cpp` | `test_web_fetch: test_connection_is_pinned_to_checked_address` — a name only the guard's (test) resolver knows; an unpinned client resolves it again, finds nothing and fails |
+| `READY=1` once the bound server accepts; `WATCHDOG=1` every `WATCHDOG_USEC/2` *only while a request to itself is answered*; `STOPPING=1` on exit. No libsystemd — one datagram. Unit: `Type=notify`, `NotifyAccess=main`, `WatchdogSec=120`. | `src/core/sd_notify.{h,cpp}`, `src/server/main.cpp`, `scripts/funes.service` | `test_host_signals` (path and abstract sockets, `WATCHDOG_PID`, ping withheld while the probe fails); `integration.sh` "systemd notify" against the real binary |
+| `RunInFlight` held by every `FunesAgent::run`; `wait_until_quiet()` (no run in flight, PSI cpu/io `some avg10` ≤ 20%, give up after 30 min) before each consolidation merge and each link judgment. Unreadable PSI counts as quiet. Link backfill now defaults **on**. | `src/core/busy_gate.{h,cpp}`, `agent.cpp`, `main.cpp`, `config/funes.conf` | `test_host_signals: test_quiet_means_no_runs_and_low_pressure`, `test_agent_run_counts_as_in_flight` (counted during the model call, released when the run throws) |
+
+What it does not cover: MCP HTTP/SSE servers and the LLM/embedding clients are
+not pinned — their URLs come from an admin, not a model, so the guard does not
+apply to them at all. `publishing/` scripts that call the model directly are
+invisible to the in-flight count (PSI may or may not see them; it does not see
+GPU load).
+
 ## Open questions to settle before Phase 1
 
 1. **Which machine?** yoda is a headless server. OS embedding pays most on the
    machine a person sits at, and Funes is a multi-user web service. Pillars 1
    and 3 are host-agnostic; 2 and 4 are much more interesting on a desktop.
    Is the target yoda, a laptop, or both with one as a remote "machine" account?
-2. **yoda's kernel and systemd versions.** Landlock ABI ≥ 4 (6.7) is the floor
-   for network rules, ≥ 6 (6.12) for scoping, ≥ 7 (6.15) for audit. Varlink
-   unit APIs need systemd ≥ 258. Is cgroup delegation to the user manager on,
-   and are unprivileged user namespaces allowed?
-3. **6.0 voice is "next" in the roadmap.** Phases 0–2 are security debt in the
-   same sense 5.0.1 was and arguably outrank a feature by the same principle.
-   Phases 4–6 are features and do not.
+2. ~~**yoda's kernel and systemd versions.**~~ Answered 2026-11-10: Debian 13,
+   kernel **6.12** (Landlock in the LSM list → ABI 6: filesystem, TCP-port and
+   scoping rules; no audit, which needs 6.15), systemd **257** (no Varlink unit
+   API, which needs 258), unprivileged user namespaces **allowed**, PSI
+   present, and the user manager is delegated **`cpu memory pids`** — no `io`,
+   so phase 1 can set `memory.max`, `pids.max`, `cpu.weight` and use
+   `cgroup.kill`, but not `io.max`.
+3. ~~**6.0 voice is "next" in the roadmap.**~~ Settled 2026-11-10: voice is
+   deprioritised (now 8.0); the OS plan runs first. Phases 4–6 are features,
+   but they follow 1–2 without voice in between.
 4. **Does the machine pool share the embedding model's budget?** A noisy host
    could out-write every human account. The ring table and promotion rules
    exist to prevent that, but the ceiling should be a number in `funes.conf`.

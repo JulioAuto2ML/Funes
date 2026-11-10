@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 #define CHECK(cond) do { \
     if (!(cond)) { \
@@ -270,6 +271,52 @@ int test_redirect_to_private_host_is_refused() {
     return 0;
 }
 
+// The connection goes to the address the guard judged, not to a second
+// lookup of the name. "pinned.test" resolves only through the test resolver,
+// which the guard uses and httplib does not: an unpinned client asks the real
+// resolver, gets nothing, and the fetch fails with a connection error.
+int test_connection_is_pinned_to_checked_address() {
+    using funes::net::check_host;
+    funes::net::set_resolver_for_testing([](const std::string& host) {
+        if (host == "pinned.test") return std::vector<std::string>{"127.0.0.1"};
+        if (host == "split.test")  return std::vector<std::string>{"93.184.216.34", "10.0.0.7"};
+        return std::vector<std::string>{};
+    });
+    struct ResolverGuard { ~ResolverGuard() { funes::net::set_resolver_for_testing({}); } } rg;
+
+    CHECK(check_host("pinned.test").is_private);
+    CHECK(check_host("pinned.test").address == "127.0.0.1");
+    CHECK(check_host("split.test").is_private);       // one private answer is enough
+    CHECK(check_host("nowhere.test").is_private);     // unresolvable
+    CHECK(check_host("nowhere.test").address.empty());
+
+    setenv("FUNES_ALLOW_LOCAL_FETCH", "1", 1);
+    httplib::Server srv;
+    srv.Get("/hello", [](const httplib::Request& req, httplib::Response& res) {
+        // The name still travels in the Host header; only the connect is pinned.
+        res.set_content("host=" + req.get_header_value("Host"), "text/plain");
+    });
+    const int port = srv.bind_to_any_port("127.0.0.1");
+    std::thread th([&] { srv.listen_after_bind(); });
+    for (int i = 0; i < 50 && !srv.is_running(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    struct ServerGuard {
+        httplib::Server& srv;
+        std::thread& th;
+        ~ServerGuard() { srv.stop(); if (th.joinable()) th.join(); }
+    } guard{srv, th};
+
+    ToolRegistry reg;
+    register_web_tools(reg);
+    ToolContext ctx{"funes", "s1"};
+    auto r = reg.call("web_fetch",
+                      {{"url", "http://pinned.test:" + std::to_string(port) + "/hello"}}, ctx);
+    if (r.error) std::cerr << r.text << "\n";
+    CHECK(!r.error);
+    CHECK(r.text.find("host=pinned.test") != std::string::npos);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_non_utf8_response_does_not_crash();
@@ -278,6 +325,7 @@ int main() {
     rc |= test_reddit_url_rewrite();
     rc |= test_private_host_guard_resolves();
     rc |= test_redirect_to_private_host_is_refused();
+    rc |= test_connection_is_pinned_to_checked_address();
     if (rc == 0) std::cout << "test_web_fetch: all tests passed\n";
     return rc;
 }

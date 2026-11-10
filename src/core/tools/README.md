@@ -123,4 +123,6 @@ The tool system enforces security at multiple layers:
   in `FUNES_CHILD_ENV` or the manifest/agent YAML passes it explicitly.
 - **Outbound URLs** (`net_guard.cpp`): the private-host check resolves the name
   and judges every address; redirects are followed by hand so each hop is
-  checked; unresolvable names are refused.
+  checked; unresolvable names are refused. The connection is pinned to the
+  address that was judged (`check_host` + `pin_address`, 7.0), so a DNS answer
+  that changes between the check and the connect (rebinding) cannot redirect it.

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "agent.h"
+#include "busy_gate.h"
 #include "mcp_http_client.h"
 #include "users.h"   // funes::language_name
 #include "answer_schema.h"
@@ -224,6 +225,9 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                             int64_t user_id, const funes::Permissions& perms,
                             const EventFn& emit, const std::vector<ImageAttachment>& images,
                             Persist persist) {
+    // Background passes (link backfill, consolidation) wait while this is
+    // held, so a person never queues behind them for the GPU (busy_gate.h).
+    const funes::load::RunInFlight in_flight;
     // Two independent questions, previously one bool. A scheduled run wants
     // the first and emphatically not the second.
     const bool writes_history = (persist != Persist::None);

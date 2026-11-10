@@ -152,3 +152,8 @@ add_test(NAME parallel_search COMMAND test_parallel_search)
 
 # src/julio and the Python beside it.
 add_subdirectory(julio)
+
+# OS plan phase 0: systemd readiness/watchdog and the background-work gate.
+add_executable(test_host_signals test_host_signals.cpp)
+target_link_libraries(test_host_signals PRIVATE funes_core)
+add_test(NAME host_signals COMMAND test_host_signals)

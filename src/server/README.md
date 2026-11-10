@@ -27,8 +27,21 @@ Everything runs in a single `funes` binary.
      while the embedding endpoint is unreachable -- see the note below
    - Result pruning (sweeps expired tool results)
    - Memory consolidation (merges near-duplicates, prunes stale auto-memories)
+   - Link backfill (on by default since 7.0)
    - Cron runner (polls for due scheduled jobs)
-7. **Start HTTP server** -- `httplib::Server` with 60s read / 1200s write timeout
+
+   Consolidation and the link backfill call `funes::load::wait_until_quiet()`
+   (`src/core/busy_gate.h`) before *each* model call: no agent run in flight
+   and CPU/IO pressure (`/proc/pressure`) under 20%, or 30 minutes of waiting,
+   whichever comes first. A chat arriving mid-pass waits behind one judgment,
+   not the batch.
+7. **Start HTTP server** -- `httplib::Server` with 60s read / 1200s write timeout.
+   Bound first, then `READY=1` to `$NOTIFY_SOCKET` once it is accepting, then
+   `WATCHDOG=1` every `WATCHDOG_USEC/2` -- but only while a `GET
+   /api/auth/status` to itself gets an answer (`src/core/sd_notify.h`). Any
+   status counts: the probe asks whether a worker is free, not whether the LLM
+   is up. The unit is `Type=notify`, `WatchdogSec=120`; outside systemd all of
+   this is a no-op.
 
 ## API routes
 

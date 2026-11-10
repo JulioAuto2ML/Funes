@@ -84,11 +84,13 @@ std::string uppercase(std::string s) {
 }
 
 ToolResult perform_request(const std::string& method, const net::ParsedUrl& url,
+                           const net::HostCheck& checked,
                            const httplib::Headers& headers, const std::string& body) {
     httplib::Result res;
     const char* content_type = "application/json";
 
     auto run = [&](auto& cli) {
+        net::pin_address(cli, url.host, checked);
         cli.set_connection_timeout(10);
         cli.set_read_timeout(20);
         // Not followed: httplib would hop to whatever host the Location
@@ -149,7 +151,8 @@ ToolHandler make_http_template_tool(const std::string& method,
         if (!net::parse_http_url(url, parsed))
             return {"Generated tool has an invalid URL after substitution: " + url, true};
 
-        if (net::is_private_host(parsed.host) && !net::local_fetch_allowed())
+        const net::HostCheck checked = net::check_host(parsed.host);
+        if (checked.is_private && !net::local_fetch_allowed())
             return {"Refusing to call private/loopback host '" + parsed.host +
                     "' (set FUNES_ALLOW_LOCAL_FETCH=1 to allow)", true};
 
@@ -166,7 +169,7 @@ ToolHandler make_http_template_tool(const std::string& method,
             body = substitute_placeholders(body_template, args,
                 [](const json& v) { return v.dump(); });
 
-        return perform_request(upper_method, parsed, hdrs, body);
+        return perform_request(upper_method, parsed, checked, hdrs, body);
     };
 }
 

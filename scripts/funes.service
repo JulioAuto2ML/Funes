@@ -20,7 +20,15 @@ Description=Funes
 After=network.target
 
 [Service]
-Type=simple
+# notify + watchdog (7.0): Funes says READY=1 once it accepts connections and
+# pings the watchdog only while a request to itself gets an answer, so a
+# server whose every worker is stuck behind a hung LLM call is restarted
+# instead of looking healthy. NotifyAccess=main: only the server, not a child
+# it spawned, may speak for it.
+Type=notify
+NotifyAccess=main
+WatchdogSec=120
+TimeoutStartSec=120
 WorkingDirectory=/home/julio/Funes
 ExecStart=/home/julio/Funes/bin/funes
 
@@ -48,6 +56,7 @@ Environment=FUNES_ALLOW_SHELL=0
 # ./bin/funes does NOT fire the schedule; this line wins for the service.
 Environment=FUNES_CRON_ENABLED=1
 
+# on-failure covers a watchdog timeout (SIGABRT) as well as a crash.
 Restart=on-failure
 RestartSec=5
 
