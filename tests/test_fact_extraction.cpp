@@ -336,6 +336,56 @@ int test_restatement_is_not_stored() {
     return 0;
 }
 
+// ── grounding (7.3) ──────────────────────────────────────────────────────────
+
+int test_proper_nouns() {
+    const auto n = funes::proper_nouns(
+        "El usuario tiene una Ford Territory SEL 1.8. The backup runs on Monday at Edenor.");
+    // "El" and "The" start sentences; "Monday" is a weekday; "1.8" is no noun.
+    CHECK(n.size() == 4);
+    CHECK(n[0] == "Ford");
+    CHECK(n[1] == "Territory");
+    CHECK(n[2] == "SEL");
+    CHECK(n[3] == "Edenor");
+    CHECK(funes::proper_nouns("the user drinks mate.").empty());
+    return 0;
+}
+
+// A fact that names something neither its exchange nor any memory names is
+// invented, and is not stored. On a copy of yoda's pool the 27B turned the
+// person's Ford Territory into a Renault Territory.
+int test_ungrounded_fact_is_not_stored() {
+    MemoryStore m(fresh_db("grounding"), nullptr);
+    m.remember(1, "funes", "Julio was born in Rosario.", "tool");   // a name memory knows
+    m.enqueue_exchange(1, "funes", "s1", "tengo una Ford Territory SEL 1.8",
+                       "¡Buen auto!", {});
+    const auto r = funes::run_fact_extraction(m,
+        [](const std::vector<ChatMessage>&) -> std::string {
+            return R"({"facts":[)"
+                   R"({"text":"El usuario tiene una Renault Territory SEL 1.8.","kind":"about_person"},)"
+                   R"({"text":"El usuario tiene una Ford Territory SEL 1.8.","kind":"about_person"},)"
+                   R"({"text":"The user, from Rosario, likes the Territory.","kind":"preference"}]})";
+        });
+    CHECK(r.ungrounded == 1);
+    CHECK(r.facts == 2);
+    for (const auto& mem : m.list(1, "funes"))
+        CHECK(mem.text.find("Renault") == std::string::npos);
+    return 0;
+}
+
+// `{}` is the model's way of saying "nothing here": an answer, not a failure.
+int test_empty_object_means_no_facts() {
+    std::vector<ExtractedFact> out;
+    std::string err;
+    CHECK(funes::parse_facts("{}", {}, out, err));
+    CHECK(out.empty());
+    // The whole answer wrapped in a one-element list (seen on yoda).
+    CHECK(funes::parse_facts(R"([{"facts":[{"text":"Julio drinks mate.","kind":"preference"}]}])",
+                             {}, out, err));
+    CHECK(out.size() == 1);
+    return 0;
+}
+
 // ── migrating stored exchange logs (phase 6) ─────────────────────────────────
 
 int test_auto_text_round_trips() {
@@ -421,6 +471,41 @@ int test_migration_queues_logs_once_and_archives_them() {
     return 0;
 }
 
+// Consolidated rows were mostly merged exchange logs on yoda. One still in
+// exchange shape goes as an exchange; anything else as a note the prompt
+// labels as such. Both are archived once handled.
+int test_migration_takes_consolidated_rows_as_notes() {
+    MemoryStore m(fresh_db("migrate_notes"), nullptr);
+    const int64_t merged_log = m.remember(1, "funes", funes::auto_memory_text(
+        "hola", "¡Hola! ¿En qué te ayudo?"), "consolidated");
+    const int64_t note = m.remember(1, "funes",
+        "¡Perfecto! El cron job se ejecutó; el usuario quiere el aviso por WhatsApp.",
+        "consolidated");
+    const int64_t taught = m.remember(1, "funes", "Julio drinks mate.", "tool");
+
+    const auto q = m.enqueue_auto_migration(1, 100, false);
+    CHECK(q.queued == 2);
+    CHECK(q.notes == 1);
+
+    std::string note_prompt;
+    const auto r = funes::run_fact_extraction(m,
+        [&](const std::vector<ChatMessage>& msgs) -> std::string {
+            if (msgs[1].content.find("Note (stored ") != std::string::npos) {
+                note_prompt = msgs[1].content;
+                return R"({"facts":[{"text":"Julio wants reminders by WhatsApp.","kind":"preference"}]})";
+            }
+            return R"({"facts":[]})";
+        });
+    CHECK(r.archived == 2);
+    CHECK(r.facts == 1);
+    CHECK(note_prompt.find("Person:") == std::string::npos);
+    CHECK(note_prompt.find("aviso por WhatsApp") != std::string::npos);
+    CHECK(!recalled(m, "hola", merged_log));
+    CHECK(!recalled(m, "cron", note));
+    CHECK(recalled(m, "mate", taught));       // a tool memory is never migrated
+    return 0;
+}
+
 int test_failed_migration_leaves_the_log_live() {
     MemoryStore m(fresh_db("migrate_fail"), nullptr);
     const int64_t log = m.remember(1, "funes", funes::auto_memory_text(
@@ -464,8 +549,12 @@ int main() {
     rc |= test_supersede_guards();
     rc |= test_pass_supersedes_what_a_fact_replaces();
     rc |= test_restatement_is_not_stored();
+    rc |= test_proper_nouns();
+    rc |= test_ungrounded_fact_is_not_stored();
+    rc |= test_empty_object_means_no_facts();
     rc |= test_auto_text_round_trips();
     rc |= test_migration_queues_logs_once_and_archives_them();
+    rc |= test_migration_takes_consolidated_rows_as_notes();
     rc |= test_failed_migration_leaves_the_log_live();
     rc |= test_contradicts_verdict_supersedes_older();
     if (rc == 0) std::cout << "test_fact_extraction: all tests passed\n";

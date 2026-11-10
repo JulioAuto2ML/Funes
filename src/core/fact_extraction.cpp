@@ -48,8 +48,9 @@ const char* const kSystem =
     "{\"facts\": [{\"text\": \"...\", \"kind\": \"...\", \"replaces\": null}]}\n\n"
     "Keep a fact only if it will still be true and useful weeks from now: who the "
     "person is, the people and things in their life, their preferences, plans and "
-    "decisions, and things that were actually done (a job scheduled, a bill paid, "
-    "a purchase made).\n\n"
+    "decisions, and things done that change their world (a reminder or job "
+    "scheduled or removed for them, a bill paid, a purchase made, something sent "
+    "on their behalf).\n\n"
     "Rules:\n"
     "- An empty list is the usual, correct answer. Greetings, thanks, questions, "
     "small talk, and anything about the assistant itself or its memory produce no "
@@ -60,6 +61,13 @@ const char* const kSystem =
     "assistant does not know something.\n"
     "- When the assistant lists what it remembers or summarises past "
     "conversations, that is not new: produce no facts from it.\n"
+    "- Not the assistant's own work: files it saved, code, agents or settings it "
+    "wrote or changed, searches it ran, reports or drafts it produced. Those are "
+    "kept elsewhere.\n"
+    "- Sometimes you are shown a Note instead of an exchange: something stored "
+    "earlier, often several past conversations merged, in the assistant's words. "
+    "Apply the same rules: keep only what it establishes about the person and "
+    "their world, nothing the assistant offered, asked or did for itself.\n"
     "- Each fact is one short self-contained sentence. Name the person (use the "
     "name if a remembered fact gives it, else \"the user\") instead of a pronoun, "
     "and write dates as dates, not \"tomorrow\" or \"next week\".\n"
@@ -68,6 +76,19 @@ const char* const kSystem =
     "- If a new fact makes a remembered fact outdated or wrong, set replaces to "
     "that remembered fact's number. Otherwise null.\n"
     "- Do not restate a fact that is already remembered.";
+
+// Weekday and month names: a fact written in English from a Spanish exchange
+// capitalises them without them being in the source.
+const std::set<std::string> kCalendar = {
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+};
+
+std::string lower_ascii(std::string s) {
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return s;
+}
 
 int64_t as_id(const json& v) {
     if (v.is_number_integer()) return v.get<int64_t>();
@@ -79,17 +100,44 @@ int64_t as_id(const json& v) {
 
 } // namespace
 
+std::vector<std::string> proper_nouns(const std::string& fact) {
+    std::vector<std::string> out;
+    std::string word;
+    bool sentence_start = true;
+    auto flush = [&](bool ends_sentence) {
+        if (!word.empty()) {
+            if (!sentence_start && word.size() >= 3
+                && std::isupper(static_cast<unsigned char>(word[0]))
+                && !kCalendar.count(lower_ascii(word)))
+                out.push_back(word);
+            sentence_start = false;
+        }
+        if (ends_sentence) sentence_start = true;
+        word.clear();
+    };
+    for (unsigned char c : fact) {
+        if (std::isalnum(c) || c >= 0x80 || c == '-') word += static_cast<char>(c);
+        else flush(c == '.' || c == '!' || c == '?' || c == ':');
+    }
+    flush(false);
+    return out;
+}
+
 std::vector<ChatMessage> extraction_messages(const std::string& user_text,
                                              const std::string& reply,
                                              const std::vector<MemoryStore::Memory>& known,
-                                             const std::string& date) {
+                                             const std::string& date,
+                                             const std::string& kind) {
     std::ostringstream u;
     u << "Already remembered:\n";
     if (known.empty()) u << "(nothing relevant)\n";
     for (const auto& m : known) u << "[" << m.id << "] " << m.presented() << "\n";
-    u << "\nExchange (" << date << "):\n"
-      << "Person: " << user_text << "\n"
-      << "Assistant: " << reply << "\n";
+    if (kind == "note")
+        u << "\nNote (stored " << date << "):\n" << reply << "\n";
+    else
+        u << "\nExchange (" << date << "):\n"
+          << "Person: " << user_text << "\n"
+          << "Assistant: " << reply << "\n";
 
     std::vector<ChatMessage> msgs(2);
     msgs[0].role = "system";
@@ -105,8 +153,13 @@ bool parse_facts(const std::string& answer, const std::vector<MemoryStore::Memor
     json j;
     if (!extract_answer_json(answer, j)) { error = "no JSON in the answer"; return false; }
     // A bare array is the one shape small models produce often enough to be
-    // worth accepting: it is the facts list with the wrapper forgotten.
+    // worth accepting: it is the facts list with the wrapper forgotten. An
+    // empty object is the other: the 27B answered `{}` for "nothing here" on
+    // a copy of yoda's pool, and refusing it left those logs live.
+    // And the answer wrapped in a one-element list, `[{"facts": [...]}]`.
+    if (j.is_array() && j.size() == 1 && j[0].is_object() && j[0].contains("facts")) j = j[0];
     if (j.is_array()) j = json{{"facts", j}};
+    if (j.is_object() && j.empty()) j = json{{"facts", json::array()}};
     if (std::string e = validate_answer(fact_schema(), j); !e.empty()) {
         error = e;
         return false;
@@ -157,7 +210,7 @@ FactExtractionReport run_fact_extraction(MemoryStore& memory, const CompleteFn& 
 
         std::string answer;
         try {
-            answer = complete(extraction_messages(e.user_text, e.reply, known, date));
+            answer = complete(extraction_messages(e.user_text, e.reply, known, date, e.kind));
         } catch (const std::exception& ex) {
             std::cerr << "[facts] exchange " << e.id << ": model call failed: " << ex.what() << "\n";
             memory.finish_exchange(e.id, false, 0);
@@ -185,7 +238,28 @@ FactExtractionReport run_fact_extraction(MemoryStore& memory, const CompleteFn& 
         // origin ("memory:<id>" before 7.1), so a fact can be traced back.
         prov.origin  = e.tainted || e.source_memory > 0 ? e.origin : "session:" + e.session;
         int stored = 0;
+        // Grounding (7.3): a fact may only name what its source names, or what
+        // this person's memories already do. On a copy of yoda's pool the
+        // 27B turned a Ford Territory into a Renault Territory once in two
+        // runs — a fluent, confident, wrong fact about the person.
+        std::string source = lower_ascii(e.user_text + "\n" + e.reply);
+        for (const auto& k : known) source += "\n" + lower_ascii(k.text);
+
         for (const auto& f : facts) {
+            std::string ungrounded;
+            for (const auto& noun : proper_nouns(f.text))
+                if (source.find(lower_ascii(noun)) == std::string::npos
+                    && !memory.mentions(e.user_id, noun)) {
+                    ungrounded = noun;
+                    break;
+                }
+            if (!ungrounded.empty()) {
+                ++report.ungrounded;
+                std::cerr << "[facts] exchange " << e.id << ": \"" << ungrounded
+                          << "\" is in neither the exchange nor any memory, skipped: "
+                          << f.text << "\n";
+                continue;
+            }
             try {
                 // An update the model could not be trusted to apply (its target
                 // was taught, not extracted) is still stored; the link judge's

@@ -37,6 +37,8 @@ void MemoryStore::migrate_facts() {
         CREATE INDEX IF NOT EXISTS idx_extract_queue_pending
             ON memory_extract_queue(status, id);
     )sql");
+    funes::sqlite::add_column_if_missing(db_, "memory_extract_queue", "kind",
+                                         "TEXT NOT NULL DEFAULT 'exchange'");
 }
 
 int64_t MemoryStore::enqueue_exchange(int64_t user_id, const std::string& agent,
@@ -66,7 +68,7 @@ std::vector<MemoryStore::PendingExchange> MemoryStore::pending_exchanges(size_t 
                                                                         int min_age_seconds) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, "SELECT id, user_id, agent, session, user_text, reply, origin, tainted, "
-                "source_memory, attempts, created_at FROM memory_extract_queue "
+                "source_memory, attempts, created_at, kind FROM memory_extract_queue "
                 "WHERE status = 'pending' "
                 "AND created_at <= datetime('now', '-' || ? || ' seconds') "
                 "ORDER BY id LIMIT ?");
@@ -86,6 +88,7 @@ std::vector<MemoryStore::PendingExchange> MemoryStore::pending_exchanges(size_t 
         e.source_memory = s.col_int64(8);
         e.attempts      = static_cast<int>(s.col_int64(9));
         e.created_at    = s.col_text(10);
+        e.kind          = s.col_text(11);
         out.push_back(std::move(e));
     }
     return out;
@@ -177,13 +180,16 @@ MemoryStore::MigrationReport MemoryStore::enqueue_auto_migration(int64_t user_id
     MigrationReport report;
     std::lock_guard<std::mutex> lock(mu_);
 
-    struct Row { int64_t id, user_id; std::string agent, text, created_at, origin; bool tainted; };
+    struct Row { int64_t id, user_id; std::string agent, text, created_at, origin; bool tainted;
+                 std::string source; };
     std::vector<Row> rows;
     {
         std::string sql = R"sql(
-            SELECT m.id, m.user_id, m.agent, m.text, m.created_at, m.origin, m.tainted
+            SELECT m.id, m.user_id, m.agent, m.text, m.created_at, m.origin, m.tainted,
+                   m.source
             FROM memories m
-            WHERE m.source = 'auto' AND m.superseded_by IS NULL AND m.archived = 0
+            WHERE m.source IN ('auto', 'consolidated')
+              AND m.superseded_by IS NULL AND m.archived = 0
               AND NOT EXISTS (SELECT 1 FROM memory_extract_queue q
                               WHERE q.source_memory = m.id)
         )sql";
@@ -195,24 +201,31 @@ MemoryStore::MigrationReport MemoryStore::enqueue_auto_migration(int64_t user_id
         s.bind_int64(i, static_cast<int64_t>(limit));
         while (s.step())
             rows.push_back({s.col_int64(0), s.col_int64(1), s.col_text(2), s.col_text(3),
-                            s.col_text(4), s.col_text(5), s.col_int64(6) != 0});
+                            s.col_text(4), s.col_text(5), s.col_int64(6) != 0,
+                            s.col_text(7)});
     }
 
     exec_or_throw(db_, "BEGIN IMMEDIATE");
     try {
         for (const auto& r : rows) {
-            std::string user_text, reply;
+            std::string user_text, reply, kind = "exchange";
             if (!funes::parse_auto_memory_text(r.text, user_text, reply)) {
-                ++report.unparsed;
-                continue;
+                if (r.source != "consolidated") {
+                    ++report.unparsed;
+                    continue;
+                }
+                kind = "note";
+                user_text.clear();
+                reply = r.text;
+                ++report.notes;
             }
             ++report.candidates;
             if (dry_run) continue;
             // Bounded like a live exchange (agent.cpp): a pre-7.1 row can
             // still hold a whole attached document.
             Stmt s(db_, "INSERT INTO memory_extract_queue(user_id, agent, session, user_text, "
-                        "reply, origin, tainted, source_memory, created_at) "
-                        "VALUES(?,?,?,?,?,?,?,?,?)");
+                        "reply, origin, tainted, source_memory, created_at, kind) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?)");
             s.bind_int64(1, r.user_id);
             s.bind_text(2, r.agent);
             s.bind_text(3, "memory-" + std::to_string(r.id));
@@ -226,6 +239,7 @@ MemoryStore::MigrationReport MemoryStore::enqueue_auto_migration(int64_t user_id
             s.bind_int64(7, r.tainted ? 1 : 0);
             s.bind_int64(8, r.id);
             s.bind_text(9, r.created_at);   // the date "tomorrow" meant
+            s.bind_text(10, kind);
             s.step();
             ++report.queued;
         }
@@ -295,4 +309,19 @@ int MemoryStore::archive_uncited(const ConsolidationOptions& opt) {
     if (!opt.agent.empty()) s.bind_text(3, opt.agent);
     s.step();
     return sqlite3_changes(db_);
+}
+
+bool MemoryStore::mentions(int64_t user_id, const std::string& term) {
+    if (term.empty()) return false;
+    std::string pattern = "%";
+    for (char c : term) {
+        if (c == '%' || c == '_' || c == '\\') pattern += '\\';
+        pattern += c;
+    }
+    pattern += '%';
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT 1 FROM memories WHERE user_id = ? AND text LIKE ? ESCAPE '\\' LIMIT 1");
+    s.bind_int64(1, user_id);
+    s.bind_text(2, pattern);
+    return s.step();
 }

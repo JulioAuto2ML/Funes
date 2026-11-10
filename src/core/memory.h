@@ -258,6 +258,10 @@ public:
         int64_t     source_memory = 0;   // an `auto` row being migrated (phase 6), else 0
         int         attempts = 0;
         std::string created_at;   // UTC; the date "tomorrow" in the exchange meant
+        // "exchange", or "note": a migrated consolidated memory that is not in
+        // exchange shape (several merged logs, in the assistant's words) —
+        // only `reply` is set, and the prompt says what it is reading.
+        std::string kind = "exchange";
     };
 
     int64_t enqueue_exchange(int64_t user_id, const std::string& agent,
@@ -278,19 +282,28 @@ public:
 
     // ── Migrating stored exchange logs (7.3, memory plan phase 6) ────────────
     // Queues live `auto` rows — the pre-7.2 `User said … I replied …`
-    // memories — for the same extraction pass, each carrying its own date and
+    // memories — and live `consolidated` rows, which on yoda were mostly
+    // exchange logs merged by consolidate() (a copy of the pool showed them
+    // taking the top-4 slots the archived logs left). A consolidated row in
+    // exchange shape is queued as one; otherwise as a "note". Both go to the
+    // same extraction pass, each carrying its own date and
     // provenance and pointing back at its row (source_memory). When the pass
     // has handled one, that row is archived: out of recall, still in the
     // table. A row already queued once (whatever the outcome) is not queued
     // again, so this is resumable and idempotent. user_id < 0 = every user.
     struct MigrationReport {
-        int candidates = 0;   // live auto rows not yet queued
+        int candidates = 0;   // live rows not yet queued (exchanges + notes)
+        int notes      = 0;   // of which consolidated rows queued as notes
         int queued     = 0;   // 0 on a dry run
         int unparsed   = 0;   // auto rows not in the exchange-log shape; left alone
     };
     MigrationReport enqueue_auto_migration(int64_t user_id, size_t limit, bool dry_run);
     // Out of recall / back into it. Owner-checked like everything else.
     bool archive(int64_t user_id, int64_t id);
+    // Whether any of this user's memories — live, archived or retired —
+    // contains `term` (ASCII case-insensitive). The extraction pass's
+    // grounding check: a name the person has used before is not invented.
+    bool mentions(int64_t user_id, const std::string& term);
     // A reply drew on these (citation.h): cited_count + 1, last_cited_at.
     void mark_cited(int64_t user_id, const std::vector<int64_t>& ids);
     // Undo the migration: every row archived because its exchange was

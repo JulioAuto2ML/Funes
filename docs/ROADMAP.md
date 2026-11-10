@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.3.0** (memory plan phases 6–7: migrating stored exchange logs; eviction by citation).
+Current release: **7.3.1** (memory plan phases 6–7: migrating stored exchange logs and merged notes; facts grounded in their source; eviction by citation).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|

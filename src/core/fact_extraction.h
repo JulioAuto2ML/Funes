@@ -39,6 +39,10 @@ struct ExtractedFact {
     bool        claims_replacement = false;
 };
 
+// Capitalised words of three or more letters that do not start a sentence —
+// the names a fact commits to. Weekday and month names excluded.
+std::vector<std::string> proper_nouns(const std::string& fact);
+
 // The contract the model's answer is validated against.
 const nlohmann::json& fact_schema();
 
@@ -46,10 +50,13 @@ const nlohmann::json& fact_schema();
 // similar to it, shown with their ids so the model can say which one a new
 // fact replaces and avoid restating one. `date` is the exchange's (YYYY-MM-DD),
 // so "tomorrow" can be written as a date.
+// kind "note" (a migrated consolidated memory, 7.3) shows `reply` alone as a
+// note stored on `date` instead of a Person/Assistant exchange.
 std::vector<ChatMessage> extraction_messages(const std::string& user_text,
                                              const std::string& reply,
                                              const std::vector<MemoryStore::Memory>& known,
-                                             const std::string& date);
+                                             const std::string& date,
+                                             const std::string& kind = "exchange");
 
 // Parses and validates a model answer. A `replaces` naming anything but one of
 // `known` is dropped (set to 0), not trusted: the model may only retire a
@@ -81,6 +88,7 @@ struct FactExtractionReport {
     int replaced = 0; // older memories superseded by a fact (phase 5)
     int restated = 0; // facts dropped as restatements of a live memory
     int archived = 0; // migrated exchange logs retired after extraction (phase 6)
+    int ungrounded = 0; // facts naming something neither source nor memory does
 };
 
 // Works through the queue, oldest first. `complete` is the model call; the

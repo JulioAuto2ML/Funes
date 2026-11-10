@@ -78,7 +78,8 @@ int main(int argc, char** argv) {
     show(memory, user, agent, probes, k);
 
     const auto q = memory.enqueue_auto_migration(user, limit, /*dry_run=*/false);
-    std::cout << "\n=== migrating " << q.queued << " exchange log(s) (" << q.unparsed
+    std::cout << "\n=== migrating " << q.queued << " stored memories (" << q.notes
+              << " as notes; " << q.unparsed
               << " auto rows in another shape left alone)\n";
 
     LLMClient llm(llm_url, "", "default", "openai");
@@ -96,10 +97,12 @@ int main(int argc, char** argv) {
         total.replaced += r.replaced;
         total.restated += r.restated;
         total.archived += r.archived;
+        total.ungrounded += r.ungrounded;
         total.failed = r.failed;
     }
     std::cout << "    " << total.done << " handled, " << total.facts << " fact(s) stored, "
-              << total.restated << " restatement(s) dropped, " << total.replaced
+              << total.restated << " restatement(s) dropped, " << total.ungrounded
+              << " ungrounded dropped, " << total.replaced
               << " superseded, " << total.archived << " log(s) archived, " << total.failed
               << " still failing\n";
 

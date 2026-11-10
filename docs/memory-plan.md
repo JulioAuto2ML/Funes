@@ -63,6 +63,33 @@ preferences) entered them. Two problems the synthetic pool could not show:
   narrower prompt (actions that change the person's world: a job scheduled, a
   bill paid) would keep them out in the first place.
 
+**Fixing the two gaps** (7.3, re-probed twice on fresh copies):
+
+- Consolidated rows are migrated too — as an exchange when still in that
+  shape, otherwise as a *note* the prompt labels as "stored earlier, in the
+  assistant's words". 245 rows queued (34 notes); none of the merged logs
+  that held the top 4 is in any top 4 after.
+- "Things done" now means things that change the person's world (a reminder
+  scheduled, a bill paid, something sent for them), and the assistant's own
+  work (files, code, agents, searches, drafts) is excluded: 69 facts → 46 → 44.
+  The synthetic eval was unchanged by it (0.742 / 0.700 / 0.067 / 0.075).
+
+Two more problems surfaced and are handled in code, not prompt:
+
+- **An invented fact.** In both re-probes the 27B wrote the person's Ford
+  Territory as a *Renault* Territory. Facts are now grounded: every
+  capitalised name a fact uses (weekday/month names aside) must appear in its
+  source exchange or somewhere in the person's memories, or the fact is
+  dropped. On the third probe that dropped the Renault fact and three facts
+  where the model had only expanded an abbreviation ("Mun" → "Municipalidad",
+  "UK" → "Reino Unido") — a loss in the safe direction.
+- **Answer shapes.** `{}` (meaning "nothing") and `[{"facts": …}]` are
+  accepted. A model that answers in prose three times leaves the log live —
+  one exchange of 245 on the last run.
+
+Runs differ: the same exchange produced the car fact in one probe and nothing
+in another. Read any single run as a sample.
+
 "What's my name?" still fails, now for a different reason: the stale
 negative is gone (no fact is extracted from it), but the English question
 does not reach the Spanish "El usuario se llama Julio." That is a

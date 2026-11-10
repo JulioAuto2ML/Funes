@@ -40,8 +40,9 @@ void usage() {
         "  funes memory-migrate [--apply] [--user <username>] [--limit <n>]\n"
         "  funes memory-migrate --undo [--user <username>]\n"
         "\n"
-        "Queues the stored `User said … I replied …` memories for fact\n"
-        "extraction (docs/memory-plan.md, phase 6). The running server's\n"
+        "Queues the stored `User said … I replied …` memories, and the\n"
+        "consolidated ones merged from them, for fact extraction\n"
+        "(docs/memory-plan.md, phase 6). The running server's\n"
         "background pass does the work, one model call per exchange, when the\n"
         "machine is quiet; each log is archived (kept, out of recall) once its\n"
         "facts are stored. Reports without queueing unless --apply. --undo\n"
@@ -175,7 +176,8 @@ int cmd_memory_migrate(const std::string& db_path, const std::vector<std::string
     }
     const auto r = memory.enqueue_auto_migration(user_id, limit, !apply);
     std::cout << (apply ? "Queued " : "Would queue ") << r.candidates
-              << " exchange log(s) for fact extraction";
+              << " stored memories for fact extraction (" << r.notes
+              << " of them merged notes)";
     if (r.unparsed) std::cout << " (" << r.unparsed << " auto memories not in that shape, left alone)";
     std::cout << ".\n";
     if (!apply)

@@ -346,6 +346,10 @@ memories it *cited* (`citation.h`: it repeats two and at least half of a
 memory's distinctive terms); consolidation's step 3 archives `extracted`/`auto`
 memories never cited and never linked after `FUNES_ARCHIVE_UNCITED_DAYS` (90),
 counted only from `meta.cited_since` so an upgrade archives nothing at once.
+Migration takes `consolidated` rows too (as a "note" when not in exchange
+shape). Every extracted fact is grounded: a capitalised name in it must occur
+in its source or in one of the person's memories (`proper_nouns`,
+`MemoryStore::mentions`) — the 27B invented a car make twice on yoda's pool.
 
 As of 5.0 recall is no longer a single flat similarity search. Two passes run
 after it and **only ever append** to what it found: a one-hop expansion through
