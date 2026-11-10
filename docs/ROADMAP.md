@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.0** (OS plan phase 0, `project(Funes VERSION 7.0.0)`).
+Current release: **7.0.1** (OS plan phase 0; 7.0.1 shortens an embedding input longer than the model's context instead of treating it as the endpoint being down).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|

@@ -157,3 +157,9 @@ add_subdirectory(julio)
 add_executable(test_host_signals test_host_signals.cpp)
 target_link_libraries(test_host_signals PRIVATE funes_core)
 add_test(NAME host_signals COMMAND test_host_signals)
+
+# An input longer than the embedding model's context is shortened and retried,
+# not mistaken for the endpoint being down (yoda, memory 537, 2026-11-04).
+add_executable(test_embedding_client test_embedding_client.cpp)
+target_link_libraries(test_embedding_client PRIVATE funes_core)
+add_test(NAME embedding_client COMMAND test_embedding_client)

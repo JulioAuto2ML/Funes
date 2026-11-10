@@ -1014,25 +1014,71 @@ EmbeddingClient::EmbeddingClient(const std::string& base_url,
     parse_http_url(base_url, https_, host_, port_, base_path_);
 }
 
-std::vector<float> EmbeddingClient::embed(const std::string& text) {
-    json body = {
-        {"model", model_},
-        {"input", text}
-    };
+namespace {
 
+// Does this error say the input was longer than the model's context? llama-
+// server: 400 "exceed_context_size_error" with n_prompt_tokens/n_ctx; OpenAI:
+// 400 "maximum context length is N tokens". Matched loosely on "context" so a
+// third server's wording is likely caught; a false match only costs a retry
+// with a shorter input that then fails the same way.
+bool is_input_too_long(int status, const std::string& body) {
+    if (status != 400 && status != 413) return false;
+    std::string lower = body;
+    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return lower.find("context") != std::string::npos;
+}
+
+// How many bytes of `size` to keep on the next try. Scaled by the token counts
+// when the server reports them (llama-server does), with a 10% margin because
+// tokens per byte is not uniform across a text; halved when it does not.
+size_t shortened_length(size_t size, const std::string& body) {
+    try {
+        const json err = json::parse(body).value("error", json::object());
+        const double prompt = err.value("n_prompt_tokens", 0.0);
+        const double ctx    = err.value("n_ctx", 0.0);
+        if (prompt > 0 && ctx > 0 && ctx < prompt)
+            return static_cast<size_t>(static_cast<double>(size) * (ctx / prompt) * 0.9);
+    } catch (...) {}
+    return size / 2;
+}
+
+} // namespace
+
+// An input longer than the embedding model's context is shortened and sent
+// again, not thrown. Thrown, it read to every caller as "endpoint down": the
+// startup backfill stopped at that memory, retried it twelve times, gave up,
+// and repeated that on every restart — yoda, a 14.5k-char auto-memory, from
+// 2026-11-04 until 7.0.1. A memory's opening carries what it is about, so
+// embedding a prefix still files it in the right neighbourhood; the stored
+// text is untouched, so keyword recall and the prompt still see all of it.
+std::vector<float> EmbeddingClient::embed(const std::string& text) {
     httplib::Headers headers = {{"Accept", "application/json"}};
     if (!api_key_.empty())
         headers.emplace("Authorization", "Bearer " + api_key_);
-
     const std::string path = base_path_ + "/v1/embeddings";
-    auto result = do_post(https_, host_, port_, path, headers, funes::dump_safe(body));
 
-    if (!result)
-        throw std::runtime_error("Embedding request failed: " +
-            std::string(httplib::to_string(result.error())));
-    if (result->status != 200)
+    constexpr int kMaxShortenings = 4;
+    std::string input = text;
+    httplib::Result result;
+    for (int attempt = 0; ; ++attempt) {
+        const json body = {{"model", model_}, {"input", input}};
+        result = do_post(https_, host_, port_, path, headers, funes::dump_safe(body));
+        if (!result)
+            throw std::runtime_error("Embedding request failed: " +
+                std::string(httplib::to_string(result.error())));
+        if (result->status == 200) break;
+        if (attempt < kMaxShortenings && input.size() > 1
+            && is_input_too_long(result->status, result->body)) {
+            const size_t before = input.size();
+            funes::truncate_utf8_safe(input, shortened_length(input.size(), result->body));
+            std::cerr << "[embed] input too long for the embedding model ("
+                      << before << " bytes); retrying with the first "
+                      << input.size() << "\n";
+            continue;
+        }
         throw std::runtime_error("Embedding API error " +
             std::to_string(result->status) + ": " + result->body);
+    }
 
     json resp;
     try { resp = json::parse(result->body); }
