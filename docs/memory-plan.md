@@ -43,6 +43,26 @@ restatements (≥0.85 cosine to a live memory) are dropped unless the model
 claims they replace something; `replaces` may only retire `extracted` or
 `auto` memories; `extracted` weighs 1.15, not 1.3.
 
+**Phase 6 on a copy of yoda's pool** (2026-11-10, Qwen 27B, `memory_probe`,
+14 real questions read before and after; the output stays on yoda): all 209
+exchange logs handled, 3 on retry; 69 facts stored, 6 restatements dropped,
+2 memories superseded, 209 logs archived. The stale "no tengo registrado tu
+nombre" and the meta exchanges left every top 4 they had been in, and real
+facts (a pet, a car, a medication reminder, number-format and tone
+preferences) entered them. Two problems the synthetic pool could not show:
+
+- **Merged exchange logs survive as `consolidated`.** 25 rows that
+  consolidation made out of exchange logs (some still literally `User said …`)
+  are not `auto`, so the migration does not take them, and at weight 1.15
+  they now hold most of the top-4 slots the archived logs left. They need the
+  same treatment, with a prompt that knows it is reading a merged note.
+- **"Things that were done" is read too broadly.** About a third of the 69
+  facts are the assistant's own actions — files it saved, agents it edited, a
+  newsletter it sent on one date — which crowd questions about the newsletter
+  or the setup. Phase 7 will archive the uncited ones after 90 days; a
+  narrower prompt (actions that change the person's world: a job scheduled, a
+  bill paid) would keep them out in the first place.
+
 "What's my name?" still fails, now for a different reason: the stale
 negative is gone (no fact is extracted from it), but the English question
 does not reach the Spanish "El usuario se llama Julio." That is a
