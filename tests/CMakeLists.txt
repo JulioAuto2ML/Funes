@@ -205,8 +205,10 @@ add_executable(test_cgroup test_cgroup.cpp)
 target_link_libraries(test_cgroup PRIVATE funes_core)
 find_program(SYSTEMD_RUN systemd-run)
 if(SYSTEMD_RUN)
+    # Named, so the machine collector (host_collector.h) can tell the OOM kills
+    # this test causes on purpose from real ones: every yoda deploy runs it.
     add_test(NAME cgroup COMMAND ${SYSTEMD_RUN} --user --scope -p Delegate=yes --quiet --collect
-             $<TARGET_FILE:test_cgroup>)
+             --unit=funes-test-cgroup $<TARGET_FILE:test_cgroup>)
 else()
     add_test(NAME cgroup COMMAND test_cgroup)
 endif()
@@ -216,3 +218,7 @@ endif()
 add_executable(test_sandbox test_sandbox.cpp)
 target_link_libraries(test_sandbox PRIVATE funes_core)
 add_test(NAME sandbox COMMAND test_sandbox)
+
+add_executable(test_host test_host.cpp)
+target_link_libraries(test_host PRIVATE funes_core)
+add_test(NAME host COMMAND test_host)

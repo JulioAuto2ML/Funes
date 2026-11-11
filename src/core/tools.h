@@ -151,6 +151,12 @@ private:
 // ── built-in tool packs ───────────────────────────────────────────────────────
 void register_web_tools(ToolRegistry& reg);                        // web_search, web_fetch
 void register_memory_tools(ToolRegistry& reg, MemoryStore& store); // remember, recall
+namespace funes::host { class EventStore; }
+// host_changes, machine_recall (OS plan phase 4). store null when the machine
+// memory is off, machine_uid() 0 while its account does not exist yet: the
+// tools then say so.
+void register_host_tools(ToolRegistry& reg, funes::host::EventStore* store,
+                         MemoryStore& memory, std::function<int64_t()> machine_uid);
 void register_result_tools(ToolRegistry& reg, MemoryStore& store); // read_result
 void register_context_tools(ToolRegistry& reg, MemoryStore& store,
                             const AgentDefaults& defaults);        // compress_context

@@ -15,8 +15,11 @@ namespace {
 // Tools a member should not get simply because nobody wrote a permissions
 // blob for them. execute_shell is real code execution with the Funes
 // process's own rights; create_agent and create_tool write into the install
-// itself, which outlives the conversation that asked for them.
-const char* const PRIVILEGED[] = {"execute_shell", "create_agent", "create_tool"};
+// itself, which outlives the conversation that asked for them. host_changes and
+// machine_recall read the machine's memory (7.7) — what runs, what was
+// installed, when it broke: an admin's view of the box.
+const char* const PRIVILEGED[] = {"execute_shell", "create_agent", "create_tool",
+                                  "host_changes", "machine_recall"};
 
 } // namespace
 

@@ -28,7 +28,15 @@ namespace {
 // Where `funes _exec` lives; empty = no trampoline, so no cgroup either.
 std::string g_trampoline;
 
+UsageObserver g_usage_observer;
+
 } // namespace
+
+void set_usage_observer(UsageObserver observer) { g_usage_observer = std::move(observer); }
+
+void notify_usage(const std::vector<std::string>& argv, const funes::cgroup::Usage& usage) {
+    if (g_usage_observer) g_usage_observer(argv, usage);
+}
 
 std::optional<funes::cgroup::Usage> Wrapped::finish() {
     std::optional<funes::cgroup::Usage> usage;
@@ -207,6 +215,7 @@ Result run_forked(const std::vector<std::string>& argv, std::vector<std::string>
     close(outfd[0]);
     if (split) close(errfd[0]);
     result.usage = w->finish();
+    if (result.usage) notify_usage(argv, *result.usage);
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
     // The byte cap above can land mid-character; trim back to a clean UTF-8

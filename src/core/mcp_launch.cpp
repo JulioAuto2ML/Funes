@@ -24,10 +24,12 @@ std::unique_ptr<mcp::stdio_client> make_stdio_client(const McpServerConfig& srv,
         mcp::stdio_client::launch_plan plan;
         plan.argv = w->argv;
         if (!w->tmpdir.empty()) plan.env.emplace_back("TMPDIR", w->tmpdir);
-        plan.on_exit = [w, agent_name, label] {
-            if (auto u = w->finish())
+        plan.on_exit = [w, argv, agent_name, label] {
+            if (auto u = w->finish()) {
                 std::cerr << "[agent:" << agent_name << "] MCP server '" << label
                           << "' stopped" << cgroup::format_usage(*u) << "\n";
+                proc::notify_usage(argv, *u);
+            }
         };
         return plan;
     });

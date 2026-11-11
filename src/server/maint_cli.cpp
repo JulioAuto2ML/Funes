@@ -5,6 +5,7 @@
 #include "maint_cli.h"
 #include "../core/agent_config.h"
 #include "../core/cron_schedule.h"
+#include "../core/host_sources.h"
 #include "../core/mcp_launch.h"
 #include "../core/sandbox.h"
 #include "../core/script_library.h"
@@ -17,6 +18,7 @@
 #include <sstream>
 #include <ctime>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -24,7 +26,7 @@ namespace funes {
 namespace {
 
 const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule", "memory-migrate", "script-run",
-                               "mcp-probe"};
+                               "mcp-probe", "machine-probe"};
 
 void usage() {
     std::cerr <<
@@ -72,7 +74,14 @@ void usage() {
         "and lists their tools. --call also calls one tool; its output is\n"
         "printed only with --show (it is usually someone's mail or chats),\n"
         "otherwise just whether it failed and how long it was. A call\n"
-        "really happens: probe with tools that only read.\n";
+        "really happens: probe with tools that only read.\n"
+        "\n"
+        "  funes machine-probe [--since=-24h]\n"
+        "\n"
+        "What the machine collector (src/core/host_collector.h) would read on\n"
+        "this box right now: the user journal's lifecycle and error entries\n"
+        "since --since, the llama-server pid files, PSI, temperatures, VRAM,\n"
+        "disks and the OOM counter. Reads only; writes no database.\n";
 }
 
 int cmd_cron_cleanup(const std::string& db_path, const std::vector<std::string>& args) {
@@ -331,6 +340,44 @@ int cmd_mcp_probe(const std::string& agents_dir, const std::vector<std::string>&
     return failures ? 1 : 0;
 }
 
+
+int cmd_machine_probe(const std::vector<std::string>& args) {
+    std::string since = "-24h";
+    for (const auto& a : args) {
+        if (a.rfind("--since=", 0) == 0) since = a.substr(8);
+        else { std::cerr << "Unknown option " << a << "\n"; return 2; }
+    }
+    if (sandbox::enabled()) proc::set_trampoline("/proc/self/exe");
+    sandbox::Policy jp = sandbox::base();
+    jp.read.push_back("/var/log/journal");
+    const auto r = proc::run_argv(host::journal_argv("", since), "/", 60, 32u << 20, {}, true,
+                                  std::nullopt, jp);
+    std::cout << "journal (exit " << r.exit_code << "):\n";
+    if (r.exit_code != 0) std::cout << "  " << r.stderr_output.substr(0, 300) << "\n";
+    std::map<std::string, int> seen;
+    for (const auto& e : host::parse_journal(r.output).events)
+        ++seen[e.kind + "  " + e.subject + "  " + (e.kind == "sample" ? "(cost sample)" : e.detail)];
+    for (const auto& [k, n] : seen) std::cout << "  ×" << n << "  " << k << "\n";
+
+    std::cout << "llama-server:\n";
+    for (const auto& [name, st] : host::read_llama("/tmp/llama_pids"))
+        std::cout << "  " << name << "  " << st << "\n";
+    std::cout << "pressure (some avg60):";
+    for (const char* res : {"cpu", "memory", "io"}) {
+        const auto t = host::read_text(std::string("/proc/pressure/") + res);
+        const auto v = t ? host::psi_some_avg60(*t) : std::nullopt;
+        std::cout << " " << res << "=" << (v ? std::to_string(*v) : "?");
+    }
+    const auto vm = host::read_text("/proc/vmstat");
+    std::cout << "\noom_kill: " << (vm && host::vmstat_oom_kills(*vm) ? std::to_string(*host::vmstat_oom_kills(*vm)) : "?")
+              << "\n";
+    for (const auto& t : host::read_temperatures())
+        std::cout << "  " << t.subject << " " << t.value << "°C (crit " << t.limit << ")\n";
+    for (const auto& g : host::read_vram()) std::cout << "  " << g.subject << " " << g.value << "%\n";
+    for (const auto& d : host::read_disks({"/"})) std::cout << "  " << d.subject << " " << d.value << "%\n";
+    return r.exit_code == 0 ? 0 : 1;
+}
+
 } // namespace
 
 bool is_maint_cli_command(int argc, char** argv) {
@@ -353,6 +400,7 @@ int run_maint_cli(int argc, char** argv, const std::string& db_path,
         if (cmd == "memory-migrate") return cmd_memory_migrate(db_path, args);
         if (cmd == "script-run") return cmd_script_run(db_path, scripts_dir, workspace_dir, args);
         if (cmd == "mcp-probe")  return cmd_mcp_probe(agents_dir, args);
+        if (cmd == "machine-probe") return cmd_machine_probe(args);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;

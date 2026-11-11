@@ -242,7 +242,7 @@ Ordered so each phase is useful alone and none requires the next.
 | **1** ✅ | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
 | **2** ✅ | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
 | **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week; **after 4** (2026-11-11) |
-| **4** | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | ~3 weeks; **next** |
+| **4** ✅ | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | done in 7.7 |
 | **5** | Learn mode → proposed `access:` blocks | 2 | ~2 weeks |
 | **6** | `effects:` classes, overlay staging, diff in result store, commit/discard in UI | 2 | ~3 weeks |
 | **7** | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | small |
@@ -334,6 +334,27 @@ server's cgroup and its whole filesystem — `memory.db`, every workspace, and
 | `proc::wrap()` — the trampoline argv, cgroup scope and private temp dir, shared by `run_forked` and the MCP client so they cannot drift. | `process_runner.{h,cpp}` | existing sandbox/cgroup tests |
 | A stdio server gets `sandbox::base()` (the system, `/dev` nodes, private `TMPDIR`) plus its `access:` block in the agent YAML — same parser as a script manifest's (`parse_access`). No workspace: these servers act for the installation. Its cgroup kills what it leaves behind (npx's node child) and its cost is logged when it stops. | `mcp_launch.{h,cpp}`, `agent_config.cpp`, `script_library.cpp` | `test_mcp_server_is_confined` (a Python MCP server reads its grant, is refused another account's file and `funes.local`; unconfined control reads both); `test_agent_config` |
 | Grants: `whatsapp-mcp` — uv + its Python and cache, its project dir, the bridge store read-only, workspaces read-only (send_file), TCP 8090 only. `imap-email-mcp` — its package, TCP 993/465 only. `rss-reader-mcp` — `~/.npm`, TCP 80/443. | `agents/{whatsapp-assistant,gmail-assistant,rss-reader}.yaml` | `funes mcp-probe <agent> [--call=…]` on yoda |
+
+## Phase 4 — what was built (7.7)
+
+| Piece | Where | Test |
+|---|---|---|
+| A `system` role: the `machine` account owns a memory pool and nothing else — `!` for a password, skipped by `find_by_username` / `find_by_id` / `list_users` / `count` / `verify_login` and by every update and delete, so no login, token, CLI command or jid mapping reaches it. Never created before a person exists: #1 is who the pre-4.0 migrations give legacy data to. | `users.{h,cpp}` | `test_host: test_system_account_cannot_be_used`, `test_user_isolation: test_machine_pool_is_its_own` |
+| `host_events` (folded rows: first/last seen, count) and `host_state` (cursors, offsets, last-seen values) in memory.db, on their own connection. A failure that keeps happening is one row while it does, and a new row once a day. Samples kept `FUNES_MACHINE_EVENT_DAYS`, the rest four times as long. | `host_events.{h,cpp}` | `test_failure_folds_and_links_to_the_change_before_it` |
+| Sources, all unprivileged: the user journal through `journalctl --user -o json`, filtered *at the source* to systemd's lifecycle catalog ids + priority ≤ 3 (yoda's journal is ~99% access logs), cursor kept; `dpkg.log` from a saved offset (rotation-aware, history before first sight skipped); boot id, kernel, Funes's version; `/proc/vmstat` oom_kill; `/tmp/llama_pids` + `/proc/<pid>/cmdline` (started / restarted / model swapped / died / stopped); watched files by mtime+size (funes.local is never read); PSI, hwmon, VRAM, disks every 5 min. Log text: quoted, digits folded, capped, tainted. `run-*.scope` is one subject; `funes-test-*` scopes (the cgroup test's deliberate OOM, every deploy) are dropped and taken off the OOM counter. | `host_sources.{h,cpp}` | `test_parse_journal`, `test_parse_dpkg_and_proc`, `funes machine-probe` on yoda |
+| Collector: first tick records the box without announcing it; *changes* always promoted, *failures/anomalies* once per row; every child's cost (`proc::set_usage_observer`, MCP servers included) is a series per program, and a run ≥ 4× its median (≥ 5 points, ≥ 10 s CPU) is an anomaly; PSI against its floor and median; temperatures against the sensor's own critical point; disks at 90%. Memories are `[YYYY-MM-DD HH:MM] …` text in the machine pool, source `machine`, written behind the busy gate; a failure is linked (`preceded_by`, 0.6) to every remembered change in the 2 h before it and to changes to the same subject in the day before. `FUNES_MACHINE_PROMOTIONS_PER_DAY` (200) pauses promotion, not recording. | `host_collector.{h,cpp}`, `main.cpp` | `test_changes_are_remembered`, `test_oom_and_dead_llama_are_failures`, `test_run_baseline`, `test_daily_ceiling` (each rule checked by mutation: un-folding or un-linking fails a test) |
+| `host_changes(since_hours, subject?)` — the ring, no model; `machine_recall(query)` — the pool. Both privileged; `funes` has them, so an admin gets them and a member does not. | `tools/host_tools.cpp`, `permissions.cpp`, `agents/funes.yaml` | `test_system_account_cannot_be_used` |
+
+The pool is an ordinary one, so the background passes already reach it:
+consolidation merges near-duplicates there, and the link judge proposes links
+beyond the deterministic ones.
+
+What it saw on its first look at yoda (`funes machine-probe`, 2026-11-11):
+`dream-mdns.service` had failed to start 13,424 times in the previous 24 hours
+(`Changing to the requested working directory failed`), unnoticed — the case
+the fold rules were written for; both llama-server models with their files;
+every sensor including the GPU's own critical points (k10temp publishes none,
+so 90 °C applies).
 
 ## Open questions (all answered)
 

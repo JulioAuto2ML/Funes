@@ -46,6 +46,12 @@ public:
     // only stores it).
     static constexpr const char* ROLE_ADMIN  = "admin";
     static constexpr const char* ROLE_MEMBER = "member";
+    // 7.7: an account no person is. It owns a memory pool (the machine's,
+    // core/host/) and nothing else: no password that can verify, invisible to
+    // find_by_username/find_by_id/list_users/count, so no login, token, CLI
+    // command or jid mapping can ever act as it — and a fresh install with
+    // only system accounts still bootstraps its first admin.
+    static constexpr const char* ROLE_SYSTEM = "system";
 
     struct User {
         int64_t     id = 0;
@@ -85,6 +91,13 @@ public:
 
     std::optional<User> find_by_username(const std::string& username);
     std::optional<User> find_by_id(int64_t id);
+
+    // The id of the system account `username`, created on first call. 0 if
+    // that name already belongs to a person — their account is not taken
+    // over, and the caller runs without the feature instead — and 0 while no
+    // person exists yet, so a system account is never user #1 (the id the
+    // pre-4.0 migrations give legacy data). Callers retry.
+    int64_t ensure_system_account(const std::string& username);
 
     // The only place a password is checked. Returns the user on success and
     // nothing on any failure — unknown user and wrong password are

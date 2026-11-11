@@ -14,6 +14,8 @@ hop, no protocol overhead.
 | `web_fetch` | `web_fetch.cpp` | Fetches a URL, converts HTML to readable text (8 KB cap). SSRF-protected. |
 | `remember` | `memory_tools.cpp` | Stores a fact in persistent long-term memory. |
 | `recall` | `memory_tools.cpp` | Semantic (or keyword) search over stored memories. |
+| `host_changes` | `host_tools.cpp` | What changed, failed or ran unusually on the server in a window, from the machine's event ring (7.7). No model call. Admin-only (privileged). |
+| `machine_recall` | `host_tools.cpp` | Search the `machine` account's memory: past changes and failures, each linked to the changes before it. Admin-only (privileged). |
 | `read_file` | `file_tools.cpp` | Reads text, PDFs (via pdftotext, with image fallback for scans), and images (base64 for vision). Workspace-confined. |
 | `write_file` | `file_tools.cpp` | Writes or appends text. Creates parent directories. Workspace-confined. Refuses to replace an existing file unless `overwrite: true`, so "write it again" becomes a question for the user (replace, or the free name the refusal suggests) instead of a silent loss of the previous version. |
 | `execute_shell` | `shell_tool.cpp` | Runs a shell command. Opt-in only (`FUNES_ALLOW_SHELL=1`). Timeout, output cap. |

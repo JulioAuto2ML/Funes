@@ -11,6 +11,7 @@
 #include "../cgroup.h"
 #include "../sandbox.h"
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -90,6 +91,16 @@ struct Wrapped {
 std::unique_ptr<Wrapped> wrap(const std::vector<std::string>& argv,
                               const std::optional<funes::cgroup::Limits>& limits,
                               const std::optional<funes::sandbox::Policy>& policy);
+
+// Told about every child that ran in a cgroup of its own, once it is gone:
+// its command line (before wrapping) and what it cost. main() points it at
+// the machine collector (host_collector.h), which keeps a baseline per
+// program. Set once at startup, before any child runs; it must be cheap and
+// thread-safe — it runs on the thread that waited for the child.
+using UsageObserver = std::function<void(const std::vector<std::string>& argv,
+                                         const funes::cgroup::Usage& usage)>;
+void set_usage_observer(UsageObserver observer);
+void notify_usage(const std::vector<std::string>& argv, const funes::cgroup::Usage& usage);
 
 // The program that wraps every child once cgroups or the sandbox are on: main() sets it to
 // /proc/self/exe — the running binary even after a deploy has replaced the

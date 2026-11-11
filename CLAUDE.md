@@ -58,7 +58,8 @@ Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
 `cron-schedule` (change a job's schedule and its next run together),
 `memory-migrate` (queue stored exchange logs for fact extraction, 7.3),
 `script-run` and `mcp-probe` (run a script / start an agent's MCP servers in
-the sandbox they would get, no model involved).
+the sandbox they would get, no model involved) and `machine-probe` (what the
+machine collector reads, read-only).
 (`locale` is how an admin sets *another* account's language —
 `PUT /api/me/locale` only ever changes the caller's own, so a new account
 can't be set up in its owner's language before they first log in without it.) They run
@@ -386,6 +387,16 @@ about one candidate pair at a time (`FUNES_LINK_BACKFILL`, on by default since
 verdict is recorded in `memory_link_judgments`, including the negatives — a
 capped run that re-asked the questions it already answered would never reach
 the end of the pool.
+
+7.7 gives the machine a memory of its own (`src/core/host_collector.h`, OS plan
+phase 4). A `system` account, `machine`, owns a pool nobody can log in to
+(`UserStore::ROLE_SYSTEM`: invisible to every lookup, never user #1); a
+collector thread reads the user journal, dpkg.log, /proc, /sys, the
+llama-server pid files and every child's cgroup cost into `host_events`, and
+promotes only changes and failures/anomalies to memories, linking each failure
+to the changes before it. Admins read it with `host_changes` (no model) and
+`machine_recall`; `funes machine-probe` shows what the sources see. Log text is
+hostile: quoted, capped, tainted.
 
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (the

@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.6.0** (MCP stdio servers in their own cgroup and sandbox, with per-server `access:` in the agent YAML; `funes mcp-probe`).
+Current release: **7.7.0** (OS plan phase 4: the machine as a memory owner — a `machine` system account, the event ring, the collector, `host_changes` / `machine_recall`).
 
 ## What is left, in priority order
 
@@ -16,7 +16,7 @@ memory is the place to spend it.
 | # | Item | Why here | Size |
 |---|------|----------|------|
 | 1 | **Watch the first sandboxed runs on yoda**: 06:30 `news_headlines` (its `[tool]` line should end in `{exec-… cpu=… mem=…}`), the first `tv_art` and `speak` calls, and one call each through the WhatsApp, Gmail and RSS agents (`MCP server '…' stopped {…}` lines). A `Permission denied` is a missing `access:` entry: check with `funes script-run` / `funes mcp-probe`. | Phases 1–2 and 7.6 are only proven where they ran. | checks, no code |
-| 2 | **OS phase 4 — the machine as a memory owner** (os-plan.md, Pillar 2). A `machine` account; a collector over the user journal (`journalctl --user -o json --follow`), `/var/log/dpkg.log`, PSI, disk/temps, Funes's own cgroup stats and the `llama-server` processes `~/launch_llama.sh` starts (pids in `/tmp/llama_pids`, not units); an event ring; baselines in C++; promotion of *changes* and *anomalies* to memories, embedded and linked by the existing backfill; `host_changes(since, unit?)`. | Moved ahead of phase 3: it is the feature the idle embedding server is for, and it needs only phase 1. | ~3 weeks |
+| 2 | **OS phase 4, second half**. Built in 7.7 (see the release table): the account, the ring, the collector, baselines, promotion, links, both tools. Left: watch a week of yoda's real events and tune what is promoted (thresholds, which units are noise); a daily *digest* memory ("yesterday: 3 deploys, dream-mdns failed all day") so a quiet day is remembered too; and the system journal (OOM kills, system units) if julio is added to `systemd-journal`. | The machine memory exists only as far as its first week on yoda says it works. | ~1 week |
 | 3 | **OS phase 3 — `funes.sock`, `uid_users`, `funes ask`, `LoadCredential=`**. | Independent. `funes ask` is how a shell pipes into the machine memory (`journalctl … \| funes ask "what broke"`); `LoadCredential=` takes secrets out of the environment for good. | ~1 week |
 | 4 | **OS phase 5 — learn mode → proposed `access:` / `connect:`**. | No script manifest declares `connect:` yet; this is where those lists should come from rather than from guessing. | ~2 weeks |
 | 5 | **Concurrency ceiling**: one httplib worker thread per chat for the whole run. | Open since the 5.0.1 review. Matters when several people (or the autoresponder plus a person) chat at once; not seen to bite yet. | ~1 week |
@@ -40,7 +40,8 @@ memory is the place to spend it.
 | **7.4** | OS plan phase 1: `funes _exec` trampoline, a cgroup per child process, limits from `FUNES_CHILD_*` and manifest `limits:`, usage on the `[tool]` line | [os-plan.md](os-plan.md) | done |
 | **7.5** | OS plan phase 2: Landlock + seccomp in the trampoline, rules from the workspace + manifest `access:`, private `$TMPDIR`, `funes script-run` | [os-plan.md](os-plan.md) | done |
 | **7.6** | MCP stdio servers through the trampoline: own cgroup, sandbox from the server's `access:` block, `funes mcp-probe` | [os-plan.md](os-plan.md) | done |
-| **7.x** | OS plan phases 3–7: the machine as a memory owner, `funes.sock`, learned least privilege, effects as proposals | [os-plan.md](os-plan.md) | next: phase 4 (see the list above) |
+| **7.7** | OS plan phase 4: `machine` system account, `host_events` ring, collector (user journal, dpkg, boot/kernel/deploys, OOM counter, llama-server pid files, watched files, PSI, temperatures, VRAM, disks, every child's cost), baselines, promotion + links, `host_changes` / `machine_recall`, `funes machine-probe` | [os-plan.md](os-plan.md) | done |
+| **7.x** | OS plan phases 3, 5–7: `funes.sock`, learned least privilege, effects as proposals | [os-plan.md](os-plan.md) | next: phase 3 (see the list above) |
 | **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
 | **7.2** | Memory plan phases 4–5: exchanges queued and reduced to facts by a gated background pass; newer facts and `contradicts` verdicts supersede older ones, reversibly | [memory-plan.md](memory-plan.md) | done |
 | **7.3** | Memory plan phases 6–7: `funes memory-migrate` (logs → facts, archived, undoable), uncited memories archived after a window | [memory-plan.md](memory-plan.md) | done; yoda migrated and on `extract` since 2026-11-10 |

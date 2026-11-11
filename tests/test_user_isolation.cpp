@@ -16,6 +16,7 @@
 //               recall would just quietly get worse as accounts were added.
 
 #include "memory.h"
+#include "users.h"
 #include "sqlite3.h"
 #include "tools.h"
 #include <cmath>
@@ -462,6 +463,28 @@ int test_workspaces_are_isolated() {
     return 0;
 }
 
+// 7.7: the machine's pool (host_collector.h) is one more account's pool. A
+// person's recall never reaches it, and the account behind it cannot be
+// logged in as, so the only way in is the admin-only tools.
+int test_machine_pool_is_its_own() {
+    const std::string db = temp_db("machine");
+    UserStore users(db);
+    const int64_t alice = users.create_user("alice", "pw-alice-123", "", UserStore::ROLE_ADMIN);
+    const int64_t machine = users.ensure_system_account("machine");
+    CHECK(alice > 0 && machine > 0 && machine != alice);
+    MemoryStore store(db, nullptr);
+    store.remember(machine, "machine", "[2026-11-11 05:58] dream-mdns.service failed", "machine");
+    store.remember(alice, "funes", "Alice runs dream-mdns at home", "user");
+    for (const auto& m : store.recall(alice, "funes", "dream-mdns failed", 10))
+        CHECK(m.user_id == alice);
+    for (const auto& m : store.recall(alice, "", "dream-mdns failed", 10))
+        CHECK(m.user_id == alice);
+    CHECK(store.recall(machine, "machine", "dream-mdns", 10).size() == 1);
+    CHECK(!users.find_by_id(machine));
+    CHECK(!users.verify_login("machine", "!"));
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_pre4_vec_table_is_rebuilt_before_first_recall();
@@ -478,6 +501,7 @@ int main() {
     rc |= test_semantic_recall_is_isolated();
     rc |= test_busy_neighbour_does_not_evict();
     rc |= test_consolidation_does_not_merge_across_users();
+    rc |= test_machine_pool_is_its_own();
     if (rc == 0) std::cout << "test_user_isolation: all passed\n";
     return rc;
 }

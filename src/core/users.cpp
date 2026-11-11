@@ -181,7 +181,7 @@ std::string language_name(const std::string& locale) {
 bool UserStore::set_locale(int64_t user_id, const std::string& locale) {
     if (!funes::valid_locale(locale)) return false;
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "UPDATE users SET locale = ? WHERE id = ?");
+    Stmt s(db_, "UPDATE users SET locale = ? WHERE id = ? AND role != 'system'");
     s.bind_text(1, locale);
     s.bind_int64(2, user_id);
     s.step();
@@ -217,7 +217,7 @@ std::optional<UserStore::User> UserStore::find_by_username(const std::string& us
     if (username.empty()) return std::nullopt;
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, (std::string("SELECT ") + USER_COLUMNS +
-                 " FROM users WHERE username = ?").c_str());
+                 " FROM users WHERE username = ? AND role != 'system'").c_str());
     s.bind_text(1, username);
     if (!s.step()) return std::nullopt;
     return read_user(s);
@@ -226,10 +226,35 @@ std::optional<UserStore::User> UserStore::find_by_username(const std::string& us
 std::optional<UserStore::User> UserStore::find_by_id(int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, (std::string("SELECT ") + USER_COLUMNS +
-                 " FROM users WHERE id = ?").c_str());
+                 " FROM users WHERE id = ? AND role != 'system'").c_str());
     s.bind_int64(1, id);
     if (!s.step()) return std::nullopt;
     return read_user(s);
+}
+
+int64_t UserStore::ensure_system_account(const std::string& username) {
+    if (username.empty()) return 0;
+    std::lock_guard<std::mutex> lock(mu_);
+    {
+        Stmt s(db_, "SELECT id, role FROM users WHERE username = ?");
+        s.bind_text(1, username);
+        if (s.step()) return s.col_text(1) == ROLE_SYSTEM ? s.col_int64(0) : 0;
+    }
+    // Never before a person exists: the pre-4.0 migrations hand legacy
+    // memories and workspace files to user #1 (MemoryStore::ADMIN_USER_ID),
+    // so #1 has to be somebody, not the machine.
+    {
+        Stmt s(db_, "SELECT COUNT(*) FROM users WHERE role != 'system'");
+        if (!s.step() || s.col_int64(0) == 0) return 0;
+    }
+    // "!" is not a hash verify_password can accept (no PBKDF2 prefix), and
+    // verify_login does not look at system rows anyway: two locks, one door.
+    Stmt s(db_, "INSERT INTO users(username, password_hash, display_name, role) "
+                "VALUES(?, '!', ?, 'system')");
+    s.bind_text(1, username);
+    s.bind_text(2, username);
+    s.step();
+    return sqlite3_changes(db_) > 0 ? sqlite3_last_insert_rowid(db_) : 0;
 }
 
 std::optional<UserStore::User> UserStore::verify_login(const std::string& username,
@@ -239,7 +264,7 @@ std::optional<UserStore::User> UserStore::verify_login(const std::string& userna
     std::string hash;
     {
         std::lock_guard<std::mutex> lock(mu_);
-        Stmt s(db_, "SELECT password_hash FROM users WHERE username = ?");
+        Stmt s(db_, "SELECT password_hash FROM users WHERE username = ? AND role != 'system'");
         s.bind_text(1, username);
         if (!s.step()) return std::nullopt;
         hash = s.col_text(0);
@@ -255,7 +280,7 @@ bool UserStore::set_password(int64_t user_id, const std::string& password) {
     const std::string hash = funes::hash_password(password);
 
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "UPDATE users SET password_hash = ? WHERE id = ?");
+    Stmt s(db_, "UPDATE users SET password_hash = ? WHERE id = ? AND role != 'system'");
     s.bind_text(1, hash);
     s.bind_int64(2, user_id);
     s.step();
@@ -264,7 +289,7 @@ bool UserStore::set_password(int64_t user_id, const std::string& password) {
 
 bool UserStore::set_permissions(int64_t user_id, const std::string& permissions_json) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "UPDATE users SET permissions = ? WHERE id = ?");
+    Stmt s(db_, "UPDATE users SET permissions = ? WHERE id = ? AND role != 'system'");
     s.bind_text(1, permissions_json);
     s.bind_int64(2, user_id);
     s.step();
@@ -274,7 +299,7 @@ bool UserStore::set_permissions(int64_t user_id, const std::string& permissions_
 bool UserStore::delete_user(int64_t id) {
     std::lock_guard<std::mutex> lock(mu_);
     // auth_tokens and jid_users cascade (see migrate()).
-    Stmt s(db_, "DELETE FROM users WHERE id = ?");
+    Stmt s(db_, "DELETE FROM users WHERE id = ? AND role != 'system'");
     s.bind_int64(1, id);
     s.step();
     return sqlite3_changes(db_) > 0;
@@ -283,7 +308,7 @@ bool UserStore::delete_user(int64_t id) {
 std::vector<UserStore::User> UserStore::list_users() {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, (std::string("SELECT ") + USER_COLUMNS +
-                 " FROM users ORDER BY id").c_str());
+                 " FROM users WHERE role != 'system' ORDER BY id").c_str());
     std::vector<User> out;
     while (s.step()) out.push_back(read_user(s));
     return out;
@@ -291,7 +316,7 @@ std::vector<UserStore::User> UserStore::list_users() {
 
 int64_t UserStore::count() {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "SELECT COUNT(*) FROM users");
+    Stmt s(db_, "SELECT COUNT(*) FROM users WHERE role != 'system'");
     return s.step() ? s.col_int64(0) : 0;
 }
 

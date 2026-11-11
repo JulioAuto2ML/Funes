@@ -22,10 +22,14 @@
 #include "maint_cli.h"
 #include "busy_gate.h"
 #include "fact_extraction.h"
+#include "host_collector.h"
+#include "host_events.h"
+#include "sandbox.h"
 #include "sd_notify.h"
 #include "user_cli.h"
 #include "users.h"
 #include "httplib.h"
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <filesystem>
@@ -239,7 +243,8 @@ void print_usage(std::ostream& out) {
            "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n"
            "  memory-migrate              queue stored exchange logs for fact extraction\n"
            "  script-run                  run a library script as run_script would (sandboxed)\n"
-           "  mcp-probe                   start an agent's MCP stdio servers sandboxed, list tools\n";
+           "  mcp-probe                   start an agent's MCP stdio servers sandboxed, list tools\n"
+           "  machine-probe               what the machine collector would read here (read-only)\n";
 }
 
 } // namespace
@@ -411,10 +416,30 @@ int main(int argc, char** argv) {
     // from here, so it must be set before FunesApi copies `defaults`.
     defaults.scripts_dir = scripts_dir;
 
+    // The machine as a memory owner (OS plan phase 4, host_collector.h): a
+    // `system` account nobody can log in as owns the pool; the event ring
+    // lives beside it in memory.db. FUNES_MACHINE_MEMORY=off skips both. The
+    // account is made on first use, never before a person exists (users.h),
+    // and never over a person already called `machine`.
+    std::unique_ptr<funes::host::EventStore> host_events;
+    if (funes::env("FUNES_MACHINE_MEMORY", "on") != "off")
+        host_events = std::make_unique<funes::host::EventStore>(db_path);
+    std::atomic<int64_t> machine_uid{0};
+    auto machine_account = [&users, &machine_uid]() -> int64_t {
+        if (const int64_t id = machine_uid.load()) return id;
+        static std::atomic<bool> warned{false};
+        const int64_t id = users.ensure_system_account("machine");
+        if (id > 0) machine_uid = id;
+        else if (users.find_by_username("machine") && !warned.exchange(true))
+            std::cerr << "[machine] the username 'machine' belongs to a person on this "
+                         "install; machine events are recorded but not remembered\n";
+        return id;
+    };
 
     ToolRegistry tools;
     register_web_tools(tools);
     register_memory_tools(tools, memory);
+    register_host_tools(tools, host_events.get(), memory, machine_account);
     register_result_tools(tools, memory);
     register_context_tools(tools, memory, defaults);
     register_classify_decision_tool(tools, defaults);
@@ -693,6 +718,78 @@ int main(int argc, char** argv) {
         }).detach();
     }
 
+    // Machine collector (OS plan phase 4). A tick a minute: the user journal
+    // (filtered at the source), dpkg.log, boot/kernel/deploys, the OOM
+    // counter, the llama-server pid files, watched files, and every five
+    // minutes PSI, temperatures, VRAM and disks. Changes and failures become
+    // memories in the machine's pool — embedded by the otherwise idle
+    // embedding server, each write behind the same busy gate as the link
+    // backfill so a person's chat never waits on the machine.
+    std::unique_ptr<funes::host::Collector> collector;
+    if (host_events) {
+        funes::host::CollectorOptions o;
+        o.funes_version      = funes::version();
+        o.disks              = {"/", data_dir()};
+        o.promotions_per_day = std::max(1, funes::env_int("FUNES_MACHINE_PROMOTIONS_PER_DAY", 200));
+        o.retention_days     = std::max(1, funes::env_int("FUNES_MACHINE_EVENT_DAYS", 30));
+        o.llama_pid_dir      = funes::env("FUNES_MACHINE_LLAMA_PIDS", "/tmp/llama_pids");
+        const std::string home = funes::env("HOME");
+        std::string watch = funes::env("FUNES_MACHINE_WATCH");
+        if (watch.empty() && !home.empty())
+            watch = home + "/.config/systemd/user:" + home + "/launch_llama.sh:" +
+                    fs::path(db_path).parent_path().parent_path().string() + "/config";
+        std::stringstream ws(watch);
+        for (std::string p; std::getline(ws, p, ':');) if (!p.empty()) o.watch.push_back(p);
+
+        // journalctl as any other child: its own cgroup, and a sandbox that
+        // reads the journal and nothing else of note.
+        funes::sandbox::Policy jp = funes::sandbox::base();
+        jp.read.push_back("/var/log/journal");
+        auto run = [jp](const std::vector<std::string>& argv) -> std::optional<std::string> {
+            const auto r = funes::proc::run_argv(argv, "/", 30, 8u << 20, {}, true,
+                                                 std::nullopt, jp);
+            if (r.timed_out || r.exit_code != 0) {
+                std::cerr << "[machine] journalctl failed (exit " << r.exit_code << "): "
+                          << r.stderr_output.substr(0, 200) << "\n";
+                return std::nullopt;
+            }
+            return r.output;
+        };
+        auto remember = [&memory, machine_account](const std::string& text, bool tainted,
+                                                   const std::string& origin) -> int64_t {
+            const int64_t uid = machine_account();
+            if (uid <= 0) return 0;
+            funes::load::wait_until_quiet();
+            return memory.remember(uid, "machine", text, "machine",
+                                   funes::Provenance{origin, tainted});
+        };
+        auto link = [&memory, machine_account](int64_t from, int64_t to) {
+            if (const int64_t uid = machine_account())
+                memory.link_memories(uid, from, to, "preceded_by", 0.6);
+        };
+        collector = std::make_unique<funes::host::Collector>(*host_events, o, run, remember, link);
+
+        funes::host::Collector* c = collector.get();
+        funes::proc::set_usage_observer([c](const std::vector<std::string>& argv,
+                                            const funes::cgroup::Usage& u) {
+            c->record_run(argv, u, static_cast<int64_t>(std::time(nullptr)));
+        });
+        const int poll = std::max(15, funes::env_int("FUNES_MACHINE_POLL", 60));
+        std::thread([c, poll] {
+            for (;;) {
+                try {
+                    const auto r = c->tick(static_cast<int64_t>(std::time(nullptr)));
+                    if (r.promoted)
+                        std::cerr << "[machine] " << r.events << " event(s), " << r.promoted
+                                  << " remembered\n";
+                } catch (const std::exception& e) {
+                    std::cerr << "[machine] tick failed: " << e.what() << "\n";
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(poll));
+            }
+        }).detach();
+    }
+
     // ── HTTP server ───────────────────────────────────────────────────────────
     httplib::Server srv;
     srv.set_read_timeout(60);
@@ -725,6 +822,11 @@ int main(int argc, char** argv) {
                      ? "Landlock ABI " + std::to_string(funes::sandbox::abi()) + " + seccomp"
                      : funes::sandbox::abi() > 0 ? std::string("off (FUNES_SANDBOX=0)")
                                                  : std::string("unavailable — no Landlock in this kernel"))
+              << "\n"
+              << "  Machine:   " << (!collector ? std::string("memory off")
+                                     : machine_account() > 0
+                                         ? "memory on (account #" + std::to_string(machine_account()) + ")"
+                                         : std::string("events on; memory starts once a person has an account"))
               << "\n"
               << "\n" << std::flush;
 
