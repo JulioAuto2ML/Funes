@@ -4,6 +4,7 @@
 
 #include "process_runner.h"
 #include "../cgroup.h"
+#include "../sandbox.h"
 #include "../text_utils.h"
 #include <algorithm>
 #include <cstdlib>
@@ -33,25 +34,50 @@ std::string g_trampoline;
 // boundary.
 //
 // With cgroups on (cgroup.h) the child is wrapped: it execs the trampoline,
-// which joins the child's own cgroup and then execs argv. Everything — the
+// which joins the child's own cgroup, confines itself with `policy`
+// (sandbox.h) and then execs argv. Everything — the
 // trampoline's argv, the envp — is built here, before the fork, so the fork
 // child still does nothing but dup2, chdir and exec, the only things safe in
 // the child of a multi-threaded process.
 Result run_forked(const std::vector<std::string>& argv, std::vector<std::string> env_strings,
                   const fs::path& cwd, int timeout_seconds, size_t max_output_bytes,
-                  bool split, const std::optional<funes::cgroup::Limits>& limits) {
+                  bool split, const std::optional<funes::cgroup::Limits>& limits,
+                  const std::optional<funes::sandbox::Policy>& policy) {
     Result result;
 
     std::unique_ptr<funes::cgroup::Scope> scope;
     if (!g_trampoline.empty())
         scope = funes::cgroup::Scope::create(argv[0], limits ? *limits
                                                              : funes::cgroup::default_limits());
+
+    // A temp directory of this call's own: the sandbox does not grant /tmp,
+    // which every account's children would otherwise share. TMPDIR points
+    // the child at it, and it is removed with whatever the child left there.
+    std::string tmpdir;
+    std::vector<std::string> confine;
+    if (!g_trampoline.empty() && policy && funes::sandbox::enabled()) {
+        funes::sandbox::Policy p = *policy;
+        std::string tmpl = (fs::temp_directory_path() / "funes-exec-XXXXXX").string();
+        if (mkdtemp(tmpl.data())) {
+            tmpdir = tmpl;
+            p.write.push_back(tmpdir);
+            env_strings.erase(std::remove_if(env_strings.begin(), env_strings.end(),
+                [](const std::string& e) { return e.rfind("TMPDIR=", 0) == 0; }),
+                env_strings.end());
+            env_strings.push_back("TMPDIR=" + tmpdir);
+        }
+        confine = funes::sandbox::trampoline_args(p);
+    }
+
     std::vector<std::string> full;
-    if (scope) {
-        full = {g_trampoline, "_exec", "--cgroup=" + scope->path(), "--"};
+    if (scope || !confine.empty()) {
+        full = {g_trampoline, "_exec"};
+        if (scope) full.push_back("--cgroup=" + scope->path());
+        full.insert(full.end(), confine.begin(), confine.end());
+        full.push_back("--");
         full.insert(full.end(), argv.begin(), argv.end());
     }
-    const std::vector<std::string>& run = scope ? full : argv;
+    const std::vector<std::string>& run = full.empty() ? argv : full;
     std::vector<char*> c_argv;
     c_argv.reserve(run.size() + 1);
     for (const auto& a : run) c_argv.push_back(const_cast<char*>(a.c_str()));
@@ -155,6 +181,10 @@ Result run_forked(const std::vector<std::string>& argv, std::vector<std::string>
     close(outfd[0]);
     if (split) close(errfd[0]);
     if (scope) result.usage = scope->finish();
+    if (!tmpdir.empty()) {
+        std::error_code ec;
+        fs::remove_all(tmpdir, ec);
+    }
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
     // The byte cap above can land mid-character; trim back to a clean UTF-8
@@ -225,13 +255,21 @@ std::vector<std::string> child_environment(
 void set_trampoline(const std::string& exe) { g_trampoline = exe; }
 
 int trampoline_main(int argc, char** argv) {
-    // funes _exec --cgroup=DIR -- PROGRAM ARGS...
+    // funes _exec [--cgroup=DIR] [--sandbox --ro=P --rx=P --rw=P --connect=N]
+    //             -- PROGRAM ARGS...
     std::string cgroup;
+    bool sandboxed = false;
+    funes::sandbox::Policy policy;
     int i = 2;
     for (; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--") { ++i; break; }
         if (a.rfind("--cgroup=", 0) == 0) cgroup = a.substr(9);
+        else if (a == "--sandbox")           sandboxed = true;
+        else if (a.rfind("--ro=", 0) == 0)  policy.read.push_back(a.substr(5));
+        else if (a.rfind("--rx=", 0) == 0)  policy.exec.push_back(a.substr(5));
+        else if (a.rfind("--rw=", 0) == 0)  policy.write.push_back(a.substr(5));
+        else if (a.rfind("--connect=", 0) == 0) policy.connect.push_back(std::atoi(a.c_str() + 10));
         else { std::fprintf(stderr, "funes _exec: unknown option %s\n", a.c_str()); return 126; }
     }
     if (i >= argc) { std::fprintf(stderr, "funes _exec: no program\n"); return 126; }
@@ -247,6 +285,15 @@ int trampoline_main(int argc, char** argv) {
             return 126;
         }
     }
+    // After the cgroup is joined (that write is outside any sandbox), before
+    // exec. Fails closed for the same reason as the join.
+    if (sandboxed) {
+        const std::string err = funes::sandbox::apply(policy);
+        if (!err.empty()) {
+            std::fprintf(stderr, "funes _exec: sandbox: %s\n", err.c_str());
+            return 126;
+        }
+    }
     execvp(argv[i], argv + i);
     std::fprintf(stderr, "funes _exec: %s: %s\n", argv[i], std::strerror(errno));
     return 127;
@@ -255,21 +302,23 @@ int trampoline_main(int argc, char** argv) {
 Result run_argv(const std::vector<std::string>& argv, const fs::path& cwd,
                 int timeout_seconds, size_t max_output_bytes,
                 const std::vector<std::pair<std::string, std::string>>& extra_env,
-                bool separate_stderr, const std::optional<funes::cgroup::Limits>& limits) {
+                bool separate_stderr, const std::optional<funes::cgroup::Limits>& limits,
+                const std::optional<funes::sandbox::Policy>& policy) {
     if (argv.empty()) return {-1, "run_argv: empty argv", {}, false, {}};
     return run_forked(argv, child_environment(extra_env), cwd, timeout_seconds,
-                      max_output_bytes, separate_stderr, limits);
+                      max_output_bytes, separate_stderr, limits, policy);
 }
 
 Result run_shell_command(const std::string& command, const fs::path& cwd,
                          int timeout_seconds, size_t max_output_bytes,
-                         const std::optional<funes::cgroup::Limits>& limits) {
+                         const std::optional<funes::cgroup::Limits>& limits,
+                         const std::optional<funes::sandbox::Policy>& policy) {
     // Same filtered block as run_argv. A shell is unconfined by nature, but
     // "unconfined" is about what it can reach on the machine — not a reason
     // to also hand it the server's own service token, which `env` would then
     // print straight into the model's context.
     return run_forked({"/bin/sh", "-c", command}, child_environment(), cwd, timeout_seconds,
-                      max_output_bytes, false, limits);
+                      max_output_bytes, false, limits, policy);
 }
 
 } // namespace funes::proc

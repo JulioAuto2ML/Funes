@@ -202,8 +202,10 @@ std::pair<bool, std::string> run_shell_job(const MemoryStore::CronJob& job,
         funes::fsguard::workspace_for(workspace_dir, job.user_id, "");
 
     const int timeout = funes::env_int("FUNES_CRON_SHELL_TIMEOUT", 120);
+    // execute_shell deferred: the same sandbox as an interactive call.
     funes::proc::Result r = funes::proc::run_shell_command(
-        job.command, cwd, timeout, kMaxShellOutputBytes);
+        job.command, cwd, timeout, kMaxShellOutputBytes, std::nullopt,
+        funes::sandbox::for_workspace(cwd));
 
     std::string out = r.output;
     if (r.timed_out) out += "\n[timed out after " + std::to_string(timeout) + "s]";

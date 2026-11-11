@@ -27,6 +27,10 @@ output:
       est_seconds: {type: integer}
       update_date: {type: string}
       url:         {type: string}
+# Writes feed.json where tailscale funnel serves it — outside any workspace.
+access:
+  write: ["${FUNES_NEWS_FEED_DIR}"]
+
 env:
   FUNES_NEWS_FEED_DIR: "${FUNES_NEWS_FEED_DIR}"
   FUNES_NEWS_PUBLIC_URL: "${FUNES_NEWS_PUBLIC_URL}"

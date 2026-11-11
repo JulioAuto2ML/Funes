@@ -1,13 +1,14 @@
 // =============================================================================
 // src/core/tools/shell_tool.cpp — execute_shell native tool
 // =============================================================================
-// Runs an arbitrary shell command with the process's own privileges — this is
-// real, unsandboxed code execution, not confined to the workspace the way
-// read_file/write_file are (a command can `cd` anywhere the OS user can).
-// The only guardrails are: opt-in (FUNES_ALLOW_SHELL=1, unset by default),
-// a working directory of the workspace, a hard timeout that SIGKILLs the
-// process group, and a capped output size. Only enable this for a Funes
-// instance you trust with full access to your account.
+// Runs an arbitrary shell command. Since 7.5 the kernel confines it to the
+// caller's workspace (Landlock + seccomp, src/core/sandbox.h): it can read the
+// system, write the workspace and a private temp directory, and nothing else —
+// not funes.local, not memory.db, not another account's files. The other
+// guardrails: opt-in (FUNES_ALLOW_SHELL=1, unset by default), a cgroup with
+// limits (cgroup.h), a hard timeout, and a capped output size. On a kernel
+// without Landlock, or with FUNES_SANDBOX=0, it is unconfined again — the
+// tool's description says which, so the model is not told a falsehood.
 
 #include "../funes_config.h"
 #include "../text_utils.h"
@@ -26,10 +27,9 @@ constexpr int    MAX_TIMEOUT_SECS     = 120;
 
 ToolResult execute_shell_handler(const fs::path& default_workspace, const json& args, const ToolContext& ctx) {
     // Per-user, with the agent's own `workspace_dir` applied inside it —
-    // same resolution read_file/write_file use, from fs_guard.h. Note this
-    // only sets the command's *working directory*: execute_shell is real
-    // unconfined execution, so a per-user cwd is a convenience, not a
-    // sandbox. The sandbox is FUNES_ALLOW_SHELL being off.
+    // same resolution read_file/write_file use, from fs_guard.h — the
+    // command's working directory and the root of what the sandbox lets it
+    // write.
     fs::path workspace = funes::fsguard::workspace_for(default_workspace, ctx.user_id,
                                                        ctx.workspace_dir);
 
@@ -48,7 +48,11 @@ ToolResult execute_shell_handler(const fs::path& default_workspace, const json& 
     if (timeout < 1) timeout = 1;
     if (timeout > MAX_TIMEOUT_SECS) timeout = MAX_TIMEOUT_SECS;
 
-    funes::proc::Result r = funes::proc::run_shell_command(command, workspace, timeout, MAX_OUTPUT_BYTES);
+    // Confined to the caller's workspace by the kernel (sandbox.h), not by
+    // where the command happens to `cd`.
+    funes::proc::Result r = funes::proc::run_shell_command(
+        command, workspace, timeout, MAX_OUTPUT_BYTES, std::nullopt,
+        funes::sandbox::for_workspace(workspace));
 
     // A command's stdout/stderr is arbitrary bytes, not guaranteed text
     // (e.g. `cat` on a binary file) — refuse to pass that through raw the
@@ -77,8 +81,13 @@ void register_shell_tool(ToolRegistry& reg, const std::string& workspace_dir) {
 
     reg.add({
         "execute_shell",
-        "Run a shell command with the Funes process's own permissions (NOT sandboxed — "
-        "a command can access anything that account can). Working directory is this "
+        std::string(funes::sandbox::enabled()
+            ? "Run a shell command, confined by the kernel to this agent's workspace: it "
+              "can read system files and write only inside the workspace (anything else "
+              "is 'Permission denied'). "
+            : "Run a shell command with the Funes process's own permissions (NOT sandboxed — "
+              "a command can access anything that account can). ") +
+        "Working directory is this "
         "agent's workspace (default: " + workspace.string() + "; some agents are scoped "
         "to a different folder); output capped at 16 KB; killed after timeout_seconds "
         "(default 20, max 120). Disabled unless the operator has set FUNES_ALLOW_SHELL=1.",

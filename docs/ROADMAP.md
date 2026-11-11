@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.4.0** (OS plan phase 1: a cgroup per child process — kernel-enforced limits, `cgroup.kill`, cost on the `[tool]` line).
+Current release: **7.5.0** (OS plan phase 2: Landlock + seccomp on every child — a script reaches its workspace and its manifest's `access:`, `execute_shell` its workspace).
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
@@ -15,7 +15,8 @@ Current release: **7.4.0** (OS plan phase 1: a cgroup per child process — kern
 | **5.2** | One checkout: funes-julio merged back with history, `src/julio` always built, all runtime state under `data/`, units renamed `funes` / `whatsapp-autoresponder` | — | done |
 | **7.0** | OS plan phase 0: connections pinned to the address `net_guard` judged, `Type=notify` + self-probing watchdog, background passes yield to people (in-flight runs + PSI); link backfill on by default | [os-plan.md](os-plan.md) | done |
 | **7.4** | OS plan phase 1: `funes _exec` trampoline, a cgroup per child process, limits from `FUNES_CHILD_*` and manifest `limits:`, usage on the `[tool]` line | [os-plan.md](os-plan.md) | done |
-| **7.x** | OS plan phases 2–7: Landlock/seccomp, `funes.sock`, the machine as a memory owner, effects as proposals | [os-plan.md](os-plan.md) | next: phase 2 |
+| **7.5** | OS plan phase 2: Landlock + seccomp in the trampoline, rules from the workspace + manifest `access:`, private `$TMPDIR`, `funes script-run` | [os-plan.md](os-plan.md) | done |
+| **7.x** | OS plan phases 3–7: `funes.sock`, the machine as a memory owner, learned least privilege, effects as proposals | [os-plan.md](os-plan.md) | next: phase 3 |
 | **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
 | **7.2** | Memory plan phases 4–5: exchanges queued and reduced to facts by a gated background pass; newer facts and `contradicts` verdicts supersede older ones, reversibly | [memory-plan.md](memory-plan.md) | done |
 | **7.3** | Memory plan phases 6–7: `funes memory-migrate` (logs → facts, archived, undoable), uncited memories archived after a window | [memory-plan.md](memory-plan.md) | done; yoda migrated and on `extract` since 2026-11-10 |

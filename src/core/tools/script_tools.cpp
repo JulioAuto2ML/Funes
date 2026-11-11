@@ -119,9 +119,8 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
 
     // Same working directory every other file-touching tool resolves to, so a
     // script writes where the user's own files are and a second account's
-    // run cannot land in the first's folder. It is a cwd, not a sandbox: the
-    // script is trusted code, and the library being admin-only is what makes
-    // that true.
+    // run cannot land in the first's folder — and, below, the root of what
+    // the sandbox lets it write.
     const fs::path workspace = funes::fsguard::workspace_for(default_workspace, ctx.user_id,
                                                              ctx.workspace_dir);
 
@@ -130,9 +129,17 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     // script itself satisfied. A text script keeps the merged stream, which is
     // what a person reading a run wants.
     const bool json_out = (spec.output_format == "json");
+    // The grant is the sandbox (sandbox.h): the caller's workspace, the
+    // script's own library directory, and what its manifest declares.
+    funes::sandbox::Policy policy = funes::sandbox::for_workspace(workspace);
+    policy.exec.push_back(fs::path(spec.file).parent_path().string());
+    for (const auto& s : spec.access.read)  policy.read.push_back(s);
+    for (const auto& s : spec.access.exec)  policy.exec.push_back(s);
+    for (const auto& s : spec.access.write) policy.write.push_back(s);
+    policy.connect = spec.access.connect;
     funes::proc::Result r = funes::proc::run_argv(argv, workspace, spec.timeout_seconds,
                                                   MAX_OUTPUT_BYTES, spec.env, json_out,
-                                                  spec.limits);
+                                                  spec.limits, policy);
     // Every answer from here on is about a program that ran, so it carries
     // what that program cost (the [tool] line prints it).
     auto ran = [&r](ToolResult t) { t.usage = r.usage; return t; };

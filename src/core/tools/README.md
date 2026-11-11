@@ -106,9 +106,10 @@ The tool system enforces security at multiple layers:
   permission entries accept a per-script key (`run_script:<name>`), so the one
   tool does not collapse n programs into one ceiling, one contract slot and
   one grant.
-  It is an allowlist, not a sandbox: a script still runs with the process's own
-  permissions, so a script that takes a command or fetches code to run gives
-  back everything the split was for.
+  Since 7.5 it is also a sandbox (`src/core/sandbox.h`): the kernel confines a
+  script to its caller's workspace, its library directory and its manifest's
+  `access:`, and `execute_shell` to the workspace. Still: a script that takes a
+  command or fetches code to run gives back most of what the split was for.
 - **Delegation**: Self-delegation refused, depth capped at 2, failures detected
   and surfaced as errors (not content). The specialist runs as the delegating
   user, sharing its caller's session and memory pool.

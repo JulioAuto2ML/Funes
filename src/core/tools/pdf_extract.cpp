@@ -32,8 +32,13 @@ bool has_visible_text(const std::string& s) {
 ExtractResult extract_text(const std::filesystem::path& pdf_path,
                            const std::filesystem::path& cwd,
                            int timeout_seconds, size_t max_bytes) {
+    // A PDF is hostile input to a C parser: pdftotext reads it and the
+    // workspace, writes stdout, and that is all.
+    auto policy = funes::sandbox::for_workspace(cwd);
+    policy.read.push_back(pdf_path.string());
     proc::Result r = proc::run_argv({"pdftotext", pdf_path.string(), "-"},
-                                    cwd, timeout_seconds, max_bytes);
+                                    cwd, timeout_seconds, max_bytes, {}, false, std::nullopt,
+                                    policy);
 
     if (r.exit_code == 126 || r.exit_code == 127)
         return {false, "Can't extract text from '" + pdf_path.string() + "': 'pdftotext' isn't "
@@ -65,10 +70,13 @@ RenderResult render_pages_as_images(const fs::path& pdf_path, const fs::path& cw
     // File-based output (not `-` for stdout): pdftoppm can write warnings to
     // stderr, and run_argv combines stdout+stderr into one pipe, which would
     // corrupt binary PNG bytes read off stdout.
+    auto policy = funes::sandbox::for_workspace(cwd);
+    policy.read.push_back(pdf_path.string());
+    policy.write.push_back(tmp_dir.string());
     proc::Result r = proc::run_argv(
         {"pdftoppm", "-png", "-r", "150", "-f", "1", "-l", std::to_string(max_pages),
          pdf_path.string(), prefix.string()},
-        cwd, timeout_seconds, 64 * 1024);
+        cwd, timeout_seconds, 64 * 1024, {}, false, std::nullopt, policy);
 
     if (r.exit_code == 126 || r.exit_code == 127) {
         fs::remove_all(tmp_dir, ec);

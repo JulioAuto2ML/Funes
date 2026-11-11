@@ -4,6 +4,10 @@
 
 #include "maint_cli.h"
 #include "../core/cron_schedule.h"
+#include "../core/sandbox.h"
+#include "../core/script_library.h"
+#include "../core/tools.h"
+#include "../core/tools/process_runner.h"
 #include "../core/memory.h"
 #include "../core/users.h"
 #include <cstring>
@@ -15,7 +19,7 @@
 namespace funes {
 namespace {
 
-const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule", "memory-migrate"};
+const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule", "memory-migrate", "script-run"};
 
 void usage() {
     std::cerr <<
@@ -46,7 +50,15 @@ void usage() {
         "background pass does the work, one model call per exchange, when the\n"
         "machine is quiet; each log is archived (kept, out of recall) once its\n"
         "facts are stored. Reports without queueing unless --apply. --undo\n"
-        "brings every archived log back; the extracted facts stay.\n";
+        "brings every archived log back; the extracted facts stay.\n"
+        "\n"
+        "  funes script-run <script> --user <username> [--param=value ...]\n"
+        "\n"
+        "Runs a library script the way run_script would for that account:\n"
+        "in its workspace, with its manifest's checks and the same sandbox\n"
+        "(src/core/sandbox.h). For checking a manifest's `access:` before an\n"
+        "agent finds out it is wrong. The script really runs — side effects\n"
+        "included.\n";
 }
 
 int cmd_cron_cleanup(const std::string& db_path, const std::vector<std::string>& args) {
@@ -188,6 +200,54 @@ int cmd_memory_migrate(const std::string& db_path, const std::vector<std::string
     return 0;
 }
 
+int cmd_script_run(const std::string& db_path, const std::string& scripts_dir,
+                   const std::string& workspace_dir, const std::vector<std::string>& args) {
+    if (args.empty() || args[0].rfind("--", 0) == 0) { usage(); return 2; }
+    const std::string name = args[0];
+    std::string username;
+    std::vector<std::string> params;
+    for (size_t i = 1; i < args.size(); ++i) {
+        if (args[i] == "--user" && i + 1 < args.size()) { username = args[++i]; continue; }
+        params.push_back(args[i]);
+    }
+    if (username.empty()) { std::cerr << "script-run needs --user <username>\n"; return 2; }
+    UserStore users(db_path);
+    const auto user = users.find_by_username(username);
+    if (!user) { std::cerr << "No such user: " << username << "\n"; return 1; }
+
+    ScriptSpec spec;
+    const std::string err = load_script(scripts_dir, name, spec);
+    if (!err.empty()) { std::cerr << err << "\n"; return 1; }
+
+    // `--k=v` / `--flag`, typed by the manifest, so the arguments reach
+    // build_argv as the model's JSON would.
+    nlohmann::json arguments = nlohmann::json::object();
+    for (const auto& p : params) {
+        if (p.rfind("--", 0) != 0) { std::cerr << "Expected --param=value, got " << p << "\n"; return 2; }
+        const size_t eq = p.find('=');
+        const std::string key = p.substr(2, eq == std::string::npos ? std::string::npos : eq - 2);
+        const std::string val = eq == std::string::npos ? "true" : p.substr(eq + 1);
+        std::string type = "string";
+        for (const auto& sp : spec.params) if (sp.name == key) type = sp.type;
+        if (type == "boolean")     arguments[key] = (val == "true" || val == "1");
+        else if (type == "number") arguments[key] = std::stod(val);
+        else                       arguments[key] = val;
+    }
+
+    if (sandbox::enabled()) proc::set_trampoline("/proc/self/exe");
+    ToolRegistry reg;
+    register_script_tools(reg, workspace_dir, scripts_dir);
+    ToolContext ctx{"cli", "script-run", "", "", user->id};
+    ctx.scripts = {name};
+    const ToolResult r = reg.call("run_script", {{"name", name}, {"arguments", arguments}}, ctx);
+    std::cout << r.text << "\n";
+    std::cerr << "[script-run] " << name << " as " << username << ": "
+              << (r.error ? "error" : "ok") << ", sandbox "
+              << (sandbox::enabled() ? "Landlock ABI " + std::to_string(sandbox::abi()) : std::string("off"))
+              << "\n";
+    return r.error ? 1 : 0;
+}
+
 } // namespace
 
 bool is_maint_cli_command(int argc, char** argv) {
@@ -197,7 +257,8 @@ bool is_maint_cli_command(int argc, char** argv) {
     return false;
 }
 
-int run_maint_cli(int argc, char** argv, const std::string& db_path) {
+int run_maint_cli(int argc, char** argv, const std::string& db_path,
+                  const std::string& scripts_dir, const std::string& workspace_dir) {
     if (argc < 2) { usage(); return 2; }
     const std::string cmd = argv[1];
     std::vector<std::string> args(argv + 2, argv + argc);
@@ -206,6 +267,7 @@ int run_maint_cli(int argc, char** argv, const std::string& db_path) {
         if (cmd == "cron-cleanup")  return cmd_cron_cleanup(db_path, args);
         if (cmd == "cron-schedule") return cmd_cron_schedule(db_path, args);
         if (cmd == "memory-migrate") return cmd_memory_migrate(db_path, args);
+        if (cmd == "script-run") return cmd_script_run(db_path, scripts_dir, workspace_dir, args);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;

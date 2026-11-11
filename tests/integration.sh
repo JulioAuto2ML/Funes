@@ -223,6 +223,27 @@ esac
 
 curl() { command curl -b "$COOKIE_JAR" "$@"; }
 
+# ── child-process sandbox (7.5, src/core/sandbox.h) ──────────────────────────
+# The real binary's trampoline, not a test's copy of it: granted the system
+# and one directory, it may read there and not next door. Skipped (with a
+# note) on a kernel without Landlock.
+echo "— sandbox"
+if grep -q "Sandbox:   Landlock" /tmp/funes_it.log; then
+    SB=$(mktemp -d /tmp/funes_it_sandbox_XXXX)
+    mkdir -p "$SB/mine" "$SB/theirs"
+    echo inside > "$SB/mine/f"; echo outside > "$SB/theirs/f"
+    SB_RX="--rx=/usr --rx=/bin --rx=/lib --rx=/lib64 --ro=/etc"
+    OUT=$("$FUNES_BIN" _exec --sandbox $SB_RX --rw="$SB/mine" -- cat "$SB/mine/f" 2>&1)
+    check "sandboxed child reads its grant" "$OUT" 'inside'
+    OUT=$("$FUNES_BIN" _exec --sandbox $SB_RX --rw="$SB/mine" -- cat "$SB/theirs/f" 2>&1)
+    check "sandboxed child is refused outside it" "$OUT" 'Permission denied'
+    OUT=$("$FUNES_BIN" _exec --sandbox --bogus -- true 2>&1; echo "rc=$?")
+    check "trampoline refuses an option it does not know" "$OUT" 'rc=126'
+    rm -rf "$SB"
+else
+    echo "  (no Landlock here: $(grep 'Sandbox:' /tmp/funes_it.log))"
+fi
+
 echo "— status"
 OUT=$(curl -s "$BASE/api/status")
 check "status ok"        "$OUT" '"ok":true'

@@ -1,6 +1,6 @@
 # Funes in the OS — research and plan
 
-Status: **phases 0–1 done** (7.0, 7.4; 2026-11-10/11); phase 2 is next. Facts about
+Status: **phases 0–2 done** (7.0, 7.4, 7.5; 2026-11-10/11); phase 3 is next. Facts about
 yoda were checked on 2026-11-10 (see "Open questions", 2); anything still
 marked *(unverified)* was not.
 
@@ -240,7 +240,7 @@ Ordered so each phase is useful alone and none requires the next.
 |---|---|---|---|
 | **0** ✅ | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | done in 7.0 |
 | **1** ✅ | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
-| **2** | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
+| **2** ✅ | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
 | **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week |
 | **4** | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | ~3 weeks |
 | **5** | Learn mode → proposed `access:` blocks | 2 | ~2 weeks |
@@ -294,7 +294,30 @@ script with an interpreter shows as `exec-<n>-python3` — the `[tool]` line's
 key (`run_script:tv_art`) names it. yoda's user manager delegates
 `cpu memory pids`, no `io`, so there is no `io.max`.
 
-## Open questions to settle before Phase 2
+## Phase 2 — what was built (7.5)
+
+| Piece | Where | Test |
+|---|---|---|
+| `sandbox::apply` in the trampoline, after the cgroup join: `no_new_privs`, a Landlock ruleset masked to the running ABI (fs rights; TCP connect when a manifest lists ports, ABI 4; signal + abstract-socket scoping, ABI 6), then a seccomp denylist (ptrace, mount and the new mount API, bpf, keyctl, module loading, kexec, perf_event_open, userfaultfd, process_vm_*, io_uring; foreign-arch calls killed). Fails closed (126). The Landlock uapi is declared locally — the build host's headers may be older than the kernel. | `src/core/sandbox.{h,cpp}`, `process_runner.cpp` | `test_sandbox` (with fs_guard nowhere in the path, and a no-policy control for each refusal; 7 checks fail with `apply` stubbed out) |
+| Base policy: `/usr /bin /sbin /lib* /opt` read+exec, `/etc /run /proc /sys` read, a few `/dev` nodes, the workspace read-write, and a private `funes-exec-XXXXXX` temp dir (`TMPDIR`, removed after). `/tmp` itself is not granted. | `sandbox::for_workspace`, `run_forked` | `test_private_tmpdir` |
+| Who gets what: `run_script` = base + the script's library dir (rx) + manifest `access: {read, write, exec, connect}`; `execute_shell` and cron shell jobs = base; `pdftotext`/`pdftoppm` = base + the PDF (r) + render dir (rw). `publish_issue`'s script stays unconfined: trusted pipeline code, no model-chosen argv. | `script_tools.cpp`, `shell_tool.cpp`, `cron_runner.cpp`, `pdf_extract.cpp`, `script_library.cpp` | `test_execute_shell_is_confined`, `test_script_gets_its_declared_access` |
+| Shipped manifests: `tv_art`/`tv_weather_art` write `${FUNES_ROOT}/data/tv`, `publish_briefing` writes `${FUNES_NEWS_FEED_DIR}`, `speak` reads `${HOME}/.config/pulse`. | `scriptlib/*.yaml` | `funes script-run` on yoda |
+| `funes script-run <name> --user <u> [--param=value]` — a script exactly as `run_script` runs it, no model. | `src/server/maint_cli.cpp` | integration: the real binary's `_exec` reads its grant and is refused next door |
+| `execute_shell`'s description says whether it is confined (it is generated at startup); `operator`'s prompt no longer carries the "NOT confined" warning. | `shell_tool.cpp`, `agents/operator.yaml` | — |
+
+What the kernel checks that fs_guard never could: `/proc/<server pid>/mem`.
+`funes.local` is `setenv`'d into the server's heap, and with yama's
+`ptrace_scope` at 0 (yoda) any process of the same user could open that file
+and read it. Landlock's ptrace rule refuses it to a sandboxed child
+(`test_parent_environment_is_unreadable`).
+
+Not covered: the network is unrestricted unless a manifest lists `connect:`
+ports (no shipped manifest does yet — phase 5's learn mode is where those
+come from); MCP stdio servers are neither in a cgroup nor sandboxed; a
+pathname unix socket is reachable if its file is (Landlock's ABI ≤ 6 does not
+gate connect on them).
+
+## Open questions to settle before Phase 3
 
 1. **Which machine?** yoda is a headless server. OS embedding pays most on the
    machine a person sits at, and Funes is a multi-user web service. Pillars 1

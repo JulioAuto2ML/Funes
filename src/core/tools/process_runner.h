@@ -9,6 +9,7 @@
 
 #pragma once
 #include "../cgroup.h"
+#include "../sandbox.h"
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -40,6 +41,12 @@ struct Result {
 // `limits` are the child's cgroup limits; nullopt means
 // cgroup::default_limits(). Ignored when cgroups are off.
 //
+// `policy` confines the child with Landlock + seccomp (sandbox.h) — what it
+// may read, write and execute, enforced by the kernel. nullopt runs it
+// unconfined, which only trusted pipeline code should ask for (src/julio's
+// publish step); every model-reachable path passes one. Ignored when the
+// sandbox is unavailable or FUNES_SANDBOX=0.
+//
 // `extra_env` adds to (or overrides in) the environment the child inherits —
 // how a script library manifest hands a script its API key without the key
 // passing through the model's context (see core/script_library.h). The
@@ -55,24 +62,27 @@ Result run_argv(const std::vector<std::string>& argv, const std::filesystem::pat
                 int timeout_seconds, size_t max_output_bytes,
                 const std::vector<std::pair<std::string, std::string>>& extra_env = {},
                 bool separate_stderr = false,
-                const std::optional<funes::cgroup::Limits>& limits = std::nullopt);
+                const std::optional<funes::cgroup::Limits>& limits = std::nullopt,
+                const std::optional<funes::sandbox::Policy>& policy = std::nullopt);
 
 // Runs `command` via `/bin/sh -c` — arbitrary shell execution. Same
 // timeout/capture semantics as run_argv.
 Result run_shell_command(const std::string& command, const std::filesystem::path& cwd,
                          int timeout_seconds, size_t max_output_bytes,
-                         const std::optional<funes::cgroup::Limits>& limits = std::nullopt);
+                         const std::optional<funes::cgroup::Limits>& limits = std::nullopt,
+                         const std::optional<funes::sandbox::Policy>& policy = std::nullopt);
 
-// The program that wraps every child once cgroups are on: main() sets it to
+// The program that wraps every child once cgroups or the sandbox are on: main() sets it to
 // /proc/self/exe — the running binary even after a deploy has replaced the
 // file — and hands `funes _exec` to trampoline_main before anything else.
 // Unset (every unit test but test_cgroup), children are exec'd directly.
 void set_trampoline(const std::string& exe);
 
-// `funes _exec --cgroup=DIR -- PROGRAM ARGS...`: write this process into
-// DIR/cgroup.procs, then execvp PROGRAM. Returns only on failure — 126 if it
-// could not join (it does not run the program outside the limits it was
-// given), 127 if PROGRAM could not be exec'd, matching the exit codes a
+// `funes _exec [--cgroup=DIR] [--sandbox --ro= --rx= --rw= --connect=] --
+// PROGRAM ARGS...`: write this process into DIR/cgroup.procs, apply the
+// sandbox policy, then execvp PROGRAM. Returns only on failure — 126 if it
+// could not join or confine itself (it does not run the program outside the
+// limits it was given), 127 if PROGRAM could not be exec'd, matching the exit codes a
 // direct exec failure has always had.
 int trampoline_main(int argc, char** argv);
 

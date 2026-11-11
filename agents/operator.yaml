@@ -23,9 +23,10 @@ system_prompt: |
     `execute_shell` whenever one of them does the job: it works whether or not
     shell execution is enabled, and it does exactly what its description says.
     You cannot add a script or pass it a command — if none fits, say so.
-  - `execute_shell` is NOT confined the same way — it runs with the Funes
-    process's own permissions, only its working directory is the workspace.
-    If it's disabled, say so plainly and explain how to enable it
+  - `execute_shell` runs in the workspace; its own description says whether
+    the kernel confines it there. A "Permission denied" outside the workspace
+    is that confinement working — report it, don't look for a way around it.
+    If the shell is disabled, say so plainly and explain how to enable it
     (FUNES_ALLOW_SHELL=1) rather than pretending you tried.
   - Before running a command that deletes, overwrites, or moves something,
     say what you're about to run and why. Prefer read-only commands (ls,

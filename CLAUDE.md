@@ -259,8 +259,13 @@ Three things to keep straight when touching this:
 - **The library sits outside every workspace.** `read_file`, `write_file` and
   `/api/upload` are confined to `<workspace>/<user_id>/` by `fs_guard`, so
   nothing the model drives can read, edit or add a script — installing one is
-  an admin editing the repo, like adding an agent. A script still runs with the
-  process's own permissions: this is an allowlist, not a sandbox.
+  an admin editing the repo, like adding an agent. Since 7.5 the grant is also
+  a sandbox (`src/core/sandbox.h`): Landlock + seccomp applied by the `funes
+  _exec` trampoline, so a script reaches its caller's workspace, its own
+  library directory and what its manifest's `access:` names — the kernel, not
+  fs_guard, refuses the rest. `execute_shell`, cron shell jobs and the PDF
+  tools get the workspace-only policy. Check a manifest with `funes
+  script-run <name> --user <u>` before an agent finds out it is wrong.
 
 Three things compose with the layers above rather than sitting beside them:
 

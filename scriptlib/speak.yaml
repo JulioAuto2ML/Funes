@@ -26,6 +26,12 @@ output:
       lang:        {type: string}
       sink:        {type: string}
       reconnected: {type: boolean}
+# paplay talks to the user's PulseAudio server, which wants its cookie. The
+# socket itself (/run/user/<uid>/pulse/native) is under /run, readable by
+# default; Landlock does not gate connecting to it.
+access:
+  read: ["${HOME}/.config/pulse"]
+
 env:
   FUNES_ECHO_MAC: "${FUNES_ECHO_MAC}"
   FUNES_SPEAK_QUIET: "${FUNES_SPEAK_QUIET}"

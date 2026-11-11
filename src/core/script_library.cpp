@@ -24,6 +24,18 @@ constexpr size_t kMaxArgBytes    = 4096;  // per argument value
 // ${VAR} from the server's environment. Same rule agent_config.cpp uses for
 // llm_api_key and an MCP server's env: an unset variable expands to nothing,
 // because a manifest may name an optional key.
+// True when `s` names a ${VAR} that is unset or empty. An access path built
+// from one would silently become a different path ("${X}/tv" → "/tv").
+bool names_unset_variable(const std::string& s) {
+    for (size_t i = s.find("${"); i != std::string::npos; i = s.find("${", i + 2)) {
+        const size_t close = s.find('}', i + 2);
+        if (close == std::string::npos) return false;
+        const char* v = std::getenv(s.substr(i + 2, close - i - 2).c_str());
+        if (!v || !*v) return true;
+    }
+    return false;
+}
+
 std::string expand_env(const std::string& s) {
     std::string out;
     size_t i = 0;
@@ -271,6 +283,42 @@ std::string load_script(const std::string& library_path, const std::string& name
             else if (key == "pids")       spec.limits.pids_max = v;
             else if (key == "cpu_weight") spec.limits.cpu_weight = static_cast<int>(std::min(v, 10000LL));
             else return "Script '" + id + "': unknown limit '" + key + "' (memory_mb, pids, cpu_weight).";
+        }
+    }
+
+    // access: {read, write, exec: [paths], connect: [ports]}
+    if (root["access"]) {
+        if (!root["access"].IsMap())
+            return "Script '" + id + "': access must be a map of read, write, exec, connect.";
+        for (const auto& kv : root["access"]) {
+            const std::string key = kv.first.as<std::string>();
+            if (!kv.second.IsSequence())
+                return "Script '" + id + "': access." + key + " must be a list.";
+            if (key == "connect") {
+                for (const auto& n : kv.second) {
+                    int port = -1;
+                    try { port = n.as<int>(); } catch (const YAML::Exception&) {}
+                    if (port < 1 || port > 65535)
+                        return "Script '" + id + "': access.connect takes TCP port numbers.";
+                    spec.access.connect.push_back(port);
+                }
+                continue;
+            }
+            std::vector<std::string>* into = key == "read"  ? &spec.access.read
+                                           : key == "write" ? &spec.access.write
+                                           : key == "exec"  ? &spec.access.exec : nullptr;
+            if (!into)
+                return "Script '" + id + "': unknown access '" + key +
+                       "' (read, write, exec, connect).";
+            for (const auto& n : kv.second) {
+                const std::string raw = n.as<std::string>();
+                if (names_unset_variable(raw)) continue;
+                const std::string path = expand_env(raw);
+                if (path.empty() || path[0] != '/')
+                    return "Script '" + id + "': access." + key + " entries must be absolute "
+                           "paths (got '" + raw + "').";
+                into->push_back(path);
+            }
         }
     }
 

@@ -33,6 +33,12 @@
 // phase 6); the running server does the model work. Unlike cron-cleanup this
 // one is reversible: a log is archived, never deleted, and --undo restores
 // every archived one.
+//
+//   funes script-run <script> --user <username> [--param=value ...]
+//
+// Runs a library script through the run_script tool, as that account, in the
+// sandbox an agent's call would get — so a manifest's `access:` block can be
+// checked without a model in the loop. The script really runs.
 // =============================================================================
 
 #pragma once
@@ -45,7 +51,9 @@ namespace funes {
 bool is_maint_cli_command(int argc, char** argv);
 
 // Runs the subcommand. Returns the process exit code (0 on success).
-// `db_path` is the already-resolved memory database.
-int run_maint_cli(int argc, char** argv, const std::string& db_path);
+// `db_path` is the already-resolved memory database; the directories are
+// what script-run needs.
+int run_maint_cli(int argc, char** argv, const std::string& db_path,
+                  const std::string& scripts_dir, const std::string& workspace_dir);
 
 } // namespace funes

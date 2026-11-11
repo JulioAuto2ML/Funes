@@ -40,6 +40,7 @@
 
 #pragma once
 #include "cgroup.h"
+#include "sandbox.h"
 #include "json.hpp"
 #include <string>
 #include <utility>
@@ -86,6 +87,17 @@ struct ScriptSpec {
     //   limits: {memory_mb: 512, pids: 32, cpu_weight: 20}
     // 0 turns one off. Ignored when cgroups are off.
     funes::cgroup::Limits limits = funes::cgroup::default_limits();
+    // What the script may reach beyond its caller's workspace (sandbox.h):
+    //   access:
+    //     read:    [${HOME}/.config/pulse]
+    //     write:   [${FUNES_NEWS_FEED_DIR}]
+    //     exec:    [/srv/tools]
+    //     connect: [443, 8002]     # absent = network not restricted
+    // Absolute paths, ${VAR}-expanded; an entry naming an unset or empty
+    // variable is dropped (that deployment does not have the thing). The
+    // script's own library directory is always readable and executable — that
+    // is where its file and its virtualenv live.
+    funes::sandbox::Policy access;
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;

@@ -237,7 +237,8 @@ void print_usage(std::ostream& out) {
            "Maintenance:\n"
            "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n"
            "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n"
-           "  memory-migrate              queue stored exchange logs for fact extraction\n";
+           "  memory-migrate              queue stored exchange logs for fact extraction\n"
+           "  script-run                  run a library script as run_script would (sandboxed)\n";
 }
 
 } // namespace
@@ -327,12 +328,15 @@ int main(int argc, char** argv) {
         return funes::run_user_cli(argc, argv, db_path);
 
     // Same deal for the one-off maintenance commands (`funes cron-cleanup`).
-    if (funes::is_maint_cli_command(argc, argv))
-        return funes::run_maint_cli(argc, argv, db_path);
+    if (funes::is_maint_cli_command(argc, argv)) {
+        const std::string ws = funes::env("FUNES_WORKSPACE_DIR");
+        return funes::run_maint_cli(argc, argv, db_path, scripts_dir,
+                                    ws.empty() ? data_dir() + "/workspace" : fs::absolute(ws).string());
+    }
 
     // A cgroup per child process (cgroup.h), before anything can start one.
     const funes::cgroup::Status cgroups = funes::cgroup::init();
-    if (cgroups.enabled) funes::proc::set_trampoline("/proc/self/exe");
+    if (cgroups.enabled || funes::sandbox::enabled()) funes::proc::set_trampoline("/proc/self/exe");
 
     // read_file/write_file/execute_shell are confined to this directory.
     std::string workspace_dir = funes::env("FUNES_WORKSPACE_DIR");
@@ -709,6 +713,11 @@ int main(int argc, char** argv) {
               << "  Children:  " << (cgroups.enabled
                      ? "a cgroup each in " + cgroups.dir + " (" + cgroups.controllers + ")"
                      : "no cgroup — " + cgroups.reason) << "\n"
+              << "  Sandbox:   " << (funes::sandbox::enabled()
+                     ? "Landlock ABI " + std::to_string(funes::sandbox::abi()) + " + seccomp"
+                     : funes::sandbox::abi() > 0 ? std::string("off (FUNES_SANDBOX=0)")
+                                                 : std::string("unavailable — no Landlock in this kernel"))
+              << "\n"
               << "\n" << std::flush;
 
     signal(SIGPIPE, SIG_IGN);  // dropped SSE clients must not kill the process

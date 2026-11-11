@@ -27,13 +27,31 @@ without the broad thing it doesn't:
 | Granted by | agent `tools:` + user permissions | the same, **plus** agent `scripts:` |
 | Adding a capability | nothing to add — it can already run anything | an admin installs a file here |
 
-What this is **not** is a sandbox. A script runs with the Funes process's own
-permissions and can do anything that account can. The guarantee is about which
-code can be started, and by whom — the same kind of trust `agents/*.yaml`
-already carries. Review a script before installing it exactly as you would
-review an agent prompt, and do not install one that takes a command, a path
-outside the workspace, or a URL to fetch-and-run: that hands back everything
-the split was for.
+Since 7.5 it is also a sandbox (`src/core/sandbox.h`). A script runs under
+Landlock and seccomp, applied by the kernel before it starts: it can read and
+execute the system, read and write its caller's workspace and a private temp
+directory (`$TMPDIR`), read and execute this library directory (its own
+virtualenv included), and reach whatever its manifest adds —
+
+```yaml
+access:
+  read:    ["${HOME}/.config/pulse"]   # absolute, ${VAR}-expanded
+  write:   ["${FUNES_NEWS_FEED_DIR}"]  # an unset variable drops the entry
+  exec:    ["/srv/tools"]
+  connect: [443, 8002]                 # TCP ports; absent = network unrestricted
+limits: {memory_mb: 512, pids: 32}     # cgroup limits (7.4), 0 = off
+```
+
+Everything else — `config/funes.local`, `memory.db`, another account's
+workspace, `/tmp` — is `Permission denied`. `funes script-run <name> --user
+<username> [--param=value …]` runs a script exactly as `run_script` would, to
+check a manifest's `access:` before an agent finds out it is wrong (it really
+runs — side effects included).
+
+The guarantee is still also about which code can be started, and by whom.
+Review a script before installing it exactly as you would review an agent
+prompt, and do not install one that takes a command or a URL to fetch-and-run:
+inside its grant it does whatever it is told.
 
 ## Where it lives, and who can reach it
 

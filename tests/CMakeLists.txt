@@ -208,3 +208,9 @@ if(SYSTEMD_RUN)
 else()
     add_test(NAME cgroup COMMAND test_cgroup)
 endif()
+
+# Landlock needs no delegation — any unprivileged process can confine its own
+# children — so this runs plainly. Prints SKIP on a kernel without Landlock.
+add_executable(test_sandbox test_sandbox.cpp)
+target_link_libraries(test_sandbox PRIVATE funes_core)
+add_test(NAME sandbox COMMAND test_sandbox)

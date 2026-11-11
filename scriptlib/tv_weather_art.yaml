@@ -36,6 +36,13 @@ output:
       shown:   {type: boolean}
       artwork: {type: object}
       weather: {type: object}
+# The sandbox (src/core/sandbox.h) grants the caller's workspace and this
+# directory; the pairing token, its upload state and the weather cache live in
+# data/tv, next to FUNES_TV_TOKEN_FILE. Move the token elsewhere and this has
+# to follow it.
+access:
+  write: ["${FUNES_ROOT}/data/tv"]
+
 env:
   FUNES_WEATHER_LAT: "${FUNES_WEATHER_LAT}"
   FUNES_WEATHER_LON: "${FUNES_WEATHER_LON}"
