@@ -161,14 +161,19 @@ bool enabled() {
     return abi() > 0 && !(v && std::string(v) == "0");
 }
 
-Policy for_workspace(const std::filesystem::path& workspace) {
+Policy base() {
     Policy p;
     p.exec  = {"/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/opt"};
     // /run: resolv.conf is a symlink into it on systemd-resolved hosts, and
     // Landlock judges the file a symlink lands on.
     p.read  = {"/etc", "/run", "/proc", "/sys"};
-    p.write = {workspace.string(),
-               "/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom", "/dev/tty"};
+    p.write = {"/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom", "/dev/tty"};
+    return p;
+}
+
+Policy for_workspace(const std::filesystem::path& workspace) {
+    Policy p = base();
+    p.write.insert(p.write.begin(), workspace.string());
     return p;
 }
 

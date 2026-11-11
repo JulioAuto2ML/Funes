@@ -11,6 +11,7 @@
 #include "../cgroup.h"
 #include "../sandbox.h"
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -71,6 +72,24 @@ Result run_shell_command(const std::string& command, const std::filesystem::path
                          int timeout_seconds, size_t max_output_bytes,
                          const std::optional<funes::cgroup::Limits>& limits = std::nullopt,
                          const std::optional<funes::sandbox::Policy>& policy = std::nullopt);
+
+// A child prepared for the trampoline, for a caller that forks it itself
+// (the MCP stdio client, which keeps its server running across calls): its
+// own cgroup, its sandbox, its own temp directory. run_argv goes through the
+// same function, so the two cannot drift.
+struct Wrapped {
+    std::vector<std::string> argv;   // exec this — argv itself when nothing wraps it
+    std::string tmpdir;              // point TMPDIR here; empty when there is none
+    std::unique_ptr<funes::cgroup::Scope> scope;
+
+    // Kills whatever is left in the cgroup, removes it and the temp directory,
+    // and returns what the child cost (nullopt without a cgroup). Idempotent.
+    std::optional<funes::cgroup::Usage> finish();
+    ~Wrapped() { finish(); }
+};
+std::unique_ptr<Wrapped> wrap(const std::vector<std::string>& argv,
+                              const std::optional<funes::cgroup::Limits>& limits,
+                              const std::optional<funes::sandbox::Policy>& policy);
 
 // The program that wraps every child once cgroups or the sandbox are on: main() sets it to
 // /proc/self/exe — the running binary even after a deploy has replaced the

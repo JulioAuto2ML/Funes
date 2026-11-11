@@ -3,7 +3,10 @@
 // =============================================================================
 
 #include "agent_config.h"
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <stdexcept>
 
 #define CHECK(cond) do { \
     if (!(cond)) { \
@@ -12,7 +15,7 @@
     } \
 } while (0)
 
-int main() {
+int main(int argc, char** argv) {
     // Full config.
     AgentConfig cfg = AgentConfig::from_string(R"yaml(
 name: tester
@@ -61,6 +64,28 @@ memory_scope: funes
     CHECK(cfg.mcp_servers[2].url.empty());
     CHECK(cfg.mcp_servers[2].env.at("FOO") == "bar");
     CHECK(cfg.memory_scope == "funes");  // explicit override
+    CHECK(cfg.mcp_servers[2].access.write.empty());  // no access: = base sandbox only
+
+    // A stdio server's `access:` block, parsed as a script manifest's is.
+    ::setenv("FUNES_TEST_ROOT", "/srv/funes", 1);
+    ::unsetenv("FUNES_TEST_UNSET");
+    AgentConfig acc = AgentConfig::from_string(R"yaml(
+name: acc
+mcp_servers:
+  - command: uv run main.py
+    access:
+      read:    [/var/lib/store, "${FUNES_TEST_UNSET}/x"]
+      write:   ["${FUNES_TEST_ROOT}/cache"]
+      connect: [8090]
+)yaml");
+    CHECK(acc.mcp_servers[0].access.read.size() == 1);   // the unset one dropped
+    CHECK(acc.mcp_servers[0].access.write[0] == "/srv/funes/cache");
+    CHECK(acc.mcp_servers[0].access.connect.size() == 1 && acc.mcp_servers[0].access.connect[0] == 8090);
+    bool refused = false;
+    try {
+        AgentConfig::from_string("name: bad\nmcp_servers:\n  - command: x\n    access: {read: [relative/path]}\n");
+    } catch (const std::runtime_error&) { refused = true; }
+    CHECK(refused);   // a grant that can't be applied refuses the agent
 
     // Defaults.
     AgentConfig min = AgentConfig::from_string("name: minimal");
@@ -173,5 +198,21 @@ mcp_servers:
     CHECK(threw);
 
     std::cout << "test_agent_config: all tests passed\n";
+    // Every shipped agent parses. A YAML that fails is not an error at
+    // startup — the agent just isn't there — so nothing else would notice.
+    if (argc > 1) {
+        int n = 0;
+        for (const auto& e : std::filesystem::directory_iterator(argv[1])) {
+            if (e.path().extension() != ".yaml") continue;
+            try { AgentConfig::from_file(e.path().string()); ++n; }
+            catch (const std::exception& ex) {
+                std::cerr << "FAILED: " << ex.what() << "\n";
+                return 1;
+            }
+        }
+        CHECK(n > 0);
+        std::cout << "  ok: " << n << " shipped agents parse\n";
+    }
+
     return 0;
 }

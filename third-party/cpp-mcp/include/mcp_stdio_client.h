@@ -54,6 +54,24 @@ public:
     static void set_environment_filter(environment_filter filter);
 
     /**
+     * @brief Optional wrapper around the server's command line.
+     *
+     * Funes patch. Called in the parent, before fork, with the command split
+     * into argv; the child execs `argv` from the returned plan instead, with
+     * `env` added to env_vars (so it also passes the environment filter).
+     * `on_exit` runs once the process has been reaped. Funes uses it to start
+     * the server through its `funes _exec` trampoline: a cgroup of its own and
+     * a Landlock/seccomp sandbox, released when the server stops.
+     */
+    struct launch_plan {
+        std::vector<std::string> argv;
+        std::vector<std::pair<std::string, std::string>> env;
+        std::function<void()> on_exit;
+    };
+    using launch_wrapper = std::function<launch_plan(const std::vector<std::string>& argv)>;
+    void set_launch_wrapper(launch_wrapper wrapper) { launch_wrapper_ = std::move(wrapper); }
+
+    /**
      * @brief Constructor
      * @param command The command to execute to start the server
      * @param env_vars Optional environment variables to set for the server process
@@ -237,6 +255,10 @@ private:
     
     // Environment variables
     json env_vars_;
+
+    // Funes patch: see set_launch_wrapper
+    launch_wrapper launch_wrapper_;
+    std::function<void()> on_exit_;
 };
 
 } // namespace mcp

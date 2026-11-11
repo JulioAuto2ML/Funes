@@ -3,12 +3,35 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.5.0** (OS plan phase 2: Landlock + seccomp on every child — a script reaches its workspace and its manifest's `access:`, `execute_shell` its workspace).
+Current release: **7.6.0** (MCP stdio servers in their own cgroup and sandbox, with per-server `access:` in the agent YAML; `funes mcp-probe`).
+
+## What is left, in priority order
+
+Revised 2026-11-11. The memory plan is finished; the OS plan has phases 3–7
+open. Two decisions that reorder it: **the machine is yoda, always** (so
+Pillar 2 is about a headless server, not a desktop), and **yoda's embedding
+server is mostly idle** — recall uses it, nothing else does — so the machine
+memory is the place to spend it.
+
+| # | Item | Why here | Size |
+|---|------|----------|------|
+| 1 | **Watch the first sandboxed runs on yoda**: 06:30 `news_headlines` (its `[tool]` line should end in `{exec-… cpu=… mem=…}`), the first `tv_art` and `speak` calls, and one call each through the WhatsApp, Gmail and RSS agents (`MCP server '…' stopped {…}` lines). A `Permission denied` is a missing `access:` entry: check with `funes script-run` / `funes mcp-probe`. | Phases 1–2 and 7.6 are only proven where they ran. | checks, no code |
+| 2 | **OS phase 4 — the machine as a memory owner** (os-plan.md, Pillar 2). A `machine` account; a collector over the user journal (`journalctl --user -o json --follow`), `/var/log/dpkg.log`, PSI, disk/temps, Funes's own cgroup stats and the `llama-server` processes `~/launch_llama.sh` starts (pids in `/tmp/llama_pids`, not units); an event ring; baselines in C++; promotion of *changes* and *anomalies* to memories, embedded and linked by the existing backfill; `host_changes(since, unit?)`. | Moved ahead of phase 3: it is the feature the idle embedding server is for, and it needs only phase 1. | ~3 weeks |
+| 3 | **OS phase 3 — `funes.sock`, `uid_users`, `funes ask`, `LoadCredential=`**. | Independent. `funes ask` is how a shell pipes into the machine memory (`journalctl … \| funes ask "what broke"`); `LoadCredential=` takes secrets out of the environment for good. | ~1 week |
+| 4 | **OS phase 5 — learn mode → proposed `access:` / `connect:`**. | No script manifest declares `connect:` yet; this is where those lists should come from rather than from guessing. | ~2 weeks |
+| 5 | **Concurrency ceiling**: one httplib worker thread per chat for the whole run. | Open since the 5.0.1 review. Matters when several people (or the autoresponder plus a person) chat at once; not seen to bite yet. | ~1 week |
+| 6 | **MCP stdio servers kept alive** instead of spawned per agent run. | Open since 5.0.1. Each WhatsApp-agent run pays `uv run` start-up; now cheap to fix because each server already has its own cgroup to keep and reuse. | days |
+| 7 | **OS phase 6 — effects as proposals** (overlay staging, diff, commit/discard in the UI). | Needs 2; worth it before phase 7. | ~3 weeks |
+| 8 | **OS phase 7 — a `sysadmin` agent**. | Last on purpose: by then a wrong call is confined, attributed, remembered and undoable. | small |
+| — | 4.2 (per-user publications, generic channel adapter, MCP self-service) | Deferred: nothing has asked for a second channel or a second publication owner. | — |
+| — | 8.0 voice | Deprioritised 2026-11-10. | — |
+
+## Release history
 
 | Release | Theme | Source plan | Status |
 |---------|-------|-------------|--------|
-| **4.1** | Generalization: config over prose, tools over model arithmetic | generalization plan, phases 1, 4, 5 (moved to funes-julio with the pipelines it analysed) | shipped |
-| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | same plan, phases 2, 3 | deferred (see docs/julio-README.md) |
+| **4.1** | Generalization: config over prose, tools over model arithmetic | generalization plan, phases 1, 4, 5 | shipped |
+| **4.2** | Per-user publications; generic channel adapter; self-service pointed at MCP | same plan, phases 2, 3 | deferred |
 | **5.0** | Connected memories + localization | v5 plan (8 phases) | done |
 | **5.0.1** | Security: shell-job permission bypass, child env allowlist, resolving SSRF guard, hashed tokens, login throttle, body cap | review of 2026-09-18 | done |
 | **5.1** | Split (undone in 5.2): the core keeps the harness, `funes-julio` takes one operator's tools, agents and deployment; `src/core/extension.h` is the seam | same review | done |
@@ -16,7 +39,8 @@ Current release: **7.5.0** (OS plan phase 2: Landlock + seccomp on every child �
 | **7.0** | OS plan phase 0: connections pinned to the address `net_guard` judged, `Type=notify` + self-probing watchdog, background passes yield to people (in-flight runs + PSI); link backfill on by default | [os-plan.md](os-plan.md) | done |
 | **7.4** | OS plan phase 1: `funes _exec` trampoline, a cgroup per child process, limits from `FUNES_CHILD_*` and manifest `limits:`, usage on the `[tool]` line | [os-plan.md](os-plan.md) | done |
 | **7.5** | OS plan phase 2: Landlock + seccomp in the trampoline, rules from the workspace + manifest `access:`, private `$TMPDIR`, `funes script-run` | [os-plan.md](os-plan.md) | done |
-| **7.x** | OS plan phases 3–7: `funes.sock`, the machine as a memory owner, learned least privilege, effects as proposals | [os-plan.md](os-plan.md) | next: phase 3 |
+| **7.6** | MCP stdio servers through the trampoline: own cgroup, sandbox from the server's `access:` block, `funes mcp-probe` | [os-plan.md](os-plan.md) | done |
+| **7.x** | OS plan phases 3–7: the machine as a memory owner, `funes.sock`, learned least privilege, effects as proposals | [os-plan.md](os-plan.md) | next: phase 4 (see the list above) |
 | **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
 | **7.2** | Memory plan phases 4–5: exchanges queued and reduced to facts by a gated background pass; newer facts and `contradicts` verdicts supersede older ones, reversibly | [memory-plan.md](memory-plan.md) | done |
 | **7.3** | Memory plan phases 6–7: `funes memory-migrate` (logs → facts, archived, undoable), uncited memories archived after a window | [memory-plan.md](memory-plan.md) | done; yoda migrated and on `extract` since 2026-11-10 |
@@ -71,12 +95,11 @@ feature in the next one.
 | 7 | `/api/status` said `4.0.0`. | `FUNES_VERSION` from `project()`. | — |
 | 8 | Recalled memories injected into the system prompt with no framing; `remember` stores model-chosen text from web pages verbatim. | Prompt frames them as records, not instructions. **Closed in 7.1:** a `remember` after third-party content is tainted — weight capped at 1.0, never a link anchor, shown as "per <origin>: …" (memory plan, phase 3). | 7.1 |
 
-Still open from the same review, deliberately not done here: one httplib
-worker thread per chat for the whole run (concurrency ceiling ≈ pool size);
-MCP stdio servers spawned per request; DNS rebinding between the guard's
-lookup and httplib's connect (closed in 7.0 — the vendored httplib does pin,
-via `set_hostname_addr_map`; see `net_guard.h::pin_address`);
-memory design (auto-memory is a conversation log, not fact extraction).
+Still open from the same review: one httplib worker thread per chat for the
+whole run, and MCP stdio servers spawned per request (items 5 and 6 in the
+list at the top). Since closed: DNS rebinding (7.0, `net_guard.h::pin_address`),
+the memory design (memory plan, 7.1–7.3: facts, not a conversation log), and
+MCP stdio servers running unconfined (7.6).
 
 ## 5.1 — the split
 
@@ -108,24 +131,25 @@ The test that the split is clean: a core build with no extension passes all
 28 tests and `integration.sh`; a build with the extension passes those plus
 the extension's seven (`julio_*`).
 
-The other question the review raised — whether a memory that is a
-conversation log with vector search is the product's claim or its weakest part
-— is still open, and is now the only substantive open question in this tree.
+The split was undone in 5.2 (nothing is going to be sold): funes-julio was
+merged back with its history and builds as `src/julio`; `extension.h` stayed
+as the registration seam. The other question the review raised — whether a
+memory that is a conversation log with vector search is the product's claim
+or its weakest part — was answered by the memory plan (7.1–7.3).
 
 ## 4.1 breakdown
 
-Shipped, then moved out in 5.1: the pipeline primitive, `write_structured` /
-`read_structured`, `merge_rankings` and the agents retrofitted onto them were
-all built for one operator's pipelines and live in funes-julio. What stayed is
-the part that was never pipeline-specific — the archetype defaults in
+The pipeline primitive, `write_structured` / `read_structured`,
+`merge_rankings` and the agents retrofitted onto them were built for one
+operator's pipelines and live in `src/julio`. The part that was never
+pipeline-specific is the archetype defaults in
 [agents/README.md](../agents/README.md).
 
 ## 4.2 — per-user publications
 
-Moved with the newsletter to the funes-julio repository (its README carries
-the plan). Whether a publication belongs to a user or to the install is that
-repository's question now; what the core owes it is already there — per-user
-workspaces, `shared_identity`, the agent allowlist.
+Deferred. Whether a publication belongs to a user or to the install is open;
+what the core owes it is already there — per-user workspaces,
+`shared_identity`, the agent allowlist.
 
 ## 5.0 breakdown
 

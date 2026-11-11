@@ -362,11 +362,38 @@ bool stdio_client::start_server_process() {
     // fork() — nothing else is safe to do in the child of a multi-threaded
     // process, and inheriting the parent's block wholesale is what leaked the
     // server's own credentials to every MCP server it started.
+    //
+    // Same for argv: split here, not in the child (an istringstream after
+    // fork allocates), and handed to the launch wrapper when there is one.
+    std::vector<std::string> args;
+    {
+        std::istringstream iss(command_);
+        std::string arg;
+        while (iss >> arg) args.push_back(arg);
+    }
+    if (args.empty()) {
+        LOG_ERROR("Empty server command");
+        close(stdin_pipe_[0]); close(stdin_pipe_[1]);
+        close(stdout_pipe_[0]); close(stdout_pipe_[1]);
+        return false;
+    }
+    json child_env_vars = env_vars_;
+    if (launch_wrapper_) {
+        launch_plan plan = launch_wrapper_(args);
+        args = std::move(plan.argv);
+        for (const auto& [k, v] : plan.env) child_env_vars[k] = v;
+        on_exit_ = std::move(plan.on_exit);
+    }
+    std::vector<char*> c_args;
+    c_args.reserve(args.size() + 1);
+    for (auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
+    c_args.push_back(nullptr);
+
     std::vector<std::string> filtered_env;
     std::vector<char*>       filtered_envp;
     const bool use_filter = static_cast<bool>(env_filter());
     if (use_filter) {
-        filtered_env = env_filter()(env_vars_);
+        filtered_env = env_filter()(child_env_vars);
         filtered_envp.reserve(filtered_env.size() + 1);
         for (auto& e : filtered_env) filtered_envp.push_back(const_cast<char*>(e.c_str()));
         filtered_envp.push_back(nullptr);
@@ -377,6 +404,7 @@ bool stdio_client::start_server_process() {
     
     if (process_id_ == -1) {
         LOG_ERROR("Failed to fork process: ", strerror(errno));
+        if (on_exit_) { on_exit_(); on_exit_ = nullptr; }
         close(stdin_pipe_[0]);
         close(stdin_pipe_[1]);
         close(stdout_pipe_[0]);
@@ -394,8 +422,8 @@ bool stdio_client::start_server_process() {
         // stack memory by the time execvp() runs below.
         if (use_filter) {
             environ = filtered_envp.data();
-        } else if (!env_vars_.empty()) {
-            for (const auto& [key, value] : env_vars_.items()) {
+        } else if (!child_env_vars.empty()) {
+            for (const auto& [key, value] : child_env_vars.items()) {
                 std::string env_var_value = convert_to_string(value);
                 if (setenv(key.c_str(), env_var_value.c_str(), 1) != 0) {
                     LOG_ERROR("Failed to set environment variable: ", key);
@@ -426,21 +454,7 @@ bool stdio_client::start_server_process() {
         // int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
         // fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
         
-        // Execute command
-        std::vector<std::string> args;
-        std::istringstream iss(command_);
-        std::string arg;
-        
-        while (iss >> arg) {
-            args.push_back(arg);
-        }
-        
-        std::vector<char*> c_args;
-        for (auto& a : args) {
-            c_args.push_back(const_cast<char*>(a.c_str()));
-        }
-        c_args.push_back(nullptr);
-        
+        // Execute command (argv built in the parent, above)
         execvp(c_args[0], c_args.data());
         
         // If execvp returns, it means an error occurred
@@ -610,6 +624,9 @@ void stdio_client::stop_server_process() {
         
         process_id_ = -1;
     }
+    // Funes patch: release what the launch wrapper set up (the cgroup kills
+    // whatever the server left running, e.g. npx's node child).
+    if (on_exit_) { on_exit_(); on_exit_ = nullptr; }
 #endif
     
     LOG_INFO("Server process stopped");

@@ -108,7 +108,8 @@ The tool system enforces security at multiple layers:
   one grant.
   Since 7.5 it is also a sandbox (`src/core/sandbox.h`): the kernel confines a
   script to its caller's workspace, its library directory and its manifest's
-  `access:`, and `execute_shell` to the workspace. Still: a script that takes a
+  `access:`, and `execute_shell` to the workspace; since 7.6 an MCP stdio
+  server to the system plus its own `access:` block (`mcp_launch.h`). Still: a script that takes a
   command or fetches code to run gives back most of what the split was for.
 - **Delegation**: Self-delegation refused, depth capped at 2, failures detected
   and surfaced as errors (not content). The specialist runs as the delegating

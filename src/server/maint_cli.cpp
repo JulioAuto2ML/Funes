@@ -3,7 +3,9 @@
 // =============================================================================
 
 #include "maint_cli.h"
+#include "../core/agent_config.h"
 #include "../core/cron_schedule.h"
+#include "../core/mcp_launch.h"
 #include "../core/sandbox.h"
 #include "../core/script_library.h"
 #include "../core/tools.h"
@@ -11,6 +13,8 @@
 #include "../core/memory.h"
 #include "../core/users.h"
 #include <cstring>
+#include <filesystem>
+#include <sstream>
 #include <ctime>
 #include <iostream>
 #include <string>
@@ -19,7 +23,8 @@
 namespace funes {
 namespace {
 
-const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule", "memory-migrate", "script-run"};
+const char* const COMMANDS[] = {"cron-cleanup", "cron-schedule", "memory-migrate", "script-run",
+                               "mcp-probe"};
 
 void usage() {
     std::cerr <<
@@ -58,7 +63,16 @@ void usage() {
         "in its workspace, with its manifest's checks and the same sandbox\n"
         "(src/core/sandbox.h). For checking a manifest's `access:` before an\n"
         "agent finds out it is wrong. The script really runs — side effects\n"
-        "included.\n";
+        "included.\n"
+        "\n"
+        "  funes mcp-probe <agent> [--call=<tool> [--args=<json>] [--show]]\n"
+        "\n"
+        "Starts the agent's MCP stdio servers the way a run would — own\n"
+        "cgroup, same sandbox and `access:` grants (src/core/mcp_launch.h) —\n"
+        "and lists their tools. --call also calls one tool; its output is\n"
+        "printed only with --show (it is usually someone's mail or chats),\n"
+        "otherwise just whether it failed and how long it was. A call\n"
+        "really happens: probe with tools that only read.\n";
 }
 
 int cmd_cron_cleanup(const std::string& db_path, const std::vector<std::string>& args) {
@@ -248,6 +262,75 @@ int cmd_script_run(const std::string& db_path, const std::string& scripts_dir,
     return r.error ? 1 : 0;
 }
 
+
+int cmd_mcp_probe(const std::string& agents_dir, const std::vector<std::string>& args) {
+    if (args.empty() || args[0].rfind("--", 0) == 0) { usage(); return 2; }
+    const std::string agent = args[0];
+    std::string call, call_args = "{}";
+    bool show = false;
+    for (size_t i = 1; i < args.size(); ++i) {
+        if (args[i].rfind("--call=", 0) == 0)      call = args[i].substr(7);
+        else if (args[i].rfind("--args=", 0) == 0) call_args = args[i].substr(7);
+        else if (args[i] == "--show")               show = true;
+        else { std::cerr << "Unknown option " << args[i] << "\n"; return 2; }
+    }
+
+    // The agent by its `name:`, over every agents directory, later ones
+    // shadowing earlier ones as api.cpp::load_agents does.
+    std::optional<AgentConfig> cfg;
+    std::stringstream dirs(agents_dir);
+    for (std::string dir; std::getline(dirs, dir, ':');) {
+        std::error_code ec;
+        for (const auto& e : std::filesystem::directory_iterator(dir, ec)) {
+            if (e.path().extension() != ".yaml") continue;
+            try {
+                AgentConfig c = AgentConfig::from_file(e.path().string());
+                if (c.name == agent) cfg = std::move(c);
+            } catch (const std::exception& ex) {
+                if (e.path().stem() == agent) { std::cerr << ex.what() << "\n"; return 1; }
+            }
+        }
+    }
+    if (!cfg) { std::cerr << "No agent named " << agent << " in " << agents_dir << "\n"; return 1; }
+
+    if (sandbox::enabled()) proc::set_trampoline("/proc/self/exe");
+    int failures = 0, stdio_servers = 0;
+    for (const auto& srv : cfg->mcp_servers) {
+        if (srv.command.empty()) continue;
+        ++stdio_servers;
+        auto client = make_stdio_client(srv, cfg->name);
+        if (!client->initialize("funes-mcp-probe", "1.0.0")) {
+            std::cout << srv.name << ": FAILED to start or initialize\n";
+            ++failures;
+            continue;
+        }
+        const auto tools = client->get_tools();
+        std::cout << srv.name << ": " << tools.size() << " tools:";
+        for (const auto& t : tools) std::cout << " " << t.name;
+        std::cout << "\n";
+        bool has_call = false;
+        for (const auto& t : tools) has_call |= t.name == call;
+        if (call.empty() || !has_call) continue;
+        try {
+            const nlohmann::json r = client->call_tool(call, nlohmann::json::parse(call_args));
+            const bool err = r.value("isError", false);
+            const std::string text = r.dump();
+            std::cout << "  " << call << ": " << (err ? "ERROR" : "ok") << ", "
+                      << text.size() << " bytes\n";
+            if (show || err) std::cout << text << "\n";
+            failures += err;
+        } catch (const std::exception& e) {
+            std::cout << "  " << call << ": threw " << e.what() << "\n";
+            ++failures;
+        }
+    }
+    std::cerr << "[mcp-probe] " << agent << ": " << stdio_servers << " stdio server(s), "
+              << failures << " failure(s), sandbox "
+              << (sandbox::enabled() ? "Landlock ABI " + std::to_string(sandbox::abi()) : std::string("off"))
+              << "\n";
+    return failures ? 1 : 0;
+}
+
 } // namespace
 
 bool is_maint_cli_command(int argc, char** argv) {
@@ -258,7 +341,8 @@ bool is_maint_cli_command(int argc, char** argv) {
 }
 
 int run_maint_cli(int argc, char** argv, const std::string& db_path,
-                  const std::string& scripts_dir, const std::string& workspace_dir) {
+                  const std::string& scripts_dir, const std::string& workspace_dir,
+                  const std::string& agents_dir) {
     if (argc < 2) { usage(); return 2; }
     const std::string cmd = argv[1];
     std::vector<std::string> args(argv + 2, argv + argc);
@@ -268,6 +352,7 @@ int run_maint_cli(int argc, char** argv, const std::string& db_path,
         if (cmd == "cron-schedule") return cmd_cron_schedule(db_path, args);
         if (cmd == "memory-migrate") return cmd_memory_migrate(db_path, args);
         if (cmd == "script-run") return cmd_script_run(db_path, scripts_dir, workspace_dir, args);
+        if (cmd == "mcp-probe")  return cmd_mcp_probe(agents_dir, args);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;

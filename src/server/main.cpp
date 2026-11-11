@@ -238,7 +238,8 @@ void print_usage(std::ostream& out) {
            "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n"
            "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n"
            "  memory-migrate              queue stored exchange logs for fact extraction\n"
-           "  script-run                  run a library script as run_script would (sandboxed)\n";
+           "  script-run                  run a library script as run_script would (sandboxed)\n"
+           "  mcp-probe                   start an agent's MCP stdio servers sandboxed, list tools\n";
 }
 
 } // namespace
@@ -320,6 +321,25 @@ int main(int argc, char** argv) {
         db_path = fs::absolute(db_path).string();
     }
 
+    // Every process Funes starts — a library script, a shell command, an MCP
+    // stdio server — gets the filtered environment from
+    // proc::child_environment(), never this process's own block. The config
+    // loader above put funes.local into that block, so "inherit everything"
+    // would hand the service token and every API key to any program a model
+    // can start. The MCP client is vendored code that knows nothing about
+    // Funes; it takes the filter as a hook (see mcp_stdio_client.h). Set
+    // before the CLI dispatch below: `funes mcp-probe` starts servers too.
+    mcp::stdio_client::set_environment_filter([](const json& env_vars) {
+        std::vector<std::pair<std::string, std::string>> extra;
+        for (const auto& [k, v] : env_vars.items())
+            extra.emplace_back(k, v.is_string() ? v.get<std::string>() : v.dump());
+        return funes::proc::child_environment(extra);
+    });
+
+    // Agent YAML names checkout paths as ${FUNES_ROOT}; src/julio/register.cpp
+    // publishes it for the server, but the CLI dispatch below runs first.
+    if (funes::env("FUNES_ROOT").empty()) ::setenv("FUNES_ROOT", FUNES_ROOT, 0);
+
     // Account management (`funes useradd` …) runs against the same database
     // and exits without starting the server. Dispatched here, after the config
     // and the database path are known but before anything opens a socket or
@@ -331,7 +351,8 @@ int main(int argc, char** argv) {
     if (funes::is_maint_cli_command(argc, argv)) {
         const std::string ws = funes::env("FUNES_WORKSPACE_DIR");
         return funes::run_maint_cli(argc, argv, db_path, scripts_dir,
-                                    ws.empty() ? data_dir() + "/workspace" : fs::absolute(ws).string());
+                                    ws.empty() ? data_dir() + "/workspace" : fs::absolute(ws).string(),
+                                    agents_dir);
     }
 
     // A cgroup per child process (cgroup.h), before anything can start one.
@@ -390,19 +411,6 @@ int main(int argc, char** argv) {
     // from here, so it must be set before FunesApi copies `defaults`.
     defaults.scripts_dir = scripts_dir;
 
-    // Every process Funes starts — a library script, a shell command, an MCP
-    // stdio server — gets the filtered environment from
-    // proc::child_environment(), never this process's own block. The config
-    // loader above put funes.local into that block, so "inherit everything"
-    // would hand the service token and every API key to any program a model
-    // can start. The MCP client is vendored code that knows nothing about
-    // Funes; it takes the filter as a hook (see mcp_stdio_client.h).
-    mcp::stdio_client::set_environment_filter([](const json& env_vars) {
-        std::vector<std::pair<std::string, std::string>> extra;
-        for (const auto& [k, v] : env_vars.items())
-            extra.emplace_back(k, v.is_string() ? v.get<std::string>() : v.dump());
-        return funes::proc::child_environment(extra);
-    });
 
     ToolRegistry tools;
     register_web_tools(tools);

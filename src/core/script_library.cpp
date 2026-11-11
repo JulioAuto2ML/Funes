@@ -84,6 +84,42 @@ std::string json_scalar(const nlohmann::json& v) {
 
 } // namespace
 
+std::string parse_access(const YAML::Node& node, const std::string& owner,
+                         funes::sandbox::Policy& into) {
+    if (!node.IsMap())
+        return owner + ": access must be a map of read, write, exec, connect.";
+    for (const auto& kv : node) {
+        const std::string key = kv.first.as<std::string>();
+        if (!kv.second.IsSequence())
+            return owner + ": access." + key + " must be a list.";
+        if (key == "connect") {
+            for (const auto& n : kv.second) {
+                int port = -1;
+                try { port = n.as<int>(); } catch (const YAML::Exception&) {}
+                if (port < 1 || port > 65535)
+                    return owner + ": access.connect takes TCP port numbers.";
+                into.connect.push_back(port);
+            }
+            continue;
+        }
+        std::vector<std::string>* list = key == "read"  ? &into.read
+                                       : key == "write" ? &into.write
+                                       : key == "exec"  ? &into.exec : nullptr;
+        if (!list)
+            return owner + ": unknown access '" + key + "' (read, write, exec, connect).";
+        for (const auto& n : kv.second) {
+            const std::string raw = n.as<std::string>();
+            if (names_unset_variable(raw)) continue;
+            const std::string path = expand_env(raw);
+            if (path.empty() || path[0] != '/')
+                return owner + ": access." + key + " entries must be absolute "
+                       "paths (got '" + raw + "').";
+            list->push_back(path);
+        }
+    }
+    return {};
+}
+
 std::string safe_script_name(const std::string& raw) {
     std::string out;
     for (unsigned char c : raw) {
@@ -288,38 +324,8 @@ std::string load_script(const std::string& library_path, const std::string& name
 
     // access: {read, write, exec: [paths], connect: [ports]}
     if (root["access"]) {
-        if (!root["access"].IsMap())
-            return "Script '" + id + "': access must be a map of read, write, exec, connect.";
-        for (const auto& kv : root["access"]) {
-            const std::string key = kv.first.as<std::string>();
-            if (!kv.second.IsSequence())
-                return "Script '" + id + "': access." + key + " must be a list.";
-            if (key == "connect") {
-                for (const auto& n : kv.second) {
-                    int port = -1;
-                    try { port = n.as<int>(); } catch (const YAML::Exception&) {}
-                    if (port < 1 || port > 65535)
-                        return "Script '" + id + "': access.connect takes TCP port numbers.";
-                    spec.access.connect.push_back(port);
-                }
-                continue;
-            }
-            std::vector<std::string>* into = key == "read"  ? &spec.access.read
-                                           : key == "write" ? &spec.access.write
-                                           : key == "exec"  ? &spec.access.exec : nullptr;
-            if (!into)
-                return "Script '" + id + "': unknown access '" + key +
-                       "' (read, write, exec, connect).";
-            for (const auto& n : kv.second) {
-                const std::string raw = n.as<std::string>();
-                if (names_unset_variable(raw)) continue;
-                const std::string path = expand_env(raw);
-                if (path.empty() || path[0] != '/')
-                    return "Script '" + id + "': access." + key + " entries must be absolute "
-                           "paths (got '" + raw + "').";
-                into->push_back(path);
-            }
-        }
+        const std::string err = parse_access(root["access"], "Script '" + id + "'", spec.access);
+        if (!err.empty()) return err;
     }
 
     if (root["env"] && root["env"].IsMap())

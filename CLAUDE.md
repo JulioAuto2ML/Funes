@@ -54,9 +54,11 @@ Create one from the web UI's first-run screen, or from the CLI:
 ```
 
 Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
-`locale`, `jid-map`, `jid-unmap`, and three maintenance commands, `cron-cleanup`,
-`cron-schedule` (change a job's schedule and its next run together) and
-`memory-migrate` (queue stored exchange logs for fact extraction, 7.3).
+`locale`, `jid-map`, `jid-unmap`, and the maintenance commands `cron-cleanup`,
+`cron-schedule` (change a job's schedule and its next run together),
+`memory-migrate` (queue stored exchange logs for fact extraction, 7.3),
+`script-run` and `mcp-probe` (run a script / start an agent's MCP servers in
+the sandbox they would get, no model involved).
 (`locale` is how an admin sets *another* account's language —
 `PUT /api/me/locale` only ever changes the caller's own, so a new account
 can't be set up in its owner's language before they first log in without it.) They run
@@ -173,7 +175,10 @@ for the full roster and the hub-and-spoke diagram.
 `ToolRegistry` (`tools.h/cpp`) at startup, no protocol/HTTP hop for built-ins.
 External tools plug in via MCP (`mcp_servers:` in agent YAML, SSE, streamable HTTP
 (`transport: http`, `mcp_http_client.cpp`) or stdio —
-stdio servers are spawned fresh as subprocesses per request). Shared
+stdio servers are spawned fresh as subprocesses per request, each in its own
+cgroup and sandbox since 7.6 — the system, a private `TMPDIR` and the
+server's `access:` block in the agent YAML, nothing else; `src/core/mcp_launch.h`,
+checked with `funes mcp-probe <agent>`). Shared
 infrastructure tools build on: `fs_guard` (workspace path confinement),
 `net_guard` (SSRF blocking), `process_runner` (fork/exec with timeout and
 output cap). See `src/core/tools/README.md` for the full inventory and the

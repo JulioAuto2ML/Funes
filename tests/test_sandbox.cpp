@@ -10,6 +10,8 @@
 // The binary is its own trampoline, as funes is, and its own probe: `_probe
 // ptrace` and `_probe connect PORT` report one syscall's errno.
 
+#include "agent_config.h"
+#include "mcp_launch.h"
 #include "sandbox.h"
 #include "tools.h"
 #include "tools/process_runner.h"
@@ -239,6 +241,55 @@ int probe(int argc, char** argv) {
     return 0;
 }
 
+// An MCP stdio server (mcp_launch.h) gets the system, a private temp directory
+// and its `access:` block — not every account's files. The server is a few
+// lines of Python whose one tool opens a path and reports what happened.
+const char* kMcpServer = R"py(import json, sys
+for line in sys.stdin:
+    m = json.loads(line)
+    if "id" not in m: continue
+    r = {}
+    if m["method"] == "initialize":
+        r = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
+             "serverInfo": {"name": "probe", "version": "1"}}
+    elif m["method"] == "tools/list":
+        r = {"tools": [{"name": "read", "description": "read a file",
+                        "inputSchema": {"type": "object"}}]}
+    elif m["method"] == "tools/call":
+        try:
+            text = "OK:" + open(m["params"]["arguments"]["path"]).read()
+        except OSError as e:
+            text = "DENIED:" + e.__class__.__name__
+        r = {"content": [{"type": "text", "text": text}]}
+    sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": m["id"], "result": r}) + "\n")
+    sys.stdout.flush()
+)py";
+
+std::string mcp_read(bool sandboxed, const fs::path& path) {
+    McpServerConfig srv;
+    srv.name = "probe";
+    srv.command = "python3 " + (kBase / "mcp" / "server.py").string();
+    srv.access.read.push_back((kBase / "mcp").string());
+    std::unique_ptr<mcp::stdio_client> c =
+        sandboxed ? funes::make_stdio_client(srv, "test")
+                  : std::make_unique<mcp::stdio_client>(srv.command);
+    if (!c->initialize("test", "1")) return "INIT FAILED";
+    const nlohmann::json r = c->call_tool("read", {{"path", path.string()}});
+    return r["content"][0]["text"].get<std::string>();
+}
+
+int test_mcp_server_is_confined() {
+    write(kBase / "mcp" / "server.py", kMcpServer);
+    write(kBase / "mcp" / "granted.txt", "granted\n");
+    // Control: the same server started directly reads anything.
+    CHECK(mcp_read(false, kWs2 / "secret.txt").rfind("OK:", 0) == 0);
+    CHECK(mcp_read(true, kBase / "mcp" / "granted.txt") == "OK:granted\n");
+    CHECK(mcp_read(true, kWs2 / "secret.txt").rfind("DENIED:", 0) == 0);
+    CHECK(mcp_read(true, kConf).rfind("DENIED:", 0) == 0);
+    std::cout << "  ok: an MCP stdio server reads its grant and nothing else\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -266,6 +317,7 @@ int main(int argc, char** argv) {
     failed += test_connect_ports();
     failed += test_execute_shell_is_confined();
     failed += test_script_gets_its_declared_access();
+    failed += test_mcp_server_is_confined();
     fs::remove_all(kBase);
     if (failed) { std::cerr << failed << " test(s) failed\n"; return 1; }
     std::cout << "sandbox: all tests passed\n";

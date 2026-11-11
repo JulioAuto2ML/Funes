@@ -55,8 +55,11 @@ int abi();
 // abi() > 0 and FUNES_SANDBOX is not 0.
 bool enabled();
 
-// The base every child gets: the system read-only/executable and `workspace`
-// read-write. A private temp directory is added by the process runner.
+// What every child gets: the system read-only/executable and the harmless
+// /dev nodes. A private temp directory is added by the process runner.
+Policy base();
+
+// base() plus `workspace` read-write — scripts and shell commands.
 Policy for_workspace(const std::filesystem::path& workspace);
 
 // The trampoline's options for `p`: --ro=, --rx=, --rw=, --connect=.

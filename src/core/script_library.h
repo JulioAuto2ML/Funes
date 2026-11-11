@@ -46,6 +46,8 @@
 #include <utility>
 #include <vector>
 
+namespace YAML { class Node; }
+
 namespace funes {
 
 struct ScriptParam {
@@ -107,6 +109,14 @@ struct ScriptSpec {
     // before it calls can plan the next step; one that doesn't calls to find out.
     std::string returns() const;
 };
+
+// An `access:` block — {read, write, exec: [absolute paths], connect: [TCP
+// ports]} — added to `into`. Shared by script manifests and an agent's MCP
+// stdio servers (agent_config.cpp), so the two cannot come to mean different
+// things. Paths are ${VAR}-expanded; one naming an unset variable is dropped.
+// Returns an empty string, or what is wrong, prefixed with `owner`.
+std::string parse_access(const YAML::Node& node, const std::string& owner,
+                         funes::sandbox::Policy& into);
 
 // Sanitized script name: [a-z0-9_-] only. A name reaches this from the model
 // and becomes a path component, so anything else is dropped rather than

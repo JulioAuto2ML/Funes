@@ -12,7 +12,7 @@
 #include "completion_contract.h"
 #include "context_budget.h"
 #include "mcp_sse_client.h"
-#include "mcp_stdio_client.h"
+#include "mcp_launch.h"
 #include "result_store.h"
 #include "run_outcome.h"
 #include "script_library.h"
@@ -130,7 +130,8 @@ void FunesAgent::connect_mcp_servers() {
         const std::string label = !srv.name.empty() ? srv.name : (stdio ? srv.command : srv.url);
 
         if (stdio) {
-            client = std::make_unique<mcp::stdio_client>(srv.command, srv.env);
+            // Its own cgroup and sandbox, like any child (mcp_launch.h).
+            client = funes::make_stdio_client(srv, cfg_.name);
         } else if (srv.transport == "http") {
             try {
                 client = std::make_unique<funes::HttpMcpClient>(srv.url, 120);

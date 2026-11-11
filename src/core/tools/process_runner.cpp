@@ -28,56 +28,82 @@ namespace {
 // Where `funes _exec` lives; empty = no trampoline, so no cgroup either.
 std::string g_trampoline;
 
+} // namespace
+
+std::optional<funes::cgroup::Usage> Wrapped::finish() {
+    std::optional<funes::cgroup::Usage> usage;
+    if (scope) {
+        usage = scope->finish();
+        scope.reset();
+    }
+    if (!tmpdir.empty()) {
+        std::error_code ec;
+        fs::remove_all(tmpdir, ec);
+        tmpdir.clear();
+    }
+    return usage;
+}
+
+// With cgroups on (cgroup.h) the child is wrapped: it execs the trampoline,
+// which joins the child's own cgroup, confines itself with `policy`
+// (sandbox.h) and then execs argv. A temp directory of the call's own goes
+// with the sandbox: it does not grant /tmp, which every account's children
+// would otherwise share.
+std::unique_ptr<Wrapped> wrap(const std::vector<std::string>& argv,
+                              const std::optional<funes::cgroup::Limits>& limits,
+                              const std::optional<funes::sandbox::Policy>& policy) {
+    auto w = std::make_unique<Wrapped>();
+    if (!g_trampoline.empty())
+        w->scope = funes::cgroup::Scope::create(argv.empty() ? "exec" : argv[0],
+                                                limits ? *limits : funes::cgroup::default_limits());
+
+    std::vector<std::string> confine;
+    if (!g_trampoline.empty() && policy && funes::sandbox::enabled()) {
+        funes::sandbox::Policy p = *policy;
+        std::string tmpl = (fs::temp_directory_path() / "funes-exec-XXXXXX").string();
+        if (mkdtemp(tmpl.data())) {
+            w->tmpdir = tmpl;
+            p.write.push_back(w->tmpdir);
+        }
+        confine = funes::sandbox::trampoline_args(p);
+    }
+
+    if (w->scope || !confine.empty()) {
+        w->argv = {g_trampoline, "_exec"};
+        if (w->scope) w->argv.push_back("--cgroup=" + w->scope->path());
+        w->argv.insert(w->argv.end(), confine.begin(), confine.end());
+        w->argv.push_back("--");
+    }
+    w->argv.insert(w->argv.end(), argv.begin(), argv.end());
+    return w;
+}
+
+namespace {
+
 // Runs argv (argv[0] resolved against PATH) with `env_strings` as its whole
 // environment. Captures stdout and stderr — merged into one stream, or apart
 // when `split` is set — enforces the timeout, and cleans up the truncation
 // boundary.
 //
-// With cgroups on (cgroup.h) the child is wrapped: it execs the trampoline,
-// which joins the child's own cgroup, confines itself with `policy`
-// (sandbox.h) and then execs argv. Everything — the
-// trampoline's argv, the envp — is built here, before the fork, so the fork
-// child still does nothing but dup2, chdir and exec, the only things safe in
-// the child of a multi-threaded process.
+// The child is wrapped by wrap() above. Everything — the trampoline's argv,
+// the envp — is built here, before the fork, so the fork child still does
+// nothing but dup2, chdir and exec, the only things safe in the child of a
+// multi-threaded process.
 Result run_forked(const std::vector<std::string>& argv, std::vector<std::string> env_strings,
                   const fs::path& cwd, int timeout_seconds, size_t max_output_bytes,
                   bool split, const std::optional<funes::cgroup::Limits>& limits,
                   const std::optional<funes::sandbox::Policy>& policy) {
     Result result;
 
-    std::unique_ptr<funes::cgroup::Scope> scope;
-    if (!g_trampoline.empty())
-        scope = funes::cgroup::Scope::create(argv[0], limits ? *limits
-                                                             : funes::cgroup::default_limits());
-
-    // A temp directory of this call's own: the sandbox does not grant /tmp,
-    // which every account's children would otherwise share. TMPDIR points
-    // the child at it, and it is removed with whatever the child left there.
-    std::string tmpdir;
-    std::vector<std::string> confine;
-    if (!g_trampoline.empty() && policy && funes::sandbox::enabled()) {
-        funes::sandbox::Policy p = *policy;
-        std::string tmpl = (fs::temp_directory_path() / "funes-exec-XXXXXX").string();
-        if (mkdtemp(tmpl.data())) {
-            tmpdir = tmpl;
-            p.write.push_back(tmpdir);
-            env_strings.erase(std::remove_if(env_strings.begin(), env_strings.end(),
-                [](const std::string& e) { return e.rfind("TMPDIR=", 0) == 0; }),
-                env_strings.end());
-            env_strings.push_back("TMPDIR=" + tmpdir);
-        }
-        confine = funes::sandbox::trampoline_args(p);
+    const std::unique_ptr<Wrapped> w = wrap(argv, limits, policy);
+    if (!w->tmpdir.empty()) {
+        env_strings.erase(std::remove_if(env_strings.begin(), env_strings.end(),
+            [](const std::string& e) { return e.rfind("TMPDIR=", 0) == 0; }),
+            env_strings.end());
+        env_strings.push_back("TMPDIR=" + w->tmpdir);
     }
-
-    std::vector<std::string> full;
-    if (scope || !confine.empty()) {
-        full = {g_trampoline, "_exec"};
-        if (scope) full.push_back("--cgroup=" + scope->path());
-        full.insert(full.end(), confine.begin(), confine.end());
-        full.push_back("--");
-        full.insert(full.end(), argv.begin(), argv.end());
-    }
-    const std::vector<std::string>& run = full.empty() ? argv : full;
+    const std::vector<std::string>& run = w->argv;
+    funes::cgroup::Scope* const scope = w->scope.get();
     std::vector<char*> c_argv;
     c_argv.reserve(run.size() + 1);
     for (const auto& a : run) c_argv.push_back(const_cast<char*>(a.c_str()));
@@ -180,11 +206,7 @@ Result run_forked(const std::vector<std::string>& argv, std::vector<std::string>
     drain();
     close(outfd[0]);
     if (split) close(errfd[0]);
-    if (scope) result.usage = scope->finish();
-    if (!tmpdir.empty()) {
-        std::error_code ec;
-        fs::remove_all(tmpdir, ec);
-    }
+    result.usage = w->finish();
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
     // The byte cap above can land mid-character; trim back to a clean UTF-8

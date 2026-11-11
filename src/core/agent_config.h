@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "json.hpp"
+#include "sandbox.h"
 #include "tool_budget.h"
 
 // Connection details for one external MCP server. Exactly one of url/command
@@ -21,6 +22,10 @@ struct McpServerConfig {
     std::string command;       // e.g. "npx -y rss-reader-mcp" — stdio transport
     std::string name;          // optional human label for logs; defaults to url/command
     nlohmann::json env = nlohmann::json::object(); // extra env vars for a stdio server's process
+    // A stdio server runs in its own cgroup and sandbox (sandbox.h), like a
+    // script: the system read-only, a private temp directory, and what this
+    // `access:` block adds (same format as a script manifest's).
+    funes::sandbox::Policy access;
 };
 
 struct AgentConfig {

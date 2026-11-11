@@ -241,11 +241,15 @@ Ordered so each phase is useful alone and none requires the next.
 | **0** ✅ | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | done in 7.0 |
 | **1** ✅ | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
 | **2** ✅ | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
-| **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week |
-| **4** | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | ~3 weeks |
+| **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week; **after 4** (2026-11-11) |
+| **4** | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | ~3 weeks; **next** |
 | **5** | Learn mode → proposed `access:` blocks | 2 | ~2 weeks |
 | **6** | `effects:` classes, overlay staging, diff in result store, commit/discard in UI | 2 | ~3 weeks |
 | **7** | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | small |
+
+Reordered 2026-11-11: phase 4 runs before phase 3. The machine is yoda, and
+yoda's embedding server sits idle outside recall — the machine memory is what
+it is for. Phase 3 is independent and loses nothing by waiting.
 
 Phase 7 is the thing most projects build first. It is last here on purpose:
 by then a wrong call is confined, attributed, remembered and, where the
@@ -312,17 +316,35 @@ and read it. Landlock's ptrace rule refuses it to a sandboxed child
 (`test_parent_environment_is_unreadable`).
 
 Not covered: the network is unrestricted unless a manifest lists `connect:`
-ports (no shipped manifest does yet — phase 5's learn mode is where those
-come from); MCP stdio servers are neither in a cgroup nor sandboxed; a
-pathname unix socket is reachable if its file is (Landlock's ABI ≤ 6 does not
+ports (no shipped script manifest does yet — phase 5's learn mode is where
+those come from); MCP stdio servers were neither in a cgroup nor sandboxed
+(closed in 7.6, below); a pathname unix socket is reachable if its file is (Landlock's ABI ≤ 6 does not
 gate connect on them).
 
-## Open questions to settle before Phase 3
+## 7.6 — MCP stdio servers
 
-1. **Which machine?** yoda is a headless server. OS embedding pays most on the
-   machine a person sits at, and Funes is a multi-user web service. Pillars 1
-   and 3 are host-agnostic; 2 and 4 are much more interesting on a desktop.
-   Is the target yoda, a laptop, or both with one as a remote "machine" account?
+The last children that ran as the server: the vendored `mcp::stdio_client`
+forked and exec'd them itself, so the WhatsApp, IMAP and RSS servers had the
+server's cgroup and its whole filesystem — `memory.db`, every workspace, and
+`/proc/<server pid>/mem` with `funes.local` in it.
+
+| Piece | Where | Test |
+|---|---|---|
+| Vendored client: a per-instance launch wrapper, called in the parent before fork with the command split into argv (the split no longer happens in the forked child); `on_exit` runs once the server is reaped. | `third-party/cpp-mcp` (`set_launch_wrapper`) | — |
+| `proc::wrap()` — the trampoline argv, cgroup scope and private temp dir, shared by `run_forked` and the MCP client so they cannot drift. | `process_runner.{h,cpp}` | existing sandbox/cgroup tests |
+| A stdio server gets `sandbox::base()` (the system, `/dev` nodes, private `TMPDIR`) plus its `access:` block in the agent YAML — same parser as a script manifest's (`parse_access`). No workspace: these servers act for the installation. Its cgroup kills what it leaves behind (npx's node child) and its cost is logged when it stops. | `mcp_launch.{h,cpp}`, `agent_config.cpp`, `script_library.cpp` | `test_mcp_server_is_confined` (a Python MCP server reads its grant, is refused another account's file and `funes.local`; unconfined control reads both); `test_agent_config` |
+| Grants: `whatsapp-mcp` — uv + its Python and cache, its project dir, the bridge store read-only, workspaces read-only (send_file), TCP 8090 only. `imap-email-mcp` — its package, TCP 993/465 only. `rss-reader-mcp` — `~/.npm`, TCP 80/443. | `agents/{whatsapp-assistant,gmail-assistant,rss-reader}.yaml` | `funes mcp-probe <agent> [--call=…]` on yoda |
+
+## Open questions (all answered)
+
+1. ~~**Which machine?**~~ Answered 2026-11-11: **yoda, always.** So Pillar 2
+   is about a headless server: the events that matter are the user units
+   (`funes`, the two WhatsApp bridges, the autoresponder), the `llama-server`
+   processes `~/launch_llama.sh` starts (not units — pids in
+   `/tmp/llama_pids`), the crontab's publishing jobs, dpkg, PSI, disk and
+   temperatures. System-unit and kernel (OOM) events need julio in the
+   `systemd-journal` group — an admin decision, not code; without it the
+   collector reads the user journal and `/proc` only.
 2. ~~**yoda's kernel and systemd versions.**~~ Answered 2026-11-10: Debian 13,
    kernel **6.12** (Landlock in the LSM list → ABI 6: filesystem, TCP-port and
    scoping rules; no audit, which needs 6.15), systemd **257** (no Varlink unit
@@ -333,9 +355,12 @@ gate connect on them).
 3. ~~**6.0 voice is "next" in the roadmap.**~~ Settled 2026-11-10: voice is
    deprioritised (now 8.0); the OS plan runs first. Phases 4–6 are features,
    but they follow 1–2 without voice in between.
-4. **Does the machine pool share the embedding model's budget?** A noisy host
-   could out-write every human account. The ring table and promotion rules
-   exist to prevent that, but the ceiling should be a number in `funes.conf`.
+4. ~~**Does the machine pool share the embedding model's budget?**~~
+   Answered 2026-11-11: yes, and generously — yoda's embedding server is idle
+   outside recall, and putting it to use is the point. The ceiling stays, as a
+   runaway guard rather than rationing: a promotions-per-day number in
+   `funes.conf`, set high, with embedding calls behind the same busy gate as
+   the link backfill so a person's recall never waits on the machine.
 
 ## Sources
 

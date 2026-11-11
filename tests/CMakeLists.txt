@@ -8,7 +8,9 @@ add_test(NAME tools COMMAND test_tools)
 
 add_executable(test_agent_config test_agent_config.cpp)
 target_link_libraries(test_agent_config PRIVATE funes_core)
-add_test(NAME agent_config COMMAND test_agent_config)
+# The shipped agents/ directory too: every YAML in it must parse (7.6 shipped
+# two that did not — `[${HOME}/x]` is a flow mapping, not a path).
+add_test(NAME agent_config COMMAND test_agent_config ${CMAKE_SOURCE_DIR}/agents)
 
 add_executable(test_mcp_http_client test_mcp_http_client.cpp)
 target_link_libraries(test_mcp_http_client PRIVATE funes_core)

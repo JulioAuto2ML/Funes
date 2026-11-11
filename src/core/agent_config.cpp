@@ -6,6 +6,7 @@
 
 #include "agent_config.h"
 #include "answer_schema.h"
+#include "script_library.h"
 #include "yaml_json.h"
 #include <yaml-cpp/yaml.h>
 #include <cstdlib>
@@ -125,6 +126,11 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
                             expand_env(kv.second.as<std::string>());
                 }
                 if (srv.name.empty()) srv.name = srv.command.empty() ? srv.url : srv.command;
+                if (entry["access"]) {
+                    const std::string err = funes::parse_access(
+                        entry["access"], "MCP server '" + srv.name + "'", srv.access);
+                    if (!err.empty()) throw std::runtime_error(err);
+                }
             }
             if (!srv.url.empty() || !srv.command.empty())
                 cfg.mcp_servers.push_back(std::move(srv));

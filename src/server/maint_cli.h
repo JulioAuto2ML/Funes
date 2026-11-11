@@ -39,6 +39,11 @@
 // Runs a library script through the run_script tool, as that account, in the
 // sandbox an agent's call would get — so a manifest's `access:` block can be
 // checked without a model in the loop. The script really runs.
+//
+//   funes mcp-probe <agent> [--call=<tool> [--args=<json>] [--show]]
+//
+// The same for an agent's MCP stdio servers (src/core/mcp_launch.h): starts
+// each in its cgroup and sandbox, lists its tools, optionally calls one.
 // =============================================================================
 
 #pragma once
@@ -52,8 +57,9 @@ bool is_maint_cli_command(int argc, char** argv);
 
 // Runs the subcommand. Returns the process exit code (0 on success).
 // `db_path` is the already-resolved memory database; the directories are
-// what script-run needs.
+// what script-run and mcp-probe need.
 int run_maint_cli(int argc, char** argv, const std::string& db_path,
-                  const std::string& scripts_dir, const std::string& workspace_dir);
+                  const std::string& scripts_dir, const std::string& workspace_dir,
+                  const std::string& agents_dir);
 
 } // namespace funes

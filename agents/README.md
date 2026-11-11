@@ -114,10 +114,19 @@ memory_scope: funes               # share another agent's memory pool
 mcp_servers:
   - name: my-server
     command: npx -y my-mcp-server        # stdio
+    access:                              # its sandbox beyond the system and a
+      write:   ["${HOME}/.npm"]            # private TMPDIR (same format as a
+      connect: [443]                     # script manifest's; see below)
   - name: monitor-argy
     url: https://monitorargy.com/mcp     # streamable HTTP: one URL, JSON-RPC POSTs
     transport: http                      # (omit for the legacy GET /sse transport)
 ```
+
+A stdio server runs in its own cgroup and Landlock sandbox (7.6): it can
+read and execute the system, write a private temp directory, and reach what
+its `access:` block lists -- no workspace, since these servers act for the
+installation. When one fails with a permission error, `funes mcp-probe
+<agent>` starts it exactly that way and lists its tools.
 
 With `transport: http` the URL is the full endpoint, path included. If the agent
 has a `tools:` allowlist, the server's tool names must be listed there too.

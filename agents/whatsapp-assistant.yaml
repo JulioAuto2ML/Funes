@@ -28,6 +28,16 @@ mcp_servers:
   # src/julio/register.cpp.
   - command: /home/julio/.local/bin/uv --directory ${FUNES_ROOT}/third-party/whatsapp-mcp/whatsapp-mcp-server run main.py
     name: whatsapp-mcp
+    # Sandboxed since 7.6 (src/core/mcp_launch.h): beyond the system it gets
+    # uv, uv's Python and cache, its own project (uv run may sync .venv), the
+    # bridge's store read-only (messages.db — the bridge's session keys sit
+    # beside it, so not writable), workspaces read-only so send_file can
+    # attach a user's file, and TCP only to the bridge's REST API.
+    access:
+      exec:    ["${HOME}/.local/bin", "${HOME}/.local/share/uv"]
+      write:   ["${HOME}/.cache/uv", "${FUNES_ROOT}/third-party/whatsapp-mcp/whatsapp-mcp-server"]
+      read:    ["${FUNES_ROOT}/data/whatsapp/store", "${FUNES_WORKSPACE_DIR}"]
+      connect: [8090]
 system_prompt: |
   You manage the user's WhatsApp, using tools from an external MCP server
   (not built into Funes):

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.5.0 LANGUAGES C CXX)
+project(Funes VERSION 7.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -130,6 +130,7 @@ add_library(funes_core STATIC
     src/core/tools/delegation.cpp
     src/core/tools/cron_tool.cpp
     src/core/agent.cpp
+    src/core/mcp_launch.cpp
     src/core/extension.cpp
     src/core/version.cpp
 )
