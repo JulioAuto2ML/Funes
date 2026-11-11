@@ -1,0 +1,3 @@
+// Generated from version_string.h.in by CMake — edit project() instead.
+#pragma once
+#define FUNES_VERSION "@PROJECT_VERSION@"

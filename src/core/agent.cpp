@@ -1050,7 +1050,8 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 }
                 std::cerr << funes::format_tool_call_line(
                     cfg_.name, depth, keys.back(),
-                    funes::summarize_tool_args(tc.arguments), outcome, detail);
+                    funes::summarize_tool_args(tc.arguments), outcome, detail, 160,
+                    result.usage ? funes::cgroup::format_usage(*result.usage) : "");
             }
 
             if (emit) {

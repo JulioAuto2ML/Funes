@@ -131,7 +131,11 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     // what a person reading a run wants.
     const bool json_out = (spec.output_format == "json");
     funes::proc::Result r = funes::proc::run_argv(argv, workspace, spec.timeout_seconds,
-                                                  MAX_OUTPUT_BYTES, spec.env, json_out);
+                                                  MAX_OUTPUT_BYTES, spec.env, json_out,
+                                                  spec.limits);
+    // Every answer from here on is about a program that ran, so it carries
+    // what that program cost (the [tool] line prints it).
+    auto ran = [&r](ToolResult t) { t.usage = r.usage; return t; };
 
     if (!funes::looks_like_text(r.output))
         r.output = "[" + std::to_string(r.output.size()) +
@@ -153,7 +157,7 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
             // reading "printed something that is not JSON" needs it.
             std::string text = shape_err;
             if (!r.stderr_output.empty()) text += "\nstderr:\n" + r.stderr_output;
-            return {text, true};
+            return ran({text, true});
         }
     }
 
@@ -163,7 +167,7 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     // a field out of it); a prefix would mean every consumer has to strip one,
     // which is the kind of thing exactly one of them will forget.
     if (json_out && !r.timed_out && r.exit_code == 0)
-        return {parsed.dump(2), false};
+        return ran({parsed.dump(2), false});
 
     std::string text;
     if (r.timed_out)
@@ -185,7 +189,7 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     if (!r.stderr_output.empty() && (r.timed_out || r.exit_code != 0))
         text += "\nstderr:\n" + r.stderr_output;
 
-    return {text, r.timed_out || r.exit_code != 0};
+    return ran({text, r.timed_out || r.exit_code != 0});
 }
 
 } // namespace

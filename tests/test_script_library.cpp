@@ -294,6 +294,21 @@ int test_manifest_rules() {
                "description: x\nrun: greet.sh\nparams:\n  - name: p\n    type: date\n");
     CHECK(!funes::load_script(dir, "badparam", spec).empty());
 
+    // limits: override the FUNES_CHILD_* defaults one at a time; 0 turns a
+    // limit off; a bad value or an unknown key is a load error.
+    write_file(lib_dir() / "limited.yaml",
+               "description: x\nrun: greet.sh\nlimits: {memory_mb: 256, pids: 0}\n");
+    CHECK(funes::load_script(dir, "limited", spec).empty());
+    CHECK(spec.limits.memory_max_bytes == 256ll << 20);
+    CHECK(spec.limits.pids_max == 0);
+    CHECK(spec.limits.cpu_weight == funes::cgroup::default_limits().cpu_weight);
+    write_file(lib_dir() / "badlimit.yaml",
+               "description: x\nrun: greet.sh\nlimits: {memory_mb: lots}\n");
+    CHECK(!funes::load_script(dir, "badlimit", spec).empty());
+    write_file(lib_dir() / "oddlimit.yaml",
+               "description: x\nrun: greet.sh\nlimits: {disk_mb: 5}\n");
+    CHECK(!funes::load_script(dir, "oddlimit", spec).empty());
+
     // list_script_names sees the library; it is not what decides anything.
     const auto names = funes::list_script_names(dir);
     CHECK(std::find(names.begin(), names.end(), "greet") != names.end());

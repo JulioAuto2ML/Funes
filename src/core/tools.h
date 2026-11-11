@@ -13,8 +13,10 @@
 #pragma once
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
+#include "cgroup.h"
 #include "json.hpp"
 #include "llm_client.h"
 #include "memory_provenance.h"
@@ -102,6 +104,10 @@ struct ToolResult {
     // PDF that has no extractable text layer) — carried into the tool-result
     // ChatMessage so a vision-capable backend can see them.
     std::vector<ImageAttachment> images;
+    // What the program this call started cost, when it ran in a cgroup of its
+    // own (cgroup.h) — appended to the call's `[tool]` line, never shown to
+    // the model.
+    std::optional<funes::cgroup::Usage> usage;
 };
 
 using ToolHandler = std::function<ToolResult(const json& args, const ToolContext& ctx)>;

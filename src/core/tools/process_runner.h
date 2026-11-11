@@ -8,7 +8,9 @@
 // between the two call sites.
 
 #pragma once
+#include "../cgroup.h"
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,11 +28,17 @@ struct Result {
                                 // child wrote to stderr and it landed in
                                 // `output` alongside stdout
     bool        timed_out = false;
+    // What the child cost, when it ran in a cgroup of its own (cgroup.h).
+    std::optional<funes::cgroup::Usage> usage;
 };
 
 // Runs argv[0] with the rest of argv as its literal arguments (no shell).
-// cwd is the child's working directory. Killed (whole process group) via
-// SIGKILL if still running after timeout_seconds.
+// cwd is the child's working directory. Killed (whole process group, and
+// its whole cgroup when it has one) via SIGKILL if still running after
+// timeout_seconds.
+//
+// `limits` are the child's cgroup limits; nullopt means
+// cgroup::default_limits(). Ignored when cgroups are off.
 //
 // `extra_env` adds to (or overrides in) the environment the child inherits —
 // how a script library manifest hands a script its API key without the key
@@ -46,12 +54,27 @@ struct Result {
 Result run_argv(const std::vector<std::string>& argv, const std::filesystem::path& cwd,
                 int timeout_seconds, size_t max_output_bytes,
                 const std::vector<std::pair<std::string, std::string>>& extra_env = {},
-                bool separate_stderr = false);
+                bool separate_stderr = false,
+                const std::optional<funes::cgroup::Limits>& limits = std::nullopt);
 
 // Runs `command` via `/bin/sh -c` — arbitrary shell execution. Same
 // timeout/capture semantics as run_argv.
 Result run_shell_command(const std::string& command, const std::filesystem::path& cwd,
-                         int timeout_seconds, size_t max_output_bytes);
+                         int timeout_seconds, size_t max_output_bytes,
+                         const std::optional<funes::cgroup::Limits>& limits = std::nullopt);
+
+// The program that wraps every child once cgroups are on: main() sets it to
+// /proc/self/exe — the running binary even after a deploy has replaced the
+// file — and hands `funes _exec` to trampoline_main before anything else.
+// Unset (every unit test but test_cgroup), children are exec'd directly.
+void set_trampoline(const std::string& exe);
+
+// `funes _exec --cgroup=DIR -- PROGRAM ARGS...`: write this process into
+// DIR/cgroup.procs, then execvp PROGRAM. Returns only on failure — 126 if it
+// could not join (it does not run the program outside the limits it was
+// given), 127 if PROGRAM could not be exec'd, matching the exit codes a
+// direct exec failure has always had.
+int trampoline_main(int argc, char** argv);
 
 // The environment a child process gets. An *allowlist* over the server's own
 // environment, not a copy of it, because funes_config.h loads config/funes.local

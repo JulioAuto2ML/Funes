@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.3.1 LANGUAGES C CXX)
+project(Funes VERSION 7.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -108,6 +108,7 @@ add_library(funes_core STATIC
     src/core/tools/net_guard.cpp
     src/core/tools/fs_guard.cpp
     src/core/tools/process_runner.cpp
+    src/core/cgroup.cpp
     src/core/tools/pdf_extract.cpp
     src/core/tools/tavily.cpp
     src/core/tools/parallel_search.cpp
@@ -129,11 +130,18 @@ add_library(funes_core STATIC
     src/core/tools/cron_tool.cpp
     src/core/agent.cpp
     src/core/extension.cpp
+    src/core/version.cpp
 )
 target_include_directories(funes_core PUBLIC src/core)
 # One source of truth for the version string /api/status reports: project()
-# above. It had drifted — the binary said "4.0.0" through all of 5.0.
-target_compile_definitions(funes_core PUBLIC FUNES_VERSION="${PROJECT_VERSION}")
+# above. It had drifted — the binary said "4.0.0" through all of 5.0. A
+# generated header only version.cpp includes (version.h says why): a bump
+# recompiles one file. Not a per-source COMPILE_DEFINITIONS — the Makefile
+# generator writes those into the target's flags.make, which every object
+# depends on.
+configure_file(src/core/version_string.h.in
+               ${CMAKE_BINARY_DIR}/generated/version_string.h @ONLY)
+target_include_directories(funes_core PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(funes_core PUBLIC mcp funes_sqlite ${YAML_CPP_LIB})
 
 # ── funes binary ──────────────────────────────────────────────────────────────

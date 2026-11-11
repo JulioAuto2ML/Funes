@@ -63,7 +63,9 @@ ToolResult execute_shell_handler(const fs::path& default_workspace, const json& 
     else
         text = "exit_code: " + std::to_string(r.exit_code) + "\n" + r.output;
 
-    return {text, r.timed_out || r.exit_code != 0};
+    ToolResult out{text, r.timed_out || r.exit_code != 0};
+    out.usage = r.usage;
+    return out;
 }
 
 } // namespace

@@ -29,6 +29,11 @@ Type=notify
 NotifyAccess=main
 WatchdogSec=120
 TimeoutStartSec=120
+# A cgroup per child process (7.4, src/core/cgroup.h): systemd hands this
+# unit's cgroup over, Funes moves itself into server/ and starts each script
+# or shell command in an exec-<n>-<program>/ sibling with its own limits.
+Delegate=yes
+Environment=FUNES_CGROUPS=1
 WorkingDirectory=/home/julio/Funes
 ExecStart=/home/julio/Funes/bin/funes
 

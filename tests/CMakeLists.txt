@@ -194,3 +194,17 @@ add_test(NAME memory_eval_runs COMMAND memory_eval --no-embed)
 # copy of a memory.db. A tool for reading, not a test — see the file header.
 add_executable(memory_probe memory_eval/memory_probe.cpp)
 target_link_libraries(memory_probe PRIVATE funes_core)
+
+# Needs a delegated cgroup, which only systemd can hand out to an
+# unprivileged process: run inside a transient scope with Delegate=yes where
+# a user manager is reachable. Without one the test prints SKIP — it does not
+# pass by having checked nothing (the two pure formatting cases still run).
+add_executable(test_cgroup test_cgroup.cpp)
+target_link_libraries(test_cgroup PRIVATE funes_core)
+find_program(SYSTEMD_RUN systemd-run)
+if(SYSTEMD_RUN)
+    add_test(NAME cgroup COMMAND ${SYSTEMD_RUN} --user --scope -p Delegate=yes --quiet --collect
+             $<TARGET_FILE:test_cgroup>)
+else()
+    add_test(NAME cgroup COMMAND test_cgroup)
+endif()

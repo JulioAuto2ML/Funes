@@ -1,6 +1,6 @@
 # Funes in the OS — research and plan
 
-Status: **phase 0 done** (7.0, 2026-11-10); phase 1 is next. Facts about
+Status: **phases 0–1 done** (7.0, 7.4; 2026-11-10/11); phase 2 is next. Facts about
 yoda were checked on 2026-11-10 (see "Open questions", 2); anything still
 marked *(unverified)* was not.
 
@@ -239,7 +239,7 @@ Ordered so each phase is useful alone and none requires the next.
 | Phase | Deliverable | Depends on | Size |
 |---|---|---|---|
 | **0** ✅ | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | done in 7.0 |
-| **1** | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
+| **1** ✅ | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
 | **2** | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
 | **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week |
 | **4** | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | ~3 weeks |
@@ -271,7 +271,30 @@ apply to them at all. `publishing/` scripts that call the model directly are
 invisible to the in-flight count (PSI may or may not see them; it does not see
 GPU load).
 
-## Open questions to settle before Phase 1
+## Phase 1 — what was built (7.4)
+
+| Piece | Where | Test |
+|---|---|---|
+| `funes _exec --cgroup=DIR -- PROG ARGS`: joins DIR (fails closed, 126) then execvp (127 on failure, as before). Dispatched first in `main()`, before config or database. `run_forked` builds the wrapped argv and envp before the fork, so the fork child still only dup2s, chdirs and execs. | `src/core/tools/process_runner.{h,cpp}`, `src/server/main.cpp` | `test_cgroup` (the test binary is its own trampoline) |
+| `cgroup::setup()`: only with `FUNES_CGROUPS=1`, only when the process is *alone* in a writable cgroup; moves itself into `server/`, enables `memory pids cpu` for children. One cgroup per child, `exec-<n>-<program>`: `memory.max` + `memory.swap.max=0` + `memory.oom.group=1`, `pids.max`, `cpu.weight`. After the child is reaped: anything left is `cgroup.kill`ed, counters read, directory removed. Timeout = `cgroup.kill` + the old group kill. | `src/core/cgroup.{h,cpp}` | `test_cgroup`: child placed in its own cgroup and the cgroup removed; a `setsid` grandchild does not outlive the call; timeout kills the tree; `pids.max` and `memory.max` (OOM) enforced; CPU/memory counted; concurrent children get distinct cgroups; a shared cgroup is refused untouched |
+| Limits: `FUNES_CHILD_MEMORY_MB` (4096), `FUNES_CHILD_PIDS_MAX` (512), `FUNES_CHILD_CPU_WEIGHT` (50); a manifest's `limits: {memory_mb, pids, cpu_weight}` overrides each. | `cgroup::default_limits`, `script_library.cpp` | `test_script_library: test_manifest_rules` |
+| `ToolResult::usage` → `… → ok {exec-7-python3 cpu=1.20s mem=88.0MB pids=2}` on the `[tool]` line. | `tools.h`, `tool_log.{h,cpp}`, `agent.cpp`, `shell_tool.cpp`, `script_tools.cpp` | `test_cgroup: test_tool_line_carries_usage` |
+| Unit: `Delegate=yes`, `FUNES_CGROUPS=1`. Startup prints `Children: a cgroup each in …` or why not. | `scripts/funes.service` | on yoda |
+
+**"Writable" is not "delegated".** The first version moved every pid in its
+own cgroup into `server/`. Run from a desktop terminal, the test found the
+terminal app's scope writable (the user owns it) and moved the whole app,
+which its session manager then tore down. systemd leaves no marker an
+unprivileged process can read for `Delegate=yes`, so the check is the one that
+matters: the process must be alone in its cgroup, and the switch is explicit.
+
+Not covered: MCP stdio servers (spawned by the vendored client, not
+`run_argv`) stay in `server/`; the cgroup is named after `argv[0]`, so a
+script with an interpreter shows as `exec-<n>-python3` — the `[tool]` line's
+key (`run_script:tv_art`) names it. yoda's user manager delegates
+`cpu memory pids`, no `io`, so there is no `io.max`.
+
+## Open questions to settle before Phase 2
 
 1. **Which machine?** yoda is a headless server. OS embedding pays most on the
    machine a person sits at, and Funes is a multi-user web service. Pillars 1

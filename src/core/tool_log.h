@@ -42,12 +42,18 @@ std::string summarize_tool_args(const nlohmann::json& args, size_t max_bytes = 1
 // call key (`run_script:tv_art`, not `run_script`) — the one a budget,
 // contract or permission entry would name.
 //
+// `usage` is cgroup::format_usage() of the program the call started, if it
+// started one in a cgroup — what it cost, attributed to this call because the
+// cgroup existed only for it.
+//
 //   [tool] home (depth 1) schedule_job args={"cron":"45 6-23 * * *",...} → error: ...
+//   [tool] operator (depth 0) run_script:tv_art args={} → ok {exec-7-tv_art.py cpu=1.20s mem=88.0MB pids=2}
 std::string format_tool_call_line(const std::string& agent, int depth,
                                   const std::string& key,
                                   const std::string& args_summary,
                                   ToolCallOutcome outcome,
                                   const std::string& detail = "",
-                                  size_t max_detail_bytes = 160);
+                                  size_t max_detail_bytes = 160,
+                                  const std::string& usage = "");
 
 } // namespace funes

@@ -179,7 +179,7 @@ infrastructure tools build on: `fs_guard` (workspace path confinement),
 output cap). See `src/core/tools/README.md` for the full inventory and the
 security model.
 
-Two rules there that are easy to undo by accident:
+Three rules there that are easy to undo by accident:
 
 - **Children get an allowlisted environment, never this process's.**
   `funes_config.h` loads `funes.local` into the environment, so "inherit
@@ -200,6 +200,15 @@ Two rules there that are easy to undo by accident:
   was judged (`check_host` → `pin_address`), not to a second lookup of the
   name: two lookups are a DNS-rebinding window. A new outbound call site that
   uses `is_private_host` and then lets httplib resolve reopens it.
+- **A child gets a cgroup of its own, and joins it itself** (7.4,
+  `src/core/cgroup.h`). With `FUNES_CGROUPS=1` under `Delegate=yes`, the
+  server lives in `server/` and each `run_argv`/`run_shell_command` child is
+  started through `funes _exec`, which joins `exec-<n>-<program>/` and then
+  execs — limits, `cgroup.kill` on timeout and leftovers, cost on the
+  `[tool]` line. A new way of starting a program that bypasses `run_forked`
+  runs unlimited in the server's leaf. `setup()` refuses unless the process
+  is *alone* in its cgroup: a writable cgroup is not a delegated one, and the
+  first version, run from a terminal, moved the whole terminal app.
 
 ### src/julio: the newsletter and VoC tools
 

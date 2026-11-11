@@ -65,7 +65,8 @@ std::string format_tool_call_line(const std::string& agent, int depth,
                                   const std::string& args_summary,
                                   ToolCallOutcome outcome,
                                   const std::string& detail,
-                                  size_t max_detail_bytes) {
+                                  size_t max_detail_bytes,
+                                  const std::string& usage) {
     std::string line = "[tool] " + agent + " (depth " + std::to_string(depth) + ") "
                      + key + " args=" + args_summary + " → ";
     switch (outcome) {
@@ -81,7 +82,7 @@ std::string format_tool_call_line(const std::string& agent, int depth,
     // limit) — short and ours, not tool output.
     if (outcome != ToolCallOutcome::Ok && outcome != ToolCallOutcome::Error && !detail.empty())
         line += " (" + clip(one_line(detail), max_detail_bytes) + ")";
-    return line + "\n";
+    return line + usage + "\n";
 }
 
 } // namespace funes

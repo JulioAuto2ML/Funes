@@ -39,6 +39,7 @@
 // =============================================================================
 
 #pragma once
+#include "cgroup.h"
 #include "json.hpp"
 #include <string>
 #include <utility>
@@ -80,6 +81,11 @@ struct ScriptSpec {
     std::vector<ScriptParam> params;
     // Extra environment for the child process, already expanded from ${VAR}.
     std::vector<std::pair<std::string, std::string>> env;
+    // The child's cgroup limits (cgroup.h): FUNES_CHILD_* defaults, each
+    // overridable by the manifest's `limits:` block —
+    //   limits: {memory_mb: 512, pids: 32, cpu_weight: 20}
+    // 0 turns one off. Ignored when cgroups are off.
+    funes::cgroup::Limits limits = funes::cgroup::default_limits();
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;

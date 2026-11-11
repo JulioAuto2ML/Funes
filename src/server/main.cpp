@@ -10,6 +10,7 @@
 #include "agent.h"
 #include "api.h"
 #include "cron_runner.h"
+#include "version.h"
 #include "memory.h"
 #include "permissions.h"
 #include "tools.h"
@@ -227,7 +228,7 @@ static std::string judge_link(LLMClient& llm, const std::string& a, const std::s
 namespace {
 
 void print_usage(std::ostream& out) {
-    out << "funes " FUNES_VERSION "\n\n"
+    out << "funes " << funes::version() << "\n\n"
            "  funes                       start the server (see config/funes.conf)\n"
            "  funes --version | version   print the version and exit\n"
            "  funes --help | help         this text\n\n"
@@ -250,8 +251,12 @@ int main(int argc, char** argv) {
     // this block runs unless argv names something real.
     if (argc > 1 && argv[1] != nullptr) {
         const std::string arg = argv[1];
+        // The child-process trampoline (process_runner.h): not a command a
+        // person runs, and nothing — config, database, stdio — may be touched
+        // on the way to exec'ing the real program.
+        if (arg == "_exec") return funes::proc::trampoline_main(argc, argv);
         if (arg == "--version" || arg == "-V" || arg == "version") {
-            std::cout << "funes " FUNES_VERSION "\n";
+            std::cout << "funes " << funes::version() << "\n";
             return 0;
         }
         if (arg == "--help" || arg == "-h" || arg == "help") {
@@ -324,6 +329,10 @@ int main(int argc, char** argv) {
     // Same deal for the one-off maintenance commands (`funes cron-cleanup`).
     if (funes::is_maint_cli_command(argc, argv))
         return funes::run_maint_cli(argc, argv, db_path);
+
+    // A cgroup per child process (cgroup.h), before anything can start one.
+    const funes::cgroup::Status cgroups = funes::cgroup::init();
+    if (cgroups.enabled) funes::proc::set_trampoline("/proc/self/exe");
 
     // read_file/write_file/execute_shell are confined to this directory.
     std::string workspace_dir = funes::env("FUNES_WORKSPACE_DIR");
@@ -697,6 +706,9 @@ int main(int argc, char** argv) {
               << "  Agents:    " << api.agent_count() << " from " << agents_dir << "\n"
               << "  Workspace: " << workspace_dir << " (shell "
               << (funes::env("FUNES_ALLOW_SHELL", "0") == "1" ? "enabled" : "disabled") << ")\n"
+              << "  Children:  " << (cgroups.enabled
+                     ? "a cgroup each in " + cgroups.dir + " (" + cgroups.controllers + ")"
+                     : "no cgroup — " + cgroups.reason) << "\n"
               << "\n" << std::flush;
 
     signal(SIGPIPE, SIG_IGN);  // dropped SSE clients must not kill the process

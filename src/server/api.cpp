@@ -7,6 +7,7 @@
 #include "../core/password.h"
 #include "../core/permissions.h"
 #include "../core/text_utils.h"
+#include "../core/version.h"
 #include "../core/tools/fs_guard.h"
 #include "../core/tools/pdf_extract.h"
 #include "httplib.h"
@@ -568,7 +569,7 @@ void FunesApi::mount(httplib::Server& srv) {
         json_reply(res, 200, {
             {"ok",       true},
             {"name",     "funes"},
-            {"version",  FUNES_VERSION},
+            {"version",  funes::version()},
             {"agents",   agent_count()},
             {"memories", memory_.count(user->id)},
             {"semantic_memory", memory_.semantic_available()},

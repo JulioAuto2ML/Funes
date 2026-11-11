@@ -3,11 +3,14 @@
 // =============================================================================
 
 #include "process_runner.h"
+#include "../cgroup.h"
 #include "../text_utils.h"
 #include <algorithm>
 #include <cstdlib>
 #include <chrono>
 #include <csignal>
+#include <cstdio>
+#include <cstring>
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/wait.h>
@@ -21,13 +24,42 @@ namespace funes::proc {
 
 namespace {
 
-// Runs whatever `exec_in_child` execs into (it must chdir + exec and never
-// return on success; _exit on failure). Captures stdout and stderr — merged
-// into one stream, or apart when `split` is set — enforces the timeout, and
-// cleans up the truncation boundary.
-Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cwd,
-                  int timeout_seconds, size_t max_output_bytes, bool split = false) {
+// Where `funes _exec` lives; empty = no trampoline, so no cgroup either.
+std::string g_trampoline;
+
+// Runs argv (argv[0] resolved against PATH) with `env_strings` as its whole
+// environment. Captures stdout and stderr — merged into one stream, or apart
+// when `split` is set — enforces the timeout, and cleans up the truncation
+// boundary.
+//
+// With cgroups on (cgroup.h) the child is wrapped: it execs the trampoline,
+// which joins the child's own cgroup and then execs argv. Everything — the
+// trampoline's argv, the envp — is built here, before the fork, so the fork
+// child still does nothing but dup2, chdir and exec, the only things safe in
+// the child of a multi-threaded process.
+Result run_forked(const std::vector<std::string>& argv, std::vector<std::string> env_strings,
+                  const fs::path& cwd, int timeout_seconds, size_t max_output_bytes,
+                  bool split, const std::optional<funes::cgroup::Limits>& limits) {
     Result result;
+
+    std::unique_ptr<funes::cgroup::Scope> scope;
+    if (!g_trampoline.empty())
+        scope = funes::cgroup::Scope::create(argv[0], limits ? *limits
+                                                             : funes::cgroup::default_limits());
+    std::vector<std::string> full;
+    if (scope) {
+        full = {g_trampoline, "_exec", "--cgroup=" + scope->path(), "--"};
+        full.insert(full.end(), argv.begin(), argv.end());
+    }
+    const std::vector<std::string>& run = scope ? full : argv;
+    std::vector<char*> c_argv;
+    c_argv.reserve(run.size() + 1);
+    for (const auto& a : run) c_argv.push_back(const_cast<char*>(a.c_str()));
+    c_argv.push_back(nullptr);
+    std::vector<char*> envp;
+    envp.reserve(env_strings.size() + 1);
+    for (auto& e : env_strings) envp.push_back(const_cast<char*>(e.c_str()));
+    envp.push_back(nullptr);
 
     // outfd carries stdout; errfd carries stderr only when the caller asked
     // for them apart, and is otherwise the same pipe (one fd, two dup2s).
@@ -63,8 +95,11 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
         close(outfd[1]);
         if (split) { close(errfd[0]); close(errfd[1]); }
         if (::chdir(cwd.c_str()) != 0) _exit(126);
-        exec_in_child();
-        _exit(127);  // only reached if exec_in_child's exec call failed
+        // execvp resolves argv[0] against the parent's PATH (the one it was
+        // started with), then the child runs with the filtered block.
+        environ = envp.data();
+        execvp(c_argv[0], c_argv.data());
+        _exit(127);
     }
 
     // Parent.
@@ -101,6 +136,10 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
         const auto remaining = deadline - std::chrono::steady_clock::now();
         if (remaining <= std::chrono::milliseconds(0)) {
             result.timed_out = true;
+            // The cgroup holds everything the child started, including what
+            // left the process group; the group kill covers no-cgroup runs
+            // and the instant before the trampoline has joined.
+            if (scope) scope->kill();
             kill(-pid, SIGKILL);  // negative pid → whole process group
             waitpid(pid, &status, 0);
             break;
@@ -115,6 +154,7 @@ Result run_forked(const std::function<void()>& exec_in_child, const fs::path& cw
     drain();
     close(outfd[0]);
     if (split) close(errfd[0]);
+    if (scope) result.usage = scope->finish();
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
     // The byte cap above can land mid-character; trim back to a clean UTF-8
@@ -182,55 +222,54 @@ std::vector<std::string> child_environment(
     return out;
 }
 
-namespace {
-// The "KEY=value" strings must outlive the exec; the vector of pointers is
-// what execve wants. Both live in the parent's frame for the whole call.
-std::vector<char*> envp_of(std::vector<std::string>& env_strings) {
-    std::vector<char*> envp;
-    envp.reserve(env_strings.size() + 1);
-    for (auto& s : env_strings) envp.push_back(const_cast<char*>(s.c_str()));
-    envp.push_back(nullptr);
-    return envp;
+void set_trampoline(const std::string& exe) { g_trampoline = exe; }
+
+int trampoline_main(int argc, char** argv) {
+    // funes _exec --cgroup=DIR -- PROGRAM ARGS...
+    std::string cgroup;
+    int i = 2;
+    for (; i < argc; ++i) {
+        const std::string a = argv[i];
+        if (a == "--") { ++i; break; }
+        if (a.rfind("--cgroup=", 0) == 0) cgroup = a.substr(9);
+        else { std::fprintf(stderr, "funes _exec: unknown option %s\n", a.c_str()); return 126; }
+    }
+    if (i >= argc) { std::fprintf(stderr, "funes _exec: no program\n"); return 126; }
+    if (!cgroup.empty()) {
+        // Joining fails closed: the parent made this cgroup to hold limits,
+        // and a child running outside it would run without them.
+        const std::string procs = cgroup + "/cgroup.procs";
+        FILE* f = std::fopen(procs.c_str(), "we");
+        const bool ok = f && std::fputs("0", f) >= 0;
+        if (!f || std::fclose(f) != 0 || !ok) {
+            std::fprintf(stderr, "funes _exec: cannot join %s: %s\n", cgroup.c_str(),
+                         std::strerror(errno));
+            return 126;
+        }
+    }
+    execvp(argv[i], argv + i);
+    std::fprintf(stderr, "funes _exec: %s: %s\n", argv[i], std::strerror(errno));
+    return 127;
 }
-} // namespace
 
 Result run_argv(const std::vector<std::string>& argv, const fs::path& cwd,
                 int timeout_seconds, size_t max_output_bytes,
                 const std::vector<std::pair<std::string, std::string>>& extra_env,
-                bool separate_stderr) {
-    if (argv.empty()) return {-1, "run_argv: empty argv", {}, false};
-
-    // Built here, in the parent: everything the child does after fork() is a
-    // pointer assignment and an exec, which is the only thing guaranteed safe
-    // in the child of a multi-threaded process (the server is one).
-    std::vector<std::string> env_strings = child_environment(extra_env);
-    std::vector<char*>       envp        = envp_of(env_strings);
-
-    return run_forked([&argv, &envp] {
-        std::vector<char*> c_argv;
-        c_argv.reserve(argv.size() + 1);
-        for (const auto& a : argv) c_argv.push_back(const_cast<char*>(a.c_str()));
-        c_argv.push_back(nullptr);
-        // execvp resolves argv[0] against the parent's PATH (the one it was
-        // started with), then the child runs with the filtered block.
-        environ = envp.data();
-        execvp(c_argv[0], c_argv.data());
-    }, cwd, timeout_seconds, max_output_bytes, separate_stderr);
+                bool separate_stderr, const std::optional<funes::cgroup::Limits>& limits) {
+    if (argv.empty()) return {-1, "run_argv: empty argv", {}, false, {}};
+    return run_forked(argv, child_environment(extra_env), cwd, timeout_seconds,
+                      max_output_bytes, separate_stderr, limits);
 }
 
 Result run_shell_command(const std::string& command, const fs::path& cwd,
-                         int timeout_seconds, size_t max_output_bytes) {
+                         int timeout_seconds, size_t max_output_bytes,
+                         const std::optional<funes::cgroup::Limits>& limits) {
     // Same filtered block as run_argv. A shell is unconfined by nature, but
     // "unconfined" is about what it can reach on the machine — not a reason
     // to also hand it the server's own service token, which `env` would then
     // print straight into the model's context.
-    std::vector<std::string> env_strings = child_environment();
-    std::vector<char*>       envp        = envp_of(env_strings);
-    char* const sh_argv[] = {const_cast<char*>("sh"), const_cast<char*>("-c"),
-                             const_cast<char*>(command.c_str()), nullptr};
-    return run_forked([&sh_argv, &envp] {
-        execve("/bin/sh", sh_argv, envp.data());
-    }, cwd, timeout_seconds, max_output_bytes);
+    return run_forked({"/bin/sh", "-c", command}, child_environment(), cwd, timeout_seconds,
+                      max_output_bytes, false, limits);
 }
 
 } // namespace funes::proc

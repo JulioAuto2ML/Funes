@@ -256,6 +256,24 @@ std::string load_script(const std::string& library_path, const std::string& name
         }
     }
 
+    // limits: {memory_mb, pids, cpu_weight} — over the FUNES_CHILD_* defaults.
+    if (root["limits"]) {
+        if (!root["limits"].IsMap())
+            return "Script '" + id + "': limits must be a map of memory_mb, pids, cpu_weight.";
+        for (const auto& kv : root["limits"]) {
+            const std::string key = kv.first.as<std::string>();
+            long long v = -1;
+            try { v = kv.second.as<long long>(); } catch (const YAML::Exception&) {}
+            if (v < 0)
+                return "Script '" + id + "': limits." + key + " must be a whole number "
+                       "(0 turns the limit off).";
+            if      (key == "memory_mb")  spec.limits.memory_max_bytes = v << 20;
+            else if (key == "pids")       spec.limits.pids_max = v;
+            else if (key == "cpu_weight") spec.limits.cpu_weight = static_cast<int>(std::min(v, 10000LL));
+            else return "Script '" + id + "': unknown limit '" + key + "' (memory_mb, pids, cpu_weight).";
+        }
+    }
+
     if (root["env"] && root["env"].IsMap())
         for (const auto& kv : root["env"])
             spec.env.emplace_back(kv.first.as<std::string>(),
