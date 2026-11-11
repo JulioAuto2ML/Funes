@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.8.0** (OS plan phase 3: `funes.sock` with kernel-attested identity, `uid_users`, `funes ask`; config read into a private map instead of the environment; `LoadCredential=`).
+Current release: **7.8.1** (7.8.1: `funes ask` no longer hangs on an open, silent stdin. 7.8.0, OS plan phase 3: `funes.sock` with kernel-attested identity, `uid_users`, `funes ask`; config read into a private map instead of the environment; `LoadCredential=`).
 
 ## What is left, in priority order
 

@@ -242,6 +242,16 @@ else fail "mapped uid gets an answer" "rc=$RC $OUT"; fi
 OUT=$(printf 'line one\nERROR disk full on /data\n' | ASK "what broke" 2>&1); RC=$?
 if [ "$RC" = "0" ] && echo "$OUT" | grep -q "MOCK-SAW-INPUT: line one"; then ok "piped input reaches the model, framed"
 else fail "piped input reaches the model, framed" "rc=$RC $OUT"; fi
+# A stdin that stays open and silent (plain `ssh host funes ask ...`) is
+# skipped after a grace period, not waited on forever; `-` does wait.
+T0=$(date +%s)
+OUT=$(FUNES_SOCKET="$SOCK" timeout 20 "$FUNES_BIN" ask "hello idle" < <(sleep 15) 2>&1); RC=$?
+if [ "$RC" = "0" ] && [ $(( $(date +%s) - T0 )) -lt 10 ] && echo "$OUT" | grep -q "MOCK-REPLY"; then
+    ok "idle stdin is skipped after the grace period"
+else fail "idle stdin is skipped after the grace period" "rc=$RC $OUT"; fi
+OUT=$( { sleep 4; echo "late line"; } | ASK - "what broke" 2>&1); RC=$?
+if [ "$RC" = "0" ] && echo "$OUT" | grep -q "MOCK-SAW-INPUT: late line"; then ok "- waits for slow input"
+else fail "- waits for slow input" "rc=$RC $OUT"; fi
 OUT=$(ASK --agent no-such-agent "x" </dev/null 2>&1); RC=$?
 if [ "$RC" = "1" ] && echo "$OUT" | grep -q "Unknown agent"; then ok "unknown agent is an error"
 else fail "unknown agent is an error" "rc=$RC $OUT"; fi

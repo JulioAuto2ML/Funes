@@ -11,6 +11,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <poll.h>
 #include <sstream>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -28,6 +29,11 @@ constexpr size_t kMaxRequestBytes  = 2u << 20;
 constexpr size_t kDefaultMaxInput  = 12 * 1024;   // fits an 8k-token agent with room to answer
 constexpr size_t kMaxMaxInput      = 256 * 1024;
 constexpr int    kMaxConnections   = 4;
+// With a question on the command line, a stdin that is not a terminal may be
+// an open pipe nobody writes to (plain `ssh host funes ask ...`, cron, a
+// script's inherited stdin). Wait this long for its first byte or EOF, then
+// go without it; `-` waits for as long as it takes.
+constexpr int    kStdinGraceMs     = 3000;
 
 std::atomic<int> g_active{0};
 
@@ -188,7 +194,7 @@ bool start_local_socket(const std::string& path, FunesApi& api, UserStore& users
 
 int ask_main(int argc, char** argv) {
     std::string agent, session, question;
-    bool verbose = false;
+    bool verbose = false, wait_stdin = false;
     long max_input = -1;
     for (int i = 2; i < argc; ++i) {
         const std::string a = argv[i];
@@ -196,18 +202,32 @@ int ask_main(int argc, char** argv) {
         else if (a == "--session" && i + 1 < argc)   session = argv[++i];
         else if (a.rfind("--max-input=", 0) == 0)    max_input = std::atol(a.c_str() + 12);
         else if (a == "-v" || a == "--verbose")      verbose = true;
+        else if (a == "-")                           wait_stdin = true;
         else if (a == "-h" || a == "--help") {
-            std::cout << "funes ask [--agent A] [--session S] [--max-input=BYTES] [-v] [question ...]\n"
+            std::cout << "funes ask [--agent A] [--session S] [--max-input=BYTES] [-v] [-] [question ...]\n"
                          "  Asks the local Funes server over funes.sock. Piped stdin is sent as\n"
                          "  input (data, not instructions; its last 12 KB by default).\n"
-                         "  e.g.  journalctl -u nginx -n 200 | funes ask \"what went wrong\"\n";
+                         "  e.g.  journalctl -u nginx -n 200 | funes ask \"what went wrong\"\n"
+                         "  With a question, stdin that stays silent for 3 s is skipped; `-`\n"
+                         "  waits for it (a slow command:  make 2>&1 | funes ask - \"why\").\n";
             return 0;
         }
         else question += (question.empty() ? "" : " ") + a;
     }
 
     std::string input;
-    if (!isatty(STDIN_FILENO)) {
+    bool read_stdin = !isatty(STDIN_FILENO);
+    if (read_stdin && !question.empty() && !wait_stdin) {
+        pollfd p{STDIN_FILENO, POLLIN, 0};
+        int rc;
+        while ((rc = ::poll(&p, 1, kStdinGraceMs)) < 0 && errno == EINTR) {}
+        if (rc == 0) {
+            read_stdin = false;
+            std::cerr << "funes ask: nothing on stdin after " << kStdinGraceMs / 1000
+                      << " s, asking without it (`-` waits for slow input; </dev/null skips the wait)\n";
+        }
+    }
+    if (read_stdin) {
         char buf[65536];
         ssize_t n;
         while ((n = ::read(STDIN_FILENO, buf, sizeof buf)) > 0) {
