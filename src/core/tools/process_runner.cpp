@@ -2,6 +2,7 @@
 // src/core/tools/process_runner.cpp — fork/exec with timeout + output capture
 // =============================================================================
 
+#include "../funes_config.h"
 #include "process_runner.h"
 #include "../cgroup.h"
 #include "../sandbox.h"
@@ -246,7 +247,7 @@ std::vector<std::string> child_environment(
     static const char* const kPrefix[] = {"LC_", "XDG_"};
 
     std::vector<std::string> extra_names;
-    if (const char* more = std::getenv("FUNES_CHILD_ENV")) {
+    if (const char* more = funes::config_value("FUNES_CHILD_ENV")) {
         std::string s(more);
         size_t pos = 0;
         while (pos <= s.size()) {
@@ -278,6 +279,13 @@ std::vector<std::string> child_environment(
         if (eq == std::string::npos) continue;
         const std::string key = entry.substr(0, eq);
         if (passes(key) && !overridden(key)) out.push_back(entry);
+    }
+    // A name the operator listed in FUNES_CHILD_ENV whose value lives in
+    // funes.local or a credential: since 7.8 that is config, not environment
+    // (funes_config.h), so the loop above cannot see it.
+    for (const auto& n : extra_names) {
+        if (std::getenv(n.c_str()) || overridden(n)) continue;
+        if (const char* v = funes::config_value(n)) out.push_back(n + "=" + v);
     }
     for (const auto& kv : extra_env) out.push_back(kv.first + "=" + kv.second);
     return out;

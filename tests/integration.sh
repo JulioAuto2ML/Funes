@@ -27,7 +27,7 @@ check() {  # check <name> <haystack> <needle>
     fi
 }
 ok()   { echo "  ok: $1"; }
-fail() { echo "  FAIL: $1"; FAILURES=$((FAILURES + 1)); }
+fail() { echo "  FAIL: $1${2:+ — $2}"; FAILURES=$((FAILURES + 1)); }
 check_absent() {  # check_absent <name> <haystack> <needle>
     if echo "$2" | grep -q "$3"; then
         echo "  FAIL: $1 — did not expect '$3' in: $(echo "$2" | head -c 300)"
@@ -41,7 +41,7 @@ cleanup() {
     [ -n "${FUNES_PID:-}" ] && kill "$FUNES_PID" 2>/dev/null
     [ -n "${MOCK_PID:-}" ]  && kill "$MOCK_PID" 2>/dev/null
     [ -n "${NOTIFY_PID:-}" ] && kill "$NOTIFY_PID" 2>/dev/null
-    rm -f "${NOTIFY_SOCK:-}" "${NOTIFY_LOG:-}"
+    rm -f "${NOTIFY_SOCK:-}" "${NOTIFY_LOG:-}" "${SOCK:-}"
     rm -f "$DB" "$DB-wal" "$DB-shm"
     rm -rf "$WORKSPACE" "$AGENTS"
     rm -f "${COOKIE_JAR:-}" "${MEMBER_JAR:-}"
@@ -184,6 +184,7 @@ with open(sys.argv[2], "a") as f:
 NOTIFY_PID=$!
 for i in $(seq 1 50); do [ -S "$NOTIFY_SOCK" ] && break; sleep 0.1; done
 
+SOCK=$(mktemp -u /tmp/funes_it_sock_XXXX.sock)
 echo "— starting funes on :$API_PORT"
 NOTIFY_SOCKET="$NOTIFY_SOCK" \
 WATCHDOG_USEC=2000000 \
@@ -196,6 +197,7 @@ FUNES_HOST=127.0.0.1 \
 FUNES_PORT=$API_PORT \
 FUNES_VISION_URL= \
 FUNES_SERVICE_TOKEN= \
+FUNES_SOCKET="$SOCK" \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
 FUNES_PID=$!
 
@@ -222,6 +224,32 @@ case "$BOOTSTRAP" in
 esac
 
 curl() { command curl -b "$COOKIE_JAR" "$@"; }
+
+# ── funes.sock + funes ask (7.8, src/server/local_socket.h) ──────────────────
+# The kernel names the caller's uid; nothing answers until an admin maps it.
+echo "— funes.sock"
+ASK() { FUNES_SOCKET="$SOCK" "$FUNES_BIN" ask "$@"; }
+if [ -S "$SOCK" ]; then ok "socket created"; else fail "socket created" "$SOCK missing"; fi
+if [ "$(stat -c %a "$SOCK" 2>/dev/null)" = "600" ]; then ok "socket is 0600"
+else fail "socket is 0600" "mode $(stat -c %a "$SOCK" 2>/dev/null)"; fi
+OUT=$(ASK "hello" </dev/null 2>&1); RC=$?
+if [ "$RC" = "3" ] && echo "$OUT" | grep -q "not mapped"; then ok "unmapped uid refused"
+else fail "unmapped uid refused" "rc=$RC $OUT"; fi
+FUNES_DB="$DB" "$FUNES_BIN" uid-map "$(id -u)" itadmin >/dev/null 2>&1
+OUT=$(ASK "hello there" </dev/null 2>&1); RC=$?
+if [ "$RC" = "0" ] && echo "$OUT" | grep -q "MOCK-REPLY"; then ok "mapped uid gets an answer"
+else fail "mapped uid gets an answer" "rc=$RC $OUT"; fi
+OUT=$(printf 'line one\nERROR disk full on /data\n' | ASK "what broke" 2>&1); RC=$?
+if [ "$RC" = "0" ] && echo "$OUT" | grep -q "MOCK-SAW-INPUT: line one"; then ok "piped input reaches the model, framed"
+else fail "piped input reaches the model, framed" "rc=$RC $OUT"; fi
+OUT=$(ASK --agent no-such-agent "x" </dev/null 2>&1); RC=$?
+if [ "$RC" = "1" ] && echo "$OUT" | grep -q "Unknown agent"; then ok "unknown agent is an error"
+else fail "unknown agent is an error" "rc=$RC $OUT"; fi
+FUNES_DB="$DB" "$FUNES_BIN" uid-unmap "$(id -u)" >/dev/null 2>&1
+OUT=$(ASK "hello" </dev/null 2>&1); RC=$?
+if [ "$RC" = "3" ]; then ok "unmapping takes effect at once"; else fail "unmapping takes effect at once" "rc=$RC"; fi
+if grep -q "Socket:    $SOCK" /tmp/funes_it.log; then ok "startup names the socket"
+else fail "startup names the socket" "no Socket: line"; fi
 
 # ── child-process sandbox (7.5, src/core/sandbox.h) ──────────────────────────
 # The real binary's trampoline, not a test's copy of it: granted the system

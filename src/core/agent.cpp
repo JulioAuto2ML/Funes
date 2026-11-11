@@ -2,6 +2,7 @@
 // src/core/agent.cpp — FunesAgent implementation
 // =============================================================================
 
+#include "funes_config.h"
 #include "agent.h"
 #include "auto_memory.h"
 #include "busy_gate.h"
@@ -100,7 +101,7 @@ void FunesAgent::connect_mcp_servers() {
     std::vector<McpServerConfig> servers;
     std::set<std::string> seen;
 
-    if (const char* env = std::getenv("FUNES_MCP_SERVERS")) {
+    if (const char* env = funes::config_value("FUNES_MCP_SERVERS")) {
         std::string s(env);
         std::size_t pos = 0;
         while (pos < s.size()) {
@@ -266,6 +267,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                     user_id, perms, cfg_.scripts};
     ctx.task_text = user_message;
     ctx.provenance = std::make_shared<funes::RunProvenance>();
+    for (const auto& o : cfg_.input_origins) ctx.provenance->sources.insert(o);
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;

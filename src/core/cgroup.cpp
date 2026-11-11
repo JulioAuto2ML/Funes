@@ -2,6 +2,7 @@
 // src/core/cgroup.cpp — see cgroup.h
 // =============================================================================
 
+#include "funes_config.h"
 #include "cgroup.h"
 #include <algorithm>
 #include <atomic>
@@ -71,7 +72,7 @@ std::string own_cgroup_dir() {
 }
 
 int64_t env_int(const char* name, int64_t fallback) {
-    const char* v = std::getenv(name);
+    const char* v = funes::config_value(name);
     if (!v || !*v) return fallback;
     char* end = nullptr;
     const long long n = std::strtoll(v, &end, 10);
@@ -183,7 +184,7 @@ Status setup() {
 }
 
 Status init() {
-    const char* v = std::getenv("FUNES_CGROUPS");
+    const char* v = funes::config_value("FUNES_CGROUPS");
     if (!v || std::string(v) != "1") {
         Status st;
         st.reason = "FUNES_CGROUPS is not 1";

@@ -2,6 +2,7 @@
 // src/server/api.cpp — Funes HTTP API implementation
 // =============================================================================
 
+#include "funes_config.h"
 #include "api.h"
 #include "../core/base64.h"
 #include "../core/password.h"
@@ -176,7 +177,7 @@ std::string read_cookie(const httplib::Request& req, const std::string& name) {
 // unconditionally would make login silently fail there, which is a worse
 // failure than the one it prevents on a network the traffic never leaves.
 std::string session_cookie(const std::string& token, int max_age_seconds) {
-    const char* secure_env = std::getenv("FUNES_COOKIE_SECURE");
+    const char* secure_env = funes::config_value("FUNES_COOKIE_SECURE");
     const bool secure = secure_env && std::string(secure_env) == "1";
     return std::string(COOKIE_NAME) + "=" + token +
            "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" +
@@ -1205,4 +1206,29 @@ void FunesApi::mount(httplib::Server& srv) {
                             "text/plain");
         });
     }
+}
+
+std::string FunesApi::run_local(int64_t user_id, const std::string& agent_name,
+                                const std::string& message, const std::string& session,
+                                const std::vector<std::string>& input_origins, Persist persist,
+                                const EventFn& emit, std::string& error) {
+    const auto user = users_.find_by_id(user_id);
+    if (!user) { error = "That account no longer exists."; return ""; }
+    if (message.empty() || message.size() > 512 * 1024) {
+        error = "A message is required, at most 512 KB with its input.";
+        return "";
+    }
+    if (!valid_session(session)) { error = "Session must match [A-Za-z0-9_-]{1,64}."; return ""; }
+    AgentConfig cfg = find_agent(agent_name.empty() ? default_agent_ : agent_name);
+    if (cfg.name.empty()) { error = "Unknown agent: " + agent_name; return ""; }
+    const auto perms = funes::Permissions::parse(user->permissions, user->is_admin());
+    if (!perms.allows_agent(cfg.name)) {
+        std::cerr << "[auth] " << user->username << " denied agent '" << cfg.name
+                  << "' by permissions (funes.sock)\n";
+        error = "You do not have access to the agent '" + cfg.name + "'.";
+        return "";
+    }
+    cfg.input_origins = input_origins;
+    FunesAgent agent(cfg, tools_, memory_, defaults_);
+    return agent.run(message, session, user->id, perms, emit, {}, persist);
 }

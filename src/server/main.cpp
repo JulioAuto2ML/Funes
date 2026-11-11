@@ -20,6 +20,7 @@
 #include "tools/process_runner.h"
 #include "mcp_stdio_client.h"
 #include "maint_cli.h"
+#include "local_socket.h"
 #include "busy_gate.h"
 #include "fact_extraction.h"
 #include "host_collector.h"
@@ -236,8 +237,10 @@ void print_usage(std::ostream& out) {
            "  funes                       start the server (see config/funes.conf)\n"
            "  funes --version | version   print the version and exit\n"
            "  funes --help | help         this text\n\n"
+           "  funes ask [question]        ask the running server over funes.sock; pipe input in\n\n"
            "Accounts (run against $FUNES_DB, no server, no LLM):\n"
-           "  useradd  userdel  userlist  passwd  perms  locale  jid-map  jid-unmap\n\n"
+           "  useradd  userdel  userlist  passwd  perms  locale  jid-map  jid-unmap\n"
+           "  uid-map  uid-unmap   (who a local connection to funes.sock is)\n\n"
            "Maintenance:\n"
            "  cron-cleanup                remove pre-4.1 scheduled-run leftovers\n"
            "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n"
@@ -262,6 +265,9 @@ int main(int argc, char** argv) {
         // person runs, and nothing — config, database, stdio — may be touched
         // on the way to exec'ing the real program.
         if (arg == "_exec") return funes::proc::trampoline_main(argc, argv);
+        // A client of a running server's funes.sock (local_socket.h): no config,
+        // no database — the server decides who the caller is.
+        if (arg == "ask") return funes::ask_main(argc, argv);
         if (arg == "--version" || arg == "-V" || arg == "version") {
             std::cout << "funes " << funes::version() << "\n";
             return 0;
@@ -802,6 +808,11 @@ int main(int argc, char** argv) {
     srv.set_payload_max_length(64ull * 1024 * 1024);
     api.mount(srv);
 
+    // funes.sock (OS plan phase 3, local_socket.h): the kernel names the
+    // caller's uid; uid_users names the account. FUNES_SOCKET=off skips it.
+    const std::string sock_path = funes::local_socket_path();
+    const bool sock_ok = !sock_path.empty() && funes::start_local_socket(sock_path, api, users);
+
     std::cout << "\n"
               << "  Funes — an assistant that remembers\n"
               << "  ───────────────────────────────────\n"
@@ -823,6 +834,8 @@ int main(int argc, char** argv) {
                      : funes::sandbox::abi() > 0 ? std::string("off (FUNES_SANDBOX=0)")
                                                  : std::string("unavailable — no Landlock in this kernel"))
               << "\n"
+              << "  Socket:    " << (sock_ok ? sock_path + " (uid-mapped accounts; `funes ask`)"
+                                             : std::string("off")) << "\n"
               << "  Machine:   " << (!collector ? std::string("memory off")
                                      : machine_account() > 0
                                          ? "memory on (account #" + std::to_string(machine_account()) + ")"

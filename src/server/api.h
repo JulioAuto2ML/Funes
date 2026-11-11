@@ -116,6 +116,17 @@ public:
         defaults_.user_locale = std::move(fn);
     }
 
+    // One turn for a caller who did not come through HTTP: funes.sock
+    // (local_socket.h), where the kernel named the uid and uid_users the
+    // account. Same checks as /api/chat — the agent must exist and the
+    // account must be allowed it — then FunesAgent::run. Returns the answer;
+    // on refusal, empty with `error` set. Throws what run() throws.
+    std::string run_local(int64_t user_id, const std::string& agent,
+                          const std::string& message, const std::string& session,
+                          const std::vector<std::string>& input_origins, Persist persist,
+                          const EventFn& emit, std::string& error);
+    const std::string& default_agent() const { return default_agent_; }
+
 private:
     ToolRegistry& tools_;
     MemoryStore&  memory_;

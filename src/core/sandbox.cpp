@@ -6,6 +6,7 @@
 // 12's describe ABI 2, yoda's kernel speaks 6), and the values are a stable
 // kernel ABI.
 
+#include "funes_config.h"
 #include "sandbox.h"
 #include <cerrno>
 #include <cstddef>
@@ -157,7 +158,7 @@ int abi() {
 }
 
 bool enabled() {
-    const char* v = std::getenv("FUNES_SANDBOX");
+    const char* v = funes::config_value("FUNES_SANDBOX");
     return abi() > 0 && !(v && std::string(v) == "0");
 }
 

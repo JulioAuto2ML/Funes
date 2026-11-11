@@ -117,13 +117,15 @@ void set_trampoline(const std::string& exe);
 int trampoline_main(int argc, char** argv);
 
 // The environment a child process gets. An *allowlist* over the server's own
-// environment, not a copy of it, because funes_config.h loads config/funes.local
-// into the process environment at startup: every secret the operator wrote
-// down — FUNES_SERVICE_TOKEN, FUNES_LLM_KEY, an IMAP password, a Tavily key —
-// used to reach every script, every `execute_shell` command (`env` printed
+// environment, not a copy of it, because until 7.8 funes_config.h loaded
+// config/funes.local into the process environment at startup: every secret the
+// operator wrote down — FUNES_SERVICE_TOKEN, FUNES_LLM_KEY, an IMAP password,
+// a Tavily key — used to reach every script, every `execute_shell` command (`env` printed
 // them into the transcript) and every MCP stdio server, which is somebody
 // else's code. Nothing a model can start should be handed the credential
-// that authenticates the model's own server.
+// that authenticates the model's own server. Since 7.8 config files are read
+// into a private map instead (funes_config.h), so the environment holds no
+// secrets and this allowlist is the second wall, not the only one.
 //
 // What passes: the variables a program needs to run at all (PATH, HOME, the
 // locale and timezone, a temp dir, proxies, the Python/CA plumbing — see the

@@ -57,6 +57,12 @@ struct AgentConfig {
     // native registry and filtered by the allowlist above.
     std::vector<McpServerConfig> mcp_servers;
 
+    // Not from YAML: third-party content the caller placed in the message
+    // itself ("stdin" for `funes ask` with piped input). The run starts with
+    // these in its provenance, so a `remember` after reading them is stored
+    // as a claim, as it would be after a web page (memory_provenance.h).
+    std::vector<std::string> input_origins;
+
     std::string system_prompt;
     std::string tool_choice = "auto"; // "auto" | "required" | "none"
 

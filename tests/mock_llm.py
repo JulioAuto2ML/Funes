@@ -553,6 +553,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply_text("MOCK-PROSE-ANSWER: I looked it all up, trust me.", stream)
             return
 
+        # `funes ask` with piped input (src/server/local_socket.h): say what
+        # arrived between the tags, so the test sees the framing reached us.
+        if "<input>" in last_user and "piped in from another program" in last_user:
+            body = last_user.split("<input>\n", 1)[1].split("\n</input>", 1)[0]
+            self._reply_text("MOCK-SAW-INPUT: " + body.strip()[:40], stream)
+            return
+
         text = "MOCK-REPLY"
         if has_tool_result:
             text += " with-tool-result"

@@ -2,6 +2,7 @@
 // src/core/tools/net_guard.cpp — shared outbound-request safety checks
 // =============================================================================
 
+#include "../funes_config.h"
 #include "net_guard.h"
 #include <arpa/inet.h>
 #include <cstdlib>
@@ -182,7 +183,7 @@ std::string resolve_location(const ParsedUrl& base, const std::string& location)
 }
 
 bool local_fetch_allowed() {
-    const char* v = std::getenv("FUNES_ALLOW_LOCAL_FETCH");
+    const char* v = funes::config_value("FUNES_ALLOW_LOCAL_FETCH");
     return v && *v == '1';
 }
 

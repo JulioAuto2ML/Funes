@@ -241,7 +241,7 @@ Ordered so each phase is useful alone and none requires the next.
 | **0** ✅ | Close the DNS-rebinding gap: the vendored httplib *does* have `set_hostname_addr_map` (ROADMAP says it has no pinning) — pin the address `net_guard` approved. Add `Type=notify` + watchdog. PSI/in-flight gating for background passes. | — | done in 7.0 |
 | **1** ✅ | `funes _exec` trampoline: cgroup per tool call, `cgroup.kill`, resource limits; cgroup stats on the `tool_log` line | 0 | ~1 week |
 | **2** ✅ | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
-| **3** | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | ~1 week; **after 4** (2026-11-11) |
+| **3** ✅ | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | done in 7.8 |
 | **4** ✅ | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | done in 7.7 |
 | **5** | Learn mode → proposed `access:` blocks | 2 | ~2 weeks |
 | **6** | `effects:` classes, overlay staging, diff in result store, commit/discard in UI | 2 | ~3 weeks |
@@ -355,6 +355,21 @@ What it saw on its first look at yoda (`funes machine-probe`, 2026-11-11):
 the fold rules were written for; both llama-server models with their files;
 every sensor including the GPU's own critical points (k10temp publishes none,
 so 90 °C applies).
+
+## Phase 3 — what was built (7.8)
+
+| Piece | Where | Test |
+|---|---|---|
+| Config is not environment: credentials (`$CREDENTIALS_DIRECTORY`; a file named like a variable is its value, any other is KEY=value), `funes.local`, `funes.conf` are read into a private map, first value wins, the real environment over all. Every `std::getenv` of config became `funes::config_value`; `FUNES_CHILD_ENV` names pass their value from the map. `/proc/<pid>/environ` holds no secret; `child_environment()` is now the second wall. | `funes_config.h`, `process_runner.cpp` | `test_local: test_config_is_not_environment` |
+| `LoadCredential=funes.local:…` in the unit (checked on yoda's systemd 257 user manager: `/run/user/1000/credentials/…`, 0400). | `scripts/funes.service` | yoda |
+| `uid_users` (uid → account, cascade on delete, never a system account) + `funes uid-map <uid\|login> <user>` / `uid-unmap`. | `users.{h,cpp}`, `user_cli.cpp` | `test_uid_mapping` |
+| `funes.sock` at `$XDG_RUNTIME_DIR/funes.sock` (`FUNES_SOCKET`, "off"), bound under umask 0177 so it is 0600 from the first instant; a stale socket file is replaced, a live one left alone. SO_PEERCRED → refused if the peer is Funes's own child — inside the unit's cgroup when the server sits in its `server/` leaf, or with the server among its ancestors (Landlock ≤ ABI 6 does not gate connect() on a pathname socket, so this is the only thing keeping a member's sandboxed script off an admin's account) — then `resolve_uid`, else refused. One JSON line in, JSON lines out; ≤ 4 concurrent. | `local_socket.{h,cpp}`, `local_peer.{h,cpp}`, `FunesApi::run_local` | `test_own_children_are_refused` (a real forked child; fixture cgroups incl. a reparented grandchild and a prefix-named sibling), integration "funes.sock" |
+| `funes ask [--agent] [--session] [--max-input=] [-v] [question]` — dispatched before config is read. Piped stdin is fenced in `<input>` as data, its tail kept (12 KB default), the run's provenance starts tainted (`AgentConfig::input_origins`), and it persists turns only — a log is not something the person said. | `local_socket.cpp`, `agent.cpp` | `test_framing`, integration: unmapped → 3, mapped → answer, piped input reaches the model framed, unmap takes effect at once |
+
+Deferred: socket activation (the server is long-lived; nothing gained yet), a
+system-wide socket for other local accounts (map their uid and set
+`FUNES_SOCKET` to a shared path with a wider mode — not needed on yoda), and
+moving the WhatsApp autoresponder from the service token to the socket.
 
 ## Open questions (all answered)
 

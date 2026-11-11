@@ -2,6 +2,7 @@
 // src/core/tools/http_tool_runtime.cpp — runtime for LLM-scaffolded HTTP tools
 // =============================================================================
 
+#include "../funes_config.h"
 #include "http_tool_runtime.h"
 #include "net_guard.h"
 #include "httplib.h"
@@ -70,7 +71,7 @@ std::string resolve_env_placeholders(const std::string& text) {
     for (auto it = begin; it != end; ++it) {
         const auto& m = *it;
         out.append(text, last, m.position(0) - last);
-        const char* v = std::getenv(m[1].str().c_str());
+        const char* v = funes::config_value(m[1].str().c_str());
         if (v) out += v;
         last = m.position(0) + m.length(0);
     }

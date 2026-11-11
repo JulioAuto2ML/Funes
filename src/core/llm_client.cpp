@@ -16,6 +16,7 @@
 // target) so ALL translation units see the same httplib::Client layout.
 // =============================================================================
 
+#include "funes_config.h"
 #include "llm_client.h"
 #include "text_utils.h"
 #include "httplib.h"
@@ -169,7 +170,7 @@ json LLMClient::build_messages_json(const std::vector<ChatMessage>& messages) {
 // schemas; cloud APIs never hit this.
 static int llm_read_timeout() {
     static int cached = [] {
-        if (const char* v = std::getenv("FUNES_LLM_TIMEOUT_SECONDS"))
+        if (const char* v = funes::config_value("FUNES_LLM_TIMEOUT_SECONDS"))
             if (int t = std::atoi(v); t > 0)
                 return t;
         return 600;

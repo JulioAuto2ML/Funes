@@ -132,6 +132,10 @@ void UserStore::migrate() {
             chat_jid TEXT PRIMARY KEY,
             user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS uid_users (
+            uid      INTEGER PRIMARY KEY,
+            user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+        );
     )sql");
 
     // 5.0: the language this account is addressed in. Defaults to 'en' so an
@@ -398,7 +402,7 @@ std::optional<UserStore::User> UserStore::resolve_jid(const std::string& chat_ji
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, "SELECT u.id, u.username, u.display_name, u.role, u.permissions, "
                 "u.created_at FROM jid_users j JOIN users u ON u.id = j.user_id "
-                "WHERE j.chat_jid = ?");
+                "WHERE j.chat_jid = ? AND u.role != 'system'");
     s.bind_text(1, chat_jid);
     if (!s.step()) return std::nullopt;
     return read_user(s);
@@ -409,6 +413,42 @@ bool UserStore::unmap_jid(const std::string& chat_jid) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, "DELETE FROM jid_users WHERE chat_jid = ?");
     s.bind_text(1, chat_jid);
+    s.step();
+    return sqlite3_changes(db_) > 0;
+}
+
+// ── local identity ────────────────────────────────────────────────────────────
+
+bool UserStore::map_uid(int64_t uid, int64_t user_id) {
+    if (uid < 0) return false;
+    std::lock_guard<std::mutex> lock(mu_);
+    try {
+        Stmt s(db_, "INSERT OR REPLACE INTO uid_users(uid, user_id) "
+                    "SELECT ?, id FROM users WHERE id = ? AND role != 'system'");
+        s.bind_int64(1, uid);
+        s.bind_int64(2, user_id);
+        s.step();
+        return sqlite3_changes(db_) > 0;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+std::optional<UserStore::User> UserStore::resolve_uid(int64_t uid) {
+    if (uid < 0) return std::nullopt;
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT u.id, u.username, u.display_name, u.role, u.permissions, "
+                "u.created_at, u.locale FROM uid_users m JOIN users u ON u.id = m.user_id "
+                "WHERE m.uid = ? AND u.role != 'system'");
+    s.bind_int64(1, uid);
+    if (!s.step()) return std::nullopt;
+    return read_user(s);
+}
+
+bool UserStore::unmap_uid(int64_t uid) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "DELETE FROM uid_users WHERE uid = ?");
+    s.bind_int64(1, uid);
     s.step();
     return sqlite3_changes(db_) > 0;
 }

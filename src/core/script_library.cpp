@@ -3,6 +3,7 @@
 // =============================================================================
 // See scriptlib/README.md for the manifest schema by example.
 
+#include "funes_config.h"
 #include "script_library.h"
 #include "answer_schema.h"
 #include "yaml_json.h"
@@ -30,7 +31,7 @@ bool names_unset_variable(const std::string& s) {
     for (size_t i = s.find("${"); i != std::string::npos; i = s.find("${", i + 2)) {
         const size_t close = s.find('}', i + 2);
         if (close == std::string::npos) return false;
-        const char* v = std::getenv(s.substr(i + 2, close - i - 2).c_str());
+        const char* v = funes::config_value(s.substr(i + 2, close - i - 2).c_str());
         if (!v || !*v) return true;
     }
     return false;
@@ -44,7 +45,7 @@ std::string expand_env(const std::string& s) {
             const size_t close = s.find('}', i + 2);
             if (close != std::string::npos) {
                 const std::string var = s.substr(i + 2, close - i - 2);
-                if (const char* val = std::getenv(var.c_str())) out += val;
+                if (const char* val = funes::config_value(var.c_str())) out += val;
                 i = close + 1;
                 continue;
             }

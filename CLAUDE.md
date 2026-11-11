@@ -54,7 +54,8 @@ Create one from the web UI's first-run screen, or from the CLI:
 ```
 
 Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
-`locale`, `jid-map`, `jid-unmap`, and the maintenance commands `cron-cleanup`,
+`locale`, `jid-map`, `jid-unmap`, `uid-map`, `uid-unmap`, the socket client
+`ask`, and the maintenance commands `cron-cleanup`,
 `cron-schedule` (change a job's schedule and its next run together),
 `memory-migrate` (queue stored exchange logs for fact extraction, 7.3),
 `script-run` and `mcp-probe` (run a script / start an agent's MCP servers in
@@ -187,10 +188,13 @@ security model.
 
 Three rules there that are easy to undo by accident:
 
-- **Children get an allowlisted environment, never this process's.**
-  `funes_config.h` loads `funes.local` into the environment, so "inherit
-  everything" hands `FUNES_SERVICE_TOKEN` and every API key to any script,
-  shell command or MCP stdio server a model starts. `proc::child_environment()`
+- **Config is not environment, and children get an allowlist.** Since 7.8
+  `funes_config.h` reads systemd credentials, `funes.local` and `funes.conf`
+  into a private map; read config with `funes::env()` / `config_value()`, never
+  `std::getenv`, or a value from a file is invisible. Before that `funes.local`
+  was `setenv`'d, so "inherit everything" handed `FUNES_SERVICE_TOKEN` and
+  every API key to any script, shell command or MCP stdio server a model
+  starts — and the allowlist stays as the second wall. `proc::child_environment()`
   is the one place that decides what passes (PATH, HOME, locale, proxies,
   Python/CA plumbing, plus `FUNES_CHILD_ENV`); `run_argv`, `run_shell_command`
   and the vendored `mcp::stdio_client` (via `set_environment_filter`, wired in
@@ -444,6 +448,16 @@ not a set of live sessions. `/api/login` throttles per address and per
 username after five failures (429 + `Retry-After`, doubling to five minutes)
 before the PBKDF2 work is done, and the server caps request bodies at 64 MB
 because httplib reads the body before the auth gate runs.
+
+A program on the same machine needs neither (7.8, `src/server/local_socket.h`):
+`funes.sock` ($XDG_RUNTIME_DIR, 0600) takes the peer's uid from the kernel
+(`SO_PEERCRED`) and `uid_users` maps it to an account (`funes uid-map julio
+julio`); unmapped uids are refused, and so is any peer that is one of Funes's
+own children (by its `server/` sibling cgroup, or by ancestry) — Landlock does
+not gate connect() on a pathname socket, so without that check a member's
+sandboxed script could reach an admin's account. `funes ask` is its client:
+`journalctl … | funes ask "what broke"` sends stdin as framed, tainted input
+(no auto-memory from it).
 
 Identity reaches non-browser callers by service token: the WhatsApp
 autoresponder sends `FUNES_SERVICE_TOKEN` plus the sender's jid, and Funes

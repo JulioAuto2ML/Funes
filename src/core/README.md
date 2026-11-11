@@ -12,7 +12,7 @@ produces text and tool calls; this code decides whether to execute them.
 |---|---|
 | `agent.h/cpp` | `FunesAgent` -- the central class. One instance per request. Runs memory recall, context compression, the tool loop, and persistence. |
 | `agent_config.h/cpp` | Parses YAML agent definitions into `AgentConfig` structs. |
-| `funes_config.h` | Loads layered config files into the process environment at startup. |
+| `funes_config.h` | Loads layered config (credentials, funes.local, funes.conf) into a private map at startup — not the environment (7.8). Read it with `funes::env()`, never `std::getenv`. |
 
 ### Users and authentication
 

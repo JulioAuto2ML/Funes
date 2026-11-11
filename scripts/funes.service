@@ -34,6 +34,13 @@ TimeoutStartSec=120
 # or shell command in an exec-<n>-<program>/ sibling with its own limits.
 Delegate=yes
 Environment=FUNES_CGROUPS=1
+# Secrets as a systemd credential (7.8, src/core/funes_config.h): systemd
+# copies funes.local to $CREDENTIALS_DIRECTORY (0400, this service only) and
+# Funes reads it into a private map — not the environment, so nothing a child
+# starts can inherit it. config/funes.local is still read from the working
+# directory as well; this line is what lets the file move out of the checkout
+# later (or become one `systemd-creds encrypt`ed credential per secret).
+LoadCredential=funes.local:/home/julio/Funes/config/funes.local
 WorkingDirectory=/home/julio/Funes
 ExecStart=/home/julio/Funes/bin/funes
 

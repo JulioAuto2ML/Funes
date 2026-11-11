@@ -8,6 +8,8 @@
 //   users       — id, username, display_name, password_hash, role, permissions
 //   auth_tokens — opaque cookie value → user, with an expiry
 //   jid_users   — WhatsApp chat_jid → user (the number *is* the credential)
+//   uid_users   — local Unix uid → user, for funes.sock (7.8): the kernel
+//                 says who connected (SO_PEERCRED), this says which account
 //
 // Its own class and its own connection rather than more methods on
 // MemoryStore: authentication is a different concern from recall, memory.cpp
@@ -146,6 +148,14 @@ public:
     bool map_jid(const std::string& chat_jid, int64_t user_id);
     std::optional<User> resolve_jid(const std::string& chat_jid);
     bool unmap_jid(const std::string& chat_jid);
+
+    // ── local identity (7.8, src/server/local_socket.h) ───────────────────────
+    // A connection to funes.sock comes with the peer's uid, vouched for by the
+    // kernel. Same shape as a jid, minus the service token: nothing to leak.
+    // Unmapped resolves to nobody — the uid Funes itself runs as included.
+    bool map_uid(int64_t uid, int64_t user_id);
+    std::optional<User> resolve_uid(int64_t uid);
+    bool unmap_uid(int64_t uid);
 
 private:
     sqlite3*   db_ = nullptr;

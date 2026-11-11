@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.7.0 LANGUAGES C CXX)
+project(Funes VERSION 7.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -134,6 +134,7 @@ add_library(funes_core STATIC
     src/core/host_events.cpp
     src/core/host_sources.cpp
     src/core/host_collector.cpp
+    src/core/local_peer.cpp
     src/core/tools/host_tools.cpp
     src/core/extension.cpp
     src/core/version.cpp
@@ -168,6 +169,7 @@ add_executable(funes
     src/server/api.cpp
     src/server/maint_cli.cpp
     src/server/user_cli.cpp
+    src/server/local_socket.cpp
     src/core/tools/http_tool_runtime.cpp
     ${FUNES_GENERATED_TOOLS}
 )

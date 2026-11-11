@@ -6,6 +6,7 @@
 #include "../core/permissions.h"
 #include "../core/users.h"
 #include "json.hpp"
+#include <pwd.h>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -71,7 +72,9 @@ void usage() {
         "  funes perms   <username> [--show] [--agents a,b|any]\n"
         "                           [--allow tool,...] [--deny tool,...] [--reset]\n"
         "  funes jid-map <chat_jid> <username>\n"
-        "  funes jid-unmap <chat_jid>\n";
+        "  funes jid-unmap <chat_jid>\n"
+        "  funes uid-map <uid|login> <username>     who a local connection to funes.sock is\n"
+        "  funes uid-unmap <uid|login>\n";
 }
 
 std::vector<std::string> split_csv(const std::string& in) {
@@ -344,9 +347,43 @@ int cmd_jid_unmap(UserStore& users, const std::vector<std::string>& args) {
     return 0;
 }
 
+// A local login name or a numeric uid; -1 if neither.
+int64_t parse_uid(const std::string& s) {
+    if (!s.empty() && s.find_first_not_of("0123456789") == std::string::npos)
+        return std::stoll(s);
+    if (const passwd* pw = getpwnam(s.c_str())) return static_cast<int64_t>(pw->pw_uid);
+    return -1;
+}
+
+int cmd_uid_map(UserStore& users, const std::vector<std::string>& args) {
+    if (args.size() < 2) { usage(); return 2; }
+    const int64_t uid = parse_uid(args[0]);
+    if (uid < 0) { std::cerr << "No such local user or uid: " << args[0] << "\n"; return 1; }
+    auto user = users.find_by_username(args[1]);
+    if (!user) { std::cerr << "No such user: " << args[1] << "\n"; return 1; }
+    if (!users.map_uid(uid, user->id)) { std::cerr << "Could not map uid " << uid << ".\n"; return 1; }
+    std::cout << "Local uid " << uid << " (" << args[0] << ") now acts as '" << args[1]
+              << "' on funes.sock (`funes ask`).\n";
+    if (user->is_admin())
+        std::cout << "Note: that is an admin account — any program running as uid " << uid
+                  << " can use it through the socket (Funes's own sandboxed children are refused).\n";
+    return 0;
+}
+
+int cmd_uid_unmap(UserStore& users, const std::vector<std::string>& args) {
+    if (args.empty()) { usage(); return 2; }
+    const int64_t uid = parse_uid(args[0]);
+    if (uid < 0 || !users.unmap_uid(uid)) {
+        std::cerr << "No mapping for '" << args[0] << "'.\n";
+        return 1;
+    }
+    std::cout << "Removed the mapping for uid " << uid << ".\n";
+    return 0;
+}
+
 const char* const COMMANDS[] = {
     "useradd", "userdel", "userlist", "passwd", "perms", "locale",
-    "jid-map", "jid-unmap"
+    "jid-map", "jid-unmap", "uid-map", "uid-unmap"
 };
 
 } // namespace
@@ -373,6 +410,8 @@ int run_user_cli(int argc, char** argv, const std::string& db_path) {
         if (cmd == "locale")    return cmd_locale(users, args);
         if (cmd == "jid-map")   return cmd_jid_map(users, args);
         if (cmd == "jid-unmap") return cmd_jid_unmap(users, args);
+        if (cmd == "uid-map")   return cmd_uid_map(users, args);
+        if (cmd == "uid-unmap") return cmd_uid_unmap(users, args);
     } catch (const std::exception& e) {
         std::cerr << "funes " << cmd << ": " << e.what() << "\n";
         return 1;

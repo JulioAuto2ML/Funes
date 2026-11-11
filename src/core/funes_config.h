@@ -2,35 +2,49 @@
 // src/core/funes_config.h — Funes configuration loader
 // =============================================================================
 //
-// Loads KEY=value config files into the process environment before any getenv
-// calls are made. Shell environment variables always take precedence.
-//
 // Load order (highest → lowest priority):
-//   1. Shell environment (already set — always wins)
-//   2. ./config/funes.local   (gitignored local overrides / secrets)
-//   3. ./config/funes.conf    (version-controlled defaults)
+//   1. Shell / unit environment (already set — always wins)
+//   2. systemd credentials ($CREDENTIALS_DIRECTORY, LoadCredential= in the unit)
+//   3. ./config/funes.local   (gitignored local overrides / secrets)
+//   4. ./config/funes.conf    (version-controlled defaults)
 //
-// (A fourth, ~/.funes/config, was dropped in 5.2: all configuration lives in
-// the checkout's config/.)
+// Since 7.8 files 2–4 are read into a map private to this process, not into
+// its environment. Until then every line of funes.local was setenv'd, so the
+// service token, the LLM key and every API key sat in `environ`: one
+// `/proc/<pid>/environ` read away, and one forgotten allowlist away from every
+// child (5.0.1 defect #2, closed then by proc::child_environment's allowlist —
+// a wall, but the only one). Now there is nothing in the environment to
+// inherit; the allowlist is the second wall. Read config through env() /
+// env_int() / config_value(), never std::getenv, or a value from a file is
+// invisible.
 //
-// Usage (once at the top of main(), before any getenv calls):
+// A credential named like a variable (`LoadCredential=FUNES_LLM_KEY:…`) is
+// that variable's value; any other name (`funes.local`) is read as a
+// KEY=value file.
+//
+// Usage (once at the top of main(), before any thread starts — the map is
+// written here and only read afterwards):
 //   funes::load_config();
 // =============================================================================
 
 #pragma once
 
 #include <cstdlib>
+#include <dirent.h>
 #include <fstream>
+#include <map>
 #include <string>
 
 namespace funes {
 
-// Load one KEY=value config file into the environment.
-// Only sets variables not already present (overwrite=0).
-inline void load_config_file(const std::string& path) {
-    std::ifstream f(path);
-    if (!f.is_open()) return;
+// What load_config() read. The first value loaded for a key wins, which is
+// what makes the load order above a priority order.
+inline std::map<std::string, std::string>& config_values() {
+    static std::map<std::string, std::string> values;
+    return values;
+}
 
+inline void parse_config_text(std::istream& f) {
     std::string line;
     while (std::getline(f, line)) {
         while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
@@ -48,24 +62,71 @@ inline void load_config_file(const std::string& path) {
         while (!key.empty() && (key.back()  == ' ' || key.back()  == '\t')) key.pop_back();
         if (key.empty()) continue;
 
-        setenv(key.c_str(), value.c_str(), /*overwrite=*/0);
+        config_values().emplace(key, value);
     }
 }
 
+// Load one KEY=value config file. A key already loaded keeps its value.
+inline void load_config_file(const std::string& path) {
+    std::ifstream f(path);
+    if (f.is_open()) parse_config_text(f);
+}
+
+inline bool is_variable_name(const std::string& s) {
+    if (s.empty() || (s[0] >= '0' && s[0] <= '9')) return false;
+    for (char c : s)
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'))
+            return false;
+    return true;
+}
+
+// systemd's LoadCredential=: files in $CREDENTIALS_DIRECTORY, readable by
+// this service alone, on a mount nothing else sees.
+inline void load_credentials(const char* dir) {
+    if (!dir || !*dir) return;
+    DIR* d = opendir(dir);
+    if (!d) return;
+    while (dirent* e = readdir(d)) {
+        const std::string name = e->d_name;
+        if (name == "." || name == "..") continue;
+        std::ifstream f(std::string(dir) + "/" + name);
+        if (!f.is_open()) continue;
+        if (is_variable_name(name)) {
+            std::string value((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            while (!value.empty() && (value.back() == '\n' || value.back() == '\r')) value.pop_back();
+            config_values().emplace(name, value);
+        } else {
+            parse_config_text(f);
+        }
+    }
+    closedir(d);
+}
+
 inline void load_config() {
+    load_credentials(std::getenv("CREDENTIALS_DIRECTORY"));
     load_config_file("./config/funes.local");
     load_config_file("./config/funes.conf");
 }
 
-// getenv with a default.
+// The environment first (it always wins), then what load_config() read.
+// nullptr when neither has a non-empty value.
+inline const char* config_value(const std::string& key) {
+    const char* v = std::getenv(key.c_str());
+    if (v && *v) return v;
+    const auto& m = config_values();
+    auto it = m.find(key);
+    return (it != m.end() && !it->second.empty()) ? it->second.c_str() : nullptr;
+}
+
+// config_value with a default.
 inline std::string env(const char* key, const std::string& def = "") {
-    const char* v = std::getenv(key);
-    return (v && *v) ? std::string(v) : def;
+    const char* v = config_value(key);
+    return v ? std::string(v) : def;
 }
 
 inline int env_int(const char* key, int def) {
-    const char* v = std::getenv(key);
-    if (!v || !*v) return def;
+    const char* v = config_value(key);
+    if (!v) return def;
     int n = std::atoi(v);
     return n > 0 ? n : def;
 }

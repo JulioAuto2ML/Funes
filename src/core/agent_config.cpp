@@ -4,6 +4,7 @@
 // Expected YAML schema (all optional except `name`) — see agents/ for examples.
 // Uses yaml-cpp (libyaml-cpp-dev).
 
+#include "funes_config.h"
 #include "agent_config.h"
 #include "answer_schema.h"
 #include "script_library.h"
@@ -23,7 +24,7 @@ static std::string expand_env(const std::string& s) {
             size_t close = s.find('}', i + 2);
             if (close != std::string::npos) {
                 std::string var = s.substr(i + 2, close - i - 2);
-                const char* val = std::getenv(var.c_str());
+                const char* val = funes::config_value(var.c_str());
                 if (val) out += val;
                 i = close + 1;
                 continue;
