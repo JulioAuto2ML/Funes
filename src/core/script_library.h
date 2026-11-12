@@ -40,6 +40,7 @@
 
 #pragma once
 #include "cgroup.h"
+#include "effects.h"
 #include "sandbox.h"
 #include "json.hpp"
 #include <filesystem>
@@ -106,6 +107,10 @@ struct ScriptSpec {
     // proposed `access:` block. Costs a context switch per open(); meant for
     // the first weeks of a script, not for ever.
     bool learn = false;
+    // What running it does to the world (effects.h): none | workspace | host
+    // | external. Absent is external — a manifest that does not say may be one
+    // that sends — so a tainted run proposes it instead of running it.
+    funes::Effect effects = funes::Effect::External;
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;

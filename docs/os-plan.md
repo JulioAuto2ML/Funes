@@ -403,6 +403,35 @@ audit, ABI 7); the `[learn]` line is not yet a `host_events` row; the model
 review seat is `funes script-learn x … | funes ask "anything odd?"`, nothing
 more.
 
+## Phase 6, first half — the approval gate (7.11)
+
+Built first because `external` is the class that cannot be undone, and an
+approval prompt needs no namespaces. `host` is gated the same way for now;
+overlay staging, which would let a `host` change be shown as a diff instead,
+is the second half.
+
+| Piece | Where | Test |
+|---|---|---|
+| Effect classes. Script manifests take `effects:`; MCP servers an `effects:` map (`default:` plus per tool) and an `own_data:` list of tools whose results are the person's own (a contact lookup). Absent is `external` for both — deny by default. Built-ins are listed in code: `publish_issue`, `schedule_job`, `run_job_now` external; `execute_shell`, `create_agent`, `create_tool` host; `write_file` workspace. `schedule_job` is external so a tainted run cannot launder a send through the scheduler, whose jobs are not gated. | `src/core/effects.{h,cpp}`, `script_library.cpp`, `agent_config.cpp` | `test_effects` |
+| The gate. In `dispatch_tool`, after the permission check: a host or external call in a run whose `RunProvenance` is tainted (7.1 — a page, an email, a script's output, another agent's answer) is stored as a proposal and the model is told `NOT RUN YET — proposed as #N`, with the words the person can answer. Not an error, so a completion contract is satisfied by it and the run can say what it proposed. An untainted run acts at once; a scheduled job (and anything it delegates to) is exempt, because scheduling it was the approval. A delegated run inherits its caller's taint and schedule, so reading mail in one agent and sending from another is still a tainted send. | `agent.cpp` (`effect_of`, `propose`, `inherit`), `delegation.cpp`, `cron_runner.cpp` | integration "the effects gate" (untainted acts, tainted proposed, delegated proposed) |
+| Proposals. `proposals` table on `memory.db`: owner, agent, tool, exact arguments, session, what the run had read. Owner-only in the SQL; decided once (the UPDATE checks `pending`); not approvable after 24 h. | `src/core/proposals.{h,cpp}` | `test_effects` |
+| The answer. `aprobar N` / `approve N` / `rechazar N` / `reject N`, alone in a message, is handled by `/api/chat` (so by WhatsApp too) and `funes ask`, never by a model: the proposing agent is rebuilt as configured now, must still offer the tool, and the call is dispatched with the person's permissions as they are now. The exchange goes into the session's history. A `proposal` SSE event carries the id for a UI. | `api.cpp` (`answer_approval`), `effects.cpp` (`parse_approval`) | integration: another account cannot approve, a second approval does not run it again, a rejection sticks |
+
+Classified as shipped: `speak`, `publish_briefing`, `tv_art`,
+`tv_weather_art` external; `backup_workspace` workspace; `news_headlines`,
+`workspace_report` none. WhatsApp's three send tools external with
+`search_contacts` as own data; Gmail's reads and drafts none, anything else
+(its `send_email`) external; RSS and monitor-argy none.
+
+What it means in use: "decile a Juan que llego tarde" sends; "leé mi último
+mail y contestale a Juan" proposes; the 06:30 noticiero, the newsletters and
+the reminders run as before.
+
+Not done: overlay staging for `host`; buttons in the web UI (the event is
+there, nothing draws it — the typed answer works everywhere); native
+`external` tools beyond the listed built-ins would need adding to
+`builtin_effect`.
+
 ## Open questions (all answered)
 
 1. ~~**Which machine?**~~ Answered 2026-11-11: **yoda, always.** So Pillar 2

@@ -4,6 +4,7 @@ description: >-
   (coverage 3 = all three). Each item has title, summary, section, sources,
   and coverage. Takes no arguments.
 run: news_headlines.py
+effects: none   # reads public news sites, changes nothing (effects.h)
 interpreter: python3
 timeout_seconds: 60
 output:

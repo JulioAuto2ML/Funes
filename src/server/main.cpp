@@ -408,6 +408,8 @@ int main(int argc, char** argv) {
     // ── core services ─────────────────────────────────────────────────────────
     MemoryStore memory(db_path, embedder.get());
     UserStore   users(db_path);
+    // What the effects gate holds for the person to approve (effects.h).
+    funes::ProposalStore proposals(db_path);
 
     // A service token lets a non-browser caller (the WhatsApp autoresponder)
     // authenticate; it must still name a mapped jid to act as somebody. Unset
@@ -423,6 +425,7 @@ int main(int argc, char** argv) {
     // The agent loop lists an agent's granted scripts in its system prompt
     // from here, so it must be set before FunesApi copies `defaults`.
     defaults.scripts_dir = scripts_dir;
+    defaults.proposals = &proposals;
 
     // The machine as a memory owner (OS plan phase 4, host_collector.h): a
     // `system` account nobody can log in as owns the pool; the event ring

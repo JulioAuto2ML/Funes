@@ -654,6 +654,26 @@ void FunesApi::mount(httplib::Server& srv) {
         if (!valid_session(session))
             return json_error(res, 400, "'session' must match [A-Za-z0-9_-]{1,64}");
 
+        // An answer to a proposal (effects.h) is not a message for a model:
+        // decided and run here, the same from the web UI and from WhatsApp.
+        if (images.empty()) {
+            if (const auto cmd = funes::parse_approval(message)) {
+                const std::string reply = answer_approval(*user, *cmd);
+                const std::string agent = agent_name.empty() ? default_agent_ : agent_name;
+                memory_.append_turn(user->id, session, agent, "user", message);
+                memory_.append_turn(user->id, session, agent, "assistant", reply);
+                res.set_header("Cache-Control", "no-store");
+                res.set_chunked_content_provider("text/event-stream",
+                    [reply](size_t, httplib::DataSink& sink) {
+                        sse_write(sink, "delta", {{"text", reply}});
+                        sse_write(sink, "done", {{"text", reply}});
+                        sink.done();
+                        return true;
+                    });
+                return;
+            }
+        }
+
         AgentConfig cfg = find_agent(agent_name);
         if (cfg.name.empty())
             return json_error(res, 404, "Unknown agent: " + agent_name);
@@ -1233,6 +1253,62 @@ std::string FunesApi::run_local(int64_t user_id, const std::string& agent_name,
         return "";
     }
     cfg.input_origins = input_origins;
+    // `funes ask "aprobar 3"` — but not with piped input: a command that
+    // arrives framed with stdin is the stdin's, not the person's.
+    if (input_origins.empty()) {
+        if (const auto cmd = funes::parse_approval(message)) {
+            const std::string reply = answer_approval(*user, *cmd);
+            if (emit) emit("delta", {{"text", reply}});
+            return reply;
+        }
+    }
     FunesAgent agent(cfg, tools_, memory_, defaults_);
     return agent.run(message, session, user->id, perms, emit, {}, persist);
+}
+
+std::string FunesApi::answer_approval(const UserStore::User& user, const funes::ApprovalCommand& cmd) {
+    const bool es = user.locale.rfind("es", 0) == 0;
+    auto say = [es](const std::string& en, const std::string& sp) { return es ? sp : en; };
+    const std::string n = "#" + std::to_string(cmd.id);
+    funes::ProposalStore* store = defaults_.proposals;
+    if (!store) return say("Approvals are not available here.", "Las aprobaciones no están disponibles acá.");
+
+    using D = funes::ProposalStore::Decision;
+    const auto p = store->get(user.id, cmd.id);
+    const D d = p ? store->decide(user.id, cmd.id, cmd.approve) : D::NotFound;
+    std::cerr << "[gate] user " << user.id << ": " << (cmd.approve ? "approve " : "reject ") << n << " → "
+              << (d == D::Ok ? "ok" : d == D::NotFound ? "not found" : d == D::Expired ? "expired" : "already decided")
+              << "\n";
+    if (d == D::NotFound) return say("There is no proposal " + n + ".", "No hay ninguna propuesta " + n + ".");
+    if (d == D::Expired)
+        return say("Proposal " + n + " is more than a day old and can no longer be approved. Ask again if you still want it.",
+                   "La propuesta " + n + " tiene más de un día y ya no se puede aprobar. Pedilo de nuevo si todavía lo querés.");
+    if (d == D::AlreadyDecided)
+        return say("Proposal " + n + " was already decided (" + p->status + ").",
+                   "La propuesta " + n + " ya estaba decidida (" + p->status + ").");
+    if (!cmd.approve)
+        return say("Dropped " + n + " (" + p->tool + "). Nothing was done.",
+                   "Descarté la " + n + " (" + p->tool + "). No se hizo nada.");
+
+    ToolResult r;
+    const AgentConfig cfg = find_agent(p->agent);
+    const auto perms = funes::Permissions::parse(user.permissions, user.is_admin());
+    if (cfg.name.empty())
+        r = {"the agent '" + p->agent + "' no longer exists", true};
+    else if (!perms.allows_agent(cfg.name))
+        r = {"you no longer have access to the agent '" + cfg.name + "'", true};
+    else {
+        try {
+            FunesAgent agent(cfg, tools_, memory_, defaults_);
+            r = agent.execute_proposal(*p, perms);
+        } catch (const std::exception& e) {
+            r = {e.what(), true};
+        }
+    }
+    store->finish(user.id, p->id, !r.error, r.text);
+    std::string out = r.text;
+    funes::truncate_utf8_safe(out, 1500);
+    if (out.size() < r.text.size()) out += "…";
+    return r.error ? say(n + " (" + p->tool + ") failed: " + out, "La " + n + " (" + p->tool + ") falló: " + out)
+                   : say("Done — " + n + " (" + p->tool + "): " + out, "Listo — " + n + " (" + p->tool + "): " + out);
 }

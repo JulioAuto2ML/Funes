@@ -143,6 +143,68 @@ class Handler(BaseHTTPRequestHandler):
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
             return
 
+        # The effects gate (core/effects.h): "gate-direct <x>" sends at once;
+        # "gate-after-read <x>" reads mail first, so the send is tainted.
+        # Then it repeats what the last tool said.
+        # The gate across delegation: read mail, then hand the send to
+        # gate-tester ("gate-direct", which sends at once when untainted).
+        if isinstance(last_user, str) and "gate-parent" in last_user:
+            done = [m for m in messages if m.get("role") == "tool"]
+            if len(done) < 2:
+                if not done:
+                    name, args = "read_mail", {}
+                else:
+                    name, args = "delegate_to_agent", {"agent": "gate-tester",
+                                                       "task": "gate-direct-deleg send it"}
+                tool_call = {"id": "call_p%d" % len(done), "type": "function",
+                             "function": {"name": name, "arguments": json.dumps(args)}}
+                if stream:
+                    self._stream_tool_call(tool_call)
+                else:
+                    self._json(200, {"choices": [{"message": {
+                        "role": "assistant", "content": None,
+                        "tool_calls": [tool_call]}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+                return
+            said = done[-1]["content"]
+            text = "MOCK-GATE-PARENT: " + (said if isinstance(said, str) else json.dumps(said))
+            if stream:
+                self._stream_text(text)
+            else:
+                self._json(200, {"choices": [{"message": {
+                    "role": "assistant", "content": text}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+            return
+
+        gate = re.search(r"gate-(direct|after-read)", last_user if isinstance(last_user, str) else "")
+        if gate:
+            done = [m for m in messages if m.get("role") == "tool"]
+            plan = ["send_note"] if gate.group(1) == "direct" else ["read_mail", "send_note"]
+            label = gate.group(1)
+            suffix = "-3" if "three" in last_user else "-deleg" if "deleg" in last_user else ""
+            if len(done) < len(plan):
+                name = plan[len(done)]
+                args = {"text": label + suffix} if name == "send_note" else {}
+                tool_call = {"id": "call_g%d" % len(done), "type": "function",
+                             "function": {"name": name, "arguments": json.dumps(args)}}
+                if stream:
+                    self._stream_tool_call(tool_call)
+                else:
+                    self._json(200, {"choices": [{"message": {
+                        "role": "assistant", "content": None,
+                        "tool_calls": [tool_call]}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+                return
+            said = done[-1]["content"]
+            text = "MOCK-GATE: " + (said if isinstance(said, str) else json.dumps(said))
+            if stream:
+                self._stream_text(text)
+            else:
+                self._json(200, {"choices": [{"message": {
+                    "role": "assistant", "content": text}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+            return
+
         if "use-tool" in last_user and not has_tool_result:
             tool_call = {"id": "call_1", "type": "function",
                          "function": {"name": "recall",

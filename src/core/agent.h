@@ -31,9 +31,11 @@
 #include "tools.h"
 #include "mcp_client.h"
 #include "mcp_pool.h"
+#include "proposals.h"
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -90,6 +92,11 @@ struct AgentDefaults {
     // contexts with no library (tests); run_script then has nothing to load
     // and says so.
     std::string scripts_dir;
+
+    // Where the effects gate stores what a tainted run wanted to do
+    // (effects.h, proposals.h). Null in contexts without one (most tests):
+    // a call the gate stops is then refused outright rather than run.
+    funes::ProposalStore* proposals = nullptr;
 };
 
 // What a run leaves behind in the database. See FunesAgent::run.
@@ -154,6 +161,20 @@ public:
 
     const AgentConfig& config() const { return cfg_; }
 
+    // Where this run's authority comes from, for the effects gate
+    // (effects.h). Call before run().
+    //   set_scheduled  — a cron job: scheduling it was the approval.
+    //   inherit        — a delegated run: the caller's taint and schedule
+    //                    carry over, so reading an email in one agent and
+    //                    sending in another is still a tainted send.
+    void set_scheduled() { scheduled_ = true; }
+    void inherit(const ToolContext& caller);
+
+    // Run a proposal the person approved, as this agent, for `perms` as they
+    // are now. Refused if the agent no longer offers the tool or the person
+    // may no longer call it. Not gated: the approval is the point.
+    ToolResult execute_proposal(const funes::Proposal& p, const funes::Permissions& perms);
+
 private:
     AgentConfig   cfg_;
     ToolRegistry& tools_;
@@ -173,9 +194,22 @@ private:
     };
     std::vector<McpConn>                          mcp_clients_;
     std::unordered_map<std::string, std::size_t>  mcp_tool_index_;
+    // Per MCP tool: its effect class and whether its result is own data.
+    std::unordered_map<std::string, funes::Effect> mcp_tool_effect_;
+    std::set<std::string>                          mcp_own_data_;
+
+    bool                  scheduled_ = false;
+    std::set<std::string> inherited_sources_;
+
+    // The effect class of one call (effects.h): built-in, script, MCP tool.
+    funes::Effect effect_of(const std::string& name, const json& args) const;
+    // Store the call as a proposal and say so, instead of running it.
+    ToolResult propose(const std::string& name, const json& args, const ToolContext& ctx,
+                       funes::Effect effect);
 
     void connect_mcp_servers();
-    void register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn);
+    void register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn,
+                            const McpServerConfig& srv);
     static json mcp_tool_to_openai(const mcp::tool& t);
 
     // Dispatch one tool call: native registry first, then MCP servers.

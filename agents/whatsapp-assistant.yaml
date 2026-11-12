@@ -28,6 +28,13 @@ mcp_servers:
   # src/julio/register.cpp.
   - command: /home/julio/.local/bin/uv --directory ${FUNES_ROOT}/third-party/whatsapp-mcp/whatsapp-mcp-server run main.py
     name: whatsapp-mcp
+    # What each tool does (src/core/effects.h): sending is external, so after
+    # reading a chat the send is proposed for approval instead of made.
+    # search_contacts is the person's own address book: a lookup before a
+    # send does not count as outside content (push names are the one thing in
+    # it someone else wrote — short, and accepted).
+    effects: {default: none, send_message: external, send_file: external, send_audio_message: external}
+    own_data: [search_contacts]
     # Sandboxed since 7.6 (src/core/mcp_launch.h): beyond the system it gets
     # uv, uv's Python and cache, its own project (uv run may sync .venv), the
     # bridge's store read-only (messages.db — the bridge's session keys sit

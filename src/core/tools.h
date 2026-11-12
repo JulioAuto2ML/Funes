@@ -84,6 +84,10 @@ struct ToolContext {
     // receive still sees the loop's updates. Null anywhere else — a context
     // that does not track provenance has seen nothing third-party.
     std::shared_ptr<funes::RunProvenance> provenance;
+    // A scheduled job's run, or one delegated from it (effects.h): the gate
+    // lets its host and external calls through, tainted or not, because
+    // scheduling the job was the approval.
+    bool scheduled = false;
 
     ToolContext(std::string agent_, std::string session_,
                 std::string workspace_dir_ = "", std::string memory_scope_ = "",
@@ -108,6 +112,10 @@ struct ToolResult {
     // own (cgroup.h) — appended to the call's `[tool]` line, never shown to
     // the model.
     std::optional<funes::cgroup::Usage> usage;
+    // Set when the call did not run but was stored for the person to approve
+    // (effects.h, proposals.h). Not an error — the run did what it could —
+    // and the text says plainly that nothing happened yet.
+    int64_t proposal_id = 0;
 };
 
 using ToolHandler = std::function<ToolResult(const json& args, const ToolContext& ctx)>;

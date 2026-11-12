@@ -17,6 +17,7 @@ tool_limits:
 mcp_servers:
   - command: npx -y rss-reader-mcp
     name: rss-reader-mcp
+    effects: {default: none}   # reads feeds only (src/core/effects.h)
     # Sandboxed since 7.6 (src/core/mcp_launch.h): npm's cache (where npx
     # installs and runs the package from) and plain web ports.
     access:

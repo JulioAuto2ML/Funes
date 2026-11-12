@@ -74,6 +74,7 @@ std::string format_tool_call_line(const std::string& agent, int depth,
         case ToolCallOutcome::BudgetRefused:    line += "refused: budget spent"; break;
         case ToolCallOutcome::PermissionDenied: line += "refused: permissions"; break;
         case ToolCallOutcome::RepeatRefused:    line += "refused: identical repeat"; break;
+        case ToolCallOutcome::Proposed:         line += "proposed"; break;
         case ToolCallOutcome::Error:
             line += "error: " + clip(one_line(detail), max_detail_bytes);
             break;

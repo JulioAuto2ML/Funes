@@ -106,6 +106,9 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
             return {false, "FAILED — the job's owner is no longer permitted to use the "
                            "agent '" + target.name + "'"};
 
+        // Scheduling the job was the approval (effects.h): its sends and
+        // publishes do not wait for a person who is not there.
+        sub.set_scheduled();
         std::string out = sub.run(task, session, job.user_id, perms,
                                   nullptr, {}, Persist::TurnsOnly);
         const bool ok = !funes::is_run_failure(out);

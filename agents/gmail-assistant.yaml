@@ -23,6 +23,12 @@ mcp_servers:
   # src/julio/register.cpp from the path baked in at build time.
   - command: node ${FUNES_ROOT}/third-party/imap-email-mcp-patched/node_modules/imap-email-mcp/index.js
     name: imap-email-mcp
+    # Effects (src/core/effects.h): reading and drafts change nothing anyone
+    # else sees. Anything not listed — a send tool in a later version of the
+    # package — is external, so it waits for approval after an email is read.
+    effects: {default: external, search_emails: none, list_emails: none, get_email: none,
+              list_folders: none, list_drafts: none, get_draft: none, create_draft: none,
+              update_draft: none}
     # Sandboxed since 7.6 (src/core/mcp_launch.h): its own package, and TCP
     # only to IMAPS and SMTPS — the credentials below can reach Gmail and
     # nothing else.

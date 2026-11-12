@@ -3,6 +3,9 @@ description: >-
   in Spanish by default. Use it for a spoken notice, not for reading long
   text: at most 600 characters, and it stays silent between 23:00 and 07:00.
 run: speak.py
+# What running it does (effects.h): the living-room speaker. A tainted run proposes an
+# external script instead of running it.
+effects: external
 interpreter: python3
 timeout_seconds: 90
 params:

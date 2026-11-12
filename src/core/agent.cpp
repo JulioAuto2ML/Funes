@@ -143,7 +143,7 @@ void FunesAgent::connect_mcp_servers() {
                 continue;
             }
             const std::vector<mcp::tool> server_tools = conn.lease.tools();
-            register_mcp_tools(server_tools, std::move(conn));
+            register_mcp_tools(server_tools, std::move(conn), srv);
             continue;
         } else if (srv.transport == "http") {
             try {
@@ -169,11 +169,12 @@ void FunesAgent::connect_mcp_servers() {
         const std::vector<mcp::tool> server_tools = client->get_tools();
         McpConn conn;
         conn.owned = std::move(client);
-        register_mcp_tools(server_tools, std::move(conn));
+        register_mcp_tools(server_tools, std::move(conn), srv);
     }
 }
 
-void FunesAgent::register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn) {
+void FunesAgent::register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn,
+                                    const McpServerConfig& srv) {
     const std::size_t idx = mcp_clients_.size();
     mcp_clients_.push_back(std::move(conn));
 
@@ -191,6 +192,8 @@ void FunesAgent::register_mcp_tools(const std::vector<mcp::tool>& server_tools, 
             if (!allowed) continue;
         }
         mcp_tool_index_[tool.name] = idx;
+        mcp_tool_effect_[tool.name] = srv.effect_of(tool.name);
+        if (srv.own_data.count(tool.name)) mcp_own_data_.insert(tool.name);
         tools_schema_.push_back(mcp_tool_to_openai(tool));
     }
 }
@@ -214,6 +217,15 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
         return {"You do not have permission to use " +
                 (key == name ? "the tool '" + name + "'" : "'" + key + "'") +
                 ". Continue without it.", /*error=*/true};
+    }
+
+    // The effects gate (effects.h): a run that has read outside content does
+    // not get to act on the host or the world without the person. Checked
+    // after permissions — a call the person may not make is refused, not
+    // proposed to them.
+    if (!ctx.scheduled && ctx.provenance && ctx.provenance->tainted()) {
+        const funes::Effect effect = effect_of(name, args);
+        if (funes::needs_approval(effect)) return propose(name, args, ctx, effect);
     }
 
     if (tools_.has(name))
@@ -242,6 +254,71 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
         if (auto& lease = mcp_clients_[it->second].lease) lease.discard();
         return {std::string("MCP tool '") + name + "' failed: " + e.what(), true};
     }
+}
+
+// ── effects gate ──────────────────────────────────────────────────────────────
+
+funes::Effect FunesAgent::effect_of(const std::string& name, const json& args) const {
+    if (name == "run_script") {
+        // The manifest says; one that cannot be read is external, like one
+        // that does not say.
+        funes::ScriptSpec spec;
+        const std::string script = args.is_object() ? args.value("name", std::string()) : std::string();
+        if (defaults_.scripts_dir.empty() || script.empty()
+            || !funes::load_script(defaults_.scripts_dir, script, spec).empty())
+            return funes::Effect::External;
+        return spec.effects;
+    }
+    if (tools_.has(name)) return funes::builtin_effect(name);
+    auto it = mcp_tool_effect_.find(name);
+    return it == mcp_tool_effect_.end() ? funes::Effect::External : it->second;
+}
+
+ToolResult FunesAgent::propose(const std::string& name, const json& args, const ToolContext& ctx,
+                               funes::Effect effect) {
+    const std::string what = funes::call_keys(name, args).back();
+    const std::string read = ctx.provenance->describe();
+    if (!defaults_.proposals) {
+        std::cerr << "[gate] agent " << cfg_.name << " user " << ctx.user_id << ": " << what
+                  << " refused — tainted by " << read << ", and no proposal store here\n";
+        return {"NOT RUN. This run has read outside content (" + read + "), so " + what +
+                " needs the person's approval, and approvals are not available here. "
+                "Tell them what you would have done; do not try again.", /*error=*/true};
+    }
+    const int64_t id = defaults_.proposals->create(ctx.user_id, cfg_.name, name, args, ctx.session,
+                                                   read, funes::effect_name(effect));
+    std::cerr << "[gate] agent " << cfg_.name << " user " << ctx.user_id << ": " << what
+              << " (" << funes::effect_name(effect) << ") → proposal #" << id
+              << ", after reading " << read << "\n";
+    ToolResult r{"NOT RUN YET — proposed as #" + std::to_string(id) + ". This run has read outside content (" +
+                 read + "), so " + what + " waits for the person's approval before anything happens. "
+                 "Tell them exactly what you proposed, and that they can reply \"aprobar " + std::to_string(id) +
+                 "\" (or \"approve " + std::to_string(id) + "\") to run it, or \"rechazar " + std::to_string(id) +
+                 "\" to drop it. Do not call " + name + " again for this, and do not say it was done.",
+                 /*error=*/false};
+    r.proposal_id = id;
+    return r;
+}
+
+void FunesAgent::inherit(const ToolContext& caller) {
+    scheduled_ = caller.scheduled;
+    if (caller.provenance) inherited_sources_ = caller.provenance->sources;
+}
+
+ToolResult FunesAgent::execute_proposal(const funes::Proposal& p, const funes::Permissions& perms) {
+    // Offered by this agent as it is configured now: in its schema (its own
+    // allowlist, MCP servers that started), and for a script, still granted.
+    bool offered = false;
+    for (const auto& entry : tools_schema_)
+        if (entry.value("function", json::object()).value("name", std::string()) == p.tool) offered = true;
+    if (!offered)
+        return {"The agent '" + cfg_.name + "' no longer offers " + p.tool + ", so #" +
+                std::to_string(p.id) + " was not run.", true};
+    ToolContext ctx{cfg_.name, p.session, cfg_.workspace_dir, cfg_.memory_scope,
+                    p.user_id, perms, cfg_.scripts};
+    std::cerr << "[gate] agent " << cfg_.name << " user " << p.user_id << ": running approved #"
+              << p.id << " " << p.tool << "\n";
+    return dispatch_tool(p.tool, p.args, ctx);   // permissions re-checked there
 }
 
 // ── run ───────────────────────────────────────────────────────────────────────
@@ -289,6 +366,8 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     ctx.task_text = user_message;
     ctx.provenance = std::make_shared<funes::RunProvenance>();
     for (const auto& o : cfg_.input_origins) ctx.provenance->sources.insert(o);
+    for (const auto& o : inherited_sources_) ctx.provenance->sources.insert(o);
+    ctx.scheduled = scheduled_;
 
     // 1. Recall relevant memories and surface them to the UI.
     std::string memory_block;
@@ -1045,9 +1124,9 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
             // Provenance (memory_provenance.h): a result the model has now
             // read. Only a call that ran and succeeded — a refusal or an error
             // put no third-party text in front of it.
-            if (ctx.provenance && !refused && !duplicate && !result.error) {
+            if (ctx.provenance && !refused && !duplicate && !result.error && !result.proposal_id) {
                 const std::string origin = funes::third_party_origin(tc.name, tc.arguments);
-                if (!origin.empty()) ctx.provenance->sources.insert(origin);
+                if (!origin.empty() && !mcp_own_data_.count(tc.name)) ctx.provenance->sources.insert(origin);
             }
 
             // One line per call (core/tool_log.h). A permission refusal is
@@ -1062,6 +1141,9 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 } else if (duplicate) {
                     outcome = funes::ToolCallOutcome::RepeatRefused;
                     detail  = std::to_string(sig_calls) + "x";
+                } else if (result.proposal_id) {
+                    outcome = funes::ToolCallOutcome::Proposed;
+                    detail  = "#" + std::to_string(result.proposal_id);
                 } else if (result.error) {
                     outcome = funes::ToolCallOutcome::Error;
                     detail  = result.text;
@@ -1089,6 +1171,10 @@ std::string FunesAgent::run_loop(std::vector<ChatMessage>& history,
                 if (was_truncated) preview += "…";
                 emit("tool_result", {{"name", tc.name}, {"preview", preview},
                                      {"error", result.error}});
+                // The UI draws approve/reject buttons from this one.
+                if (result.proposal_id)
+                    emit("proposal", {{"id", result.proposal_id}, {"tool", tc.name},
+                                      {"args", tc.arguments}});
             }
 
             last_tool_name   = tc.name;

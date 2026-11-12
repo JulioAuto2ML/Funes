@@ -3,6 +3,9 @@ description: >-
   Mode on or off, or report what it is showing. `show` uploads an image from
   your workspace and replaces the previous one this script put there.
 run: tv_art.sh
+# What running it does (effects.h): the living-room TV (status only reads, but one class covers the script). A tainted run proposes an
+# external script instead of running it.
+effects: external
 timeout_seconds: 120
 params:
   - name: action

@@ -5,6 +5,7 @@
 # grant that also permits `rm -rf`. This is the whole feature in one file.
 description: Summarize the calling account's workspace — file count, total size, and the largest files.
 run: workspace_report.py
+effects: none   # reads the caller's workspace (effects.h)
 interpreter: python3
 timeout_seconds: 20
 params:

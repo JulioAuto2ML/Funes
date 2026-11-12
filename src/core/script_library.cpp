@@ -336,6 +336,12 @@ std::string load_script(const std::string& library_path, const std::string& name
         catch (const YAML::Exception&) { return "Script '" + id + "': learn must be true or false."; }
     }
 
+    if (root["effects"]) {
+        const auto e = funes::parse_effect(str_or(root["effects"], ""));
+        if (!e) return "Script '" + id + "': effects must be none, workspace, host or external.";
+        spec.effects = *e;
+    }
+
     if (root["env"] && root["env"].IsMap())
         for (const auto& kv : root["env"])
             spec.env.emplace_back(kv.first.as<std::string>(),

@@ -25,6 +25,7 @@ enum class ToolCallOutcome {
     BudgetRefused,  // tool_limits spent — never dispatched
     PermissionDenied,  // the caller's permissions refuse a call key — never dispatched
     RepeatRefused,  // identical to earlier calls this run (tool_budget.h) — never dispatched
+    Proposed,       // stopped by the effects gate, stored for approval (effects.h)
 };
 
 // Compact JSON of a call's arguments, at most `max_bytes` (UTF-8 safe, "…"

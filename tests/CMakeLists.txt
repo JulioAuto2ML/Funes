@@ -234,3 +234,7 @@ add_test(NAME observe COMMAND test_observe)
 add_executable(test_mcp_pool test_mcp_pool.cpp)
 target_link_libraries(test_mcp_pool PRIVATE funes_core)
 add_test(NAME mcp_pool COMMAND test_mcp_pool)
+
+add_executable(test_effects test_effects.cpp)
+target_link_libraries(test_effects PRIVATE funes_core)
+add_test(NAME effects COMMAND test_effects)

@@ -7,6 +7,9 @@ description: >-
   picture once the TV is on) and `both` (a person asking: pick, render, send).
   Also run on request to pick a different work or one matching a search.
 run: tv_weather_art.sh
+# What running it does (effects.h): the living-room TV. A tainted run proposes an
+# external script instead of running it.
+effects: external
 timeout_seconds: 120
 params:
   - name: mode

@@ -153,6 +153,14 @@ list with incident context):
    prompt fits `context_limit` minus the reply's share; a backend's
    context-overflow refusal gets one trim-harder retry instead of killing the
    run (curator's ES issue, 2026-10-30).
+10. **Effects gate** (`effects.h`, `proposals.h`, 7.11) — a `host` or
+   `external` call (script manifest `effects:`, an MCP server's `effects:`
+   map, built-ins listed in `builtin_effect`; absent = external) in a run that
+   has read outside content (`RunProvenance::tainted`, inherited across
+   delegation) is stored as a proposal instead of run; "aprobar N" / "approve
+   N" alone in a message is answered by `/api/chat` itself, never a model.
+   Scheduled jobs are exempt — scheduling was the approval — which is why
+   `schedule_job` is itself external.
 
 When touching the agent loop, know which of these layers a change interacts
 with — they compose, and several were added specifically because an earlier
@@ -509,7 +517,7 @@ honoured verbatim as a deliberate shared folder (nothing shipped uses it).
 `src/server/` (`main.cpp`, `api.cpp`, `user_cli.cpp`, `maint_cli.cpp`) — one
 binary, all routes plain HTTP/SSE. `/api/chat` streams `memories`, `delta`, `tool_call`,
 `tool_result`, `result_stored`, `contract_nudge`, `schema_nudge`,
-`context_compressed`, `usage`, `done`, `error` events over SSE. Four routes
+`context_compressed`, `usage`, `proposal`, `done`, `error` events over SSE. Four routes
 are public (`/api/login`, `/api/logout` aside, `/api/auth/status`,
 `/api/auth/bootstrap`); everything else needs a session cookie or a service
 token. `bootstrap` is public but self-closing — it only works while no user

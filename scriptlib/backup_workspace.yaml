@@ -4,6 +4,7 @@
 # other of the two forms a manifest may take.
 description: Archive the calling account's workspace into backups/<name>.tar.gz and report what was written.
 run: backup_workspace.sh
+effects: workspace   # writes only into the caller's workspace (effects.h)
 timeout_seconds: 120
 # A side effect whose result the next step needs: the archive's path. Declared
 # as JSON so the runtime checks the shape instead of the model parsing prose —

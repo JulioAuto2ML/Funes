@@ -61,6 +61,14 @@ file. `learn: true` in a manifest watches every real `run_script` call the
 same way and logs what it reached for outside its grant; `funes script-learn
 <name> --from-log` folds everything collected.
 
+Since 7.11 a manifest also says what running it does to the world —
+`effects: none | workspace | host | external` (`src/core/effects.h`). After a
+run has read outside content (a page, an email, a script's output), a `host`
+or `external` script is not run: it is stored as a proposal and runs when the
+person answers "aprobar N". A manifest that does not say is `external`, so a
+read-only script should say `none` or every tainted run will ask about it.
+Scheduled jobs are not gated.
+
 The guarantee is still also about which code can be started, and by whom.
 Review a script before installing it exactly as you would review an agent
 prompt, and do not install one that takes a command or a URL to fetch-and-run:

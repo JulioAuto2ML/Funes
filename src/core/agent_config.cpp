@@ -132,6 +132,21 @@ static AgentConfig from_node(const YAML::Node& root, const std::string& source) 
                         entry["access"], "MCP server '" + srv.name + "'", srv.access);
                     if (!err.empty()) throw std::runtime_error(err);
                 }
+                if (entry["effects"]) {
+                    if (!entry["effects"].IsMap())
+                        throw std::runtime_error("MCP server '" + srv.name + "': effects must be a map of tool: class.");
+                    for (const auto& kv : entry["effects"]) {
+                        const std::string tool = kv.first.as<std::string>();
+                        const auto e = funes::parse_effect(kv.second.as<std::string>());
+                        if (!e)
+                            throw std::runtime_error("MCP server '" + srv.name + "': effect of '" + tool +
+                                                     "' must be none, workspace, host or external.");
+                        if (tool == "default") srv.effects_default = *e;
+                        else srv.effects[tool] = *e;
+                    }
+                }
+                if (entry["own_data"] && entry["own_data"].IsSequence())
+                    for (const auto& t : entry["own_data"]) srv.own_data.insert(t.as<std::string>());
             }
             if (!srv.url.empty() || !srv.command.empty())
                 cfg.mcp_servers.push_back(std::move(srv));

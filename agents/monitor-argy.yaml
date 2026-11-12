@@ -9,6 +9,7 @@ tool_choice: auto
 tools: [listar_series, obtener_serie, coyuntura, calendario, read_result]
 mcp_servers:
   - name: monitor-argy
+    effects: {default: none}   # read-only economic series (src/core/effects.h)
     url: https://monitorargy.com/mcp
     transport: http
 max_steps: 8

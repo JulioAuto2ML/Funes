@@ -88,6 +88,10 @@ ToolResult delegate_handler(ToolRegistry& reg, MemoryStore& memory, const AgentD
 
     try {
         FunesAgent sub(target, reg, memory, defaults);
+        // What the caller has read and whether it is a scheduled job carry
+        // over (effects.h): reading an email in one agent and sending from
+        // another is still a send after reading an email.
+        sub.inherit(ctx);
         // No emit (black-box: sub-agent's own tool calls aren't streamed),
         // no images (this is a text task description, not the user's turn),
         // Persist::None (see file header).

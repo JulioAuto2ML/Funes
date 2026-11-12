@@ -5,9 +5,12 @@
 // gone. An agent is a name, a prompt, a tool allowlist, and LLM settings.
 
 #pragma once
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 #include "json.hpp"
+#include "effects.h"
 #include "sandbox.h"
 #include "tool_budget.h"
 
@@ -26,6 +29,23 @@ struct McpServerConfig {
     // script: the system read-only, a private temp directory, and what this
     // `access:` block adds (same format as a script manifest's).
     funes::sandbox::Policy access;
+    // What each of the server's tools does to the world (effects.h), from
+    //   effects: {default: none, send_message: external}
+    // A server with no `effects:` map is external throughout — deny by
+    // default, so a server added tomorrow cannot send without the gate.
+    std::map<std::string, funes::Effect> effects;
+    funes::Effect effects_default = funes::Effect::External;
+    // Tools whose results are the person's own data, not outside content
+    // (memory_provenance.h), e.g. a contact lookup before a send:
+    //   own_data: [search_contacts]
+    // Without it the lookup taints the run and the send it was for waits
+    // for approval.
+    std::set<std::string> own_data;
+
+    funes::Effect effect_of(const std::string& tool) const {
+        auto it = effects.find(tool);
+        return it == effects.end() ? effects_default : it->second;
+    }
 };
 
 struct AgentConfig {

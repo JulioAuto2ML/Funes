@@ -4,6 +4,9 @@ description: >-
   Spanish sentences, 300 to 4000 characters, no URLs, no markdown, ending with
   a full sentence. A refusal says what to fix.
 run: publish_briefing.py
+# What running it does (effects.h): replaces what the Echo reads aloud. A tainted run proposes an
+# external script instead of running it.
+effects: external
 interpreter: python3
 timeout_seconds: 30
 params:

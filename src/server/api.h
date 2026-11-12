@@ -128,6 +128,13 @@ public:
     const std::string& default_agent() const { return default_agent_; }
 
 private:
+    // "aprobar 12" / "rechazar 12" (effects.h): decide the caller's proposal
+    // and, on approval, run it as the agent that proposed it, with the
+    // caller's permissions as they are now. Answered here, never by a model —
+    // the approval must not depend on one reading it right. The returned text
+    // is the reply, in the caller's language.
+    std::string answer_approval(const UserStore::User& user, const funes::ApprovalCommand& cmd);
+
     ToolRegistry& tools_;
     MemoryStore&  memory_;
     UserStore&    users_;
