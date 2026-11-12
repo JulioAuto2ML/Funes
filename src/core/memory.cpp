@@ -281,6 +281,14 @@ void MemoryStore::migrate() {
     exec_or_throw(db_, "INSERT OR IGNORE INTO meta(key, value) "
                        "VALUES('cited_since', datetime('now'));");
 
+    // ── 7.14: taint across turns ─────────────────────────────────────────────
+    // What the run that wrote a turn had read (RunProvenance::describe's
+    // sources, comma-joined); a summary keeps the origins of the turns folded
+    // into it. history_origins() reads them back so a later run that sees
+    // that text in its context is tainted by it too.
+    add_column_if_missing(db_, "turns", "origin", "TEXT NOT NULL DEFAULT ''");
+    add_column_if_missing(db_, "session_summaries", "origin", "TEXT NOT NULL DEFAULT ''");
+
     // ── 5.0: connected memories ───────────────────────────────────────────────
     // Links between memories. ON DELETE CASCADE matters more than it looks:
     // memory ids are recycled by SQLite, so a dangling link does not merely
@@ -1546,16 +1554,56 @@ int MemoryStore::prune_results_older_than(int days) {
 
 void MemoryStore::append_turn(int64_t user_id, const std::string& session,
                               const std::string& agent, const std::string& role,
-                              const std::string& content) {
+                              const std::string& content, const std::string& origin) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "INSERT INTO turns(user_id, session, agent, role, content) "
-                "VALUES(?,?,?,?,?)");
+    Stmt s(db_, "INSERT INTO turns(user_id, session, agent, role, content, origin) "
+                "VALUES(?,?,?,?,?,?)");
     s.bind_int64(1, user_id);
     s.bind_text(2, session);
     s.bind_text(3, agent);
     s.bind_text(4, role);
     s.bind_text(5, content);
+    s.bind_text(6, origin);
     s.step();
+}
+
+namespace {
+void split_origins(const std::string& joined, std::set<std::string>& out) {
+    size_t pos = 0;
+    while (pos < joined.size()) {
+        size_t end = joined.find(',', pos);
+        if (end == std::string::npos) end = joined.size();
+        if (end > pos) out.insert(joined.substr(pos, end - pos));
+        pos = end + 1;
+    }
+}
+} // namespace
+
+std::set<std::string> MemoryStore::history_origins(int64_t user_id, const std::string& session,
+                                                   int n, bool with_summary) {
+    std::lock_guard<std::mutex> lock(mu_);
+    std::set<std::string> out;
+    {
+        // The same window recent_turns() loads: what the model will see.
+        Stmt s(db_, R"sql(
+            SELECT origin FROM (
+                SELECT origin FROM turns
+                WHERE user_id = ? AND session = ? AND role IN ('user','assistant')
+                ORDER BY id DESC LIMIT ?
+            ) WHERE origin != ''
+        )sql");
+        s.bind_int64(1, user_id);
+        s.bind_text(2, session);
+        s.bind_int64(3, n);
+        while (s.step()) split_origins(s.col_text(0), out);
+    }
+    if (with_summary) {
+        Stmt s(db_, "SELECT origin FROM session_summaries WHERE session = ? AND user_id = ?");
+        s.bind_text(1, session);
+        s.bind_int64(2, user_id);
+        if (s.step()) split_origins(s.col_text(0), out);
+    }
+    return out;
 }
 
 std::vector<ChatMessage> MemoryStore::recent_turns(int64_t user_id,
@@ -1595,6 +1643,34 @@ int64_t MemoryStore::turn_count(int64_t user_id, const std::string& session) {
 void MemoryStore::prune_turns(int64_t user_id, const std::string& session, int keep) {
     if (keep < 0) keep = 0;
     std::lock_guard<std::mutex> lock(mu_);
+    // The pruned turns were folded into the summary first (context_compressor),
+    // so what they had read moves there with their text.
+    {
+        std::set<std::string> folded;
+        Stmt q(db_, R"sql(
+            SELECT origin FROM turns WHERE user_id = ? AND session = ? AND origin != '' AND id NOT IN (
+                SELECT id FROM turns WHERE user_id = ? AND session = ? ORDER BY id DESC LIMIT ?)
+        )sql");
+        q.bind_int64(1, user_id);
+        q.bind_text(2, session);
+        q.bind_int64(3, user_id);
+        q.bind_text(4, session);
+        q.bind_int64(5, keep);
+        while (q.step()) split_origins(q.col_text(0), folded);
+        if (!folded.empty()) {
+            Stmt cur(db_, "SELECT origin FROM session_summaries WHERE session = ? AND user_id = ?");
+            cur.bind_text(1, session);
+            cur.bind_int64(2, user_id);
+            if (cur.step()) split_origins(cur.col_text(0), folded);
+            std::string joined;
+            for (const auto& o : folded) joined += (joined.empty() ? "" : ",") + o;
+            Stmt u(db_, "UPDATE session_summaries SET origin = ? WHERE session = ? AND user_id = ?");
+            u.bind_text(1, joined);
+            u.bind_text(2, session);
+            u.bind_int64(3, user_id);
+            u.step();
+        }
+    }
     Stmt s(db_, R"sql(
         DELETE FROM turns WHERE user_id = ? AND session = ? AND id NOT IN (
             SELECT id FROM turns WHERE user_id = ? AND session = ?

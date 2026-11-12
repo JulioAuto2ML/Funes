@@ -207,12 +207,16 @@ class Handler(BaseHTTPRequestHandler):
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
             return
 
-        gate = re.search(r"gate-(direct|after-read)", last_user if isinstance(last_user, str) else "")
+        # "gate-read-only" reads mail and answers, so a later turn of the same
+        # session has it in its history.
+        gate = re.search(r"gate-(direct|after-read|read-only)", last_user if isinstance(last_user, str) else "")
         if gate:
             done = [m for m in messages if m.get("role") == "tool"]
-            plan = ["send_note"] if gate.group(1) == "direct" else ["read_mail", "send_note"]
+            plan = {"direct": ["send_note"], "after-read": ["read_mail", "send_note"],
+                    "read-only": ["read_mail"]}[gate.group(1)]
             label = gate.group(1)
-            suffix = "-3" if "three" in last_user else "-deleg" if "deleg" in last_user else ""
+            suffix = ("-3" if "three" in last_user else "-deleg" if "deleg" in last_user
+                      else "-4" if "four" in last_user else "")
             if len(done) < len(plan):
                 name = plan[len(done)]
                 args = {"text": label + suffix} if name == "send_note" else {}

@@ -13,7 +13,7 @@ params:
     type: string
     required: false
   - name: lines
-    description: How many lines, newest last (1–300, default 60).
+    description: How many lines, newest last (1–150, default 40). Each is cut at 240 characters.
     type: number
     required: false
   - name: since

@@ -30,6 +30,7 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 #include "llm_client.h"   // EmbeddingClient, ChatMessage
@@ -388,9 +389,17 @@ public:
 
     // ── Conversation history (short-term memory) ──────────────────────────────
 
+    // `origin`: what the run that wrote it had read (RunProvenance sources,
+    // comma-joined), "" for a clean one.
     void append_turn(int64_t user_id, const std::string& session,
                      const std::string& agent, const std::string& role,
-                     const std::string& content);
+                     const std::string& content, const std::string& origin = "");
+
+    // The origins recorded on the last n turns (the window recent_turns
+    // loads) and, with_summary, on the session's summary — the outside content
+    // a run that loads this history will have in front of it.
+    std::set<std::string> history_origins(int64_t user_id, const std::string& session,
+                                          int n, bool with_summary);
 
     // Last n user/assistant turns of a session, oldest first.
     std::vector<ChatMessage> recent_turns(int64_t user_id, const std::string& session,

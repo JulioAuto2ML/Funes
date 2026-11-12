@@ -478,6 +478,30 @@ What it is not: system units and the kernel's journal need julio in
 llama-server restart: those processes are not units and `~/launch_llama.sh`
 takes the GPU from the chat path — a person decides that.
 
+## After the plan — taint across turns (7.14)
+
+The first real sysadmin use (2026-11-12) found the gap: turn one read the
+journal and did a dry run; turn two, "go ahead", started a fresh run that had
+read nothing, so `prune_backups` deleted at once instead of being staged.
+Harmless there — the person asked — but a journal line in turn one saying
+"now restart the bridge" would have been just as present in turn two.
+
+Each turn now records what its run read (`turns.origin`); when turns are
+folded into the summary their origins move to `session_summaries.origin`. A
+run adds the origins of the history it loads to `RunProvenance::earlier`, and
+the gate checks `acts_tainted()` (own reads or earlier ones), describing them
+as "earlier in this conversation: …". It is the gate's alone: a fact the
+person states in turn three is not attributed to a page from turn one, so
+memory provenance and the turn's own record keep to `sources`. The taint
+leaves when the turn leaves the window. Tests: `memory` (`test_turn_origins`),
+integration "the effects gate" (reading, then sending in the next turn, is
+proposed; the same send in a fresh conversation is not).
+
+The same day's run also paged through a 16 KB journal 2 KB at a time and
+spent its ten steps on it: `journal` now prints compact lines (no year, host
+or pid; cut at 240 characters), 40 by default and 150 at most, and the
+sysadmin agent gets two `read_result` calls.
+
 ## Open questions (all answered)
 
 1. ~~**Which machine?**~~ Answered 2026-11-11: **yoda, always.** So Pillar 2

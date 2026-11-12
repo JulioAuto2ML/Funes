@@ -174,6 +174,31 @@ int test_turns() {
     return 0;
 }
 
+// 7.14: what the run that wrote a turn had read stays with the turn while it
+// is in the window a later run loads, moves to the summary when the turn is
+// folded into it, and is the owner's alone.
+int test_turn_origins() {
+    MemoryStore store(temp_db("turn_origins"), nullptr);
+    store.append_turn(2, "s1", "funes", "user", "same session name, other account", "url:evil.example");
+    store.append_turn(U1, "s1", "funes", "user", "read my mail", "tool:read_mail,url:example.com");
+    store.append_turn(U1, "s1", "funes", "assistant", "you have one", "tool:read_mail,url:example.com");
+    for (int i = 0; i < 4; ++i) store.append_turn(U1, "s1", "funes", i % 2 ? "assistant" : "user", "clean");
+
+    auto o = store.history_origins(U1, "s1", 10, true);
+    CHECK(o == std::set<std::string>({"tool:read_mail", "url:example.com"}));
+    CHECK(store.history_origins(U1, "s1", 4, true).empty());      // out of the window
+    CHECK(store.history_origins(U1, "s2", 10, true).empty());
+    CHECK(store.history_origins(2, "s1", 10, true) == std::set<std::string>({"url:evil.example"}));
+
+    // Folded into the summary: the window no longer holds it, the summary does.
+    store.set_summary(U1, "s1", "funes", "they read mail");
+    store.prune_turns(U1, "s1", 4);
+    CHECK(store.recent_turns(U1, "s1", 10).size() == 4);
+    CHECK(store.history_origins(U1, "s1", 10, true).count("url:example.com") == 1);
+    CHECK(store.history_origins(U1, "s1", 10, false).empty());    // a run that does not load the summary
+    return 0;
+}
+
 int test_list_sessions() {
     MemoryStore store(temp_db("sessions"), nullptr);
 
@@ -548,6 +573,7 @@ int main() {
     rc |= test_semantic();
     rc |= test_source_weighted_ranking();
     rc |= test_turns();
+    rc |= test_turn_origins();
     rc |= test_list_sessions();
     rc |= test_recall_count();
     rc |= test_prune_respects_source_age_and_recall();

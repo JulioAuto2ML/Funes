@@ -165,7 +165,11 @@ list with incident context):
    mount namespace and overlays the manifest's write directories, the script
    runs, the upper layers are the diff, and approving commits them — nothing
    re-runs. Staging is fail-closed: without the sandbox the call is refused,
-   not run on the real directories.
+   not run on the real directories. Since 7.14 the gate also counts what
+   *earlier turns* read (`turns.origin`, folded into `session_summaries.origin`
+   on compression; `RunProvenance::earlier`, `acts_tainted()`): their text is
+   in this run's context. Only the gate — memories and a turn's own record
+   keep to what the run itself read, and the taint leaves with the window.
 
 When touching the agent loop, know which of these layers a change interacts
 with — they compose, and several were added specifically because an earlier

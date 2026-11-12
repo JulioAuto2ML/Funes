@@ -99,7 +99,18 @@ class Journal(unittest.TestCase):
         cmd = self.call(["--unit=whatsapp-bridge", "--since=2h", "--lines=5000"])
         self.assertEqual(cmd[cmd.index("-u") + 1], "whatsapp-bridge")
         self.assertEqual(cmd[cmd.index("--since") + 1], "-2 hours")
-        self.assertEqual(cmd[cmd.index("-n") + 1], "300")
+        self.assertEqual(cmd[cmd.index("-n") + 1], "150")
+
+    def test_lines_are_compacted(self):
+        raw = ("2026-11-12T08:52:44-03:00 yoda whatsapp-bridge[1252]: hello there\n"
+               "2026-11-12T08:52:45-03:00 yoda funes[9]: " + "x" * 500 + "\n")
+        with mock.patch("subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout=raw, stderr="")
+            one = run_main(journal, ["--unit=whatsapp-bridge"]).splitlines()
+            every = run_main(journal, []).splitlines()
+        self.assertEqual(one[0], "11-12 08:52:44 hello there")
+        self.assertEqual(every[0], "11-12 08:52:44 whatsapp-bridge: hello there")
+        self.assertTrue(every[1].endswith(" …") and len(every[1]) <= 250)
 
     def test_refuses_option_shaped_values(self):
         for argv in (["--unit=-f"], ["--unit=a b"], ["--since=--follow"], ["--since=x;y"]):

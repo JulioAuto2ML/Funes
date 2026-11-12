@@ -224,7 +224,7 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
     // not get to act on the host or the world without the person. Checked
     // after permissions — a call the person may not make is refused, not
     // proposed to them.
-    if (!ctx.scheduled && ctx.provenance && ctx.provenance->tainted()) {
+    if (!ctx.scheduled && ctx.provenance && ctx.provenance->acts_tainted()) {
         const funes::Effect effect = effect_of(name, args);
         if (funes::needs_approval(effect)) {
             // A host script can do better than ask: run it against a copy
@@ -285,7 +285,7 @@ funes::Effect FunesAgent::effect_of(const std::string& name, const json& args) c
 ToolResult FunesAgent::propose(const std::string& name, const json& args, const ToolContext& ctx,
                                funes::Effect effect) {
     const std::string what = funes::call_keys(name, args).back();
-    const std::string read = ctx.provenance->describe();
+    const std::string read = ctx.provenance->describe_all();
     if (!defaults_.proposals) {
         std::cerr << "[gate] agent " << cfg_.name << " user " << ctx.user_id << ": " << what
                   << " refused — tainted by " << read << ", and no proposal store here\n";
@@ -310,7 +310,7 @@ ToolResult FunesAgent::propose(const std::string& name, const json& args, const 
 
 ToolResult FunesAgent::stage(const std::string& name, const json& args, const ToolContext& ctx) {
     const std::string what = funes::call_keys(name, args).back();
-    const std::string read = ctx.provenance->describe();
+    const std::string read = ctx.provenance->describe_all();
     funes::ScriptSpec spec;
     funes::load_script(defaults_.scripts_dir, args.value("name", std::string()), spec);   // effect_of loaded it
     // Expired and abandoned stages go first; a stage only lives as long as
@@ -356,7 +356,10 @@ ToolResult FunesAgent::stage(const std::string& name, const json& args, const To
 
 void FunesAgent::inherit(const ToolContext& caller) {
     scheduled_ = caller.scheduled;
-    if (caller.provenance) inherited_sources_ = caller.provenance->sources;
+    if (caller.provenance) {
+        inherited_sources_ = caller.provenance->sources;
+        inherited_earlier_ = caller.provenance->earlier;
+    }
 }
 
 ToolResult FunesAgent::execute_proposal(const funes::Proposal& p, const funes::Permissions& perms) {
@@ -436,6 +439,7 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     ctx.provenance = std::make_shared<funes::RunProvenance>();
     for (const auto& o : cfg_.input_origins) ctx.provenance->sources.insert(o);
     for (const auto& o : inherited_sources_) ctx.provenance->sources.insert(o);
+    ctx.provenance->earlier = inherited_earlier_;
     ctx.scheduled = scheduled_;
 
     // 1. Recall relevant memories and surface them to the UI.
@@ -485,6 +489,13 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
                                             {"summary_preview", result.summary_preview}});
         }
     }
+
+    // What those turns had read (7.14). Their text is about to be in this
+    // run's context — a journal line from the last turn can ask for a restart
+    // in this one — so the effects gate counts it. After any compression
+    // above, so it is the window the model will actually see.
+    for (const auto& o : memory_.history_origins(user_id, session, defaults_.memory_turns, writes_history))
+        ctx.provenance->earlier.insert(o);
 
     // 3. Build the conversation: system (+memories+summary), recent turns, user message.
     std::vector<ChatMessage> history;
@@ -666,8 +677,12 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     }
 
     if (writes_history) {
-        memory_.append_turn(user_id, session, cfg_.name, "user", user_message);
-        memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text);
+        // What this run read itself — not what it inherited from earlier
+        // turns, which carry their own record and leave the window on their own.
+        std::string read;
+        for (const auto& o : ctx.provenance->sources) read += (read.empty() ? "" : ",") + o;
+        memory_.append_turn(user_id, session, cfg_.name, "user", user_message, read);
+        memory_.append_turn(user_id, session, cfg_.name, "assistant", final_text, read);
 
         using AutoMemory = AgentDefaults::AutoMemory;
         if (writes_memory && defaults_.auto_memory != AutoMemory::Off && !final_text.empty()) {

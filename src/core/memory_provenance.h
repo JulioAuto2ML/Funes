@@ -38,9 +38,21 @@ struct Provenance {
 struct RunProvenance {
     std::set<std::string> sources;   // "url:<host>", "tool:<name>", ...
 
+    // What earlier turns of this conversation had read (7.14): their text is
+    // in this run's context, so the effects gate treats it as read. Not
+    // `sources` — what the person says now is not attributed to a page they
+    // looked at three turns ago, so memories and the turn's own record keep
+    // to what this run read itself.
+    std::set<std::string> earlier;
+
     bool tainted() const { return !sources.empty(); }
+    // For the effects gate: this run's reads, or text from earlier ones in
+    // its context.
+    bool acts_tainted() const { return tainted() || !earlier.empty(); }
     // Up to three sources, joined by ", "; "+N more" past that.
     std::string describe() const;
+    // describe() with the earlier turns' sources after it ("earlier: ...").
+    std::string describe_all() const;
 };
 
 // What reading the result of `tool` called with `args` exposes the run to:

@@ -1348,6 +1348,15 @@ check "a delegated send after the caller read mail is proposed" "$OUT" 'proposed
 check_absent "and the sub-agent did not send it" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-direct-deleg'
 HIST=$(curl -s "$BASE/api/history?session=it-gate-2&limit=50")
 check "the approval is in the session's history" "$HIST" "aprobar $PID_N"
+# 7.14: what an earlier turn read is still in this one's context.
+OUT=$(gate_chat curl "gate-read-only what came in" it-gate-5)
+check_absent "reading alone proposes nothing" "$OUT" 'proposed as'
+OUT=$(gate_chat curl "gate-direct note four" it-gate-5)
+check "a send in a later turn of that conversation is proposed" "$OUT" 'proposed as #[0-9]'
+check_absent "and did not happen" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-direct-4'
+check "the log says why" "$(cat /tmp/funes_it.log)" 'after reading earlier in this conversation: tool:read_mail'
+OUT=$(gate_chat curl "gate-direct note four" it-gate-6)
+check "the same send in a fresh conversation acts at once" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-direct-4'
 
 echo "— staging: a host script after outside content runs against a copy"
 stage_chat() {  # stage_chat <message> <session>

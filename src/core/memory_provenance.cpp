@@ -56,6 +56,13 @@ std::string RunProvenance::describe() const {
     return out;
 }
 
+std::string RunProvenance::describe_all() const {
+    if (earlier.empty()) return describe();
+    RunProvenance e;
+    e.sources = earlier;
+    return (tainted() ? describe() + "; " : std::string()) + "earlier in this conversation: " + e.describe();
+}
+
 std::string third_party_origin(const std::string& tool, const nlohmann::json& args) {
     if (kOwnData.count(tool)) return "";
     if (tool == "web_fetch") {

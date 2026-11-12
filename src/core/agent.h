@@ -200,6 +200,7 @@ private:
 
     bool                  scheduled_ = false;
     std::set<std::string> inherited_sources_;
+    std::set<std::string> inherited_earlier_;
 
     // The effect class of one call (effects.h): built-in, script, MCP tool.
     funes::Effect effect_of(const std::string& name, const json& args) const;

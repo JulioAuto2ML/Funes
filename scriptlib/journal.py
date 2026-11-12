@@ -2,7 +2,7 @@
 """Recent lines of yoda's user journal (journalctl --user), read-only.
 
 --unit=NAME     one user unit (whatsapp-bridge, funes, ...); default: all
---lines=N       how many, newest last; 1..300, default 60
+--lines=N       how many, newest last; 1..150, default 40
 --since=WHEN    "1h", "30m", "2d" ago, or a time journalctl understands
                 ("2026-11-12 06:00", "today", "yesterday")
 --priority=P    only this priority and worse (err, warning, ...)
@@ -18,6 +18,21 @@ import sys
 UNIT_RE = re.compile(r"^[A-Za-z0-9@._\-]+$")
 SINCE_RE = re.compile(r"^[0-9A-Za-z :.\-]+$")
 RELATIVE_RE = re.compile(r"^(\d+)\s*([mhd])$")
+# journalctl -o short-iso: "2026-11-12T08:52:44-03:00 yoda whatsapp-bridge[1252]: text"
+LINE_RE = re.compile(r"^(\d{4})-(\d\d-\d\dT\d\d:\d\d:\d\d)\S*\s+\S+\s+([^:\s]+?)(?:\[\d+\])?:\s?(.*)$")
+MAX_LINE = 240
+
+
+def compact(line, one_unit):
+    """'11-12 08:52:44 text' — no year, zone, host or pid, and no unit name
+    when the caller asked for one unit. A long line is cut: what a model
+    reading this needs is which lines matter, and a 16 KB result is one it
+    pages through instead of reading (2026-11-12)."""
+    m = LINE_RE.match(line)
+    if m:
+        stamp = m.group(2).replace("T", " ")
+        line = f"{stamp} {m.group(4)}" if one_unit else f"{stamp} {m.group(3)}: {m.group(4)}"
+    return line if len(line) <= MAX_LINE else line[:MAX_LINE] + " …"
 
 
 def parse_args(argv):
@@ -41,10 +56,10 @@ def main():
         cmd += ["-u", unit]
 
     try:
-        lines = int(float(args.get("lines", 60)))
+        lines = int(float(args.get("lines", 40)))
     except ValueError:
         raise SystemExit("lines must be a number")
-    cmd += ["-n", str(max(1, min(lines, 300)))]
+    cmd += ["-n", str(max(1, min(lines, 150)))]
 
     since = args.get("since")
     if since:
@@ -63,8 +78,11 @@ def main():
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
     if r.returncode != 0:
         raise SystemExit(f"journalctl failed ({r.returncode}): {r.stderr.strip()}")
-    out = r.stdout.rstrip()
-    print(out if out and out != "-- No entries --" else "(no entries)")
+    out = [compact(l, bool(unit)) for l in r.stdout.splitlines() if l.strip()]
+    if not out or out == ["-- No entries --"]:
+        print("(no entries)")
+    else:
+        print("\n".join(out))
 
 
 if __name__ == "__main__":

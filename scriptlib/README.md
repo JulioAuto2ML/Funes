@@ -347,7 +347,7 @@ Tests: `scriptlib/tests/test_sysadmin.py` (`ctest -R scriptlib_sysadmin`).
 |---|---|---|
 | `system_health` | none | Load, memory, PSI, disk, GPU memory, temperatures, llama-server processes, failed user units — from /proc, /sys and one `systemctl`. |
 | `unit_status` | none | Every user service, or one unit's state, result, restarts, start time, memory and CPU. |
-| `journal` | none | `journalctl --user`, by unit, `since` ("2h", "today"), priority; at most 300 lines. Log text taints the run. |
+| `journal` | none | `journalctl --user`, by unit, `since` ("2h", "today"), priority; at most 150 lines, each compacted (no year, host or pid) and cut at 240 characters. Log text taints the run. |
 | `restart_unit` | external | Restart a WhatsApp bridge, the autoresponder or the monitor dashboard (a `choices:` list; never `funes`). After the journal was read, it waits for "aprobar N". |
 | `prune_backups` | host | Delete `data/backups` entries older than N days (≥ 7), always keeping the newest K; `dry_run` lists them. After outside content it is staged: the deletions are shown and applied on approval. |
 
