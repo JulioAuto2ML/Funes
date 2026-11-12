@@ -32,8 +32,11 @@ output:
 # directory; the pairing token, its upload state and the weather cache live in
 # data/tv, next to FUNES_TV_TOKEN_FILE. Move the token elsewhere and this has
 # to follow it.
+# connect: the TV's websocket API (learned with `funes script-learn`, 7.9;
+# wake-on-LAN is UDP, which Landlock does not restrict).
 access:
   write: ["${FUNES_ROOT}/data/tv"]
+  connect: [8002]
 
 env:
   FUNES_TV_HOST: "${FUNES_TV_HOST}"

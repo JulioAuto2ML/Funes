@@ -15,3 +15,6 @@ output:
       ok:     {type: boolean}
       items:  {type: array}
       errors: {type: array}
+# The three outlets' RSS feeds, nothing else (learned with `funes script-learn`).
+access:
+  connect: [443]

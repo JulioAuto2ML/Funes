@@ -454,14 +454,23 @@ int cmd_mcp_probe(const std::string& agents_dir, const std::string& workspace_di
         }
     }
     // Every client is gone by now, so every server has stopped and reported.
+    // The proposal folds the server's whole log, not this run: starting a
+    // server and listing its tools touches none of what its tools do, so one
+    // probe per read-only tool has to add up to the answer.
     for (const auto& [srv, observed] : learned) {
-        auto seen = observe::parse_lines(observed);
         const std::string owner = "mcp-" + cfg->name + "-" + srv->name;
-        const size_t added = observe::append_log(observe::log_path(owner, workspace_dir), seen);
+        const std::string log = observe::log_path(owner, workspace_dir);
+        const size_t added = observe::append_log(log, observe::parse_lines(observed));
+        std::ifstream in(log);
+        std::stringstream text;
+        text << in.rdbuf();
         const auto ctx = observe::context_for("", workspace_dir, srv->access);
-        std::cout << "\n" << observe::render(observe::propose(seen, ctx),
+        std::cout << "\n" << observe::render(observe::propose(observe::parse_lines(text.str()), ctx),
                                              "MCP server '" + srv->name + "' of agent '" + cfg->name + "'")
-                  << "# (" << added << " new to " << observe::log_path(owner, workspace_dir) << ")\n";
+                  << "# (" << added << " new to " << log << ")\n";
+        if (call.empty())
+            std::cout << "# No tool was called: \"never used\" above only means not needed to start.\n"
+                         "# Probe a read-only tool with --call=<tool> --learn to see what the work needs.\n";
     }
     std::cerr << "[mcp-probe] " << agent << ": " << stdio_servers << " stdio server(s), "
               << failures << " failure(s), sandbox "

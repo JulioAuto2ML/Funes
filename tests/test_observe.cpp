@@ -180,8 +180,9 @@ int test_fold() {
     Access tcp; tcp.op = "connect"; tcp.family = "inet"; tcp.proto = "tcp"; tcp.port = 443; tcp.addr = "1.2.3.4";
     Access tcp2 = tcp; tcp2.port = 8080;
     Access udp = tcp; udp.proto = "udp"; udp.port = 53;
+    Access probe = tcp; probe.proto = "udp";                 // getaddrinfo's address sort
     Access un; un.op = "connect"; un.family = "unix"; un.path = "/run/user/1000/pulse/native";
-    seen.insert(seen.end(), {tcp, tcp2, udp, un});
+    seen.insert(seen.end(), {tcp, tcp2, udp, probe, un});
 
     const auto p = funes::observe::propose(seen, fold_context());
     auto find = [](const std::vector<funes::observe::Grant>& gs, const std::string& kind,
@@ -215,7 +216,8 @@ int test_fold() {
     };
     CHECK(note("RED FLAG: read ${HOME}/.ssh/id_ed25519"));
     CHECK(note("another account's workspace"));
-    CHECK(note("UDP to port 53"));
+    CHECK(note("UDP to port 53 (DNS)"));
+    CHECK(note("UDP to port 443 (getaddrinfo"));
     CHECK(note("needs write directly in ${HOME}"));
     CHECK(!find(p.needed, "write", "${HOME}"));
     CHECK(note("unix socket /run/user/1000/pulse/native"));

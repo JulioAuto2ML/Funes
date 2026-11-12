@@ -40,8 +40,11 @@ output:
 # directory; the pairing token, its upload state and the weather cache live in
 # data/tv, next to FUNES_TV_TOKEN_FILE. Move the token elsewhere and this has
 # to follow it.
+# connect: open-meteo and the Met's API (443), the TV (8002, publish), and the
+# LLM for the label's translation (8080 — follow FUNES_LLM_URL if it moves).
 access:
   write: ["${FUNES_ROOT}/data/tv"]
+  connect: [443, 8002, 8080]
 
 env:
   FUNES_WEATHER_LAT: "${FUNES_WEATHER_LAT}"

@@ -385,6 +385,19 @@ First real result, the RSS server (`npx rss-reader-mcp`) on this machine: its
 and `~/package*.json` (npx looking upward for a project), which its block
 does not grant — they fail closed, harmlessly.
 
+On yoda (7.9.1), five scripts and one read-only call per MCP server. No
+script declared `connect:`, so each could reach any TCP port; three now do
+(`news_headlines` [443], `tv_art` [8002], `tv_weather_art` [443, 8002, 8080]).
+The MCP blocks held: Gmail used 993 (465 is `send_email`'s), WhatsApp read
+its store and the fold proposed *write* on `messages.db` — SQLite opens
+read-write and falls back to read-only when refused, which is the point, so
+it was not taken. Two lessons for reading a proposal: Python's site module
+opens `~/.local/lib/python3.*/site-packages` on startup and imports nothing
+from it when refused, so that grant is noise; and a UDP `connect()` to the
+same port as a TCP one is getaddrinfo sorting addresses, not traffic. And
+starting a server lists tools without doing any work, so `mcp-probe --learn`
+now folds the server's whole log, and says so when no tool was called.
+
 Not done: a refusal outside learn mode is still invisible (that is Landlock
 audit, ABI 7); the `[learn]` line is not yet a `host_events` row; the model
 review seat is `funes script-learn x … | funes ask "anything odd?"`, nothing

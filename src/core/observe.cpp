@@ -591,7 +591,7 @@ Proposal propose(const std::vector<Access>& seen, const FoldContext& ctx) {
     out.observed = seen.size();
     std::map<std::string, Want> wants;            // path → strongest right asked for
     std::map<std::string, std::set<std::string>> used_declared;   // declared entry → evidence
-    std::set<int> tcp_ports;
+    std::set<int> tcp_ports, udp_ports;
     std::map<int, std::set<std::string>> port_addrs;
     std::set<std::string> notes;
 
@@ -608,8 +608,7 @@ Proposal propose(const std::vector<Access>& seen, const FoldContext& ctx) {
                 notes.insert("connects to unix socket " + substitute(a.path, ctx) +
                              " — not restricted by Landlock up to ABI 6; reachable whenever its file is");
             } else if (a.proto == "udp" && a.port != 0) {
-                notes.insert("UDP to port " + std::to_string(a.port) +
-                             " — Landlock does not restrict UDP (DNS is usually this)");
+                udp_ports.insert(a.port);
             } else if (a.proto != "udp" && a.port != 0) {
                 tcp_ports.insert(a.port);
                 port_addrs[a.port].insert(a.addr);
@@ -727,6 +726,17 @@ Proposal propose(const std::vector<Access>& seen, const FoldContext& ctx) {
     }
     for (int port : ctx.declared.connect)
         if (!tcp_ports.count(port)) out.unused.push_back({"connect", std::to_string(port), {}});
+
+    // A UDP connect() to a port the program also reached over TCP is glibc's
+    // getaddrinfo ordering its candidate addresses (RFC 6724): it connects a
+    // datagram socket to learn the source address and sends nothing.
+    for (int port : udp_ports) {
+        const std::string why = tcp_ports.count(port) ? "getaddrinfo sorting addresses, no packet sent"
+                              : port == 53            ? "DNS"
+                                                      : "a real datagram";
+        notes.insert("UDP to port " + std::to_string(port) + " (" + why +
+                     ") — Landlock does not restrict UDP");
+    }
 
     out.notes.assign(notes.begin(), notes.end());
     return out;
