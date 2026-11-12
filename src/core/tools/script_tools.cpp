@@ -21,6 +21,7 @@
 
 #include "../observe.h"
 #include "../script_library.h"
+#include "../staging.h"
 #include "../text_utils.h"
 #include "../tools.h"
 #include "fs_guard.h"
@@ -157,7 +158,15 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     const bool json_out = (spec.output_format == "json");
     // The grant is the sandbox (sandbox.h): the caller's workspace, the
     // script's own library directory, and what its manifest declares.
-    const funes::sandbox::Policy policy = funes::script_policy(spec, workspace);
+    funes::sandbox::Policy policy = funes::script_policy(spec, workspace);
+    // A staged call (the effects gate, staging.h): the directories the stage
+    // was prepared for are overlaid, so the script's writes there land in it.
+    if (!ctx.stage_dir.empty()) {
+        if (!funes::staging::available())
+            return {"Staging is not available here, so '" + name + "' was not run.", true};
+        policy.stage = ctx.stage_dir;
+        policy.overlay = funes::staging::roots_of(ctx.stage_dir);
+    }
     funes::proc::Result r = funes::proc::run_argv(argv, workspace, spec.timeout_seconds,
                                                   MAX_OUTPUT_BYTES, spec.env, json_out,
                                                   spec.limits, policy);

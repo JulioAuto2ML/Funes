@@ -44,6 +44,9 @@ cleanup() {
     rm -f "${NOTIFY_SOCK:-}" "${NOTIFY_LOG:-}" "${SOCK:-}"
     rm -f "$DB" "$DB-wal" "$DB-shm"
     rm -rf "$WORKSPACE" "$AGENTS"
+    # A stage's overlay work directory is left without permissions.
+    [ -n "${STAGE_DIR:-}" ] && chmod -R u+rwx "$STAGE_DIR" 2>/dev/null
+    rm -rf "${STAGE_LIB:-}" "${STAGE_HOST:-}" "${STAGE_DIR:-}"
     rm -f "${COOKIE_JAR:-}" "${MEMBER_JAR:-}"
 }
 trap cleanup EXIT
@@ -239,6 +242,50 @@ mcp_servers:
 system_prompt: Do what the message says.
 YAML
 
+# Staging (core/staging.h): a host script that edits a directory outside every
+# workspace — one file rewritten, one deleted, one added.
+STAGE_LIB=$(mktemp -d /tmp/funes_it_stagelib_XXXX)
+STAGE_HOST=$(mktemp -d /tmp/funes_it_stagehost_XXXX)
+STAGE_DIR=$(mktemp -d /tmp/funes_it_stages_XXXX)
+printf 'port = 80\n' > "$STAGE_HOST/app.conf"
+printf 'obsolete\n' > "$STAGE_HOST/old.conf"
+cat > "$STAGE_LIB/stage_edit.yaml" <<YAML
+description: Test fixture — edits app.conf in a directory outside the workspace.
+run: stage_edit.sh
+effects: host
+params:
+  - name: value
+    description: the new port
+    type: string
+    required: true
+access:
+  write: ["$STAGE_HOST"]
+YAML
+cat > "$STAGE_LIB/stage_edit.sh" <<SH
+#!/bin/sh
+v="\${1#--value=}"
+printf 'port = %s\n' "\$v" > "$STAGE_HOST/app.conf"
+rm -f "$STAGE_HOST/old.conf"
+printf 'set by %s\n' "\$v" > "$STAGE_HOST/new.conf"
+echo "EDITED-\$v"
+SH
+chmod +x "$STAGE_LIB/stage_edit.sh"
+cat > "$AGENTS/stage-tester.yaml" <<YAML
+name: stage-tester
+description: Test fixture — reads outside content, then runs a host script.
+tools: [read_mail, run_script]
+scripts: [stage_edit]
+max_steps: 4
+mcp_servers:
+  - name: gate-probe
+    command: python3 $AGENTS/gate-server.py
+    effects: {default: none, send_note: external}
+    access:
+      read:  ["$AGENTS"]
+      write: ["$AGENTS"]
+system_prompt: Do what the message says.
+YAML
+
 cat > "$AGENTS/repeat-tester.yaml" <<'YAML'
 name: repeat-tester
 description: Test fixture — an agent whose model repeats one identical call.
@@ -286,6 +333,8 @@ FUNES_PORT=$API_PORT \
 FUNES_VISION_URL= \
 FUNES_SERVICE_TOKEN= \
 FUNES_SOCKET="$SOCK" \
+FUNES_SCRIPTS_DIR="$(pwd)/scriptlib:$STAGE_LIB" \
+FUNES_STAGING_DIR="$STAGE_DIR" \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
 FUNES_PID=$!
 
@@ -1299,6 +1348,46 @@ check "a delegated send after the caller read mail is proposed" "$OUT" 'proposed
 check_absent "and the sub-agent did not send it" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-direct-deleg'
 HIST=$(curl -s "$BASE/api/history?session=it-gate-2&limit=50")
 check "the approval is in the session's history" "$HIST" "aprobar $PID_N"
+
+echo "— staging: a host script after outside content runs against a copy"
+stage_chat() {  # stage_chat <message> <session>
+    curl -s -N -X POST "$BASE/api/chat" \
+        -d "{\"message\":\"$1\",\"session\":\"$2\",\"agent\":\"stage-tester\"}"
+}
+if grep -q "Staging:   host scripts" /tmp/funes_it.log; then
+    OUT=$(stage_chat "stage-direct 81" it-stage-1)
+    check "an untainted host script changes the host at once" "$(cat "$STAGE_HOST/app.conf")" 'port = 81'
+    printf 'port = 80\n' > "$STAGE_HOST/app.conf"; printf 'obsolete\n' > "$STAGE_HOST/old.conf"; rm -f "$STAGE_HOST/new.conf"
+    OUT=$(stage_chat "stage-after-read 8080" it-stage-2)
+    check "a tainted one is staged" "$OUT" 'STAGED, NOT APPLIED — proposal #[0-9]'
+    check "it really ran" "$OUT" 'EDITED-8080'
+    check "the person sees what it changed" "$OUT" "modified  $STAGE_HOST/app.conf"
+    check "including a deletion" "$OUT" "deleted   $STAGE_HOST/old.conf"
+    check "and the diff" "$OUT" '+port = 8080'
+    check "the host did not change" "$(cat "$STAGE_HOST/app.conf")" '^port = 80$'
+    check "nothing was deleted" "$(ls "$STAGE_HOST")" 'old.conf'
+    check "the staging is logged" "$(cat /tmp/funes_it.log)" 'staged 3 change(s) → proposal #'
+    SID=$(echo "$OUT" | grep -o 'proposal #[0-9]*' | head -1 | grep -o '[0-9]*$')
+    OUT=$(stage_chat "aprobar $SID" it-stage-2)
+    check "approving applies the staged changes" "$OUT" "#$SID (run_script): applied 3 change"
+    check "the host has them" "$(cat "$STAGE_HOST/app.conf")" '^port = 8080$'
+    check "the deletion too" "$(ls "$STAGE_HOST")" 'new.conf'
+    check_absent "and old.conf is gone" "$(ls "$STAGE_HOST")" 'old.conf'
+    check "the stage was removed" "$(ls "$STAGE_DIR" | grep -c stage-)" '^0$'
+    OUT=$(stage_chat "stage-after-read 9090" it-stage-3)
+    SID=$(echo "$OUT" | grep -o 'proposal #[0-9]*' | head -1 | grep -o '[0-9]*$')
+    printf 'port = 7000\n' > "$STAGE_HOST/app.conf"
+    OUT=$(stage_chat "aprobar $SID" it-stage-3)
+    check "a file edited since staging stops the commit" "$OUT" 'changed since it was staged'
+    check "and the hand edit stands" "$(cat "$STAGE_HOST/app.conf")" '^port = 7000$'
+    OUT=$(stage_chat "stage-after-read 9191" it-stage-4)
+    SID=$(echo "$OUT" | grep -o 'proposal #[0-9]*' | head -1 | grep -o '[0-9]*$')
+    OUT=$(stage_chat "rechazar $SID" it-stage-4)
+    check "a rejection discards the stage" "$(ls "$STAGE_DIR" | grep -c stage-)" '^0$'
+    check_absent "and the host never saw it" "$(cat "$STAGE_HOST/app.conf")" '9191'
+else
+    echo "  (skipped: $(grep 'Staging:' /tmp/funes_it.log))"
+fi
 
 echo "— an expired session cookie stops authenticating"
 # Expiry has a unit test (tests/test_users.cpp) but had never been exercised

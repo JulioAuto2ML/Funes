@@ -50,6 +50,11 @@ struct Policy {
     // Learn mode (observe.h): record what the child touches, under this same
     // policy. Not a right — the trampoline's supervisor only watches.
     bool observe = false;
+    // Staging (staging.h): before the sandbox, mount an overlay over each of
+    // `overlay` whose upper layers live in `stage`. Every write under them
+    // lands in the stage instead of the real directory.
+    std::string stage;
+    std::vector<std::string> overlay;
 };
 
 // The running kernel's Landlock ABI version; 0 when it has none.
@@ -65,7 +70,7 @@ Policy base();
 // base() plus `workspace` read-write — scripts and shell commands.
 Policy for_workspace(const std::filesystem::path& workspace);
 
-// The trampoline's options for `p`: --ro=, --rx=, --rw=, --connect=.
+// The trampoline's options for `p`: --ro=, --rx=, --rw=, --connect=, --stage=, --overlay=.
 std::vector<std::string> trampoline_args(const Policy& p);
 
 // In the trampoline, after the cgroup is joined and before exec: set

@@ -17,6 +17,7 @@
 #include "result_store.h"
 #include "run_outcome.h"
 #include "script_library.h"
+#include "staging.h"
 #include "text_utils.h"
 #include "tool_budget.h"
 #include "tool_log.h"
@@ -225,7 +226,14 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
     // proposed to them.
     if (!ctx.scheduled && ctx.provenance && ctx.provenance->tainted()) {
         const funes::Effect effect = effect_of(name, args);
-        if (funes::needs_approval(effect)) return propose(name, args, ctx, effect);
+        if (funes::needs_approval(effect)) {
+            // A host script can do better than ask: run it against a copy
+            // and show what it changed (staging.h).
+            if (effect == funes::Effect::Host && name == "run_script" && defaults_.proposals
+                && funes::staging::available())
+                return stage(name, args, ctx);
+            return propose(name, args, ctx, effect);
+        }
     }
 
     if (tools_.has(name))
@@ -300,6 +308,52 @@ ToolResult FunesAgent::propose(const std::string& name, const json& args, const 
     return r;
 }
 
+ToolResult FunesAgent::stage(const std::string& name, const json& args, const ToolContext& ctx) {
+    const std::string what = funes::call_keys(name, args).back();
+    const std::string read = ctx.provenance->describe();
+    funes::ScriptSpec spec;
+    funes::load_script(defaults_.scripts_dir, args.value("name", std::string()), spec);   // effect_of loaded it
+    // Expired and abandoned stages go first; a stage only lives as long as
+    // its proposal (a day).
+    funes::staging::prune(defaults_.proposals->live_stages(), 2 * 3600);
+    std::string err;
+    const std::string dir = funes::staging::prepare(spec.access.write, err);
+    if (dir.empty()) {
+        std::cerr << "[gate] agent " << cfg_.name << " user " << ctx.user_id << ": " << what
+                  << " cannot be staged (" << err << "), proposing instead\n";
+        return propose(name, args, ctx, funes::Effect::Host);
+    }
+    ToolContext staged = ctx;
+    staged.stage_dir = dir;
+    ToolResult r = tools_.call(name, args, staged);
+    const std::vector<funes::staging::Change> changes = funes::staging::collect(dir);
+    if (r.error || changes.empty()) {
+        funes::staging::discard(dir);
+        std::cerr << "[gate] agent " << cfg_.name << " user " << ctx.user_id << ": " << what
+                  << " staged, " << (r.error ? "failed" : "changed nothing") << " — discarded\n";
+        r.text += r.error ? "\n\n(It ran against a copy of the host; nothing it did there was kept.)"
+                          : "\n\n(It ran against a copy of the host and changed nothing there.)";
+        return r;
+    }
+    const int64_t id = defaults_.proposals->create(ctx.user_id, cfg_.name, name, args, ctx.session,
+                                                   read, "host", dir);
+    std::cerr << "[gate] agent " << cfg_.name << " user " << ctx.user_id << ": " << what
+              << " staged " << changes.size() << " change(s) → proposal #" << id
+              << ", after reading " << read << "\n";
+    const std::string n = std::to_string(id);
+    ToolResult out{"STAGED, NOT APPLIED — proposal #" + n + ". This run has read outside content (" + read +
+                   "), so " + what + " ran against a copy of the host: what it changed is below, and none "
+                   "of it is real yet. Tell the person what it would change, and that they can reply \"aprobar " +
+                   n + "\" (or \"approve " + n + "\") to apply exactly these changes, or \"rechazar " + n +
+                   "\" to throw them away. Do not run it again for this, and do not say it was done.\n\n"
+                   "Changes:\n" + funes::staging::summarize(changes) + "\n" +
+                   funes::staging::diff(dir, 12000) + "\nThe script's own output:\n" + r.text,
+                   /*error=*/false};
+    out.usage = r.usage;
+    out.proposal_id = id;
+    return out;
+}
+
 void FunesAgent::inherit(const ToolContext& caller) {
     scheduled_ = caller.scheduled;
     if (caller.provenance) inherited_sources_ = caller.provenance->sources;
@@ -316,6 +370,21 @@ ToolResult FunesAgent::execute_proposal(const funes::Proposal& p, const funes::P
                 std::to_string(p.id) + " was not run.", true};
     ToolContext ctx{cfg_.name, p.session, cfg_.workspace_dir, cfg_.memory_scope,
                     p.user_id, perms, cfg_.scripts};
+    if (!p.stage.empty()) {
+        // Already run, against a copy: approving it applies what it did.
+        for (const auto& key : funes::call_keys(p.tool, p.args))
+            if (!perms.allows_tool(key))
+                return {"You no longer have permission to use " + key + ", so #" + std::to_string(p.id) +
+                        " was not applied.", true};
+        size_t applied = 0;
+        const std::string err = funes::staging::commit(p.stage, &applied);
+        funes::staging::discard(p.stage);
+        std::cerr << "[gate] agent " << cfg_.name << " user " << p.user_id << ": approved #" << p.id
+                  << " " << p.tool << " — " << (err.empty() ? "applied " + std::to_string(applied) + " change(s)"
+                                                            : "not applied: " + err) << "\n";
+        if (!err.empty()) return {err, true};
+        return {"applied " + std::to_string(applied) + " change(s)", false};
+    }
     std::cerr << "[gate] agent " << cfg_.name << " user " << p.user_id << ": running approved #"
               << p.id << " " << p.tool << "\n";
     return dispatch_tool(p.tool, p.args, ctx);   // permissions re-checked there

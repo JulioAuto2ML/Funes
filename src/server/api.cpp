@@ -8,6 +8,7 @@
 #include "../core/base64.h"
 #include "../core/password.h"
 #include "../core/permissions.h"
+#include "../core/staging.h"
 #include "../core/text_utils.h"
 #include "../core/version.h"
 #include "../core/tools/fs_guard.h"
@@ -1286,6 +1287,7 @@ std::string FunesApi::answer_approval(const UserStore::User& user, const funes::
     if (d == D::AlreadyDecided)
         return say("Proposal " + n + " was already decided (" + p->status + ").",
                    "La propuesta " + n + " ya estaba decidida (" + p->status + ").");
+    if (!cmd.approve && !p->stage.empty()) funes::staging::discard(p->stage);
     if (!cmd.approve)
         return say("Dropped " + n + " (" + p->tool + "). Nothing was done.",
                    "Descarté la " + n + " (" + p->tool + "). No se hizo nada.");

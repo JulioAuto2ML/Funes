@@ -48,7 +48,7 @@ void exec_or_throw(sqlite3* db, const char* sql) {
 }
 
 const char kColumns[] =
-    "id, user_id, agent, tool, args, session, origin, effect, status, result, created_at, decided_at";
+    "id, user_id, agent, tool, args, session, origin, effect, status, result, created_at, decided_at, stage";
 
 Proposal read_row(Stmt& s) {
     Proposal p;
@@ -65,6 +65,7 @@ Proposal read_row(Stmt& s) {
     p.result     = s.col_text(9);
     p.created_at = s.col_int64(10);
     p.decided_at = s.col_int64(11);
+    p.stage      = s.col_text(12);
     return p;
 }
 
@@ -95,6 +96,13 @@ ProposalStore::ProposalStore(const std::string& db_path) {
         );
         CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, status);
     )sql");
+    // 7.12: a staged call's stage directory. 7.11 databases lack the column.
+    bool has_stage = false;
+    {
+        Stmt s(db_, "PRAGMA table_info(proposals)");
+        while (s.step()) if (s.col_text(1) == "stage") has_stage = true;
+    }
+    if (!has_stage) exec_or_throw(db_, "ALTER TABLE proposals ADD COLUMN stage TEXT NOT NULL DEFAULT ''");
 }
 
 ProposalStore::~ProposalStore() {
@@ -107,10 +115,11 @@ int64_t ProposalStore::now() const {
 
 int64_t ProposalStore::create(int64_t user_id, const std::string& agent, const std::string& tool,
                               const nlohmann::json& args, const std::string& session,
-                              const std::string& origin, const std::string& effect) {
+                              const std::string& origin, const std::string& effect,
+                              const std::string& stage) {
     std::lock_guard<std::mutex> lock(mu_);
-    Stmt s(db_, "INSERT INTO proposals (user_id, agent, tool, args, session, origin, effect, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    Stmt s(db_, "INSERT INTO proposals (user_id, agent, tool, args, session, origin, effect, created_at, stage) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     s.bind_int64(1, user_id);
     s.bind_text(2, agent);
     s.bind_text(3, tool);
@@ -119,6 +128,7 @@ int64_t ProposalStore::create(int64_t user_id, const std::string& agent, const s
     s.bind_text(6, origin);
     s.bind_text(7, effect);
     s.bind_int64(8, now());
+    s.bind_text(9, stage);
     s.step();
     return sqlite3_last_insert_rowid(db_);
 }
@@ -177,6 +187,16 @@ std::vector<Proposal> ProposalStore::pending(int64_t user_id, int limit) {
     s.bind_int64(3, limit);
     std::vector<Proposal> out;
     while (s.step()) out.push_back(read_row(s));
+    return out;
+}
+
+std::set<std::string> ProposalStore::live_stages() {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT stage FROM proposals WHERE stage != '' AND status IN ('pending', 'approved') "
+                "AND created_at > ?");
+    s.bind_int64(1, now() - kTtlSeconds);
+    std::set<std::string> out;
+    while (s.step()) out.insert(s.col_text(0));
     return out;
 }
 

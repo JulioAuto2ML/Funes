@@ -27,6 +27,7 @@
 #include "host_collector.h"
 #include "host_events.h"
 #include "sandbox.h"
+#include "staging.h"
 #include "sd_notify.h"
 #include "user_cli.h"
 #include "users.h"
@@ -426,6 +427,15 @@ int main(int argc, char** argv) {
     // from here, so it must be set before FunesApi copies `defaults`.
     defaults.scripts_dir = scripts_dir;
     defaults.proposals = &proposals;
+
+    // Staging (staging.h): a tainted run's host script runs against a copy,
+    // kept beside memory.db for as long as its proposal waits. Probed once,
+    // through the trampoline it will really use.
+    funes::staging::set_root(funes::env("FUNES_STAGING_DIR",
+                                        (fs::path(db_path).parent_path() / "staging").string()));
+    std::string staging_reason;
+    funes::staging::probe(staging_reason);
+    funes::staging::prune(proposals.live_stages(), 0);
 
     // The machine as a memory owner (OS plan phase 4, host_collector.h): a
     // `system` account nobody can log in as owns the pool; the event ring
@@ -839,6 +849,9 @@ int main(int argc, char** argv) {
                      : funes::sandbox::abi() > 0 ? std::string("off (FUNES_SANDBOX=0)")
                                                  : std::string("unavailable — no Landlock in this kernel"))
               << "\n"
+              << "  Staging:   " << (funes::staging::available()
+                     ? "host scripts in tainted runs run against an overlay in " + funes::staging::root()
+                     : "off (" + staging_reason + ") — their calls are proposed unrun") << "\n"
               << "  Socket:    " << (sock_ok ? sock_path + " (uid-mapped accounts; `funes ask`)"
                                              : std::string("off")) << "\n"
               << "  Machine:   " << (!collector ? std::string("memory off")

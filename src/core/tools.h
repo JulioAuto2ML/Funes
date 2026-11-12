@@ -88,6 +88,9 @@ struct ToolContext {
     // lets its host and external calls through, tainted or not, because
     // scheduling the job was the approval.
     bool scheduled = false;
+    // Set by the gate for a staged call (staging.h): run_script runs the script
+    // with its writable directories overlaid, the changes landing here.
+    std::string stage_dir;
 
     ToolContext(std::string agent_, std::string session_,
                 std::string workspace_dir_ = "", std::string memory_scope_ = "",

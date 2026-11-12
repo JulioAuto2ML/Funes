@@ -184,6 +184,10 @@ std::vector<std::string> trampoline_args(const Policy& p) {
     for (const auto& s : p.exec)  out.push_back("--rx=" + s);
     for (const auto& s : p.write) out.push_back("--rw=" + s);
     for (int port : p.connect)    out.push_back("--connect=" + std::to_string(port));
+    if (!p.stage.empty()) {
+        out.push_back("--stage=" + p.stage);
+        for (const auto& s : p.overlay) out.push_back("--overlay=" + s);
+    }
     return out;
 }
 

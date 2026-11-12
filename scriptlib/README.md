@@ -69,6 +69,15 @@ person answers "aprobar N". A manifest that does not say is `external`, so a
 read-only script should say `none` or every tainted run will ask about it.
 Scheduled jobs are not gated.
 
+Since 7.12 a `host` script in that situation is not held back but *staged*
+(`src/core/staging.h`): it runs, with each directory its `access: write:`
+names overlaid, so its changes land in a copy. The model and the person see
+the list of changes and a diff; "aprobar N" applies exactly those (refused if
+a file moved in the meantime), "rechazar N" throws them away. Only directories
+can be staged, so a `host` script names the directories it edits, not single
+files. A script that also talks to the network is `external`: a copy of the
+filesystem does not stop a request.
+
 The guarantee is still also about which code can be started, and by whom.
 Review a script before installing it exactly as you would review an agent
 prompt, and do not install one that takes a command or a URL to fetch-and-run:

@@ -160,7 +160,12 @@ list with incident context):
    delegation) is stored as a proposal instead of run; "aprobar N" / "approve
    N" alone in a message is answered by `/api/chat` itself, never a model.
    Scheduled jobs are exempt — scheduling was the approval — which is why
-   `schedule_job` is itself external.
+   `schedule_job` is itself external. Since 7.12 a `host` *script* in that
+   situation is staged instead (`staging.h`): the trampoline enters a user +
+   mount namespace and overlays the manifest's write directories, the script
+   runs, the upper layers are the diff, and approving commits them — nothing
+   re-runs. Staging is fail-closed: without the sandbox the call is refused,
+   not run on the real directories.
 
 When touching the agent loop, know which of these layers a change interacts
 with — they compose, and several were added specifically because an earlier

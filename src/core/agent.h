@@ -206,6 +206,9 @@ private:
     // Store the call as a proposal and say so, instead of running it.
     ToolResult propose(const std::string& name, const json& args, const ToolContext& ctx,
                        funes::Effect effect);
+    // A host script's call: run it against a copy, store what it changed as a
+    // proposal (staging.h). Falls back to propose() when it cannot be staged.
+    ToolResult stage(const std::string& name, const json& args, const ToolContext& ctx);
 
     void connect_mcp_servers();
     void register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn,

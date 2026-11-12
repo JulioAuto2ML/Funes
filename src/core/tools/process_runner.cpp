@@ -7,6 +7,7 @@
 #include "../cgroup.h"
 #include "../observe.h"
 #include "../sandbox.h"
+#include "../staging.h"
 #include "../text_utils.h"
 #include <algorithm>
 #include <cstdlib>
@@ -126,6 +127,14 @@ Result run_forked(const std::vector<std::string>& argv, std::vector<std::string>
                   bool split, const std::optional<funes::cgroup::Limits>& limits,
                   const std::optional<funes::sandbox::Policy>& policy) {
     Result result;
+
+    // A staged run (staging.h) only exists inside the trampoline's sandbox;
+    // without one the program would change the real directories.
+    if (policy && !policy->stage.empty() && (g_trampoline.empty() || !funes::sandbox::enabled())) {
+        result.exit_code = 126;
+        result.output = "staging is not available here, so this was not run";
+        return result;
+    }
 
     const std::unique_ptr<Wrapped> w = wrap(argv, limits, policy);
     if (!w->tmpdir.empty()) {
@@ -334,6 +343,8 @@ int trampoline_main(int argc, char** argv) {
         else if (a.rfind("--rw=", 0) == 0)  policy.write.push_back(a.substr(5));
         else if (a.rfind("--connect=", 0) == 0) policy.connect.push_back(std::atoi(a.c_str() + 10));
         else if (a.rfind("--observe=", 0) == 0) observe_to = a.substr(10);
+        else if (a.rfind("--stage=", 0) == 0)   policy.stage = a.substr(8);
+        else if (a.rfind("--overlay=", 0) == 0) policy.overlay.push_back(a.substr(10));
         else { std::fprintf(stderr, "funes _exec: unknown option %s\n", a.c_str()); return 126; }
     }
     if (i >= argc) { std::fprintf(stderr, "funes _exec: no program\n"); return 126; }
@@ -346,6 +357,18 @@ int trampoline_main(int argc, char** argv) {
         if (!f || std::fclose(f) != 0 || !ok) {
             std::fprintf(stderr, "funes _exec: cannot join %s: %s\n", cgroup.c_str(),
                          std::strerror(errno));
+            return 126;
+        }
+    }
+    // Staging (staging.h): the overlays go up after the cgroup is joined (that
+    // write needs the real filesystem) and before the sandbox, whose rules
+    // must name the overlay rather than the directory beneath it. Fails
+    // closed: a program meant to change a copy does not get the original.
+    if (!policy.stage.empty()) {
+        if (!sandboxed) { std::fprintf(stderr, "funes _exec: staging needs the sandbox\n"); return 126; }
+        const std::string err = funes::staging::enter(policy.stage, policy.overlay);
+        if (!err.empty()) {
+            std::fprintf(stderr, "funes _exec: stage: %s\n", err.c_str());
             return 126;
         }
     }

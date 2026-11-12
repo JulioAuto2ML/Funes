@@ -244,7 +244,7 @@ Ordered so each phase is useful alone and none requires the next.
 | **3** ✅ | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | done in 7.8 |
 | **4** ✅ | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | done in 7.7 |
 | **5** ✅ | Learn mode → proposed `access:` blocks | 2 | done in 7.9 |
-| **6** | `effects:` classes, overlay staging, diff in result store, commit/discard in UI | 2 | ~3 weeks |
+| **6** ✅ | `effects:` classes, overlay staging, diff in result store, commit/discard (typed; no UI buttons yet) | 2 | done in 7.11–7.12 |
 | **7** | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | small |
 
 Reordered 2026-11-11: phase 4 runs before phase 3. The machine is yoda, and
@@ -427,10 +427,32 @@ What it means in use: "decile a Juan que llego tarde" sends; "leé mi último
 mail y contestale a Juan" proposes; the 06:30 noticiero, the newsletters and
 the reminders run as before.
 
-Not done: overlay staging for `host`; buttons in the web UI (the event is
+Not done (7.11): overlay staging for `host` — added in 7.12, below; buttons in the web UI (the event is
 there, nothing draws it — the typed answer works everywhere); native
 `external` tools beyond the listed built-ins would need adding to
 `builtin_effect`.
+
+## Phase 6, second half — overlay staging (7.12)
+
+The gate asks the person about an intention; staging lets them judge a
+result. A `run_script` call to a `host` script, in a tainted run, runs for
+real against an overlay and is stored as a proposal with its stage.
+
+| Piece | Where | Test |
+|---|---|---|
+| The stage. One directory per call under `data/staging/` (`FUNES_STAGING_DIR`), beside `memory.db` because a proposal lasts a day and ext4 has the user xattrs overlayfs needs. A layer per directory the manifest's `access: write:` names; refused if one is not a directory, overlaps another, holds the stage, or has `,` `:` `\` (overlayfs option syntax). | `src/core/staging.{h,cpp}` (`prepare`) | `test_staging` |
+| The namespace. `funes _exec --stage= --overlay=`: after joining the cgroup and before Landlock, `unshare(CLONE_NEWUSER\|CLONE_NEWNS)`, map our own uid and gid, make `/` private, mount overlayfs (`userxattr`) over each root. No privilege on the host; the capabilities exist only inside the namespace and are gone at exec. Landlock's rules are added after the mount, so they name the overlay. Fail-closed: a staged call without the sandbox is refused, never run on the real directory. | `process_runner.cpp` (`trampoline_main`, `run_forked`), `staging::enter` | `test_staging` (a child enters and writes), integration "staging" |
+| The diff. `collect()` reads the upper layers: a whiteout is a deletion, an opaque directory a replacement, a file copied up but unchanged is nothing. It records each touched path's lstat (type, size, mtime). The model gets the change list and a unified diff (`diff -u`, 12 KB cap) above the script's own output; the result store takes it from there. | `staging::collect/summarize/diff`, `FunesAgent::stage` | integration |
+| The answer. "aprobar N" on a staged proposal commits: every path is checked first (still inside its root after resolving symlinks, lstat unchanged), then each change is applied through a temp name and rename. Nothing re-runs. "rechazar N" deletes the stage; `prune()` removes the stages of expired proposals. | `staging::commit`, `FunesAgent::execute_proposal`, `api.cpp` | `test_staging` (conflict refuses before writing), integration (applied, conflict, rejected) |
+
+Probed at startup through the real trampoline; the banner's `Staging:` line
+says whether it is on. Off (no Landlock, a kernel without unprivileged
+overlayfs), a tainted `host` script is proposed unrun, as in 7.11.
+
+Not done: `execute_shell`, `create_agent` and `create_tool` are still gated by
+proposal (the shell is workspace-confined, so it has nothing to stage; the
+other two are built-ins that do not go through the trampoline). No shipped
+script is `host` yet — phase 7's are the first users. Buttons in the web UI.
 
 ## Open questions (all answered)
 
