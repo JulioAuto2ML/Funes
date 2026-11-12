@@ -70,3 +70,23 @@ class ConfigDirTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BridgeDefaultsTest(unittest.TestCase):
+    """With nothing configured, the script reads Funes's own number's store
+    and must send through that number's bridge too. Until 7.15 the send
+    default was 8090, the personal number's bridge: one missing line of config
+    away from Funes answering from the person's own WhatsApp."""
+
+    def test_defaults_name_the_same_number(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as empty:
+            code = ("import whatsapp_autoresponder as wa; "
+                    "print(wa.BRIDGE_API_URL); print(wa.DB_PATH)")
+            env = {k: v for k, v in os.environ.items()
+                   if not k.startswith("WHATSAPP_") and not k.startswith("FUNES_")}
+            env["FUNES_CONFIG_DIR"] = empty
+            out = subprocess.run([sys.executable, "-c", code], cwd=str(Path(wa.__file__).parent),
+                                 env=env, capture_output=True, text=True, check=True).stdout.split()
+        self.assertEqual(out[0], "http://localhost:8091")
+        self.assertIn("store-funes", out[1])

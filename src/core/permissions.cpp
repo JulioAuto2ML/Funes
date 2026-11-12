@@ -6,6 +6,7 @@
 #include "json.hpp"
 #include <algorithm>
 #include <iostream>
+#include <mutex>
 
 using json = nlohmann::json;
 
@@ -67,8 +68,24 @@ Permissions Permissions::parse(const std::string& json_text, bool is_admin) {
     return p;
 }
 
+namespace {
+std::mutex g_installation_mu;
+std::set<std::string> g_installation_agents;
+} // namespace
+
+void Permissions::set_installation_agents(std::set<std::string> names) {
+    std::lock_guard<std::mutex> lock(g_installation_mu);
+    g_installation_agents = std::move(names);
+}
+
+bool Permissions::is_installation_agent(const std::string& agent) {
+    std::lock_guard<std::mutex> lock(g_installation_mu);
+    return g_installation_agents.count(agent) > 0;
+}
+
 bool Permissions::allows_agent(const std::string& agent) const {
     if (admin_) return true;
+    if (is_installation_agent(agent)) return false;
     // Empty means unrestricted, not "none" — see the header. Writing
     // `agents: []` and locking someone out of everything would be a
     // surprising way to spell that.

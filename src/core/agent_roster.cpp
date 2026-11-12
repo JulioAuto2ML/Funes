@@ -12,7 +12,9 @@ Roster build_roster(const std::vector<RosterEntry>& entries,
     for (const auto& e : entries) {
         if (e.name == exclude) continue;
 
-        if (perms.allows_agent(e.name)) {
+        // shared_identity is checked here as well as through allows_agent's
+        // loaded set, so the roster is right even before agents are loaded.
+        if (perms.allows_agent(e.name) && (e.shared_identity.empty() || perms.is_admin())) {
             out.available += "- " + e.name + ": " + e.description + "\n";
             if (!e.delegation_notes.empty())
                 out.available += "  Note: " + e.delegation_notes + "\n";

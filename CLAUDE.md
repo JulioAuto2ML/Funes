@@ -513,7 +513,12 @@ the model read about an agent it could not use, delegated, was refused, and
 then improvised an explanation, usually blaming a server setting. The two
 reasons need opposite advice: an allowlist denial an admin can grant, while an
 agent declaring `shared_identity` (one mailbox, one phone number, one
-subscriber list) is not something an admin *can* grant per account. Permissions only restrict: `filter_tools` intersects with the
+subscriber list, the server itself) is not something an admin *can* grant per
+account — and since 7.15 that is enforced, not just worded: `allows_agent`
+refuses such an agent to every non-admin, allowlist or not
+(`Permissions::set_installation_agents`, filled by `load_agents`). Before, a
+member created without an `agents` list could use `whatsapp-assistant` on
+the admin's own number. Permissions only restrict: `filter_tools` intersects with the
 agent's own list and expands an empty agent list first.
 
 ### Workspaces

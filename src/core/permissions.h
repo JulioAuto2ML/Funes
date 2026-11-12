@@ -32,6 +32,7 @@
 
 #pragma once
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -48,7 +49,18 @@ public:
     // of their own assistant over a stray comma.
     static Permissions parse(const std::string& json_text, bool is_admin);
 
+    // An agent declaring `shared_identity` (one mailbox, one phone number, one
+    // subscriber list — the installation's) is an admin's alone: an allowlist
+    // listing it does not grant it, and no allowlist does not either. Until
+    // 7.15 that was only the wording of the refusal; a member created without
+    // an `agents` list could use whatsapp-assistant on the admin's number.
     bool allows_agent(const std::string& agent) const;
+
+    // The loaded agents that declare shared_identity. Set by whoever loads
+    // agents (FunesApi::load_agents, again on reload); every allows_agent
+    // check reads it, so the roster, /api/chat, delegation and cron all agree.
+    static void set_installation_agents(std::set<std::string> names);
+    static bool is_installation_agent(const std::string& agent);
     bool allows_tool(const std::string& tool) const;
 
     // Filters an agent's tool allowlist down to what this user may use.

@@ -344,6 +344,11 @@ size_t FunesApi::load_agents() {
                       << ec.message() << "\n";
     }
 
+    std::set<std::string> installation;
+    for (const auto& [name, cfg] : loaded)
+        if (!cfg.shared_identity.empty()) installation.insert(name);
+    funes::Permissions::set_installation_agents(std::move(installation));
+
     std::lock_guard<std::mutex> lock(agents_mu_);
     agents_ = std::move(loaded);
     return agents_.size();

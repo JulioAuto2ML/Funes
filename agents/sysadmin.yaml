@@ -7,6 +7,8 @@ delegation_notes: >
   the scripts and the machine's memory report. A restart or a deletion after
   it has read the journal comes back as a proposal (#N) the person approves
   with "aprobar N" — relay that, do not report it as done.
+shared_identity: >
+  the server itself (yoda): its services, its journal, its backups
 model: default
 tool_choice: auto
 # OS plan phase 7. Last on purpose: every call here runs in its own cgroup and

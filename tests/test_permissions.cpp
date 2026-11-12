@@ -82,6 +82,25 @@ int test_agent_allowlist() {
     return 0;
 }
 
+// 7.15: an agent on the installation's identity (whatsapp-assistant: the
+// admin's phone number) is the admin's alone. A member without an allowlist
+// used to get it, because "no allowlist" means every agent.
+int test_installation_agents_are_admin_only() {
+    Permissions::set_installation_agents({"whatsapp-assistant", "gmail-assistant"});
+    auto open = Permissions::parse("{}", false);
+    CHECK(!open.allows_agent("whatsapp-assistant"));
+    CHECK(!open.allows_agent("gmail-assistant"));
+    CHECK(open.allows_agent("researcher"));
+    auto listed = Permissions::parse(R"({"agents":["funes","whatsapp-assistant"]})", false);
+    CHECK(!listed.allows_agent("whatsapp-assistant"));       // listing it does not grant it
+    CHECK(listed.allows_agent("funes"));
+    CHECK(Permissions::parse("{}", true).allows_agent("whatsapp-assistant"));
+    CHECK(Permissions::unrestricted().allows_agent("gmail-assistant"));
+    Permissions::set_installation_agents({});
+    CHECK(open.allows_agent("whatsapp-assistant"));           // only what is loaded counts
+    return 0;
+}
+
 int test_filter_tools_only_narrows() {
     const std::vector<std::string> all = {
         "web_search", "web_fetch", "read_file", "write_file", "execute_shell", "remember"};
@@ -147,6 +166,7 @@ int main() {
     rc |= test_member_defaults();
     rc |= test_explicit_entries_win();
     rc |= test_agent_allowlist();
+    rc |= test_installation_agents_are_admin_only();
     rc |= test_filter_tools_only_narrows();
     rc |= test_filter_tools_with_open_agent();
     rc |= test_malformed_json_falls_back_to_defaults();

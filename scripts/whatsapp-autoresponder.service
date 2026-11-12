@@ -42,5 +42,26 @@ ExecStart=/usr/bin/python3 /home/julio/Funes/scripts/whatsapp_autoresponder.py
 Restart=on-failure
 RestartSec=5
 
+# Sandbox (7.15). This script holds the service token and reads one WhatsApp
+# number's messages; it has no business with the other number's store, with
+# memory.db or with anything else in $HOME. So $HOME is an empty tmpfs and only
+# what it uses is mounted back: its code and config and Funes's number's store
+# read-only, its watermark file and the workspace root (uploads land in
+# <user>/whatsapp-uploads) writable. data/whatsapp/store — the personal number
+# — is not mounted at all. Tried in a transient unit on yoda first
+# (2026-11-12): store-funes queries fine read-only, the personal store,
+# memory.db and ~/.ssh do not exist inside. The watermark file must exist
+# before the first start (touch it); a bind mount needs a target.
+# The network is not narrowed per port: a user unit cannot attach the BPF
+# filter IPAddressDeny= needs, so localhost:8090 stays reachable — the
+# default URL is 8091 and the config says so twice.
+ProtectSystem=strict
+ProtectHome=tmpfs
+PrivateTmp=yes
+NoNewPrivileges=yes
+BindReadOnlyPaths=/home/julio/Funes/scripts /home/julio/Funes/config /home/julio/Funes/data/whatsapp/store-funes
+BindPaths=/home/julio/Funes/data/whatsapp/whatsapp_autoresponder_state.json /home/julio/Funes/data/workspace
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
 [Install]
 WantedBy=default.target

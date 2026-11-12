@@ -120,12 +120,25 @@ int test_the_delegation_refusal_carries_the_same_distinction() {
     return 0;
 }
 
+// 7.15: with no allowlist at all, a member still does not get an agent on the
+// installation's identity — and is told why.
+int test_an_open_member_still_lacks_installation_agents() {
+    const auto perms = Permissions::parse("{}", /*is_admin=*/false);
+    const auto roster = funes::build_roster(table(), perms, "funes");
+    CHECK(roster.available.find("researcher") != std::string::npos);
+    CHECK(roster.available.find("gmail-assistant") == std::string::npos);
+    CHECK(roster.denied.find("gmail-assistant") != std::string::npos);
+    CHECK(roster.denied.find("belongs to the installation") != std::string::npos);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_an_admin_sees_everything_and_no_denied_block();
     rc |= test_a_restricted_account_is_told_which_and_why();
     rc |= test_the_prompt_block_forbids_the_two_wrong_answers();
     rc |= test_the_delegation_refusal_carries_the_same_distinction();
+    rc |= test_an_open_member_still_lacks_installation_agents();
     if (rc == 0) std::cout << "test_agent_roster: all passed\n";
     return rc;
 }

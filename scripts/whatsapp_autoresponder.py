@@ -103,7 +103,11 @@ DATA_DIR = Path(os.path.expanduser(CFG.get("FUNES_DATA_DIR", str(REPO_ROOT / "da
 # The dedicated number's bridge store (whatsapp-bridge-funes.service).
 DB_PATH = CFG.get("WHATSAPP_DB_PATH", str(DATA_DIR / "whatsapp/store-funes/messages.db"))
 FUNES_API_URL = CFG.get("FUNES_API_URL", "http://localhost:8484")
-BRIDGE_API_URL = CFG.get("WHATSAPP_BRIDGE_URL", "http://localhost:8090")
+# Funes's own number's bridge (whatsapp-bridge-funes, :8091) — the same number
+# DB_PATH reads. Until 7.15 the default was 8090, the *personal* bridge: with
+# WHATSAPP_BRIDGE_URL missing from the config, Funes's replies would have gone
+# out from the person's own number. A default must never cross the two.
+BRIDGE_API_URL = CFG.get("WHATSAPP_BRIDGE_URL", "http://localhost:8091")
 AGENT_NAME = CFG.get("WHATSAPP_AUTORESPONDER_AGENT", "whatsapp-autoresponder")
 # Funes has its own number, so an admin messaging their own assistant arrives
 # here looking exactly like a contact, and got AGENT_NAME too: recall/remember/
