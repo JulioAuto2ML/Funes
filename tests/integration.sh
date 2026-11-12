@@ -151,6 +151,38 @@ tool_limits:
 system_prompt: Read what you need, then answer.
 YAML
 
+# A stdio MCP server whose one tool answers with its own pid: two runs that see
+# the same pid shared one process (core/mcp_pool.h).
+cat > "$AGENTS/pool-server.py" <<'PY'
+import json, os, sys
+for line in sys.stdin:
+    m = json.loads(line)
+    if "id" not in m: continue
+    r = {}
+    if m["method"] == "initialize":
+        r = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
+             "serverInfo": {"name": "pool", "version": "1"}}
+    elif m["method"] == "tools/list":
+        r = {"tools": [{"name": "server_pid", "description": "the server's pid",
+                        "inputSchema": {"type": "object"}}]}
+    elif m["method"] == "tools/call":
+        r = {"content": [{"type": "text", "text": "PID-" + str(os.getpid())}]}
+    sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": m["id"], "result": r}) + "\n")
+    sys.stdout.flush()
+PY
+cat > "$AGENTS/pool-tester.yaml" <<YAML
+name: pool-tester
+description: Test fixture — an agent with one stdio MCP server.
+tools: [server_pid]
+max_steps: 3
+mcp_servers:
+  - name: pool-probe
+    command: python3 $AGENTS/pool-server.py
+    access:
+      read: ["$AGENTS"]
+system_prompt: Call the tool, then answer.
+YAML
+
 cat > "$AGENTS/repeat-tester.yaml" <<'YAML'
 name: repeat-tester
 description: Test fixture — an agent whose model repeats one identical call.
@@ -1157,6 +1189,22 @@ else
 fi
 
 rm -rf "$CONC_DIR"
+
+echo "— a stdio MCP server is kept between runs, and a reload replaces it"
+pool_pid() {
+    curl -s -N -X POST "$BASE/api/chat" \
+        -d "{\"message\":\"mcp-pid please\",\"session\":\"it-pool-$1\",\"agent\":\"pool-tester\"}" |
+        grep -o 'PID-[0-9]*' | head -1
+}
+P1=$(pool_pid 1); P2=$(pool_pid 2)
+check "the MCP tool answered" "$P1" '^PID-[0-9][0-9]*$'
+if [ -n "$P1" ] && [ "$P1" = "$P2" ]; then ok "the second run reused the first run's server ($P1)"
+else fail "MCP server not reused" "$P1 then $P2"; fi
+check "the reuse is logged" "$(cat /tmp/funes_it.log)" "pool-probe. (agent pool-tester) reused"
+curl -s -X POST "$BASE/api/agents/reload" -d '' > /dev/null
+P3=$(pool_pid 3)
+if [ -n "$P3" ] && [ "$P3" != "$P1" ]; then ok "after a reload the agent gets a new server ($P3)"
+else fail "reload kept the old MCP server" "$P1 then $P3"; fi
 
 echo "— an expired session cookie stops authenticating"
 # Expiry has a unit test (tests/test_users.cpp) but had never been exercised

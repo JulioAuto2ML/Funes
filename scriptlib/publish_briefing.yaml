@@ -31,6 +31,11 @@ output:
 access:
   write: ["${FUNES_NEWS_FEED_DIR}"]
 
+# Watched on every real call: it replaces the live Alexa
+# feed when run, so it is learned from use, not from a probe. Fold with `funes script-learn publish_briefing --from-log`, commit
+# the connect: list, then drop this (docs/ROADMAP.md item 3).
+learn: true
+
 env:
   FUNES_NEWS_FEED_DIR: "${FUNES_NEWS_FEED_DIR}"
   FUNES_NEWS_PUBLIC_URL: "${FUNES_NEWS_PUBLIC_URL}"

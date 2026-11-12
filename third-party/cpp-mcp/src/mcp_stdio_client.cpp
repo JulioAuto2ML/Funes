@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #endif
 
@@ -201,7 +202,9 @@ json stdio_client::list_resource_templates() {
 }
 
 bool stdio_client::is_running() const {
-    return running_;
+    // Funes patch: a server that exited on its own is not running, though
+    // running_ stays set until stop_server_process() reaps it.
+    return running_ && !server_gone_;
 }
 
 void stdio_client::set_environment_variables(const json& env_vars) {
@@ -818,13 +821,29 @@ void stdio_client::read_thread_func() {
             break;
         } else if (bytes_read == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // No data to read in non-blocking mode
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                // Funes patch: wait for data instead of waking every 10 ms —
+                // a server kept alive between runs idles here for minutes.
+                // The timeout is how often running_ is rechecked.
+                struct pollfd pfd{stdout_pipe_[0], POLLIN, 0};
+                ::poll(&pfd, 1, 200);
+            } else if (errno == EINTR) {
+                continue;
             } else {
                 LOG_ERROR("Error reading from pipe: ", strerror(errno));
                 break;
             }
         }
+    }
+    // Funes patch: the server is gone (or stop_server_process closed the
+    // pipe). Say so, and fail what is waiting now rather than after the
+    // 60-second timeout.
+    server_gone_ = true;
+    {
+        std::lock_guard<std::mutex> lock(response_mutex_);
+        for (auto& [id, promise] : pending_requests_)
+            promise.set_exception(std::make_exception_ptr(
+                mcp_exception(error_code::internal_error, "Server process exited")));
+        pending_requests_.clear();
     }
 #endif
     
@@ -838,6 +857,16 @@ json stdio_client::send_jsonrpc(const request& req) {
     
     json req_json = req.to_json();
     std::string req_str = req_json.dump() + "\n";
+
+    // Funes patch: register the promise before writing, so a reply that
+    // arrives before this thread gets back from write() is not dropped as
+    // "unknown request ID" and waited for until the timeout.
+    std::promise<json> response_promise;
+    std::future<json> response_future = response_promise.get_future();
+    if (!req.is_notification()) {
+        std::lock_guard<std::mutex> lock(response_mutex_);
+        pending_requests_[req.id] = std::move(response_promise);
+    }
     
 #if defined(_WIN32)
     // Windows implementation
@@ -853,6 +882,10 @@ json stdio_client::send_jsonrpc(const request& req) {
     ssize_t bytes_written = write(stdin_pipe_[1], req_str.c_str(), req_str.size());
     
     if (bytes_written != static_cast<ssize_t>(req_str.size())) {
+        {
+            std::lock_guard<std::mutex> lock(response_mutex_);
+            pending_requests_.erase(req.id);
+        }
         LOG_ERROR("Failed to write complete request: ", strerror(errno));
         throw mcp_exception(error_code::internal_error, "Failed to write to pipe");
     }
@@ -861,15 +894,6 @@ json stdio_client::send_jsonrpc(const request& req) {
     // If this is a notification, no need to wait for a response
     if (req.is_notification()) {
         return json::object();
-    }
-    
-    // Create Promise and Future
-    std::promise<json> response_promise;
-    std::future<json> response_future = response_promise.get_future();
-    
-    {
-        std::lock_guard<std::mutex> lock(response_mutex_);
-        pending_requests_[req.id] = std::move(response_promise);
     }
     
     // Wait for response, set timeout

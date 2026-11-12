@@ -256,6 +256,10 @@ private:
     // Environment variables
     json env_vars_;
 
+    // Funes patch: the read thread saw the pipe close or fail. running_ stays
+    // true until stop_server_process() reaps the child; is_running() is false.
+    std::atomic<bool> server_gone_{false};
+
     // Funes patch: see set_launch_wrapper
     launch_wrapper launch_wrapper_;
     std::function<void()> on_exit_;

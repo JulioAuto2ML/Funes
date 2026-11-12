@@ -4,6 +4,7 @@
 
 #include "funes_config.h"
 #include "api.h"
+#include "../core/mcp_pool.h"
 #include "../core/base64.h"
 #include "../core/password.h"
 #include "../core/permissions.h"
@@ -607,6 +608,9 @@ void FunesApi::mount(httplib::Server& srv) {
         if (!user) return;
 
         size_t n = load_agents();
+        // Idle MCP servers were started from the old YAML; an edited one is
+        // keyed differently anyway, but its old process would idle on.
+        funes::McpPool::instance().clear();
         json_reply(res, 200, {{"ok", true}, {"agents", n}});
     });
 

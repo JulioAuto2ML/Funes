@@ -230,3 +230,7 @@ add_test(NAME local COMMAND test_local)
 add_executable(test_observe test_observe.cpp)
 target_link_libraries(test_observe PRIVATE funes_core)
 add_test(NAME observe COMMAND test_observe)
+
+add_executable(test_mcp_pool test_mcp_pool.cpp)
+target_link_libraries(test_mcp_pool PRIVATE funes_core)
+add_test(NAME mcp_pool COMMAND test_mcp_pool)

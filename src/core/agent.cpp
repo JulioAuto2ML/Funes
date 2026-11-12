@@ -131,8 +131,20 @@ void FunesAgent::connect_mcp_servers() {
         const std::string label = !srv.name.empty() ? srv.name : (stdio ? srv.command : srv.url);
 
         if (stdio) {
-            // Its own cgroup and sandbox, like any child (mcp_launch.h).
-            client = funes::make_stdio_client(srv, cfg_.name);
+            // Leased, already started and initialised when the pool has one:
+            // its own cgroup and sandbox like any child (mcp_launch.h), kept
+            // between runs (mcp_pool.h).
+            std::string error;
+            McpConn conn;
+            conn.lease = funes::McpPool::instance().acquire(srv, cfg_.name, "funes-agent-" + cfg_.name, error);
+            if (!conn.lease) {
+                std::cerr << "[agent:" << cfg_.name << "] WARNING: MCP server '"
+                          << label << "' unreachable (" << error << ") — skipping.\n";
+                continue;
+            }
+            const std::vector<mcp::tool> server_tools = conn.lease.tools();
+            register_mcp_tools(server_tools, std::move(conn));
+            continue;
         } else if (srv.transport == "http") {
             try {
                 client = std::make_unique<funes::HttpMcpClient>(srv.url, 120);
@@ -154,26 +166,32 @@ void FunesAgent::connect_mcp_servers() {
             continue;
         }
 
-        std::vector<mcp::tool> server_tools = client->get_tools();
-        const std::size_t idx = mcp_clients_.size();
-        mcp_clients_.push_back(std::move(client));
+        const std::vector<mcp::tool> server_tools = client->get_tools();
+        McpConn conn;
+        conn.owned = std::move(client);
+        register_mcp_tools(server_tools, std::move(conn));
+    }
+}
 
-        for (const auto& tool : server_tools) {
-            // Native tools and earlier servers win on name collisions.
-            if (tools_.has(tool.name) || mcp_tool_index_.count(tool.name)) {
-                std::cerr << "[agent:" << cfg_.name << "] INFO: MCP tool '"
-                          << tool.name << "' shadowed — skipping.\n";
-                continue;
-            }
-            if (!cfg_.tools.empty()) {
-                bool allowed = false;
-                for (const auto& n : cfg_.tools)
-                    if (n == tool.name) { allowed = true; break; }
-                if (!allowed) continue;
-            }
-            mcp_tool_index_[tool.name] = idx;
-            tools_schema_.push_back(mcp_tool_to_openai(tool));
+void FunesAgent::register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn) {
+    const std::size_t idx = mcp_clients_.size();
+    mcp_clients_.push_back(std::move(conn));
+
+    for (const auto& tool : server_tools) {
+        // Native tools and earlier servers win on name collisions.
+        if (tools_.has(tool.name) || mcp_tool_index_.count(tool.name)) {
+            std::cerr << "[agent:" << cfg_.name << "] INFO: MCP tool '"
+                      << tool.name << "' shadowed — skipping.\n";
+            continue;
         }
+        if (!cfg_.tools.empty()) {
+            bool allowed = false;
+            for (const auto& n : cfg_.tools)
+                if (n == tool.name) { allowed = true; break; }
+            if (!allowed) continue;
+        }
+        mcp_tool_index_[tool.name] = idx;
+        tools_schema_.push_back(mcp_tool_to_openai(tool));
     }
 }
 
@@ -206,7 +224,7 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
         return {"Unknown tool: " + name, /*error=*/true};
 
     try {
-        json result = mcp_clients_[it->second]->call_tool(name, args);
+        json result = mcp_clients_[it->second].get()->call_tool(name, args);
         const bool is_error = result.contains("isError")
             && result["isError"].is_boolean() && result["isError"].get<bool>();
         // MCP result format: {content: [{type: "text", text: "..."}]}. The
@@ -219,6 +237,9 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
             return {result["content"][0]["text"].get<std::string>(), is_error};
         return {funes::dump_safe(result), is_error};
     } catch (const std::exception& e) {
+        // A timeout, a dead server or garbage on the pipe: whatever state it
+        // is in, the next run does not get it (mcp_pool.h).
+        if (auto& lease = mcp_clients_[it->second].lease) lease.discard();
         return {std::string("MCP tool '") + name + "' failed: " + e.what(), true};
     }
 }

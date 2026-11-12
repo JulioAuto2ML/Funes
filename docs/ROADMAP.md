@@ -3,7 +3,7 @@
 Three improvement plans exist. This file says which order they run in and why.
 It does not restate them — each links to its own document.
 
-Current release: **7.9.1** (the learned `connect:` lists: `news_headlines` [443], `tv_art` [8002], `tv_weather_art` [443, 8002, 8080]; `mcp-probe --learn` folds the whole log). Before it, 7.9.0 (OS plan phase 5: learn mode — a seccomp supervisor records what a script or MCP server touches, `funes script-learn` / `mcp-probe --learn` fold it into a proposed `access:` block, `learn: true` watches real calls). Before it, 7.8.1 (`funes ask` no longer hangs on an open, silent stdin) and 7.8.0 (OS plan phase 3: `funes.sock` with kernel-attested identity, `uid_users`, `funes ask`; config read into a private map instead of the environment; `LoadCredential=`).
+Current release: **7.10.0** (MCP stdio servers kept alive between runs: a run leases a started server from `McpPool` and returns it, idle ones stop after 10 minutes; the vendored client no longer reports a dead server as running or waits 60 s on it). Before it, 7.9.1 (the learned `connect:` lists: `news_headlines` [443], `tv_art` [8002], `tv_weather_art` [443, 8002, 8080]; `mcp-probe --learn` folds the whole log). Before it, 7.9.0 (OS plan phase 5: learn mode — a seccomp supervisor records what a script or MCP server touches, `funes script-learn` / `mcp-probe --learn` fold it into a proposed `access:` block, `learn: true` watches real calls). Before it, 7.8.1 (`funes ask` no longer hangs on an open, silent stdin) and 7.8.0 (OS plan phase 3: `funes.sock` with kernel-attested identity, `uid_users`, `funes ask`; config read into a private map instead of the environment; `LoadCredential=`).
 
 ## What is left, in priority order
 
@@ -19,9 +19,8 @@ memory is the place to spend it.
 | 2 | **OS phase 4, second half**. Built in 7.7 (see the release table): the account, the ring, the collector, baselines, promotion, links, both tools. Left: watch a week of yoda's real events and tune what is promoted (thresholds, which units are noise); a daily *digest* memory ("yesterday: 3 deploys, dream-mdns failed all day") so a quiet day is remembered too; and the system journal (OOM kills, system units) if julio is added to `systemd-journal`. | The machine memory exists only as far as its first week on yoda says it works. | ~1 week |
 | 3 | **Finish phase 5 on yoda**. Done 2026-11-11 for five scripts and the three MCP agents (`connect:` lists in 7.9.1; the RSS, Gmail and WhatsApp grants held up). Left: `speak` and `publish_briefing` (both act on the world when run — learn them with `learn: true` on a real call), and `tv_art show` / `tv_weather_art publish`, whose ports were taken from the code. | Unwatched modes are the ones a wrong `connect:` would break. | hours |
 | 4 | **Concurrency ceiling**: one httplib worker thread per chat for the whole run. | Open since the 5.0.1 review. Matters when several people (or the autoresponder plus a person) chat at once; not seen to bite yet. | ~1 week |
-| 5 | **MCP stdio servers kept alive** instead of spawned per agent run. | Open since 5.0.1. Each WhatsApp-agent run pays `uv run` start-up; now cheap to fix because each server already has its own cgroup to keep and reuse. | days |
-| 6 | **OS phase 6 — effects as proposals** (overlay staging, diff, commit/discard in the UI). | Needs 2; worth it before phase 7. | ~3 weeks |
-| 7 | **OS phase 7 — a `sysadmin` agent**. | Last on purpose: by then a wrong call is confined, attributed, remembered and undoable. | small |
+| 5 | **OS phase 6 — effects as proposals** (overlay staging, diff, commit/discard in the UI). | Needs 2; worth it before phase 7. | ~3 weeks |
+| 6 | **OS phase 7 — a `sysadmin` agent**. | Last on purpose: by then a wrong call is confined, attributed, remembered and undoable. | small |
 | — | 4.2 (per-user publications, generic channel adapter, MCP self-service) | Deferred: nothing has asked for a second channel or a second publication owner. | — |
 | — | 8.0 voice | Deprioritised 2026-11-10. | — |
 
@@ -42,6 +41,7 @@ memory is the place to spend it.
 | **7.7** | OS plan phase 4: `machine` system account, `host_events` ring, collector (user journal, dpkg, boot/kernel/deploys, OOM counter, llama-server pid files, watched files, PSI, temperatures, VRAM, disks, every child's cost), baselines, promotion + links, `host_changes` / `machine_recall`, `funes machine-probe` | [os-plan.md](os-plan.md) | done |
 | **7.8** | OS plan phase 3: `funes.sock` (SO_PEERCRED → `uid_users`, own children refused), `funes ask` (stdin framed + tainted), config in a private map instead of the environment, `LoadCredential=` | [os-plan.md](os-plan.md) | done |
 | **7.9** | OS plan phase 5: learn mode — seccomp user-notification supervisor in the trampoline, the fold into a proposed `access:` block, `funes script-learn`, `mcp-probe --learn`, `learn: true` manifests | [os-plan.md](os-plan.md) | done |
+| **7.10** | MCP stdio servers kept alive between agent runs (`mcp_pool.h`): exclusive leases, idle reaping, a failed call discards its server; vendored client patches (dead server not "running", pending calls fail at once, request registered before it is written, `poll()` instead of a 10 ms spin) | — | done |
 | **7.x** | OS plan phases 6–7: effects as proposals, a sysadmin agent | [os-plan.md](os-plan.md) | next: phase 6 (see the list above) |
 | **7.1** | Memory plan phases 1–3: recall eval (`tests/memory_eval`), bounded writes, provenance + taint (closes 5.0.1 #8) | [memory-plan.md](memory-plan.md) | done |
 | **7.2** | Memory plan phases 4–5: exchanges queued and reduced to facts by a gated background pass; newer facts and `contradicts` verdicts supersede older ones, reversibly | [memory-plan.md](memory-plan.md) | done |
@@ -98,8 +98,8 @@ feature in the next one.
 | 8 | Recalled memories injected into the system prompt with no framing; `remember` stores model-chosen text from web pages verbatim. | Prompt frames them as records, not instructions. **Closed in 7.1:** a `remember` after third-party content is tainted — weight capped at 1.0, never a link anchor, shown as "per <origin>: …" (memory plan, phase 3). | 7.1 |
 
 Still open from the same review: one httplib worker thread per chat for the
-whole run, and MCP stdio servers spawned per request (items 5 and 6 in the
-list at the top). Since closed: DNS rebinding (7.0, `net_guard.h::pin_address`),
+whole run (item 4 in the list at the top). Since closed: MCP stdio servers
+spawned per request (7.10, `mcp_pool.h`), DNS rebinding (7.0, `net_guard.h::pin_address`),
 the memory design (memory plan, 7.1–7.3: facts, not a conversation log), and
 MCP stdio servers running unconfined (7.6).
 

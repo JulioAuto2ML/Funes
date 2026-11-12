@@ -30,6 +30,7 @@
 #include "memory.h"
 #include "tools.h"
 #include "mcp_client.h"
+#include "mcp_pool.h"
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -163,10 +164,18 @@ private:
     json          tools_schema_;   // native + MCP, filtered by allowlist
 
     // External MCP servers (usually none), SSE or stdio. tool name → client index.
-    std::vector<std::unique_ptr<mcp::client>>     mcp_clients_;
+    // A stdio server is leased from McpPool (mcp_pool.h) and goes back to it
+    // when this agent — one request — is destroyed; SSE/HTTP ones are owned.
+    struct McpConn {
+        std::unique_ptr<mcp::client> owned;
+        funes::McpLease              lease;
+        mcp::client* get() const { return lease ? lease.client() : owned.get(); }
+    };
+    std::vector<McpConn>                          mcp_clients_;
     std::unordered_map<std::string, std::size_t>  mcp_tool_index_;
 
     void connect_mcp_servers();
+    void register_mcp_tools(const std::vector<mcp::tool>& server_tools, McpConn conn);
     static json mcp_tool_to_openai(const mcp::tool& t);
 
     // Dispatch one tool call: native registry first, then MCP servers.

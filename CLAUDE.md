@@ -178,10 +178,13 @@ for the full roster and the hub-and-spoke diagram.
 `ToolRegistry` (`tools.h/cpp`) at startup, no protocol/HTTP hop for built-ins.
 External tools plug in via MCP (`mcp_servers:` in agent YAML, SSE, streamable HTTP
 (`transport: http`, `mcp_http_client.cpp`) or stdio —
-stdio servers are spawned fresh as subprocesses per request, each in its own
+stdio servers run as subprocesses, each in its own
 cgroup and sandbox since 7.6 — the system, a private `TMPDIR` and the
 server's `access:` block in the agent YAML, nothing else; `src/core/mcp_launch.h`,
-checked with `funes mcp-probe <agent>`). Shared
+checked with `funes mcp-probe <agent>` — and since 7.10 are kept between runs:
+a run *leases* a started server from `McpPool` (`src/core/mcp_pool.h`),
+exclusively, and returns it unless a call through it failed; idle ones stop
+after `FUNES_MCP_IDLE_SECONDS`). Shared
 infrastructure tools build on: `fs_guard` (workspace path confinement),
 `net_guard` (SSRF blocking), `process_runner` (fork/exec with timeout and
 output cap). See `src/core/tools/README.md` for the full inventory and the

@@ -8,6 +8,7 @@
 
 #include "funes_config.h"
 #include "agent.h"
+#include "mcp_pool.h"
 #include "api.h"
 #include "cron_runner.h"
 #include "version.h"
@@ -872,5 +873,6 @@ int main(int argc, char** argv) {
 
     const bool ok = srv.listen_after_bind();
     funes::sd::notify("STOPPING=1");
+    funes::McpPool::instance().clear();   // stop kept-alive MCP servers (mcp_pool.h)
     return ok ? 0 : 1;
 }

@@ -119,6 +119,30 @@ class Handler(BaseHTTPRequestHandler):
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
             return
 
+        # Kept-alive MCP servers (core/mcp_pool.h): call the server's one tool,
+        # then repeat what it said, so the test can compare pids across runs.
+        if "mcp-pid" in last_user:
+            if not has_tool_result:
+                tool_call = {"id": "call_pid", "type": "function",
+                             "function": {"name": "server_pid", "arguments": "{}"}}
+                if stream:
+                    self._stream_tool_call(tool_call)
+                else:
+                    self._json(200, {"choices": [{"message": {
+                        "role": "assistant", "content": None,
+                        "tool_calls": [tool_call]}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+                return
+            said = next(m["content"] for m in reversed(messages) if m.get("role") == "tool")
+            text = "MOCK-POOL: " + (said if isinstance(said, str) else json.dumps(said))
+            if stream:
+                self._stream_text(text)
+            else:
+                self._json(200, {"choices": [{"message": {
+                    "role": "assistant", "content": text}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+            return
+
         if "use-tool" in last_user and not has_tool_result:
             tool_call = {"id": "call_1", "type": "function",
                          "function": {"name": "recall",
