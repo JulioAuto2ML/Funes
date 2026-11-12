@@ -19,6 +19,7 @@
 // installed. Each says which, because "cannot run that" sends a local model
 // looking for the wrong fix — usually execute_shell.
 
+#include "../observe.h"
 #include "../script_library.h"
 #include "../text_utils.h"
 #include "../tools.h"
@@ -26,6 +27,7 @@
 #include "process_runner.h"
 #include <algorithm>
 #include <filesystem>
+#include <iostream>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -90,6 +92,30 @@ ToolResult list_scripts_handler(const std::string& scripts_dir, const ToolContex
     return {oss.str(), false};
 }
 
+// A run of a `learn: true` script: keep what it touched (observe.h), and say
+// on the log when it reached for something its manifest does not grant —
+// under enforcement that was a refusal, and the first sign a script, or a
+// dependency it pulled in, changed what it does.
+void record_learned(const funes::ScriptSpec& spec, const std::string& observed,
+                    const fs::path& workspace, const fs::path& workspace_root) {
+    auto seen = funes::observe::parse_lines(observed);
+    funes::observe::rebase(seen, workspace.string());
+    const std::string log = funes::observe::log_path(spec.name, workspace_root.string());
+    const size_t added = funes::observe::append_log(log, seen);
+    const auto ctx = funes::observe::context_for(fs::path(spec.file).parent_path().string(),
+                                                 workspace_root.string(), spec.access);
+    const auto p = funes::observe::propose(seen, ctx);
+    std::cerr << "[learn] " << spec.name << ": " << seen.size() << " accesses, " << added
+              << " new to " << log;
+    if (!p.needed.empty()) {
+        std::cerr << "; outside its access:";
+        for (const auto& g : p.needed) std::cerr << " " << g.kind << " " << g.value;
+    }
+    for (const auto& n : p.notes)
+        if (n.rfind("RED FLAG", 0) == 0) std::cerr << "; " << n;
+    std::cerr << "\n";
+}
+
 ToolResult run_script_handler(const fs::path& default_workspace, const std::string& scripts_dir,
                               const json& args, const ToolContext& ctx) {
     if (!args.contains("name") || !args["name"].is_string()
@@ -131,15 +157,11 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     const bool json_out = (spec.output_format == "json");
     // The grant is the sandbox (sandbox.h): the caller's workspace, the
     // script's own library directory, and what its manifest declares.
-    funes::sandbox::Policy policy = funes::sandbox::for_workspace(workspace);
-    policy.exec.push_back(fs::path(spec.file).parent_path().string());
-    for (const auto& s : spec.access.read)  policy.read.push_back(s);
-    for (const auto& s : spec.access.exec)  policy.exec.push_back(s);
-    for (const auto& s : spec.access.write) policy.write.push_back(s);
-    policy.connect = spec.access.connect;
+    const funes::sandbox::Policy policy = funes::script_policy(spec, workspace);
     funes::proc::Result r = funes::proc::run_argv(argv, workspace, spec.timeout_seconds,
                                                   MAX_OUTPUT_BYTES, spec.env, json_out,
                                                   spec.limits, policy);
+    if (!r.observed.empty()) record_learned(spec, r.observed, workspace, default_workspace);
     // Every answer from here on is about a program that ran, so it carries
     // what that program cost (the [tool] line prints it).
     auto ran = [&r](ToolResult t) { t.usage = r.usage; return t; };

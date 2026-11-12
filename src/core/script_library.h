@@ -42,6 +42,7 @@
 #include "cgroup.h"
 #include "sandbox.h"
 #include "json.hpp"
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
@@ -100,6 +101,11 @@ struct ScriptSpec {
     // script's own library directory is always readable and executable — that
     // is where its file and its virtualenv live.
     funes::sandbox::Policy access;
+    // Learn mode (observe.h): watch every run and keep what it touched in the
+    // learn log, for `funes script-learn <name> --from-log` to fold into a
+    // proposed `access:` block. Costs a context switch per open(); meant for
+    // the first weeks of a script, not for ever.
+    bool learn = false;
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;
@@ -159,6 +165,12 @@ std::vector<ScriptSpec> load_scripts(const std::string& dir,
 // arguments against a script that cannot satisfy it.
 std::string validate_output(const ScriptSpec& spec, const std::string& stdout_text,
                             nlohmann::json& parsed);
+
+// The sandbox a run of `spec` gets (sandbox.h): the caller's workspace, the
+// script's own library directory, its manifest's `access:`, and learn mode
+// when the manifest asks for it. run_script and `funes script-learn` both use
+// it, so what is learned is learned under the policy that will enforce it.
+funes::sandbox::Policy script_policy(const ScriptSpec& spec, const std::filesystem::path& workspace);
 
 // Turns a tool call's arguments into the child's argv:
 // [interpreter,] <file>, then one `--name=value` token per supplied

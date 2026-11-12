@@ -243,7 +243,7 @@ Ordered so each phase is useful alone and none requires the next.
 | **2** ✅ | Landlock + seccomp in the trampoline; rules from `fs_guard` + manifest `access:`; ABI-masked. `execute_shell` confined to the workspace for real; `operator`'s prompt loses its warning | 1 | ~2 weeks |
 | **3** ✅ | `funes.sock`, `uid_users`, `funes ask`; `LoadCredential=` | — (parallel) | done in 7.8 |
 | **4** ✅ | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | done in 7.7 |
-| **5** | Learn mode → proposed `access:` blocks | 2 | ~2 weeks |
+| **5** ✅ | Learn mode → proposed `access:` blocks | 2 | done in 7.9 |
 | **6** | `effects:` classes, overlay staging, diff in result store, commit/discard in UI | 2 | ~3 weeks |
 | **7** | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | small |
 
@@ -316,8 +316,8 @@ and read it. Landlock's ptrace rule refuses it to a sandboxed child
 (`test_parent_environment_is_unreadable`).
 
 Not covered: the network is unrestricted unless a manifest lists `connect:`
-ports (no shipped script manifest does yet — phase 5's learn mode is where
-those come from); MCP stdio servers were neither in a cgroup nor sandboxed
+ports (no shipped script manifest does yet — phase 5's learn mode, 7.9, is
+where those come from: `funes script-learn`); MCP stdio servers were neither in a cgroup nor sandboxed
 (closed in 7.6, below); a pathname unix socket is reachable if its file is (Landlock's ABI ≤ 6 does not
 gate connect on them).
 
@@ -370,6 +370,25 @@ Deferred: socket activation (the server is long-lived; nothing gained yet), a
 system-wide socket for other local accounts (map their uid and set
 `FUNES_SOCKET` to a shared path with a wider mode — not needed on yoda), and
 moving the WhatsApp autoresponder from the service token to the socket.
+
+## Phase 5 — what was built (7.9)
+
+| Piece | Where | Test |
+|---|---|---|
+| The supervisor: `funes _exec … --observe=FILE` forks; the child installs a seccomp user-notification filter on the path- and address-naming syscalls (open/openat/openat2/creat, execve/execveat, connect, mkdir*, unlink*, rmdir, rename*, link*, symlink*, truncate), passes the listener up, execs. The trampoline stays as its parent, inside the same cgroup and sandbox, reads each call's arguments from `/proc/<pid>/mem` (relative paths through the task's cwd or dirfd, `/proc/self` as the task, symlinks resolved as Landlock would), checks the request is still live, and answers CONTINUE. Observation only — enforcement stays with Landlock, so a refused access is recorded as *attempted*. Each distinct access is one JSON line in FILE, which is opened before the sandbox, outside the child's temp dir. Exit status and SIGTERM/INT/HUP pass through. Not yoda's Landlock audit route: that needs ABI 7 (6.15). | `src/core/observe.{h,cpp}`, `process_runner.cpp` | `test_observe: test_supervisor_records_what_the_child_does` (files, created vs written, relative, remove, mkdir incl. EEXIST, a grandchild, TCP and UDP connect, exit and kill status; fails with `decode` stubbed), integration: a refused read under real Landlock is on the record |
+| The fold: drop what is implicit (the system, the script's own directory, `${WORKSPACE}`, `/tmp/funes-exec-*`) and ENOENT probes; create/remove become write on the directory; three siblings collapse to their directory, never into `$HOME`, the checkout, `data/`, `/tmp` …; a need that lands exactly on one of those is a note, not a grant; ports from TCP connects; UDP and unix sockets as notes; red flags for `.ssh`, `funes.local`, `memory.db`, another account's workspace. Declared entries split into used and never-used. Rendered as a quoted `access:` block a manifest takes. | `observe::propose`, `observe::render` | `test_fold` (incl. parsing the rendered block back through `parse_access`; fails with the collapse rule disabled) |
+| `funes script-learn <script> --user U [--wide]` and `--from-log`; `funes mcp-probe <agent> --learn`. Every run is appended (deduplicated, 4 MB cap) to `data/learn/<owner>.jsonl` (`FUNES_LEARN_DIR`). | `maint_cli.cpp`, `mcp_launch.cpp` | integration "sandbox" |
+| `learn: true` in a script manifest: every `run_script` call is watched and logged, and the `[learn]` line names whatever it reached for outside its grant — under enforcement that was a refusal, the sign a script or a dependency changed behaviour. | `script_library.cpp` (`script_policy`, shared with script-learn), `script_tools.cpp` | integration "learn: true" |
+
+First real result, the RSS server (`npx rss-reader-mcp`) on this machine: its
+`connect: [80, 443]` only ever used 443; it reads `~/.npmrc`, `~/.gitconfig`
+and `~/package*.json` (npx looking upward for a project), which its block
+does not grant — they fail closed, harmlessly.
+
+Not done: a refusal outside learn mode is still invisible (that is Landlock
+audit, ABI 7); the `[learn]` line is not yet a `host_events` row; the model
+review seat is `funes script-learn x … | funes ask "anything odd?"`, nothing
+more.
 
 ## Open questions (all answered)
 

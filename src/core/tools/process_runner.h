@@ -33,6 +33,8 @@ struct Result {
     bool        timed_out = false;
     // What the child cost, when it ran in a cgroup of its own (cgroup.h).
     std::optional<funes::cgroup::Usage> usage;
+    // With policy.observe: what it touched, one observe::Access JSON line each.
+    std::string observed;
 };
 
 // Runs argv[0] with the rest of argv as its literal arguments (no shell).
@@ -82,9 +84,12 @@ struct Wrapped {
     std::vector<std::string> argv;   // exec this — argv itself when nothing wraps it
     std::string tmpdir;              // point TMPDIR here; empty when there is none
     std::unique_ptr<funes::cgroup::Scope> scope;
+    std::string observe_file;        // where the supervisor writes (policy.observe)
+    std::string observed;            // its contents, once finish() has run
 
     // Kills whatever is left in the cgroup, removes it and the temp directory,
-    // and returns what the child cost (nullopt without a cgroup). Idempotent.
+    // moves the observation file into `observed`, and returns what the child
+    // cost (nullopt without a cgroup). Idempotent.
     std::optional<funes::cgroup::Usage> finish();
     ~Wrapped() { finish(); }
 };
@@ -108,9 +113,12 @@ void notify_usage(const std::vector<std::string>& argv, const funes::cgroup::Usa
 // Unset (every unit test but test_cgroup), children are exec'd directly.
 void set_trampoline(const std::string& exe);
 
-// `funes _exec [--cgroup=DIR] [--sandbox --ro= --rx= --rw= --connect=] --
-// PROGRAM ARGS...`: write this process into DIR/cgroup.procs, apply the
-// sandbox policy, then execvp PROGRAM. Returns only on failure — 126 if it
+// `funes _exec [--cgroup=DIR] [--sandbox --ro= --rx= --rw= --connect=]
+// [--observe=FILE] -- PROGRAM ARGS...`: write this process into
+// DIR/cgroup.procs, apply the sandbox policy, then execvp PROGRAM — or, with
+// --observe, fork it under observe::supervise and stay as its parent,
+// recording what it touches into FILE (opened before the sandbox, so the
+// program cannot reach it). Returns only on failure — 126 if it
 // could not join or confine itself (it does not run the program outside the
 // limits it was given), 127 if PROGRAM could not be exec'd, matching the exit codes a
 // direct exec failure has always had.

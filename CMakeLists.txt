@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.8.1 LANGUAGES C CXX)
+project(Funes VERSION 7.9.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -110,6 +110,7 @@ add_library(funes_core STATIC
     src/core/tools/process_runner.cpp
     src/core/cgroup.cpp
     src/core/sandbox.cpp
+    src/core/observe.cpp
     src/core/tools/pdf_extract.cpp
     src/core/tools/tavily.cpp
     src/core/tools/parallel_search.cpp

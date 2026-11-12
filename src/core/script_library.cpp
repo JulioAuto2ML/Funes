@@ -329,6 +329,13 @@ std::string load_script(const std::string& library_path, const std::string& name
         if (!err.empty()) return err;
     }
 
+    // learn: true — every run is watched (observe.h) and what it touched is
+    // kept for `funes script-learn <name> --from-log`.
+    if (root["learn"]) {
+        try { spec.learn = root["learn"].as<bool>(); }
+        catch (const YAML::Exception&) { return "Script '" + id + "': learn must be true or false."; }
+    }
+
     if (root["env"] && root["env"].IsMap())
         for (const auto& kv : root["env"])
             spec.env.emplace_back(kv.first.as<std::string>(),
@@ -438,6 +445,17 @@ std::string build_argv(const ScriptSpec& spec, const nlohmann::json& args,
 
     argv = std::move(built);
     return {};
+}
+
+funes::sandbox::Policy script_policy(const ScriptSpec& spec, const fs::path& workspace) {
+    funes::sandbox::Policy policy = funes::sandbox::for_workspace(workspace);
+    policy.exec.push_back(fs::path(spec.file).parent_path().string());
+    for (const auto& s : spec.access.read)  policy.read.push_back(s);
+    for (const auto& s : spec.access.exec)  policy.exec.push_back(s);
+    for (const auto& s : spec.access.write) policy.write.push_back(s);
+    policy.connect = spec.access.connect;
+    policy.observe = spec.learn;
+    return policy;
 }
 
 } // namespace funes

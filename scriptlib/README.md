@@ -48,6 +48,19 @@ workspace, `/tmp` — is `Permission denied`. `funes script-run <name> --user
 check a manifest's `access:` before an agent finds out it is wrong (it really
 runs — side effects included).
 
+Since 7.9 nobody has to guess the block. `funes script-learn <name> --user
+<username> [--wide] [--param=value …]` runs the script the same way, watches
+every file it opens, creates, removes or executes and every socket it
+connects (a seccomp supervisor, `src/core/observe.h`), and prints the
+`access:` block that would cover it: what is new, what the manifest grants and
+it used, what it grants and it never touched, and red flags (`.ssh`,
+`funes.local`, another account's workspace). Nothing is written to the
+manifest — read it, then commit it. `--wide` lets the script read the whole
+filesystem while watched so a missing read grant does not stop it at the first
+file. `learn: true` in a manifest watches every real `run_script` call the
+same way and logs what it reached for outside its grant; `funes script-learn
+<name> --from-log` folds everything collected.
+
 The guarantee is still also about which code can be started, and by whom.
 Review a script before installing it exactly as you would review an agent
 prompt, and do not install one that takes a command or a URL to fetch-and-run:

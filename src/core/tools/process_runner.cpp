@@ -5,6 +5,7 @@
 #include "../funes_config.h"
 #include "process_runner.h"
 #include "../cgroup.h"
+#include "../observe.h"
 #include "../sandbox.h"
 #include "../text_utils.h"
 #include <algorithm>
@@ -14,7 +15,9 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <fstream>
 #include <poll.h>
+#include <sstream>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -50,6 +53,15 @@ std::optional<funes::cgroup::Usage> Wrapped::finish() {
         fs::remove_all(tmpdir, ec);
         tmpdir.clear();
     }
+    if (!observe_file.empty()) {
+        std::ifstream in(observe_file);
+        std::ostringstream ss;
+        ss << in.rdbuf();
+        observed = ss.str();
+        std::error_code ec;
+        fs::remove(observe_file, ec);
+        observe_file.clear();
+    }
     return usage;
 }
 
@@ -75,6 +87,17 @@ std::unique_ptr<Wrapped> wrap(const std::vector<std::string>& argv,
             p.write.push_back(w->tmpdir);
         }
         confine = funes::sandbox::trampoline_args(p);
+    }
+    // Outside the private temp dir on purpose: the child can write there, and
+    // a record the watched program can edit records nothing.
+    if (!g_trampoline.empty() && policy && policy->observe) {
+        std::string tmpl = (fs::temp_directory_path() / "funes-observe-XXXXXX").string();
+        const int fd = mkstemp(tmpl.data());
+        if (fd >= 0) {
+            close(fd);
+            w->observe_file = tmpl;
+            confine.push_back("--observe=" + tmpl);
+        }
     }
 
     if (w->scope || !confine.empty()) {
@@ -216,6 +239,7 @@ Result run_forked(const std::vector<std::string>& argv, std::vector<std::string>
     close(outfd[0]);
     if (split) close(errfd[0]);
     result.usage = w->finish();
+    result.observed = std::move(w->observed);
     if (result.usage) notify_usage(argv, *result.usage);
 
     if (!result.timed_out && WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
@@ -296,7 +320,7 @@ void set_trampoline(const std::string& exe) { g_trampoline = exe; }
 int trampoline_main(int argc, char** argv) {
     // funes _exec [--cgroup=DIR] [--sandbox --ro=P --rx=P --rw=P --connect=N]
     //             -- PROGRAM ARGS...
-    std::string cgroup;
+    std::string cgroup, observe_to;
     bool sandboxed = false;
     funes::sandbox::Policy policy;
     int i = 2;
@@ -309,6 +333,7 @@ int trampoline_main(int argc, char** argv) {
         else if (a.rfind("--rx=", 0) == 0)  policy.exec.push_back(a.substr(5));
         else if (a.rfind("--rw=", 0) == 0)  policy.write.push_back(a.substr(5));
         else if (a.rfind("--connect=", 0) == 0) policy.connect.push_back(std::atoi(a.c_str() + 10));
+        else if (a.rfind("--observe=", 0) == 0) observe_to = a.substr(10);
         else { std::fprintf(stderr, "funes _exec: unknown option %s\n", a.c_str()); return 126; }
     }
     if (i >= argc) { std::fprintf(stderr, "funes _exec: no program\n"); return 126; }
@@ -324,6 +349,20 @@ int trampoline_main(int argc, char** argv) {
             return 126;
         }
     }
+    // Opened before the sandbox: the record lives where the program may not go.
+    int observe_fd = -1;
+    if (!observe_to.empty()) {
+        observe_fd = open(observe_to.c_str(), O_WRONLY | O_APPEND | O_CLOEXEC);
+        if (observe_fd < 0) {
+            std::fprintf(stderr, "funes _exec: observe: %s: %s\n", observe_to.c_str(),
+                         std::strerror(errno));
+            return 126;
+        }
+    }
+    // The supervisor reads the child's arguments out of /proc/<pid>/mem, under
+    // the same sandbox. Every real policy has /proc (sandbox::base()); one
+    // that does not would leave the record silently empty.
+    if (sandboxed && observe_fd >= 0) policy.read.push_back("/proc");
     // After the cgroup is joined (that write is outside any sandbox), before
     // exec. Fails closed for the same reason as the join.
     if (sandboxed) {
@@ -332,6 +371,21 @@ int trampoline_main(int argc, char** argv) {
             std::fprintf(stderr, "funes _exec: sandbox: %s\n", err.c_str());
             return 126;
         }
+    }
+    if (observe_fd >= 0) {
+        // The supervisor shares the program's sandbox and cgroup — it is only
+        // a reader of its arguments — and passes its exit status through.
+        std::string err;
+        const int rc = funes::observe::supervise(argv + i, observe_fd, err);
+        if (rc < 0) {
+            std::fprintf(stderr, "funes _exec: observe: %s\n", err.c_str());
+            return 126;
+        }
+        if (rc > 128 && rc < 128 + 65) {
+            std::signal(rc - 128, SIG_DFL);
+            std::raise(rc - 128);
+        }
+        return rc;
     }
     execvp(argv[i], argv + i);
     std::fprintf(stderr, "funes _exec: %s: %s\n", argv[i], std::strerror(errno));

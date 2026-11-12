@@ -47,6 +47,9 @@ struct Policy {
     std::vector<std::string> exec;     // read + execute
     std::vector<std::string> write;    // everything, including execute
     std::vector<int>         connect;  // TCP ports; empty = network unrestricted
+    // Learn mode (observe.h): record what the child touches, under this same
+    // policy. Not a right — the trampoline's supervisor only watches.
+    bool observe = false;
 };
 
 // The running kernel's Landlock ABI version; 0 when it has none.

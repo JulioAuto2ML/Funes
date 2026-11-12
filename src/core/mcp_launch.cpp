@@ -7,8 +7,9 @@
 
 namespace funes {
 
-std::unique_ptr<mcp::stdio_client> make_stdio_client(const McpServerConfig& srv,
-                                                     const std::string& agent_name) {
+std::unique_ptr<mcp::stdio_client> make_stdio_client(
+    const McpServerConfig& srv, const std::string& agent_name,
+    std::function<void(const std::string& observed)> on_observed) {
     auto client = std::make_unique<mcp::stdio_client>(srv.command, srv.env);
 
     sandbox::Policy policy = sandbox::base();
@@ -16,20 +17,22 @@ std::unique_ptr<mcp::stdio_client> make_stdio_client(const McpServerConfig& srv,
     policy.exec.insert(policy.exec.end(), srv.access.exec.begin(), srv.access.exec.end());
     policy.write.insert(policy.write.end(), srv.access.write.begin(), srv.access.write.end());
     policy.connect = srv.access.connect;
+    policy.observe = static_cast<bool>(on_observed);
 
     const std::string label = srv.name.empty() ? srv.command : srv.name;
-    client->set_launch_wrapper([policy, agent_name, label](const std::vector<std::string>& argv) {
+    client->set_launch_wrapper([policy, agent_name, label, on_observed](const std::vector<std::string>& argv) {
         // Shared: the plan's on_exit owns it until the server is reaped.
         std::shared_ptr<proc::Wrapped> w = proc::wrap(argv, std::nullopt, policy);
         mcp::stdio_client::launch_plan plan;
         plan.argv = w->argv;
         if (!w->tmpdir.empty()) plan.env.emplace_back("TMPDIR", w->tmpdir);
-        plan.on_exit = [w, argv, agent_name, label] {
+        plan.on_exit = [w, argv, agent_name, label, on_observed] {
             if (auto u = w->finish()) {
                 std::cerr << "[agent:" << agent_name << "] MCP server '" << label
                           << "' stopped" << cgroup::format_usage(*u) << "\n";
                 proc::notify_usage(argv, *u);
             }
+            if (on_observed) on_observed(w->observed);
         };
         return plan;
     });

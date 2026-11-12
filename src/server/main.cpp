@@ -246,7 +246,8 @@ void print_usage(std::ostream& out) {
            "  cron-schedule <id> \"<expr>\" change when a scheduled job fires\n"
            "  memory-migrate              queue stored exchange logs for fact extraction\n"
            "  script-run                  run a library script as run_script would (sandboxed)\n"
-           "  mcp-probe                   start an agent's MCP stdio servers sandboxed, list tools\n"
+           "  script-learn                watch a script run, propose its access: block\n"
+           "  mcp-probe                   start an agent's MCP stdio servers sandboxed, list tools (--learn)\n"
            "  machine-probe               what the machine collector would read here (read-only)\n";
 }
 

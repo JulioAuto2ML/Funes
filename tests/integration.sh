@@ -277,7 +277,36 @@ if grep -q "Sandbox:   Landlock" /tmp/funes_it.log; then
     check "sandboxed child is refused outside it" "$OUT" 'Permission denied'
     OUT=$("$FUNES_BIN" _exec --sandbox --bogus -- true 2>&1; echo "rc=$?")
     check "trampoline refuses an option it does not know" "$OUT" 'rc=126'
-    rm -rf "$SB"
+    # Learn mode (7.9, src/core/observe.h): the supervisor shares the child's
+    # sandbox, the refusal still happens, and the attempt is on the record.
+    OBS="$SB.observed"; : > "$OBS"
+    OUT=$("$FUNES_BIN" _exec --sandbox $SB_RX --rw="$SB/mine" --observe="$OBS" -- \
+          sh -c "cat $SB/mine/f; cat $SB/theirs/f; exit 3" 2>&1; echo "rc=$?")
+    check "observed child still reads its grant" "$OUT" 'inside'
+    check "observed child still refused outside" "$OUT" 'Permission denied'
+    check "observed child's exit status passes through" "$OUT" 'rc=3'
+    check "the refused read is recorded" "$(cat "$OBS")" "\"op\":\"read\",\"path\":\"$SB/theirs/f\""
+    # The whole path: script-learn on a library script, proposal out.
+    mkdir -p "$SB/lib"
+    printf 'description: learn probe\nrun: probe.sh\ninterpreter: sh\n' > "$SB/lib/probe.yaml"
+    printf 'cat %s/theirs/f >/dev/null\necho made > %s/theirs/new\n' "$SB" "$SB" > "$SB/lib/probe.sh"
+    OUT=$(FUNES_DB="$DB" FUNES_SCRIPTS_DIR="$SB/lib" FUNES_LEARN_DIR="$SB/learn" \
+          "$FUNES_BIN" script-learn probe --user itadmin 2>&1)
+    check "script-learn proposes the write it was refused" "$OUT" "\"$SB/theirs\""
+    check "script-learn keeps a learn log" "$(cat "$SB/learn/probe.jsonl" 2>/dev/null)" "$SB/theirs/new"
+    [ ! -e "$SB/theirs/new" ] && ok "the refused write did not happen" || fail "the refused write did not happen" "file exists"
+    OUT=$(FUNES_DB="$DB" FUNES_SCRIPTS_DIR="$SB/lib" FUNES_LEARN_DIR="$SB/learn" \
+          "$FUNES_BIN" script-learn probe --from-log 2>&1)
+    check "script-learn --from-log folds the log" "$OUT" "write:"
+    # `learn: true`: an ordinary run_script call (script-run goes through the
+    # tool) is watched, logged, and says what it reached for outside its grant.
+    rm -rf "$SB/learn"
+    printf 'learn: true\n' >> "$SB/lib/probe.yaml"
+    OUT=$(FUNES_DB="$DB" FUNES_SCRIPTS_DIR="$SB/lib" FUNES_LEARN_DIR="$SB/learn" \
+          "$FUNES_BIN" script-run probe --user itadmin 2>&1)
+    check "learn: true reports what is outside its access" "$OUT" "outside its access: write $SB/theirs"
+    check "learn: true logs the run" "$(cat "$SB/learn/probe.jsonl" 2>/dev/null)" "$SB/theirs/f"
+    rm -rf "$SB" "$OBS"
 else
     echo "  (no Landlock here: $(grep 'Sandbox:' /tmp/funes_it.log))"
 fi

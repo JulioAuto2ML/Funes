@@ -226,3 +226,7 @@ add_test(NAME host COMMAND test_host)
 add_executable(test_local test_local.cpp)
 target_link_libraries(test_local PRIVATE funes_core)
 add_test(NAME local COMMAND test_local)
+
+add_executable(test_observe test_observe.cpp)
+target_link_libraries(test_observe PRIVATE funes_core)
+add_test(NAME observe COMMAND test_observe)

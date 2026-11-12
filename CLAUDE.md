@@ -59,8 +59,9 @@ Same binary, other subcommands: `userdel`, `userlist`, `passwd`, `perms`,
 `cron-schedule` (change a job's schedule and its next run together),
 `memory-migrate` (queue stored exchange logs for fact extraction, 7.3),
 `script-run` and `mcp-probe` (run a script / start an agent's MCP servers in
-the sandbox they would get, no model involved) and `machine-probe` (what the
-machine collector reads, read-only).
+the sandbox they would get, no model involved), `script-learn` / `mcp-probe
+--learn` (the same, watched, printing a proposed `access:` block) and
+`machine-probe` (what the machine collector reads, read-only).
 (`locale` is how an admin sets *another* account's language —
 `PUT /api/me/locale` only ever changes the caller's own, so a new account
 can't be set up in its owner's language before they first log in without it.) They run
@@ -275,7 +276,12 @@ Three things to keep straight when touching this:
   library directory and what its manifest's `access:` names — the kernel, not
   fs_guard, refuses the rest. `execute_shell`, cron shell jobs and the PDF
   tools get the workspace-only policy. Check a manifest with `funes
-  script-run <name> --user <u>` before an agent finds out it is wrong.
+  script-run <name> --user <u>` before an agent finds out it is wrong, and
+  since 7.9 learn it rather than guess it: `funes script-learn <name> --user
+  <u>` watches a run (a seccomp user-notification supervisor in the
+  trampoline, `src/core/observe.h` — observation only, Landlock still decides)
+  and prints the `access:` block that covers it; `learn: true` in a manifest
+  watches every real call.
 
 Three things compose with the layers above rather than sitting beside them:
 

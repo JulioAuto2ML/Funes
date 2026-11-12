@@ -17,6 +17,7 @@
 #pragma once
 #include "agent_config.h"
 #include "mcp_stdio_client.h"
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -24,8 +25,11 @@ namespace funes {
 
 // A stdio client for `srv`, not yet started (initialize() starts it).
 // `agent_name` labels the line logged when the server stops, which carries
-// what it cost.
-std::unique_ptr<mcp::stdio_client> make_stdio_client(const McpServerConfig& srv,
-                                                     const std::string& agent_name);
+// what it cost. With `on_observed` the server runs in learn mode (observe.h)
+// and the callback gets what it touched, as JSON lines, once it has stopped —
+// `funes mcp-probe --learn`.
+std::unique_ptr<mcp::stdio_client> make_stdio_client(
+    const McpServerConfig& srv, const std::string& agent_name,
+    std::function<void(const std::string& observed)> on_observed = {});
 
 } // namespace funes
