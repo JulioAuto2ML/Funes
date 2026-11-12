@@ -1,0 +1,16 @@
+# The one thing the sysadmin agent may change on its own: restart a WhatsApp
+# bridge, the autoresponder or the monitor dashboard. Not funes (it would kill
+# the run asking). Classed external — a restart cannot be staged, and after a
+# run has read the journal it waits for "aprobar N" (effects.h).
+description: Restart one of yoda's user services (the WhatsApp bridges, the autoresponder, the monitor dashboard) and report its state after.
+run: restart_unit.py
+interpreter: python3
+effects: external
+admin_only: true
+timeout_seconds: 90
+params:
+  - name: unit
+    description: Which service.
+    type: string
+    required: true
+    choices: [whatsapp-bridge, whatsapp-bridge-funes, whatsapp-autoresponder, yoda-monitor]

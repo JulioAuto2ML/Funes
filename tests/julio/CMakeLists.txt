@@ -38,6 +38,11 @@ if(Python3_FOUND)
     add_test(NAME julio_autoresponder
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_SOURCE_DIR}/scripts/whatsapp_autoresponder.py --self-test)
+    # The sysadmin agent's scripts (scriptlib/, OS plan phase 7): prune_backups
+    # deletes things, so what it deletes is pinned here.
+    add_test(NAME scriptlib_sysadmin
+             COMMAND ${Python3_EXECUTABLE} -m unittest scriptlib/tests/test_sysadmin.py
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 else()
     message(STATUS "python3 not found — skipping the publishing/ tests")
 endif()

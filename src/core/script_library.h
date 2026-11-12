@@ -39,6 +39,7 @@
 // =============================================================================
 
 #pragma once
+#include "permissions.h"
 #include "cgroup.h"
 #include "effects.h"
 #include "sandbox.h"
@@ -111,6 +112,10 @@ struct ScriptSpec {
     // | external. Absent is external — a manifest that does not say may be one
     // that sends — so a tainted run proposes it instead of running it.
     funes::Effect effects = funes::Effect::External;
+    // admin_only: true — an administrator's view of the box (the journal,
+    // the services). A member runs it only with an explicit
+    // "run_script:<name>": true in their permissions, like a privileged tool.
+    bool admin_only = false;
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;
@@ -175,6 +180,10 @@ std::string validate_output(const ScriptSpec& spec, const std::string& stdout_te
 // script's own library directory, its manifest's `access:`, and learn mode
 // when the manifest asks for it. run_script and `funes script-learn` both use
 // it, so what is learned is learned under the policy that will enforce it.
+// Whether `perms` may run `spec`: its call key allowed, and for an admin_only
+// script, granted as a privilege (Permissions::allows_privileged).
+bool script_permitted(const funes::Permissions& perms, const ScriptSpec& spec);
+
 funes::sandbox::Policy script_policy(const ScriptSpec& spec, const std::filesystem::path& workspace);
 
 // Turns a tool call's arguments into the child's argv:

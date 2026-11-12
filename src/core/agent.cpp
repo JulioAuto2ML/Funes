@@ -540,8 +540,9 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
             std::vector<std::string> permitted;
             for (const auto& name : cfg_.scripts)
                 if (perms.allows_tool("run_script:" + name)) permitted.push_back(name);
-            const std::vector<funes::ScriptSpec> specs =
-                funes::load_scripts(defaults_.scripts_dir, permitted);
+            std::vector<funes::ScriptSpec> specs = funes::load_scripts(defaults_.scripts_dir, permitted);
+            specs.erase(std::remove_if(specs.begin(), specs.end(), [&](const funes::ScriptSpec& s) {
+                return !funes::script_permitted(perms, s); }), specs.end());
             if (!specs.empty()) {
                 sys += "\n\n## Scripts you can run (run_script)\n";
                 for (const auto& spec : specs) {

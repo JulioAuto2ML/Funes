@@ -83,6 +83,12 @@ bool Permissions::allows_tool(const std::string& tool) const {
     return !is_privileged_tool(tool);
 }
 
+bool Permissions::allows_privileged(const std::string& key) const {
+    if (admin_) return true;
+    auto it = tools_.find(key);
+    return it != tools_.end() && it->second;
+}
+
 std::vector<std::string> Permissions::filter_tools(
     const std::vector<std::string>& agent_tools,
     const std::vector<std::string>& all_tools) const {

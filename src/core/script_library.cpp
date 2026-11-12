@@ -336,6 +336,11 @@ std::string load_script(const std::string& library_path, const std::string& name
         catch (const YAML::Exception&) { return "Script '" + id + "': learn must be true or false."; }
     }
 
+    if (root["admin_only"]) {
+        try { spec.admin_only = root["admin_only"].as<bool>(); }
+        catch (const YAML::Exception&) { return "Script '" + id + "': admin_only must be true or false."; }
+    }
+
     if (root["effects"]) {
         const auto e = funes::parse_effect(str_or(root["effects"], ""));
         if (!e) return "Script '" + id + "': effects must be none, workspace, host or external.";
@@ -451,6 +456,11 @@ std::string build_argv(const ScriptSpec& spec, const nlohmann::json& args,
 
     argv = std::move(built);
     return {};
+}
+
+bool script_permitted(const funes::Permissions& perms, const ScriptSpec& spec) {
+    const std::string key = "run_script:" + spec.name;
+    return perms.allows_tool(key) && (!spec.admin_only || perms.allows_privileged(key));
 }
 
 funes::sandbox::Policy script_policy(const ScriptSpec& spec, const fs::path& workspace) {

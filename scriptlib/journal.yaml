@@ -1,0 +1,29 @@
+# The user journal, read-only. Its text is anybody's words — a run that read
+# it is tainted, so whatever it does next on the host or the world waits for
+# the person (effects.h).
+description: Recent lines of yoda's user journal, optionally for one unit, since a time, at or above a priority.
+run: journal.py
+interpreter: python3
+effects: none
+admin_only: true
+timeout_seconds: 30
+params:
+  - name: unit
+    description: A user unit, e.g. whatsapp-bridge. Omit for all of them.
+    type: string
+    required: false
+  - name: lines
+    description: How many lines, newest last (1–300, default 60).
+    type: number
+    required: false
+  - name: since
+    description: How far back — "30m", "2h", "1d", or a time like "2026-11-12 06:00", "today".
+    type: string
+    required: false
+  - name: priority
+    description: Only this priority and worse.
+    type: string
+    required: false
+    choices: [emerg, alert, crit, err, warning, notice, info, debug]
+access:
+  read: ["/var/log/journal"]

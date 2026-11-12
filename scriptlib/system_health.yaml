@@ -1,0 +1,9 @@
+# One screen of the machine's health from /proc and /sys — no model, no write.
+description: yoda's health at a glance — load, memory, pressure, disk space, GPU memory, temperatures, the llama-server processes and failed user units.
+run: system_health.py
+interpreter: python3
+effects: none
+admin_only: true
+timeout_seconds: 20
+env:
+  DATA_DIR: ${FUNES_ROOT}/data

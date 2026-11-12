@@ -76,6 +76,12 @@ ToolResult list_scripts_handler(const std::string& scripts_dir, const ToolContex
                 false};
 
     std::vector<funes::ScriptSpec> specs = funes::load_scripts(scripts_dir, names);
+    const size_t installed = specs.size();
+    specs.erase(std::remove_if(specs.begin(), specs.end(), [&](const funes::ScriptSpec& s) {
+        return !funes::script_permitted(ctx.permissions, s); }), specs.end());
+    if (specs.empty() && installed > 0)
+        return {"This agent's scripts are for administrators, and this account is not one. "
+                "An administrator can grant them; there is nothing to work around here.", false};
     if (specs.empty())
         return {"This agent is granted " + std::to_string(names.size()) +
                 " script(s) (" + name_list(names) + ") but none of them is installed "
@@ -138,6 +144,10 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     if (!load_err.empty())
         return {load_err + " (This agent is allowed to run it, but the script library "
                 "does not have it — an administrator has to install it.)", true};
+
+    if (!funes::script_permitted(ctx.permissions, spec))
+        return {"Script '" + name + "' is for administrators, and this account is not one. "
+                "An administrator can grant it; say so rather than looking for another way.", true};
 
     std::vector<std::string> argv;
     const std::string arg_err = funes::build_argv(

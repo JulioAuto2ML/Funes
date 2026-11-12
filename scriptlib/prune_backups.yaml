@@ -1,0 +1,27 @@
+# Disk housekeeping: old files out of data/backups. Classed host — it deletes
+# outside every workspace — so after outside content it runs against an
+# overlay and the person approves the deletions it made (staging.h). Only a
+# directory can be staged, which is why access names data/backups itself.
+description: Delete entries in data/backups older than a number of days, always keeping the newest few; dry_run lists them instead.
+run: prune_backups.py
+interpreter: python3
+effects: host
+admin_only: true
+timeout_seconds: 120
+env:
+  BACKUPS_DIR: ${FUNES_ROOT}/data/backups
+params:
+  - name: older_than_days
+    description: Only entries older than this many days (at least 7, default 30).
+    type: number
+    required: false
+  - name: keep
+    description: Always keep this many of the newest entries (at least 1, default 3).
+    type: number
+    required: false
+  - name: dry_run
+    description: List what would be deleted, delete nothing.
+    type: boolean
+    required: false
+access:
+  write: ["${FUNES_ROOT}/data/backups"]

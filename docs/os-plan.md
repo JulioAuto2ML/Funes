@@ -245,7 +245,7 @@ Ordered so each phase is useful alone and none requires the next.
 | **4** ✅ | Machine account, event ring, collector, baselines, `host_changes`; promotion rules; isolation test | 1 (for own-run stats) | done in 7.7 |
 | **5** ✅ | Learn mode → proposed `access:` blocks | 2 | done in 7.9 |
 | **6** ✅ | `effects:` classes, overlay staging, diff in result store, commit/discard (typed; no UI buttons yet) | 2 | done in 7.11–7.12 |
-| **7** | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | small |
+| **7** ✅ | *Only now:* a `sysadmin` agent with read tools over systemd/journal, and mutating scripts classed `external` | 2, 4, 6 | done in 7.13 |
 
 Reordered 2026-11-11: phase 4 runs before phase 3. The machine is yoda, and
 yoda's embedding server sits idle outside recall — the machine memory is what
@@ -453,6 +453,30 @@ Not done: `execute_shell`, `create_agent` and `create_tool` are still gated by
 proposal (the shell is workspace-confined, so it has nothing to stage; the
 other two are built-ins that do not go through the trampoline). No shipped
 script is `host` yet — phase 7's are the first users. Buttons in the web UI.
+
+## Phase 7 — the sysadmin agent (7.13)
+
+`agents/sysadmin.yaml`, five scripts and the two machine-memory tools. Built
+last, as planned: each call runs in its own cgroup and sandbox, what it reads
+taints the run, what changed on the machine is already remembered, and a
+change after reading the journal is either proposed (external) or staged
+(host).
+
+| Piece | Effects | Note |
+|---|---|---|
+| `system_health`, `unit_status`, `journal` | none | /proc, /sys, `systemctl --user`, `journalctl --user` (reads `/var/log/journal`). Unit names and `since` are checked before they reach argv, so nothing option-shaped gets through. |
+| `restart_unit` | external | A `choices:` list: the two WhatsApp bridges, the autoresponder, the monitor. Not `funes` — it would kill the run asking. `tool_limits` allows one per run. |
+| `prune_backups` | host | The first `host` script, so the first real user of staging: it deletes in `data/backups`, which its `access:` names. Refuses a window under 7 days and always keeps the newest K. |
+| `admin_only:` | — | A new manifest flag (`ScriptSpec::admin_only`, `script_permitted`, `Permissions::allows_privileged`): a member is refused by `run_script` and the script is left out of `list_scripts` and the prompt, unless granted `run_script:<name>` by name. |
+
+Tests: `scriptlib_sysadmin` (what prune_backups deletes and keeps, what the
+others refuse before calling anything), `script_library`
+(`test_admin_only_scripts`).
+
+What it is not: system units and the kernel's journal need julio in
+`systemd-journal` (an admin decision, open question 1). There is no
+llama-server restart: those processes are not units and `~/launch_llama.sh`
+takes the GPU from the chat path — a person decides that.
 
 ## Open questions (all answered)
 

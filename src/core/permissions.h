@@ -58,6 +58,10 @@ public:
                                           const std::vector<std::string>& all_tools) const;
 
     bool is_admin() const { return admin_; }
+    // For a capability that is privileged by declaration rather than by
+    // name — a script whose manifest says `admin_only: true`: an admin, or an
+    // explicit grant of `key` in the permissions blob. No entry is a denial.
+    bool allows_privileged(const std::string& key) const;
 
     // Tools that do something a member should not get by default: real code
     // execution, and writing new agents or tools into the install.

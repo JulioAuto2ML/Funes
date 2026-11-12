@@ -328,6 +328,11 @@ Three things compose with the layers above rather than sitting beside them:
   could schedule one anyway (`tests/test_cron_tool.cpp`,
   `test_shell_jobs_need_execute_shell_permission`).
 
+A manifest's `admin_only: true` (7.13, `script_permitted`) makes a script
+privileged the way `execute_shell` is: a member runs it only with an explicit
+`"run_script:<name>": true`. The sysadmin agent's scripts (journal, services)
+use it; the check is in `run_script` itself and in both listings.
+
 The agent loop lists an agent's granted scripts in its system prompt
 (`AgentDefaults::scripts_dir`), filtered by the caller's permissions, the way
 it lists the delegation roster — a capability a small model has to discover

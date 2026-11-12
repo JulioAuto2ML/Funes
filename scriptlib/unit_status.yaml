@@ -1,0 +1,13 @@
+# The sysadmin agent's first look (OS plan, phase 7): what the user services
+# are doing. Read-only, and an administrator's view of the box.
+description: State of yoda's user services — all of them, or one unit's state, result, restarts, start time and memory.
+run: unit_status.py
+interpreter: python3
+effects: none        # reads systemd's state (effects.h)
+admin_only: true     # what runs on the machine is an administrator's business
+timeout_seconds: 20
+params:
+  - name: unit
+    description: A user unit, e.g. whatsapp-bridge or funes. Omit for every service.
+    type: string
+    required: false

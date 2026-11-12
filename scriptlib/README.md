@@ -153,6 +153,8 @@ params:
     choices: [daily, weekly] # optional; string params only
 env:
   API_KEY: "${SOME_SERVICE_KEY}"   # expanded from the server environment at load
+effects: none                # none | workspace | host | external; absent = external (effects.h)
+admin_only: true             # optional; members need an explicit "run_script:<name>": true
 ```
 
 `run:` must be a plain filename inside this directory — no `/`, no `..`. A
@@ -332,6 +334,22 @@ executable per script, granted per agent under `scripts:`.
 | `speak` | — (not granted yet) | Say a sentence on the living-room Echo over Bluetooth (`espeak-ng` → `paplay`). Quiet hours, reconnects the Echo itself. JSON out. |
 | `news_headlines` | `noticiero` | Last 18 h from Infobae, La Nación and Clarín, same story across outlets merged, ranked by how many outlets cover it. No arguments. JSON out. |
 | `publish_briefing` | `noticiero` | Writes the spoken briefing as the Echo's Alexa news feed (`feed.json`, served by `tailscale funnel`). Refuses URLs, markdown, cut-off text. JSON out. |
+
+## The sysadmin scripts (OS plan, phase 7)
+
+Granted to `agents/sysadmin.yaml`. All five are `admin_only: true`: a member
+running one is refused by `run_script` itself (and it is left out of their
+listings) unless their permissions grant `"run_script:<name>": true` — what
+runs on the box, and what it logs, is an administrator's view.
+Tests: `scriptlib/tests/test_sysadmin.py` (`ctest -R scriptlib_sysadmin`).
+
+| Script | Effects | What |
+|---|---|---|
+| `system_health` | none | Load, memory, PSI, disk, GPU memory, temperatures, llama-server processes, failed user units — from /proc, /sys and one `systemctl`. |
+| `unit_status` | none | Every user service, or one unit's state, result, restarts, start time, memory and CPU. |
+| `journal` | none | `journalctl --user`, by unit, `since` ("2h", "today"), priority; at most 300 lines. Log text taints the run. |
+| `restart_unit` | external | Restart a WhatsApp bridge, the autoresponder or the monitor dashboard (a `choices:` list; never `funes`). After the journal was read, it waits for "aprobar N". |
+| `prune_backups` | host | Delete `data/backups` entries older than N days (≥ 7), always keeping the newest K; `dry_run` lists them. After outside content it is staged: the deletions are shown and applied on approval. |
 
 ### Setup (once per machine)
 

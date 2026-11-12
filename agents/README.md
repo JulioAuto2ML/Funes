@@ -17,6 +17,7 @@ allowlist, and a handful of knobs, not an independent binary or container.
 | `tool-builder` | Scaffolds new HTTP-template tools via interview. | create_tool | 8 |
 | `file-reviewer` | Reviews an uploaded document and reports on it. | read_file, remember | 10 |
 | `classifier` | Fast typed decisions: probability per option, no free text. | classify_decision | 6 |
+| `sysadmin` | yoda itself: services, journal, health, what changed; restarts a bridge, clears old backups. Its scripts are `admin_only`. | run_script (system_health, unit_status, journal, restart_unit, prune_backups), host_changes, machine_recall | 10 |
 
 That is the whole shipped roster, and it is meant to be. An agent that needs
 a mailbox, a phone number or a subscriber list is one installation's, not the

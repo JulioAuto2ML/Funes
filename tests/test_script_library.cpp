@@ -502,6 +502,53 @@ int test_per_script_permissions() {
     return 0;
 }
 
+// ── admin_only scripts ───────────────────────────────────────────────────────
+//
+// The journal and the services are an administrator's view of the box. A
+// manifest that says admin_only is refused to a member by the tool itself —
+// not left to the roster or a prompt — unless their permissions grant that
+// script by name, the way a privileged tool is granted.
+
+int test_admin_only_scripts() {
+    build_library();
+    write_file(lib_dir() / "rootish.sh", "#!/bin/sh\necho ADMIN-RAN\n", /*executable=*/true);
+    write_file(lib_dir() / "rootish.yaml",
+               "description: An administrator's view.\nrun: rootish.sh\neffects: none\nadmin_only: true\n");
+    write_file(lib_dir() / "badflag.yaml", "description: x\nrun: rootish.sh\nadmin_only: maybe\n");
+    funes::ScriptSpec spec;
+    CHECK(funes::load_script(lib_dir().string(), "rootish", spec).empty() && spec.admin_only);
+    CHECK(funes::load_script(lib_dir().string(), "badflag", spec).find("admin_only") != std::string::npos);
+
+    const fs::path ws = fs::temp_directory_path() / "funes_test_scriptlib_ws_admin";
+    fs::remove_all(ws);
+    ToolRegistry reg;
+    register_script_tools(reg, ws.string(), lib_dir().string());
+    const json call = {{"name", "rootish"}};
+
+    const auto member = funes::Permissions::parse("{}", /*is_admin=*/false);
+    ToolContext m{"sysadmin", "s", "", "", 5, member, {"greet", "rootish"}};
+    auto listed = reg.call("list_scripts", json::object(), m);
+    CHECK(listed.text.find("greet") != std::string::npos);
+    CHECK(listed.text.find("rootish") == std::string::npos);
+    auto refused = reg.call("run_script", call, m);
+    CHECK(refused.error && refused.text.find("for administrators") != std::string::npos);
+    CHECK(refused.text.find("ADMIN-RAN") == std::string::npos);
+
+    ToolContext only{"sysadmin", "s", "", "", 5, member, {"rootish"}};
+    CHECK(reg.call("list_scripts", json::object(), only).text.find("for administrators") != std::string::npos);
+
+    const auto granted = funes::Permissions::parse(R"({"tools": {"run_script:rootish": true}})", false);
+    ToolContext g{"sysadmin", "s", "", "", 5, granted, {"rootish"}};
+    auto ran = reg.call("run_script", call, g);
+    CHECK(!ran.error && ran.text.find("ADMIN-RAN") != std::string::npos);
+
+    ToolContext a{"sysadmin", "s", "", "", 1, funes::Permissions::parse("{}", true), {"rootish"}};
+    CHECK(reg.call("run_script", call, a).text.find("ADMIN-RAN") != std::string::npos);
+
+    fs::remove_all(ws);
+    return 0;
+}
+
 // ── the YAML field ───────────────────────────────────────────────────────────
 
 int test_agent_yaml() {
@@ -655,6 +702,7 @@ int main() {
     rc |= test_declared_output();
     rc |= test_per_script_keys();
     rc |= test_per_script_permissions();
+    rc |= test_admin_only_scripts();
     rc |= test_agent_yaml();
     rc |= test_shipped_scripts_run();
     if (rc == 0) std::cout << "test_script_library: all tests passed\n";
