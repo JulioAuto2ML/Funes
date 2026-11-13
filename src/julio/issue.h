@@ -39,8 +39,32 @@ std::string normalize_for_match(const std::string& s);
 // to be considered grounded in that page.
 constexpr int kMinOverlap = 3;
 
+// The post's specifics — its numbers and the capitalised names not opening a
+// sentence — that `page_text` never mentions. Numbers compare by their digits
+// ("80.700" is "80,700"), names accent- and case-blind, and a name of six or
+// more letters also matches a page word sharing all but its last three
+// ("German" → "Germany", "Americans" → "America").
+//
+// Overlap alone was not grounding. Three shared words like "models",
+// "training" or "prices" are on half the pages in a pool, and on 2026-11-13
+// a post about "GPT-6 Sol and Luna" — names on no page in the pool — went out
+// linked to a Gizmodo piece about Anthropic, with a real sentence from it as
+// "evidence". Re-run over every issue published until then, this rule
+// flagged 36 of 927 posts, nearly all on unrelated pages (an Alfa Romeo
+// concept car on a LinkedIn post about agents' memory).
+std::vector<std::string> missing_specifics(const std::string& post_text,
+                                           const std::string& page_text);
+
+// A post fails grounding when at least this many of its specifics are missing
+// from the page, and they are at least kMaxMissingShare of all of them. Both:
+// one unmatched name is a paraphrase ("the Commission" for "the EU"); three of
+// four is a different story.
+constexpr size_t kMinMissingSpecifics = 3;
+constexpr double kMaxMissingShare = 0.4;
+
 // Deterministic grounding: finds the sentence in `page_text` that best supports
-// `post_text` by content-word overlap. Returns {sentence, ""} on success, or
+// `post_text` by content-word overlap, and checks the post's specifics against
+// the whole page (missing_specifics). Returns {sentence, ""} on success, or
 // {"", reason} when the post cannot be grounded in the page.
 std::pair<std::string, std::string> extract_evidence(
     const std::string& post_text, const std::string& page_text);

@@ -13,6 +13,7 @@
 //   deterministically — no model involvement in the check at all.
 
 #include "issue.h"
+#include <algorithm>
 #include <iostream>
 #include <string>
 
@@ -774,6 +775,71 @@ int test_build_issue_drops_an_oversized_image_prompt_but_keeps_the_item() {
     return 0;
 }
 
+// ── Specifics: names and numbers the page must carry ─────────────────────────
+
+// The 2026-11-13 post, against the Gizmodo page it shipped with (abridged).
+static const char* kGizmodoPage =
+    "Anthropic Says Its New AI Model Can Solve Black Hole Mysteries.\n"
+    "The company claims that outputs can be generated up to 30% faster than "
+    "Fable 5.1 and Mythos 5.1 were able to spit out, while cutting prices to "
+    "$8 per million input tokens and $40 per million output tokens for both "
+    "models, making them slightly cheaper than OpenAI's most powerful model, "
+    "GPT-6 Astra.\n"
+    "Anthropic also claims new heights for science, cracking two questions "
+    "about the physics of black holes.";
+static const char* kSolPost =
+    "OpenAI shipped GPT-6 Sol and Luna today, cutting API prices 50% vs GPT-5.6 "
+    "promo pricing (Sol: $2/$10 per M tokens). Sol beats Claude Opus 5 on "
+    "AutomationBench at ~9% of the cost per task. Astra stays the flagship; "
+    "Sol and Luna are the cost-efficiency tier.";
+
+int test_a_post_naming_what_the_page_never_mentions_is_rejected() {
+    // Overlap alone passes it: "openai", "cutting", "prices", "tokens", "astra".
+    auto missing = missing_specifics(kSolPost, kGizmodoPage);
+    auto has = [&](const std::string& w) {
+        return std::find(missing.begin(), missing.end(), w) != missing.end();
+    };
+    CHECK(has("Sol"));
+    CHECK(has("Luna"));
+    CHECK(has("AutomationBench"));
+    CHECK(has("50"));
+    CHECK(!has("Astra"));            // on the page
+    CHECK(!has("API"));              // generic, never counted
+    auto [evidence, err] = extract_evidence(kSolPost, kGizmodoPage);
+    CHECK(evidence.empty());
+    CHECK(err.find("never mentions") != std::string::npos);
+    CHECK(err.find("Luna") != std::string::npos);
+    return 0;
+}
+
+int test_numbers_compare_by_digits() {
+    // A Spanish post about an English page writes the same number differently.
+    auto missing = missing_specifics(
+        "Anthropic perdió 80.700 millones de dólares, frente a 72.000 en 2025.",
+        "Anthropic lost $80,700 million in the first half, against 72,000 in 2025.");
+    CHECK(missing.empty());
+    return 0;
+}
+
+int test_sentence_openers_and_paraphrase_are_not_specifics() {
+    // "Researchers" opens a sentence; "German" stands for the page's "Germany".
+    auto missing = missing_specifics(
+        "A German court ruled against Suno. Researchers expect appeals.",
+        "A court in Germany ruled that the music firm Suno breached copyright.");
+    CHECK(missing.empty());
+    return 0;
+}
+
+int test_one_missing_name_is_a_paraphrase_not_a_rejection() {
+    auto [evidence, err] = extract_evidence(
+        "Anthropic says Claude hacked three organisations during a safety test, "
+        "according to Reuters.",
+        kPage);
+    CHECK(err.empty());
+    CHECK(!evidence.empty());
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_normalize_for_match();
@@ -787,6 +853,10 @@ int main() {
     rc |= test_accents_do_not_hide_a_match();
     rc |= test_spanish_function_words_are_not_evidence();
     rc |= test_an_unrelated_spanish_post_is_rejected();
+    rc |= test_a_post_naming_what_the_page_never_mentions_is_rejected();
+    rc |= test_numbers_compare_by_digits();
+    rc |= test_sentence_openers_and_paraphrase_are_not_specifics();
+    rc |= test_one_missing_name_is_a_paraphrase_not_a_rejection();
     rc |= test_headline_from_title();
     rc |= test_build_issue_takes_the_url_from_the_pool();
     rc |= test_build_issue_ignores_any_url_the_model_supplies();

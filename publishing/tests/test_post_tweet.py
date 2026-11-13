@@ -185,6 +185,19 @@ class PostBody(unittest.TestCase):
             self.assertIn("Nothing to post", out.getvalue())
             self.assertIn("2 item(s)", out.getvalue())
 
+    def test_main_does_not_post_a_withdrawn_item(self):
+        with TemporaryDirectory() as tmp:
+            withdrawn = json.loads(json.dumps(ISSUE))
+            withdrawn["items"][0]["withdrawn"] = "named models no page mentions"
+            f = Fixture(tmp, issue=withdrawn)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc = pt.main_with_args(["1", "--dir", str(f.dir),
+                                        "--date", DAY.isoformat(), "--dry-run"])
+            self.assertEqual(rc, 0)
+            self.assertIn("withdrawn", out.getvalue())
+            self.assertNotIn("DRY RUN", out.getvalue())
+
     def test_main_still_posts_a_slot_within_range(self):
         with TemporaryDirectory() as tmp:
             f = Fixture(tmp)

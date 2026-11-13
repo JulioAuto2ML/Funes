@@ -219,6 +219,144 @@ std::vector<std::string> split_sentences(const std::string& text) {
     return sentences;
 }
 
+// ── Specifics: the numbers and names a post could only have from its page ────
+// Mirrored in publishing/publish_issue.py (_specifics) — keep the two in sync.
+
+namespace {
+
+// Capitalised words that say nothing about which story a page is: a model adds
+// them to any post about any page.
+const std::unordered_set<std::string> kGenericNames = {
+    "api", "apis", "ceo", "ceos", "cfo", "cto", "cpu", "gpu", "gpus",
+    "llm", "llms", "saas", "ais"
+};
+
+bool ascii_alnum(unsigned char c) { return c < 0x80 && std::isalnum(c); }
+bool ascii_digit(unsigned char c) { return c >= '0' && c <= '9'; }
+
+// Every number in `text` by its digits alone: "80.700", "80,700" and "80700"
+// are one number, which is what a Spanish post about an English page needs.
+std::set<std::string> number_digits(const std::string& text) {
+    std::set<std::string> out;
+    std::string digits;
+    for (size_t i = 0; i < text.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (ascii_digit(c)) {
+            digits += static_cast<char>(c);
+        } else if ((c == '.' || c == ',') && !digits.empty() && i + 1 < text.size() &&
+                   ascii_digit(static_cast<unsigned char>(text[i + 1]))) {
+            continue;                       // a separator inside the number
+        } else if (!digits.empty()) {
+            out.insert(digits);
+            digits.clear();
+        }
+    }
+    if (!digits.empty()) out.insert(digits);
+    return out;
+}
+
+// Lower-cased, accent-folded words of `text`, split on anything that is not an
+// ASCII letter or digit.
+std::vector<std::string> folded_words(const std::string& text) {
+    std::vector<std::string> out;
+    std::string word;
+    for (unsigned char c : fold_accents(text)) {
+        if (ascii_alnum(c)) {
+            word += static_cast<char>(std::tolower(c));
+        } else if (!word.empty()) {
+            out.push_back(word);
+            word.clear();
+        }
+    }
+    if (!word.empty()) out.push_back(word);
+    return out;
+}
+
+struct Specifics {
+    std::set<std::string> numbers;   // digits only
+    std::set<std::string> names;     // as written
+    size_t size() const { return numbers.size() + names.size(); }
+};
+
+Specifics specifics_of(const std::string& post) {
+    Specifics s;
+    s.numbers = number_digits(post);
+    // Whitespace-separated tokens; a token opens a sentence when it is the
+    // first, follows a line break, or follows a token ending in . ! ? or :.
+    bool sentence_start = true;
+    size_t i = 0;
+    while (i < post.size()) {
+        if (std::isspace(static_cast<unsigned char>(post[i]))) {
+            if (post[i] == '\n') sentence_start = true;
+            ++i;
+            continue;
+        }
+        size_t j = i;
+        while (j < post.size() && !std::isspace(static_cast<unsigned char>(post[j]))) ++j;
+        const std::string token = post.substr(i, j - i);
+        // Parts: runs of ASCII letters/digits. "Anthropic's" → Anthropic, s;
+        // "GPT-6" → GPT, 6; "AI-generated" → AI, generated.
+        bool first_part = true;
+        std::string part;
+        auto take = [&](const std::string& p) {
+            const bool opener = sentence_start && first_part;
+            first_part = false;
+            if (opener || p.size() < 3) return;
+            if (!(p[0] >= 'A' && p[0] <= 'Z')) return;
+            for (unsigned char c : p) if (ascii_digit(c)) return;
+            std::string lower;
+            for (unsigned char c : p) lower += static_cast<char>(std::tolower(c));
+            if (kGenericNames.count(lower)) return;
+            s.names.insert(p);
+        };
+        for (unsigned char c : token) {
+            if (ascii_alnum(c)) {
+                part += static_cast<char>(c);
+            } else if (!part.empty()) {
+                take(part);
+                part.clear();
+            }
+        }
+        if (!part.empty()) take(part);
+        const char last = token.back();
+        sentence_start = last == '.' || last == '!' || last == '?' || last == ':';
+        i = j;
+    }
+    return s;
+}
+
+Specifics post_specifics(const std::string& post) { return specifics_of(post); }
+
+} // namespace
+
+std::vector<std::string> missing_specifics(const std::string& post_text,
+                                           const std::string& page_text) {
+    const Specifics s = specifics_of(post_text);
+    std::vector<std::string> missing;
+    if (s.size() == 0) return missing;
+
+    const auto page_numbers = number_digits(page_text);
+    const auto page_words = folded_words(page_text);
+    const std::unordered_set<std::string> page_set(page_words.begin(), page_words.end());
+
+    for (const auto& n : s.numbers)
+        if (!page_numbers.count(n)) missing.push_back(n);
+    for (const auto& name : s.names) {
+        const auto folded = folded_words(name);
+        if (folded.empty()) continue;
+        const std::string& w = folded.front();
+        if (page_set.count(w)) continue;
+        bool found = false;
+        if (w.size() >= 6) {
+            const std::string stem = w.substr(0, std::max<size_t>(4, w.size() - 3));
+            for (const auto& pw : page_set)
+                if (pw.compare(0, stem.size(), stem) == 0) { found = true; break; }
+        }
+        if (!found) missing.push_back(name);
+    }
+    return missing;
+}
+
 std::pair<std::string, std::string> extract_evidence(
     const std::string& post_text, const std::string& page_text) {
     if (page_text.empty())
@@ -250,6 +388,17 @@ std::pair<std::string, std::string> extract_evidence(
                     "sentence shares only " + std::to_string(best_score) +
                     " content word(s) with the post (need " +
                     std::to_string(kMinOverlap) + ")"};
+
+    const auto missing = missing_specifics(post_text, page_text);
+    if (missing.size() >= kMinMissingSpecifics) {
+        const size_t total = post_specifics(post_text).size();
+        if (total > 0 && static_cast<double>(missing.size()) / total >= kMaxMissingShare) {
+            std::string list;
+            for (const auto& m : missing) list += (list.empty() ? "" : ", ") + m;
+            return {"", "the post names " + list + ", which this page never "
+                        "mentions — it is not this page's story"};
+        }
+    }
 
     return {best, ""};
 }

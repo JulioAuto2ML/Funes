@@ -38,6 +38,7 @@ started, and the record is what a human finds the next morning.
 """
 
 import json
+import re
 import subprocess
 import sys
 import time
@@ -160,6 +161,76 @@ def best_overlap(post_text, page_text):
     return best
 
 
+# Mirrors src/julio/issue.cpp's missing_specifics and its two thresholds: the
+# numbers and capitalised names a post could only have from its page. Overlap
+# alone let a post about "GPT-6 Sol and Luna" ship linked to a page about
+# Anthropic (2026-11-13), so a repair is held to both checks.
+_GENERIC_NAMES = {"api", "apis", "ceo", "ceos", "cfo", "cto", "cpu", "gpu",
+                  "gpus", "llm", "llms", "saas", "ais"}
+_MIN_MISSING_SPECIFICS = 3
+_MAX_MISSING_SHARE = 0.4
+_NUMBER = re.compile(r"[0-9]+(?:[.,][0-9]+)*")
+_ASCII_PART = re.compile(r"[A-Za-z0-9]+")
+
+
+def _number_digits(text):
+    return {re.sub(r"[.,]", "", n) for n in _NUMBER.findall(text)}
+
+
+def _folded_words(text):
+    return [w.lower() for w in _ASCII_PART.findall(_fold(text))]
+
+
+def _specifics(post):
+    """(numbers, names): every number by its digits, and the capitalised
+    ASCII words of three or more letters that do not open a sentence."""
+    names = set()
+    sentence_start = True
+    for sep, token in re.findall(r"(\s*)(\S+)", post):
+        if "\n" in sep:
+            sentence_start = True
+        for k, part in enumerate(_ASCII_PART.findall(token)):
+            if k == 0 and sentence_start:
+                continue
+            if len(part) < 3 or not "A" <= part[0] <= "Z":
+                continue
+            if any(c.isdigit() for c in part) or part.lower() in _GENERIC_NAMES:
+                continue
+            names.add(part)
+        sentence_start = token[-1] in ".!?:"
+    return _number_digits(post), names
+
+
+def missing_specifics(post_text, page_text):
+    numbers, names = _specifics(post_text)
+    page_numbers = _number_digits(page_text)
+    page_words = set(_folded_words(page_text))
+    missing = [n for n in sorted(numbers) if n not in page_numbers]
+    for name in sorted(names):
+        folded = _folded_words(name)
+        if not folded or folded[0] in page_words:
+            continue
+        w = folded[0]
+        if len(w) >= 6:
+            stem = w[:max(4, len(w) - 3)]
+            if any(pw.startswith(stem) for pw in page_words):
+                continue
+        missing.append(name)
+    return missing
+
+
+def supports(post_text, page_text):
+    """Whether page_text grounds post_text: the overlap gate and the
+    specifics gate, as build_issue applies them."""
+    if best_overlap(post_text, page_text) < _MIN_OVERLAP:
+        return False
+    numbers, names = _specifics(post_text)
+    total = len(numbers) + len(names)
+    missing = missing_specifics(post_text, page_text)
+    return not (len(missing) >= _MIN_MISSING_SPECIFICS and
+                total and len(missing) / total >= _MAX_MISSING_SHARE)
+
+
 def load_pool(work_dir, publication, target_date):
     """The full harvested candidate pool (every candidate fetched, not just
     the ones selected) — the same file src/core/tools/harvest.cpp writes and
@@ -209,7 +280,7 @@ def find_replacement(item, candidates_by_id, used_ids):
             continue
         if candidate.get("story") != story:
             continue
-        if best_overlap(item["text"], candidate.get("text", "")) < _MIN_OVERLAP:
+        if not supports(item["text"], candidate.get("text", "")):
             continue
         status, detail = check_link(candidate.get("url", ""))
         if status == "broken":

@@ -111,7 +111,11 @@ def collect_week(work_dir: Path, publication: str, sunday: date,
             issue = pt.load_sent_issue(work_dir, publication, day)
         except RuntimeError:
             continue                    # no issue that day, or it did not go out
-        for slot, item in enumerate(issue.get("items", [])[:per_issue], start=1):
+        # A withdrawn item (one found wrong after it went out) is skipped, and
+        # the next one leads instead; the slot still names its own image.
+        kept = [(slot, item) for slot, item in enumerate(issue.get("items", []), start=1)
+                if not item.get("withdrawn")]
+        for slot, item in kept[:per_issue]:
             stories.append({
                 "day": day,
                 "emoji": item.get("emoji", "").strip(),

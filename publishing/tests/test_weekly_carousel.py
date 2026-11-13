@@ -77,6 +77,18 @@ class CollectTests(unittest.TestCase):
             "https://example.com/2026-11-06/1", "https://example.com/2026-11-06/2"])
         self.assertEqual(stories[0]["day"], date(2026, 11, 2))
 
+    def test_a_withdrawn_item_gives_way_to_the_next(self):
+        with TemporaryDirectory() as tmp:
+            w = Week(tmp, EN_WEEK[:1], images=[(EN_WEEK[0], 3)])
+            p = w.dir / "issues" / "ai-pulse" / f"{EN_WEEK[0]}.json"
+            data = json.loads(p.read_text())
+            data["items"][0]["withdrawn"] = "named models no page mentions"
+            p.write_text(json.dumps(data))
+            stories = wc.collect_week(w.dir, "ai-pulse", SUNDAY, per_issue=2)
+        self.assertEqual([s["url"] for s in stories], [
+            "https://example.com/2026-11-02/2", "https://example.com/2026-11-02/3"])
+        self.assertIsNotNone(stories[1]["image"])     # slot 3's own picture
+
     def test_ignores_issues_that_were_not_sent(self):
         with TemporaryDirectory() as tmp:
             w = Week(tmp, EN_WEEK)

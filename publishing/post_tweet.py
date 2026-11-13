@@ -410,6 +410,14 @@ def main_with_args(args):
               f"item(s), and this is slot {post_number}.")
         return 0
 
+    # Withdrawn: an item found wrong after the issue went out (the 2026-11-13
+    # post naming models no page mentioned). It stays in the record, which is
+    # what happened, but is not posted again — here or in Sunday's carousel.
+    if issue["items"][post_number - 1].get("withdrawn"):
+        print(f"Not posting #{post_number}: the item is withdrawn "
+              f"({issue['items'][post_number - 1]['withdrawn']}).")
+        return 0
+
     try:
         text = post_body(issue, post_number)
     except (IndexError, KeyError) as e:

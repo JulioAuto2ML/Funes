@@ -1,0 +1,46 @@
+# systemd --user unit for publishing/linkedin_token.py serve: receives
+# LinkedIn's redirect after the person approves the app again (the 60-day
+# token cannot be refreshed), and writes the new token into
+# data/newsletter/.env. The reminder with the link is the daily
+# `linkedin_token.py check` in scripts/yoda.crontab.
+#
+# Listens on 127.0.0.1:8492 only. The browser that approves is usually the
+# phone's, so tailscale funnel publishes it on the host's https name:
+#
+#   tailscale funnel --bg --set-path /linkedin http://127.0.0.1:8492
+#
+# and LINKEDIN_REDIRECT_URI (config/funes.local) names that URL, which must
+# also be listed in the LinkedIn app's Auth settings. That path is on the
+# public internet: a request without the one pending state gets a 404 and
+# changes nothing.
+#
+# Install (on yoda):
+#   mkdir -p ~/Funes/data/newsletter/linkedin
+#   cp scripts/linkedin-callback.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now linkedin-callback
+
+[Unit]
+Description=LinkedIn OAuth callback for the newsletter's token renewal
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/julio/Funes
+ExecStart=/usr/bin/python3 /home/julio/Funes/publishing/linkedin_token.py serve --dir /home/julio/Funes/data/newsletter
+Restart=on-failure
+RestartSec=5
+
+# Same sandbox shape as whatsapp-autoresponder: $HOME is empty except its
+# code and config (read-only), the credentials file and the state directory.
+# .env is written in place, not renamed over, because it is a bind mount.
+ProtectSystem=strict
+ProtectHome=tmpfs
+PrivateTmp=yes
+NoNewPrivileges=yes
+BindReadOnlyPaths=/home/julio/Funes/publishing /home/julio/Funes/config
+BindPaths=/home/julio/Funes/data/newsletter/.env /home/julio/Funes/data/newsletter/linkedin
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=default.target

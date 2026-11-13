@@ -14,6 +14,7 @@ decides whether mail goes out.
 | `generate_images.py` | One LinkedIn illustration per item, from each item's `image_prompt`, through a running ComfyUI (Qwen Image 2.1). Writes `images/<pub>/<date>/<n>.png`. |
 | `run_images.sh` | The cron entry for the above: lends the GPU from the LLM for a window and always gives it back (EXIT trap). Does nothing, GPU untouched, if there is nothing to render. |
 | `weekly_carousel.py` | Sunday's LinkedIn carousel, one per edition: a PDF (cover, one slide per story, a closing slide) posted as a LinkedIn document. The stories are the first two items of each issue sent Monday–Saturday — the curator's own order, no model call. Links go in the first comment; `carousels/<pub>/<date>.json` stops a second post. `--dry-run` renders only. |
+| `linkedin_token.py` | Keeps the LinkedIn token from lapsing unseen (it lasts 60 days; LinkedIn gives this app no refresh token). `check` (cron, daily) sends the admin a WhatsApp renewal link from seven days before expiry; `serve` (unit `linkedin-callback`) receives LinkedIn's redirect after the approval and writes the new token into `.env`; `url` prints a link now. The redirect goes through tailscale funnel's `/linkedin` path, so `LINKEDIN_REDIRECT_URI` must also be listed in the LinkedIn app. The callback acts only on the one pending random `state`, once. Added 2026-11-13, after the token expired at 19:15 the day before and the posts failed for a day with only a log line saying so. |
 | `run_publication.sh` | The cron entry: runs the curator, then checks the run record rather than believing it. |
 | `publish_newsletter.py` | The older path, reading the hand-written `X_posts_<date>.txt`. Still works, still tested; kept until the new path has run a clean week. Also the entry point to the test suite (`--self-test`). |
 
@@ -29,6 +30,7 @@ not, and stay on the sending host:
 | `../publications/*.yaml` — the settings | `X_posts_<date>.txt`, `newsletter_<date>.html` — generated |
 | — | `carousels/<pub>/<sunday>.{pdf,json}` — the weekly carousel and its post record |
 | — | `.env` (Gmail + LinkedIn credentials), `subscribers.txt` |
+| — | `linkedin/renew_state.json` — the one pending renewal `state` |
 
 The issue directory is `--dir PATH`, else `$FUNES_PUBLISH_DIR`, else the current
 working directory — in that order. It is deliberately *not* the script's own

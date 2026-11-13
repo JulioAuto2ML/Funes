@@ -495,6 +495,37 @@ class SpanishOverlapGate(unittest.TestCase):
         self.assertLess(pi.best_overlap(post, self.PAGE), pi._MIN_OVERLAP)
 
 
+class SpecificsGate(unittest.TestCase):
+    """Mirror of test_issue.cpp's specifics tests: a repair must not swap in a
+    page that never mentions what the post names (2026-11-13)."""
+
+    PAGE = ("The company is cutting prices to $8 per million input tokens, "
+            "slightly cheaper than OpenAI's most powerful model, GPT-6 Astra.\n"
+            "Anthropic also claims new heights for science and black holes.")
+    POST = ("OpenAI shipped GPT-6 Sol and Luna today, cutting API prices 50% vs "
+            "GPT-5.6 promo pricing. Sol beats Claude Opus 5 on AutomationBench. "
+            "Astra stays the flagship; Sol and Luna are the cost-efficiency tier.")
+
+    def test_names_absent_from_the_page_fail_it(self):
+        missing = pi.missing_specifics(self.POST, self.PAGE)
+        for name in ("Sol", "Luna", "AutomationBench", "50"):
+            self.assertIn(name, missing)
+        self.assertNotIn("Astra", missing)
+        self.assertNotIn("API", missing)
+        self.assertGreaterEqual(pi.best_overlap(self.POST, self.PAGE), pi._MIN_OVERLAP)
+        self.assertFalse(pi.supports(self.POST, self.PAGE))
+
+    def test_numbers_compare_by_digits(self):
+        self.assertEqual(pi.missing_specifics(
+            "Anthropic perdió 80.700 millones de dólares, frente a 72.000 en 2025.",
+            "Anthropic lost $80,700 million, against 72,000 in 2025."), [])
+
+    def test_openers_and_paraphrase_are_not_specifics(self):
+        self.assertEqual(pi.missing_specifics(
+            "A German court ruled against Suno. Researchers expect appeals.",
+            "A court in Germany ruled that the music firm Suno breached copyright."), [])
+
+
 class BadIssues(unittest.TestCase):
     def _publish(self, issue):
         with TemporaryDirectory() as tmp:
