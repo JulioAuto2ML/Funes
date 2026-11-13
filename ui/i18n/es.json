@@ -47,5 +47,6 @@
   "jobs.next": "siguiente {when}",
   "files.heading": "Archivos del espacio de trabajo",
   "files.empty": "Aquí todavía no hay archivos.",
-  "files.deleteConfirm": "¿Borrar «{name}»?"
+  "files.deleteConfirm": "¿Borrar «{name}»?",
+  "chat.stillWorking": "Se perdió la conexión — Funes sigue trabajando; la respuesta aparecerá aquí."
 }

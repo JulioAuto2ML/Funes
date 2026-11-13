@@ -335,6 +335,7 @@ FUNES_SERVICE_TOKEN= \
 FUNES_SOCKET="$SOCK" \
 FUNES_SCRIPTS_DIR="$(pwd)/scriptlib:$STAGE_LIB" \
 FUNES_STAGING_DIR="$STAGE_DIR" \
+FUNES_SSE_HEARTBEAT_SECONDS=1 \
 "$FUNES_BIN" > /tmp/funes_it.log 2>&1 &
 FUNES_PID=$!
 
@@ -1357,6 +1358,41 @@ check_absent "and did not happen" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-direct
 check "the log says why" "$(cat /tmp/funes_it.log)" 'after reading earlier in this conversation: tool:read_mail'
 OUT=$(gate_chat curl "gate-direct note four" it-gate-6)
 check "the same send in a fresh conversation acts at once" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-direct-4'
+
+echo "— a chat run outlives its connection; only an explicit stop ends it"
+OUT=$(curl -s -N --max-time 1 -X POST "$BASE/api/chat" \
+      -d '{"message":"slow-reply please","session":"it-drop-1"}')
+check_absent "the client left before the answer" "$OUT" 'SLOW-DONE'
+OUT=$(curl -s "$BASE/api/chat/active?session=it-drop-1")
+check "the run is still working" "$OUT" '"running":true'
+for i in $(seq 1 60); do
+    OUT=$(curl -s "$BASE/api/chat/active?session=it-drop-1")
+    case "$OUT" in *'"running":false'*) break ;; esac
+    sleep 0.25
+done
+check "and then finishes" "$OUT" '"running":false'
+OUT=$(curl -s "$BASE/api/history?session=it-drop-1")
+check "its answer was saved for the client to read" "$OUT" 'SLOW-DONE'
+check_absent "not a stop" "$OUT" 'stopped by user'
+check "the log says the client went away" "$(cat /tmp/funes_it.log)" 'client went away from it-drop-1'
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"slow-reply again","session":"it-drop-2"}')
+check "a quiet stream gets heartbeats" "$OUT" '^: ping'
+check "and still the answer" "$OUT" 'SLOW-DONE'
+curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"slow-steps go","session":"it-stop-1"}' > /tmp/funes_it_stop.txt &
+STOP_PID=$!
+sleep 0.7
+OUT=$(curl -s -X POST "$BASE/api/chat/stop" -d '{"session":"it-stop-1"}')
+check "stop finds the run" "$OUT" '"stopped":true'
+wait $STOP_PID
+OUT=$(cat /tmp/funes_it_stop.txt); rm -f /tmp/funes_it_stop.txt
+check "the stopped run says so" "$OUT" 'stopped by user'
+check_absent "and took no further step" "$OUT" 'SLOW-STEPS-DONE'
+OUT=$(curl -s -X POST "$BASE/api/chat/stop" -d '{"session":"it-stop-1"}')
+check "stopping again finds nothing" "$OUT" '"stopped":false'
+OUT=$(curl -s -X POST "$BASE/api/chat/stop" -d '{"session":"bad id"}')
+check "a malformed session is refused" "$OUT" '"ok":false'
 
 echo "— staging: a host script after outside content runs against a copy"
 stage_chat() {  # stage_chat <message> <session>

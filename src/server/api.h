@@ -12,7 +12,10 @@
 //   GET    /api/status              — health, model info, memory stats
 //   GET    /api/agents              — available agents
 //   POST   /api/agents/reload       — re-read agents/*.yaml
-//   POST   /api/chat                — {agent?, session, message} → SSE stream
+//   POST   /api/chat                — {agent?, session, message} → SSE stream; the run
+//                                       outlives the connection (core/chat_runs.h)
+//   POST   /api/chat/stop           — {session} → stop that conversation's run(s)
+//   GET    /api/chat/active         — ?session= → {running}
 //   GET    /api/memories            — ?agent=&q=&limit=&offset=
 //   POST   /api/memories            — {agent?, text} (manual memory from UI)
 //   DELETE /api/memories/<id>
@@ -53,6 +56,7 @@
 
 #pragma once
 #include "agent.h"
+#include "chat_runs.h"
 #include "json.hpp"
 #include "memory.h"
 #include "tools.h"
@@ -147,6 +151,8 @@ private:
 
     std::map<std::string, AgentConfig> agents_;
     mutable std::mutex agents_mu_;
+
+    funes::ChatRuns chat_runs_;   // /api/chat runs in flight, for stop and active
 
     // ── authentication ────────────────────────────────────────────────────────
 

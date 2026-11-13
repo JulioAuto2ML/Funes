@@ -66,7 +66,9 @@ and neither alone authenticates anything).
 | `/api/status` | GET | Health: model name, memory count, agent count |
 | `/api/agents` | GET | List agents (name + description) |
 | `/api/agents/reload` | POST | Hot-reload all agent YAMLs |
-| `/api/chat` | POST | Main chat -- returns SSE stream |
+| `/api/chat` | POST | Main chat -- returns SSE stream (`: ping` comments every `FUNES_SSE_HEARTBEAT_SECONDS`, 15). The run outlives the connection (7.16): a dropped client stops the streaming, not the run, which finishes and saves its turns |
+| `/api/chat/stop` | POST | `{session}` → stops that conversation's run(s) at the next step; `{stopped}` says whether one was running. The ■ button calls it |
+| `/api/chat/active` | GET | `?session=` → `{running}`; the UI polls it after a dropped stream, then reloads `/api/history` |
 | `/api/memories` | GET | List or search memories (each with `origin`, `tainted`, `superseded_by`, `archived`) |
 | `/api/memories` | POST | Create a memory |
 | `/api/memories/<id>` | DELETE | Delete a memory |

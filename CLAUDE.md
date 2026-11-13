@@ -536,7 +536,13 @@ honoured verbatim as a deliberate shared folder (nothing shipped uses it).
 `src/server/` (`main.cpp`, `api.cpp`, `user_cli.cpp`, `maint_cli.cpp`) — one
 binary, all routes plain HTTP/SSE. `/api/chat` streams `memories`, `delta`, `tool_call`,
 `tool_result`, `result_stored`, `contract_nudge`, `schema_nudge`,
-`context_compressed`, `usage`, `proposal`, `done`, `error` events over SSE. Four routes
+`context_compressed`, `usage`, `proposal`, `done`, `error` events over SSE, with a
+`: ping` comment while the model is quiet. Since 7.16 the run is not tied to
+the connection (`src/core/chat_runs.h`): a failed write stops the streaming
+and the run finishes and saves anyway — a phone locking its screen used to
+kill it as "(stopped by user)". Stopping is `POST /api/chat/stop`, and the UI
+polls `GET /api/chat/active` after a dropped stream, then reloads the
+history. (`funes.sock` still stops on hang-up: there that is Ctrl-C.) Four routes
 are public (`/api/login`, `/api/logout` aside, `/api/auth/status`,
 `/api/auth/bootstrap`); everything else needs a session cookie or a service
 token. `bootstrap` is public but self-closing — it only works while no user

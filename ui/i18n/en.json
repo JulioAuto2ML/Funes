@@ -47,5 +47,6 @@
   "jobs.next": "next {when}",
   "files.heading": "Workspace files",
   "files.empty": "No files here yet.",
-  "files.deleteConfirm": "Delete \"{name}\"?"
+  "files.deleteConfirm": "Delete \"{name}\"?",
+  "chat.stillWorking": "Connection lost — Funes is still working; the answer will appear here."
 }

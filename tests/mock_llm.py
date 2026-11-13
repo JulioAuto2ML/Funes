@@ -240,6 +240,25 @@ class Handler(BaseHTTPRequestHandler):
                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
             return
 
+        # A run that outlives its connection, and one that is stopped
+        # (core/chat_runs.h). "slow-reply": a quiet model, then an answer.
+        # "slow-steps": a quiet first step that calls a tool, then an answer
+        # — stop is checked between steps, so a stop during the first one
+        # must keep the second from happening.
+        if isinstance(last_user, str) and "slow-reply" in last_user:
+            time.sleep(3)
+            self._reply_text("SLOW-DONE", stream)
+            return
+        if mentions(messages, "slow-steps"):
+            if not has_tool_result:
+                time.sleep(2)
+                self._reply_tool({"id": "call_slow", "type": "function",
+                                  "function": {"name": "recall",
+                                               "arguments": json.dumps({"query": "x"})}}, stream)
+            else:
+                self._reply_text("SLOW-STEPS-DONE", stream)
+            return
+
         if "use-tool" in last_user and not has_tool_result:
             tool_call = {"id": "call_1", "type": "function",
                          "function": {"name": "recall",

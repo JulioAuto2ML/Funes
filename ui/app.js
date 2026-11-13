@@ -427,6 +427,9 @@ async function sendMessage(displayText, fullText, images) {
   const bubble = addMessage('assistant', '');
   bubble.classList.add('thinking');
   let streamed = '';
+  let finished = false;   // a done or error event arrived
+  let waiting = false;    // handed to awaitRun, which owns the bubble now
+  const session = state.session;
 
   try {
     const resp = await fetch('/api/chat', {
@@ -514,8 +517,10 @@ async function sendMessage(displayText, fullText, images) {
       } else if (type === 'usage') {
         updateUsage(data);
       } else if (type === 'done') {
+        finished = true;
         bubble.innerHTML = renderMarkdown(data.text || streamed || '…');
       } else if (type === 'error') {
+        finished = true;
         bubble.classList.remove('thinking');
         bubble.innerHTML = renderMarkdown('⚠️ ' + data.message);
       }
@@ -539,14 +544,20 @@ async function sendMessage(displayText, fullText, images) {
         }
       }
     }
+    // The stream ended without an answer: the connection dropped (a phone
+    // locking its screen does it), but the run goes on server-side.
+    if (!finished) { waiting = true; awaitRun(session, bubble); }
   } catch (e) {
     if (e.name === 'AbortError') {
       if (!streamed) bubble.innerHTML = renderMarkdown('*(stopped)*');
+    } else if (e instanceof TypeError) {
+      waiting = true;
+      awaitRun(session, bubble);   // network failure mid-stream
     } else {
       bubble.innerHTML = renderMarkdown('⚠️ ' + e.message);
     }
   } finally {
-    bubble.classList.remove('thinking');
+    if (!waiting) bubble.classList.remove('thinking');
     state.busy = false;
     state.abortCtrl = null;
     els.send.disabled = false;
@@ -1077,6 +1088,45 @@ function showWelcome(message) {
   els.welcome = $('welcome');
 }
 
+// A run outlives its connection (src/core/chat_runs.h): after a dropped
+// stream, or on opening a conversation whose run is still working, wait for
+// it and then show the conversation as saved. Polls slowly, and at once when
+// the tab comes back into view — that is usually when the phone reconnects.
+async function awaitRun(session, bubble) {
+  if (!bubble) bubble = addMessage('assistant', '');
+  bubble.classList.add('thinking');
+  bubble.innerHTML = renderMarkdown('*' + t('chat.stillWorking') + '*');
+  let wake = null;
+  const onVisible = () => { if (!document.hidden && wake) wake(); };
+  document.addEventListener('visibilitychange', onVisible);
+  try {
+    for (;;) {
+      try {
+        const resp = await fetch('/api/chat/active?session=' + encodeURIComponent(session));
+        const data = await resp.json();
+        if (data.ok && !data.running) break;
+      } catch (e) { /* offline for now — keep waiting */ }
+      await new Promise(r => { wake = r; setTimeout(r, 4000); });
+      wake = null;
+    }
+  } finally {
+    document.removeEventListener('visibilitychange', onVisible);
+  }
+  if (session !== state.session) return;   // they moved on; it is in Chats
+  els.messages.innerHTML = '';
+  await restoreHistory();
+  refreshMemories();
+  if (!els.chatsPane.hidden) refreshChats();
+}
+
+async function runStillWorking(session) {
+  try {
+    const resp = await fetch('/api/chat/active?session=' + encodeURIComponent(session));
+    const data = await resp.json();
+    return data.ok && data.running;
+  } catch (e) { return false; }
+}
+
 async function restoreHistory() {
   try {
     const resp = await fetch('/api/history?session=' + state.session);
@@ -1189,7 +1239,8 @@ async function switchToSession(session) {
   renderAttachments();
   showWelcome(t('welcome.loading'));
   await restoreHistory();
-  if (els.welcome) showWelcome(t('welcome.empty'));
+  if (await runStillWorking(session)) awaitRun(session);
+  else if (els.welcome) showWelcome(t('welcome.empty'));
   refreshChats();
 }
 
@@ -1198,6 +1249,12 @@ async function switchToSession(session) {
 els.composer.addEventListener('submit', (e) => {
   e.preventDefault();
   if (state.busy) {
+    // Closing the stream no longer stops the run (chat_runs.h); ask for it.
+    fetch('/api/chat/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: state.session }),
+    }).catch(() => {});
     if (state.abortCtrl) state.abortCtrl.abort();
     return;
   }
@@ -1301,6 +1358,7 @@ let appStarted = false;
 async function startApp() {
   await refreshStatus();
   await restoreHistory();
+  if (await runStillWorking(state.session)) awaitRun(state.session);
   refreshMemories();
   refreshJobs();
 

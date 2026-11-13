@@ -242,3 +242,7 @@ add_test(NAME effects COMMAND test_effects)
 add_executable(test_staging test_staging.cpp)
 target_link_libraries(test_staging PRIVATE funes_core)
 add_test(NAME staging COMMAND test_staging)
+
+add_executable(test_chat_runs test_chat_runs.cpp)
+target_link_libraries(test_chat_runs PRIVATE funes_core)
+add_test(NAME chat_runs COMMAND test_chat_runs)

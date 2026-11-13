@@ -16,6 +16,7 @@
 #include "httplib.h"
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -24,6 +25,7 @@
 #include <mutex>
 #include <regex>
 #include <sstream>
+#include <thread>
 
 namespace fs = std::filesystem;
 
@@ -88,6 +90,18 @@ void json_error(httplib::Response& res, int status, const std::string& message) 
 bool sse_write(httplib::DataSink& sink, const std::string& type, const json& data) {
     std::string frame = "event: " + type + "\ndata: " + funes::dump_safe(data) + "\n\n";
     return sink.write(frame.data(), frame.size());
+}
+
+// FUNES_SSE_HEARTBEAT_SECONDS (default 15, 1..300): how long a chat stream may
+// stay silent before a ": ping" comment is sent to keep it open.
+std::chrono::seconds sse_heartbeat_interval() {
+    static const std::chrono::seconds s = [] {
+        const char* v = funes::config_value("FUNES_SSE_HEARTBEAT_SECONDS");
+        int n = 15;
+        try { if (v && *v) n = std::stoi(v); } catch (...) {}
+        return std::chrono::seconds(std::max(1, std::min(n, 300)));
+    }();
+    return s;
 }
 
 // ── authentication helpers ────────────────────────────────────────────────────
@@ -708,29 +722,85 @@ void FunesApi::mount(httplib::Server& srv) {
         res.set_header("Cache-Control", "no-store");
         res.set_chunked_content_provider("text/event-stream",
             [job](size_t /*offset*/, httplib::DataSink& sink) {
-                std::atomic<bool> cancelled{false};
-                auto emit = [&sink, &cancelled](const std::string& type, const json& data) {
-                    if (cancelled.load(std::memory_order_relaxed)) return;
-                    if (!sse_write(sink, type, data))
-                        cancelled.store(true, std::memory_order_relaxed);
+                // The connection and the run are separate (chat_runs.h): a
+                // failed write stops the streaming, not the run, which
+                // finishes and saves its answer for /api/history. Only
+                // POST /api/chat/stop sets `cancel`.
+                auto& runs = job->api->chat_runs_;
+                const auto cancel = runs.start(job->user_id, job->session);
+                std::mutex sink_mu;
+                bool connected = true;
+                auto lost = [&] {   // under sink_mu
+                    connected = false;
+                    std::cerr << "[chat] client went away from " << job->session
+                              << "; the run continues and will be saved\n";
+                };
+                auto write = [&](const std::string& type, const json& data) {
+                    std::lock_guard<std::mutex> lock(sink_mu);
+                    if (connected && !sse_write(sink, type, data)) lost();
                 };
 
-                funes::cancel_flag() = &cancelled;
+                // A comment line every few seconds while the model is quiet:
+                // a stream that says nothing for a minute is one a mobile
+                // network or proxy closes as idle. The UI ignores it.
+                std::mutex hb_mu;
+                std::condition_variable hb_cv;
+                bool finished = false;
+                std::thread heartbeat([&] {
+                    std::unique_lock<std::mutex> lk(hb_mu);
+                    while (!hb_cv.wait_for(lk, sse_heartbeat_interval(), [&] { return finished; })) {
+                        std::lock_guard<std::mutex> lock(sink_mu);
+                        static const std::string ping = ": ping\n\n";
+                        if (connected && !sink.write(ping.data(), ping.size())) lost();
+                    }
+                });
+
+                funes::cancel_flag() = cancel.get();
                 try {
                     FunesAgent agent(job->cfg, job->api->tools_, job->api->memory_,
                                      job->api->defaults_);
                     std::string answer = agent.run(job->message, job->session,
                                                    job->user_id, job->perms,
-                                                   emit, job->images);
-                    emit("done", {{"text", answer}});
+                                                   write, job->images);
+                    write("done", {{"text", answer}});
                 } catch (const std::exception& e) {
-                    emit("error", {{"message", e.what()}});
+                    write("error", {{"message", e.what()}});
                 }
                 funes::cancel_flag() = nullptr;
+                { std::lock_guard<std::mutex> lk(hb_mu); finished = true; }
+                hb_cv.notify_all();
+                heartbeat.join();
+                runs.finish(job->user_id, job->session, cancel);
 
                 sink.done();
                 return true;
             });
+    });
+
+    // Stop a conversation's run(s) — the ■ button. Closing the stream no
+    // longer does (chat_runs.h). {session} → {ok, stopped}.
+    srv.Post("/api/chat/stop", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+        json body = json::parse(req.body, nullptr, false);
+        const std::string session = body.is_object() ? body.value("session", "") : "";
+        if (!valid_session(session))
+            return json_error(res, 400, "'session' must match [A-Za-z0-9_-]{1,64}");
+        const bool stopped = chat_runs_.stop(user->id, session);
+        if (stopped) std::cerr << "[chat] " << user->username << " stopped " << session << "\n";
+        res.set_content(json{{"ok", true}, {"stopped", stopped}}.dump(), "application/json");
+    });
+
+    // Is a run still working in this conversation? The UI asks after its
+    // stream dropped, then reads the answer from /api/history.
+    srv.Get("/api/chat/active", [this](const httplib::Request& req, httplib::Response& res) {
+        auto user = require_auth(req, res);
+        if (!user) return;
+        const std::string session = req.get_param_value("session");
+        if (!valid_session(session))
+            return json_error(res, 400, "'session' must match [A-Za-z0-9_-]{1,64}");
+        res.set_content(json{{"ok", true}, {"running", chat_runs_.running(user->id, session)}}.dump(),
+                        "application/json");
     });
 
     // ── memories ──────────────────────────────────────────────────────────────
