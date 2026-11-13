@@ -1,0 +1,26 @@
+# The question "what is filling the disk?" (2026-11-13: sysadmin had no way to
+# answer it, invented a disk_usage script, and the gate proposed it). du -x,
+# sizes and paths only. Reading the whole filesystem is the job, so read: /;
+# nothing is written and there is no network.
+description: Which directories take the most space on yoda's disk, largest first (du, read-only, one filesystem).
+run: disk_usage.py
+interpreter: python3
+effects: none
+admin_only: true
+timeout_seconds: 300
+params:
+  - name: path
+    description: Absolute directory to start from (default /).
+    type: string
+    required: false
+  - name: depth
+    description: Levels below it to list, 1 to 3 (default 1).
+    type: number
+    required: false
+  - name: top
+    description: How many to list, 1 to 40 (default 15).
+    type: number
+    required: false
+access:
+  read: ["/"]
+  connect: []

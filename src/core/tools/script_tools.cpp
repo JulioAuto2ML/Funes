@@ -25,6 +25,7 @@
 #include "../text_utils.h"
 #include "../tools.h"
 #include "fs_guard.h"
+#include "script_tools.h"
 #include "process_runner.h"
 #include <algorithm>
 #include <filesystem>
@@ -123,36 +124,52 @@ void record_learned(const funes::ScriptSpec& spec, const std::string& observed,
     std::cerr << "\n";
 }
 
-ToolResult run_script_handler(const fs::path& default_workspace, const std::string& scripts_dir,
-                              const json& args, const ToolContext& ctx) {
-    if (!args.contains("name") || !args["name"].is_string()
+} // namespace
+
+std::string funes::run_script_refusal(const std::string& scripts_dir, const json& args,
+                                      const ToolContext& ctx) {
+    if (!args.is_object() || !args.contains("name") || !args["name"].is_string()
         || args["name"].get<std::string>().empty())
-        return {"Missing 'name' argument — run_script takes the name of a script from "
-                "the library, not a command line.", true};
+        return "Missing 'name' argument — run_script takes the name of a script from "
+               "the library, not a command line.";
     const std::string name = args["name"].get<std::string>();
 
     if (ctx.scripts.empty())
-        return {"This agent has no scripts granted, so '" + name + "' cannot be run. "
-                "Scripts are granted per agent in its YAML definition; say so rather "
-                "than looking for another way to run it.", true};
+        return "This agent has no scripts granted, so '" + name + "' cannot be run. "
+               "Scripts are granted per agent in its YAML definition; say so rather "
+               "than looking for another way to run it.";
     if (!granted(ctx, name))
-        return {"Script '" + name + "' is not available to this agent. Available: " +
-                name_list(available(ctx)) + ".", true};
+        return "Script '" + name + "' is not available to this agent. Available: " +
+               name_list(available(ctx)) + ".";
 
     funes::ScriptSpec spec;
     const std::string load_err = funes::load_script(scripts_dir, name, spec);
     if (!load_err.empty())
-        return {load_err + " (This agent is allowed to run it, but the script library "
-                "does not have it — an administrator has to install it.)", true};
+        return load_err + " (This agent is allowed to run it, but the script library "
+               "does not have it — an administrator has to install it.)";
 
     if (!funes::script_permitted(ctx.permissions, spec))
-        return {"Script '" + name + "' is for administrators, and this account is not one. "
-                "An administrator can grant it; say so rather than looking for another way.", true};
+        return "Script '" + name + "' is for administrators, and this account is not one. "
+               "An administrator can grant it; say so rather than looking for another way.";
 
     std::vector<std::string> argv;
-    const std::string arg_err = funes::build_argv(
+    return funes::build_argv(
         spec, args.contains("arguments") ? args["arguments"] : json::object(), argv);
-    if (!arg_err.empty()) return {arg_err, true};
+}
+
+namespace {
+
+ToolResult run_script_handler(const fs::path& default_workspace, const std::string& scripts_dir,
+                              const json& args, const ToolContext& ctx) {
+    if (const std::string refusal = funes::run_script_refusal(scripts_dir, args, ctx);
+        !refusal.empty())
+        return {refusal, true};
+    const std::string name = args["name"].get<std::string>();
+
+    funes::ScriptSpec spec;
+    funes::load_script(scripts_dir, name, spec);
+    std::vector<std::string> argv;
+    funes::build_argv(spec, args.contains("arguments") ? args["arguments"] : json::object(), argv);
 
     // Same working directory every other file-touching tool resolves to, so a
     // script writes where the user's own files are and a second account's

@@ -1,5 +1,5 @@
 name: sysadmin
-description: Looks after yoda itself — service state, the journal, load, memory, disk, GPU and the llama-server processes, what changed before something broke — and can restart a WhatsApp bridge or the autoresponder, or clear old backups. Administrators only.
+description: Looks after yoda itself — service state, the journal, load, memory, disk space and what fills it, GPU and the llama-server processes, what changed before something broke — and can restart a WhatsApp bridge or the autoresponder, or clear old backups. Administrators only.
 delegation_notes: >
   Give it the symptom or the question: "the WhatsApp bot stopped answering",
   "why is yoda slow?", "is the disk filling up?", "restart the personal
@@ -17,7 +17,7 @@ tool_choice: auto
 # a deletion runs against an overlay first (7.11–7.12). The scripts are
 # admin_only, so a member's call is refused by the runtime, not the prompt.
 tools: [list_scripts, run_script, host_changes, machine_recall, read_result]
-scripts: [system_health, unit_status, journal, restart_unit, prune_backups]
+scripts: [system_health, disk_usage, unit_status, journal, restart_unit, prune_backups]
 max_steps: 10
 context_limit: 8192
 tool_limits:
@@ -40,6 +40,8 @@ system_prompt: |
     changes and failures on the machine, oldest first — the cause is usually
     just before the symptom. `machine_recall` answers "has this happened
     before?".
+  - "What is filling the disk?": `disk_usage` (default: the top level of /;
+    then `path` the biggest one with `depth` 1 or 2 to drill down).
   - Then the journal for the unit in question: `journal` with `unit`, and
     `since` or `priority` to keep it short — 40 lines is usually plenty. If
     the result comes back stored (a preview and a result_id), read the part

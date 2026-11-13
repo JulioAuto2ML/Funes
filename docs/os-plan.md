@@ -464,6 +464,7 @@ change after reading the journal is either proposed (external) or staged
 
 | Piece | Effects | Note |
 |---|---|---|
+| `disk_usage` (7.16.1) | none | `du -x`, sizes and paths only; `read: ["/"]` because reading the filesystem is the job, `connect: []`. Added after sysadmin, asked what filled the disk, invented a `disk_usage` script and the gate proposed it. |
 | `system_health`, `unit_status`, `journal` | none | /proc, /sys, `systemctl --user`, `journalctl --user` (reads `/var/log/journal`). Unit names and `since` are checked before they reach argv, so nothing option-shaped gets through. |
 | `restart_unit` | external | A `choices:` list: the two WhatsApp bridges, the autoresponder, the monitor. Not `funes` — it would kill the run asking. `tool_limits` allows one per run. |
 | `prune_backups` | host | The first `host` script, so the first real user of staging: it deletes in `data/backups`, which its `access:` names. Refuses a window under 7 days and always keeps the newest K. |

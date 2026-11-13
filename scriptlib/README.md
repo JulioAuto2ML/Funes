@@ -346,6 +346,7 @@ Tests: `scriptlib/tests/test_sysadmin.py` (`ctest -R scriptlib_sysadmin`).
 | Script | Effects | What |
 |---|---|---|
 | `system_health` | none | Load, memory, PSI, disk, GPU memory, temperatures, llama-server processes, failed user units — from /proc, /sys and one `systemctl`. |
+| `disk_usage` | none | What fills the disk: `du -x` from `path` (default /), `depth` 1–3, largest `top` first, with each one's share; unreadable directories counted and reported. `read: ["/"]`, no network (7.16.1). |
 | `unit_status` | none | Every user service, or one unit's state, result, restarts, start time, memory and CPU. |
 | `journal` | none | `journalctl --user`, by unit, `since` ("2h", "today"), priority; at most 150 lines, each compacted (no year, host or pid) and cut at 240 characters. Log text taints the run. |
 | `restart_unit` | external | Restart a WhatsApp bridge, the autoresponder or the monitor dashboard (a `choices:` list; never `funes`). After the journal was read, it waits for "aprobar N". |

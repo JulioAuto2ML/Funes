@@ -1394,6 +1394,12 @@ check "stopping again finds nothing" "$OUT" '"stopped":false'
 OUT=$(curl -s -X POST "$BASE/api/chat/stop" -d '{"session":"bad id"}')
 check "a malformed session is refused" "$OUT" '"ok":false'
 
+echo "— the gate does not propose a call the tool would refuse"
+OUT=$(curl -s -N -X POST "$BASE/api/chat" \
+      -d '{"message":"stage-bogus 1","session":"it-bogus-1","agent":"stage-tester"}')
+check "an ungranted script is refused, not proposed" "$OUT" "invented_script' is not available to this agent"
+check_absent "no proposal for it" "$OUT" 'proposed as\|proposal #'
+
 echo "— staging: a host script after outside content runs against a copy"
 stage_chat() {  # stage_chat <message> <session>
     curl -s -N -X POST "$BASE/api/chat" \

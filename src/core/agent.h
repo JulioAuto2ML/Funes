@@ -203,6 +203,10 @@ private:
     std::set<std::string> inherited_earlier_;
 
     // The effect class of one call (effects.h): built-in, script, MCP tool.
+    // What the tool itself would refuse (script not granted, shell off), so
+    // the effects gate does not propose a call that can only fail. "" = none.
+    std::string refusal_before_gate(const std::string& name, const nlohmann::json& args,
+                                    const ToolContext& ctx) const;
     funes::Effect effect_of(const std::string& name, const json& args) const;
     // Store the call as a proposal and say so, instead of running it.
     ToolResult propose(const std::string& name, const json& args, const ToolContext& ctx,

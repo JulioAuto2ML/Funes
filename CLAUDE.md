@@ -160,7 +160,10 @@ list with incident context):
    delegation) is stored as a proposal instead of run; "aprobar N" / "approve
    N" alone in a message is answered by `/api/chat` itself, never a model.
    Scheduled jobs are exempt — scheduling was the approval — which is why
-   `schedule_job` is itself external. Since 7.12 a `host` *script* in that
+   `schedule_job` is itself external. A call the tool would refuse anyway
+   (`refusal_before_gate`: a script not granted or installed, the shell when
+   off) gets its refusal, not a proposal — since 7.16.1, after one was
+   approved only to fail. Since 7.12 a `host` *script* in that
    situation is staged instead (`staging.h`): the trampoline enters a user +
    mount namespace and overlays the manifest's write directories, the script
    runs, the upper layers are the diff, and approving commits them — nothing

@@ -4,6 +4,7 @@
 
 #include "funes_config.h"
 #include "agent.h"
+#include "tools/script_tools.h"
 #include "auto_memory.h"
 #include "busy_gate.h"
 #include "citation.h"
@@ -227,6 +228,11 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
     if (!ctx.scheduled && ctx.provenance && ctx.provenance->acts_tainted()) {
         const funes::Effect effect = effect_of(name, args);
         if (funes::needs_approval(effect)) {
+            // Nobody should approve a call that would only be refused: the
+            // model gets the refusal now, while it can still correct it.
+            if (const std::string refusal = refusal_before_gate(name, args, ctx);
+                !refusal.empty())
+                return {refusal, /*error=*/true};
             // A host script can do better than ask: run it against a copy
             // and show what it changed (staging.h).
             if (effect == funes::Effect::Host && name == "run_script" && defaults_.proposals
@@ -265,6 +271,16 @@ ToolResult FunesAgent::dispatch_tool(const std::string& name, const json& args,
 }
 
 // ── effects gate ──────────────────────────────────────────────────────────────
+
+std::string FunesAgent::refusal_before_gate(const std::string& name, const json& args,
+                                            const ToolContext& ctx) const {
+    if (name == "run_script")
+        return funes::run_script_refusal(defaults_.scripts_dir, args, ctx);
+    if (name == "execute_shell" && !funes::shell_allowed())
+        return "Shell execution is disabled on this server (FUNES_ALLOW_SHELL), so this "
+               "cannot be run or proposed. Use a granted script instead, or say it cannot be done.";
+    return "";
+}
 
 funes::Effect FunesAgent::effect_of(const std::string& name, const json& args) const {
     if (name == "run_script") {

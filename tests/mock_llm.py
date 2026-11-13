@@ -179,13 +179,14 @@ class Handler(BaseHTTPRequestHandler):
         # Staging (core/staging.h): "stage-after-read <v>" reads mail, then runs
         # the host script stage_edit with value <v>; "stage-direct <v>" runs it
         # at once. Then it repeats what the last tool said.
-        stage = re.search(r"stage-(direct|after-read) (\w+)", last_user if isinstance(last_user, str) else "")
+        stage = re.search(r"stage-(direct|after-read|bogus) (\w+)", last_user if isinstance(last_user, str) else "")
         if stage:
             done = [m for m in messages if m.get("role") == "tool"]
             plan = ["run_script"] if stage.group(1) == "direct" else ["read_mail", "run_script"]
             if len(done) < len(plan):
                 name = plan[len(done)]
-                args = ({"name": "stage_edit", "arguments": {"value": stage.group(2)}}
+                script = "invented_script" if stage.group(1) == "bogus" else "stage_edit"
+                args = ({"name": script, "arguments": {"value": stage.group(2)}}
                         if name == "run_script" else {})
                 tool_call = {"id": "call_s%d" % len(done), "type": "function",
                              "function": {"name": name, "arguments": json.dumps(args)}}

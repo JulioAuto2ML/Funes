@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import disk_usage  # noqa: E402
 import journal  # noqa: E402
 import prune_backups  # noqa: E402
 import restart_unit  # noqa: E402
@@ -86,6 +87,38 @@ class PruneBackups(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             run_main(prune_backups, [], {"BACKUPS_DIR": str(self.dir / "missing")})
         self.assertIn("no backups directory", str(e.exception))
+
+
+class DiskUsage(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        (root / "big").mkdir()
+        (root / "big" / "f").write_bytes(b"x" * 200_000)
+        (root / "small").mkdir()
+        (root / "small" / "f").write_bytes(b"x" * 10)
+        self.root = str(root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_largest_first(self):
+        out = run_main(disk_usage, [f"--path={self.root}"]).splitlines()
+        self.assertIn("in total", out[0])
+        self.assertTrue(out[1].endswith("/big"), out)
+        self.assertTrue(out[2].endswith("/small"), out)
+
+    def test_refuses_relative_and_option_shaped_paths(self):
+        for p in ("etc", "../etc", "/tmp/../etc", "-x", "/a b", "/a;b"):
+            with self.assertRaises(SystemExit, msg=p), mock.patch("subprocess.run") as run:
+                run_main(disk_usage, [f"--path={p}"])
+            run.assert_not_called()
+
+    def test_depth_is_bounded(self):
+        with mock.patch("subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout=f"10\t{self.root}\n", stderr="")
+            run_main(disk_usage, [f"--path={self.root}", "--depth=9"])
+        self.assertIn("--max-depth=3", run.call_args[0][0])
 
 
 class Journal(unittest.TestCase):
