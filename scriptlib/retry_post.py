@@ -11,6 +11,10 @@ is not posted again (only its link comment is finished, if it is owed), and an
 issue that was not sent is refused. Today only — a post that missed its day is
 not news any more.
 
+A slot whose earlier attempt dropped after sending is "uncertain" (it may be
+public) and post_tweet.py refuses it with exit 5; this script has no way to
+force it. A person looks at the profile.
+
 Before 7.23 nothing could do this but a person at a terminal: asked to retry a
 post, the curator re-ran the harvest and proposed re-sending the whole
 newsletter (2026-11-14).

@@ -347,3 +347,13 @@ port. What was built:
   error gets a note that it is probably the sandbox, that only an admin can
   change the manifest's `access:`, and not to retry.
 
+**7.23.1.** The retry itself was the next mistake: the 17:30 post's request
+was reset *after* it was sent, LinkedIn had published it, and retrying it by
+hand put it on the profile twice. A create request that fails without proof
+it never left (anything but a refused connection or a failed DNS lookup; a
+5xx too) now records the slot as `uncertain`; `post_tweet.py`, the carousel
+and so `retry_post` refuse it until a person looks and re-runs with `--force`
+(the token has `w_member_social` only and cannot read posts to check). The
+probe reports it as `post_unsure.*`, which heal.yaml explains — the policy
+proposes a retry only where a retry cannot duplicate.
+

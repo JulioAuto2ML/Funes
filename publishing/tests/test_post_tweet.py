@@ -234,8 +234,12 @@ class FakeResponse:
 class FakeRequests:
     """Records every call, answers like LinkedIn's three endpoints."""
 
-    def __init__(self, fail_upload=False, fail_post=False, comment_statuses=(200,)):
+    def __init__(self, fail_upload=False, fail_post=False, comment_statuses=(200,),
+                 post_raises=None, comment_raises=None):
         self.calls, self.fail_upload, self.fail_post = [], fail_upload, fail_post
+        # An exception to raise from the ugcPosts / comment request, after
+        # recording it — what a connection that drops mid-request looks like.
+        self.post_raises, self.comment_raises = post_raises, comment_raises
         # One status per comment attempt; the last one repeats.
         self.comment_statuses = list(comment_statuses)
 
@@ -246,6 +250,8 @@ class FakeRequests:
     def post(self, url, **kw):
         self.calls.append(("POST", url, kw.get("json")))
         if url.endswith("/comments"):
+            if self.comment_raises:
+                raise self.comment_raises
             status = (self.comment_statuses.pop(0) if len(self.comment_statuses) > 1
                       else self.comment_statuses[0])
             return FakeResponse(status=status)
@@ -256,6 +262,8 @@ class FakeRequests:
                     "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest":
                         {"uploadUrl": "https://upload.example/put"}}}},
                 status=500 if self.fail_upload else 200)
+        if url.endswith("ugcPosts") and self.post_raises:
+            raise self.post_raises
         return FakeResponse(headers={"x-restli-id": "urn:li:share:1"},
                             status=500 if self.fail_post else 200)
 
@@ -479,6 +487,49 @@ class MainPostsThenComments(unittest.TestCase):
                           if c[0] == "POST" and c[1].endswith("ugcPosts")])
         self.assertEqual(len(fake.comment_calls()), 1)
         self.assertEqual(self.record()["1"]["comment"], "done")
+
+    # 2026-11-14: the ugcPosts request was reset after it was sent. The post was
+    # public; it was logged as failed, retried, and appeared twice.
+    def test_a_reset_after_sending_is_uncertain_and_not_retried(self):
+        reset = ConnectionError("('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))")
+        rc, out = self.run_main(FakeRequests(post_raises=reset))
+        self.assertEqual(rc, pt.EXIT_UNCERTAIN)
+        self.assertIn("UNCERTAIN", out)
+        rec = self.record()["1"]
+        self.assertNotIn("post_id", rec)
+        self.assertIn("Connection reset", rec["uncertain"])
+        # A re-run (cron, retry_post) does not post it again...
+        fake = FakeRequests()
+        rc, out = self.run_main(fake)
+        self.assertEqual(rc, pt.EXIT_UNCERTAIN)
+        self.assertEqual(fake.calls, [])
+        # ...unless a person looked and says so.
+        fake = FakeRequests()
+        rc, _ = self.run_main(fake, "--force")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.record()["1"]["post_id"], "urn:li:share:1")
+
+    def test_a_server_error_is_uncertain_too(self):
+        rc, _ = self.run_main(FakeRequests(fail_post=True))
+        self.assertEqual(rc, pt.EXIT_UNCERTAIN)
+        self.assertIn("uncertain", self.record()["1"])
+
+    def test_a_request_that_never_left_is_a_plain_failure(self):
+        never = ConnectionError("HTTPSConnectionPool: Max retries exceeded (Caused by "
+                                "NewConnectionError('Failed to establish a new connection'))")
+        with self.assertRaises(ConnectionError):
+            self.run_main(FakeRequests(post_raises=never))
+        self.assertEqual(self.record(), {})
+
+    def test_a_comment_dropped_after_sending_is_not_asked_again(self):
+        reset = ConnectionError("('Connection aborted.', ConnectionResetError(104))")
+        rc, _ = self.run_main(FakeRequests(comment_raises=reset))
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.record()["1"]["comment"], "uncertain")
+        fake = FakeRequests()
+        rc, _ = self.run_main(fake)
+        self.assertEqual(rc, 0)
+        self.assertEqual(fake.calls, [])
 
     def test_rerunning_a_finished_slot_does_nothing(self):
         self.run_main(FakeRequests())

@@ -351,7 +351,7 @@ Tests: `scriptlib/tests/test_sysadmin.py` (`ctest -R scriptlib_sysadmin`).
 | `journal` | none | `journalctl --user`, by unit, `since` ("2h", "today"), priority; at most 150 lines, each compacted (no year, host or pid) and cut at 240 characters. Log text taints the run. |
 | `restart_unit` | external | Restart a WhatsApp bridge, the autoresponder or the monitor dashboard (a `choices:` list; never `funes`). After the journal was read, it waits for "aprobar N". |
 | `prune_backups` | host | Delete `data/backups` entries older than N days (≥ 7), always keeping the newest K; `dry_run` lists them. After outside content it is staged: the deletions are shown and applied on approval. |
-| `retry_post` | external | Retry one of today's newsletter LinkedIn posts (`post`: `ai-pulse-es/5` or `ai-pulse-es.5`) by running `publishing/post_tweet.py` for that slot, which never posts one twice; logged to `post_log.txt`. What `heal.yaml` proposes for a `probe_newsletter:post.*` incident (7.23). Tests: `scriptlib/tests/test_retry_post.py`. |
+| `retry_post` | external | Retry one of today's newsletter LinkedIn posts (`post`: `ai-pulse-es/5` or `ai-pulse-es.5`) by running `publishing/post_tweet.py` for that slot, which never posts one twice; logged to `post_log.txt`. What `heal.yaml` proposes for a `probe_newsletter:post.*` incident (7.23). A slot whose earlier request dropped after sending is `uncertain` and refused (exit 5) — it has no `--force`; a person looks at the profile (7.23.1). Tests: `scriptlib/tests/test_retry_post.py`. |
 
 ## The self-healing probes (7.18)
 

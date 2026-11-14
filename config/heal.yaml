@@ -77,6 +77,14 @@ rules:
     level: explain
     explain: "Abrí el link de renovación que manda `linkedin_token.py` por WhatsApp (o en yoda: `python3 ~/Funes/publishing/linkedin_token.py url`) y aprobá la app."
 
+  # The request dropped after it was sent: the post may be public, and the
+  # token cannot read posts to check. A person looks; post_tweet.py refuses
+  # the slot until then (2026-11-14: a reset after sending, a retry, the post
+  # twice).
+  - when: "probe_newsletter:post_unsure.*"
+    level: explain
+    explain: "Puede haber salido aunque la respuesta se cortó. Mirá tu perfil de LinkedIn: si está, no hagas nada. Si no está, en yoda: `python3 publishing/post_tweet.py N --dir data/newsletter --publication PUB --force`."
+
   # One incident per post since 7.23 (probe_newsletter:post.<publication>.<n>).
   # post_tweet.py never posts a slot twice, so this is safe to approve; it is
   # not `act` because a post that failed for a reason (the token, a wrong item)

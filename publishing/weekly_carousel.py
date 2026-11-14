@@ -342,7 +342,7 @@ def upload_document(pdf: Path, token: str, author: str, version: str) -> str:
 def post_document(text: str, title: str, document: str, token: str, author: str,
                   version: str) -> str:
     """Creates the post. Never retried: it may have half gone through."""
-    r = requests.post(
+    r = pt.create_post(lambda: requests.post(
         "https://api.linkedin.com/rest/posts",
         headers=_rest_headers(token, version),
         json={"author": author,
@@ -353,8 +353,7 @@ def post_document(text: str, title: str, document: str, token: str, author: str,
                                "thirdPartyDistributionChannels": []},
               "content": {"media": {"title": title, "id": document}},
               "lifecycleState": "PUBLISHED",
-              "isReshareDisabledByAuthor": False})
-    r.raise_for_status()
+              "isReshareDisabledByAuthor": False}), "rest/posts")
     return r.headers.get("x-restli-id", r.text)
 
 
@@ -406,9 +405,10 @@ def main_with_args(args):
     day = take("--date")
     per_issue = take("--per-issue")
     dry_run = "--dry-run" in args
-    if [a for a in args if a != "--dry-run"]:
+    force = "--force" in args
+    if [a for a in args if a not in ("--dry-run", "--force")]:
         print("Usage: python3 weekly_carousel.py [--publication ID] [--dir PATH] "
-              "[--date YYYY-MM-DD] [--per-issue N] [--dry-run]")
+              "[--date YYYY-MM-DD] [--per-issue N] [--dry-run] [--force]")
         return 1
 
     try:
@@ -461,6 +461,11 @@ def main_with_args(args):
     version = creds.get("LI_API_VERSION") or DEFAULT_API_VERSION
     author = pt.get_person_urn(token)
 
+    if record.get("uncertain") and not record.get("post_id") and not force:
+        print(f"UNCERTAIN: the carousel may already be on LinkedIn — an earlier attempt "
+              f"({record.get('attempted_at', '?')}) failed after sending: {record['uncertain']}. "
+              "Not posting again. Look at the profile; if it is not there, re-run with --force.")
+        return pt.EXIT_UNCERTAIN
     if record.get("post_id"):
         print(f"Already posted ({record['post_id']}); not posting again.")
     else:
@@ -468,6 +473,12 @@ def main_with_args(args):
         try:
             document = upload_document(pdf, token, author, version)
             post_id = post_document(text, title, document, token, author, version)
+        except pt.UncertainPost as e:
+            save_record(rec_path, {"uncertain": str(e)[:300], "document": document,
+                                   "attempted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+            print(f"UNCERTAIN: the carousel may be on LinkedIn — {e}. Recorded; it will not be "
+                  "posted again without --force. Look at the profile.")
+            return pt.EXIT_UNCERTAIN
         except Exception as e:                        # noqa: BLE001 — reported for cron
             print(f"FAILED: {e}")
             return 1
@@ -479,8 +490,17 @@ def main_with_args(args):
         save_record(rec_path, record)
         print(f"Posted the carousel: {post_id}")
 
+    if record.get("comment") == "uncertain":
+        print("The sources comment may already be there (an earlier attempt dropped after "
+              "sending); not commenting again.")
+        return 0
     try:
         pt.post_comment(record["post_id"], comment, token, author)
+    except pt.UncertainPost as e:
+        print(f"WARNING: the sources comment may or may not be there: {e}")
+        record.update(comment="uncertain", comment_error=str(e))
+        save_record(rec_path, record)
+        return 0
     except RuntimeError as e:
         print(f"WARNING: posted, but the sources comment failed: {e}")
         record.update(comment="pending", comment_error=str(e))

@@ -99,6 +99,19 @@ class Newsletter(unittest.TestCase):
         self.assertTrue(checks["post.ai-pulse.1"]["ok"])
         self.assertFalse(checks["post.ai-pulse.2"]["ok"])
 
+    # A post whose request dropped after sending may be public: its own key,
+    # which heal.yaml explains rather than proposing a retry.
+    def test_an_uncertain_post_is_its_own_check(self):
+        self.issue()
+        self.write("posted/ai-pulse/2026-11-16.json",
+                   {"1": {"uncertain": "ugcPosts: ConnectionError: Connection reset by peer"}})
+        checks = self.checks()
+        self.assertNotIn("post.ai-pulse.1", checks)
+        c = checks["post_unsure.ai-pulse.1"]
+        self.assertFalse(c["ok"])
+        self.assertIn("may or may not", c["summary"])
+        self.assertIn("reset", c["evidence"])
+
     def test_check_names_are_probe_safe(self):
         # probes.cpp accepts [A-Za-z0-9_.-]; retry_post takes the part after "post."
         self.issue()

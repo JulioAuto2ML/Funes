@@ -12,6 +12,8 @@ post failed for a day with the error only in post_log.txt:
                     crontab's post_tweet.py lines): is it in the posted record?
                     (One aggregate `linkedin_posts` check until 7.23; one per
                     post since, so an incident names the post to retry.)
+  post_unsure.<pub>.<n> — the post request dropped after it was sent
+                    (post_tweet.py exit 5): it may be public. A person looks.
                     A slot past its item count, or whose item is withdrawn,
                     is not owed.
 
@@ -132,7 +134,16 @@ def posts_check(news_dir: Path, crontab: str, now: datetime):
             posted = {}
         for s in sorted(slots):
             name = f"post.{pub}.{s}"
-            if posted.get(str(s), {}).get("post_id"):
+            entry = posted.get(str(s), {})
+            if not entry.get("post_id") and entry.get("uncertain"):
+                # The request dropped after it was sent (post_tweet.py exit 5):
+                # it may be public. Its own key, so heal.yaml explains instead
+                # of proposing a retry that would post it twice (2026-11-14).
+                checks.append({"name": f"post_unsure.{pub}.{s}", "ok": False, "severity": "warning",
+                               "summary": f"Today's LinkedIn post {pub} #{s} may or may not have gone out",
+                               "evidence": entry["uncertain"]})
+                continue
+            if entry.get("post_id"):
                 checks.append({"name": name, "ok": True,
                                "summary": f"LinkedIn post {pub} #{s} went out today"})
             else:

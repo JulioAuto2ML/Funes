@@ -45,6 +45,8 @@ Exit codes:
     3  refused: no run record for that date, or the issue was not sent
     4  posted, but a link comment could not be added (post id is on record;
        re-run the slot, or wait for the next one, to finish it)
+    5  uncertain: the post request failed after it may have reached LinkedIn
+       (or an earlier attempt did). Not retried without --force.
 """
 
 import json
@@ -60,6 +62,10 @@ import requests
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 EXIT_COMMENT_FAILED = 4
+# The post request failed after it may have reached LinkedIn: the post may be
+# public. The slot is recorded as uncertain and never posted again without
+# --force — a person looks at the profile first (the token cannot read posts).
+EXIT_UNCERTAIN = 5
 
 # Seconds to wait before each retry of a comment. LinkedIn can answer 404 for a
 # post it created a second earlier, so a short wait fixes the common failure;
@@ -276,7 +282,7 @@ def post_to_linkedin(text: str, token: str, image=None, title: str = "",
             media["title"] = {"text": title}
         content.update(shareMediaCategory="IMAGE", media=[media])
 
-    r = requests.post(
+    r = create_post(lambda: requests.post(
         "https://api.linkedin.com/v2/ugcPosts",
         headers={
             "Authorization": f"Bearer {token}",
@@ -291,9 +297,41 @@ def post_to_linkedin(text: str, token: str, image=None, title: str = "",
                 "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
             }
         }
-    )
-    r.raise_for_status()
+    ), "ugcPosts")
     return r.headers.get("x-restli-id", r.text)
+
+
+class UncertainPost(RuntimeError):
+    """The create-post request failed in a way that does not say it was not
+    created: the connection dropped after it was sent, or a 5xx/timeout. On
+    2026-11-14 a 'Connection reset by peer' on ugcPosts was logged as a failed
+    post; the post was public, and the retry made it twice."""
+
+
+# Failures that say the request never left: nothing can have been created.
+_NEVER_SENT = ("ConnectTimeout", "NewConnectionError", "NameResolutionError",
+               "Failed to establish a new connection", "Failed to resolve")
+
+
+def may_have_arrived(error: Exception) -> bool:
+    text = f"{type(error).__name__}: {error}"
+    return not any(sign in text for sign in _NEVER_SENT)
+
+
+def create_post(send, what: str):
+    """Runs `send()` (the one request that creates a post) and returns its
+    response, raising UncertainPost when a failure leaves it unknown whether
+    LinkedIn created it, and the plain error when it surely did not."""
+    try:
+        r = send()
+    except Exception as e:                        # noqa: BLE001 — classified here
+        if may_have_arrived(e):
+            raise UncertainPost(f"{what}: {type(e).__name__}: {e}") from e
+        raise
+    if r.status_code >= 500:
+        raise UncertainPost(f"{what}: HTTP {r.status_code} {(r.text or '')[:200]}".strip())
+    r.raise_for_status()
+    return r
 
 
 def post_comment(post_urn: str, text: str, token: str, author: str) -> None:
@@ -318,6 +356,10 @@ def post_comment(post_urn: str, text: str, token: str, author: str) -> None:
             r = requests.post(url, headers=headers, json=body)
         except Exception as e:                        # noqa: BLE001 — retried below
             last = f"{type(e).__name__}: {e}"
+            # Dropped after it was sent: the comment may be there. Asking again
+            # is how a post gets its link twice.
+            if may_have_arrived(e):
+                raise UncertainPost(f"comment on {post_urn}: {last}") from e
             continue
         if r.status_code < 400:
             return
@@ -332,11 +374,15 @@ def finish_comments(issue: dict, posted: dict, work_dir: Path, publication: str,
     """Adds every comment still owed today, lowest slot first, saving after each
     so a crash half way loses nothing. Returns the slots that still owe one."""
     still_owed = []
-    for slot in sorted((k for k, v in posted.items() if v.get("comment") != "done"),
-                       key=int):
+    for slot in sorted((k for k, v in posted.items()
+                        if v.get("post_id") and v.get("comment") not in ("done", "uncertain")), key=int):
         entry = posted[slot]
         try:
             post_comment(entry["post_id"], comment_text(issue, int(slot)), token, author)
+        except UncertainPost as e:
+            # Not asked again: a person checks whether the link is there.
+            print(f"WARNING: slot {slot}'s link comment may or may not be there: {e}")
+            entry.update(comment="uncertain", comment_error=str(e))
         except (RuntimeError, IndexError, KeyError) as e:
             print(f"WARNING: slot {slot} is posted but has no link comment yet: {e}")
             entry.update(comment="pending", comment_error=str(e))
@@ -374,11 +420,12 @@ def main_with_args(args):
     publication = take("--publication") or "ai-pulse"
     day = take("--date")
     dry_run = "--dry-run" in args
+    force = "--force" in args
 
     positional = [a for a in args if not a.startswith("-")]
     if len(positional) != 1 or not positional[0].isdigit():
         print("Usage: python3 post_tweet.py <post_number> [--dir PATH] "
-              "[--publication ID] [--date YYYY-MM-DD] [--dry-run]")
+              "[--publication ID] [--date YYYY-MM-DD] [--dry-run] [--force]")
         return 1
     post_number = int(positional[0])
 
@@ -441,7 +488,14 @@ def main_with_args(args):
 
     slot = str(post_number)
     already = bool(posted.get(slot, {}).get("post_id"))
-    owes_comment = any(v.get("comment") != "done" for v in posted.values())
+    owes_comment = any(v.get("post_id") and v.get("comment") not in ("done", "uncertain")
+                       for v in posted.values())
+    uncertain = posted.get(slot, {}).get("uncertain")
+    if uncertain and not already and not force:
+        print(f"UNCERTAIN: slot {post_number} may already be on LinkedIn — an earlier attempt "
+              f"({posted[slot].get('attempted_at', '?')}) failed after sending: {uncertain}. "
+              "Not posting again. Look at the profile; if it is not there, re-run with --force.")
+        return EXIT_UNCERTAIN
     if already and not owes_comment:
         print(f"Slot {post_number} is already posted and commented — nothing to do.")
         return 0
@@ -453,7 +507,15 @@ def main_with_args(args):
         print(f"Slot {post_number} is already posted ({posted[slot]['post_id']}); "
               "not posting again.")
     else:
-        post_id = post_to_linkedin(text, token, image, title, author=author)
+        try:
+            post_id = post_to_linkedin(text, token, image, title, author=author)
+        except UncertainPost as e:
+            posted[slot] = {"uncertain": str(e)[:300],
+                            "attempted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+            save_posted(work_dir, publication, target_date, posted)
+            print(f"UNCERTAIN: slot {post_number} may be on LinkedIn — {e}. Recorded; it will "
+                  "not be posted again without --force. Look at the profile.")
+            return EXIT_UNCERTAIN
         # Written before the comment is attempted: from here on the post is
         # public, and this record is what stops a re-run from making a second.
         posted[slot] = {"post_id": post_id, "comment": "pending",

@@ -285,6 +285,34 @@ class MainTests(unittest.TestCase):
         self.assertEqual(record["post_id"], "urn:li:share:OLD")
         self.assertEqual(record["comment"], "done")
 
+    # The 2026-11-14 failure, on the carousel's path: the post request dropped
+    # after it was sent. Recorded as uncertain, never posted again unasked.
+    def test_a_post_dropped_after_sending_is_uncertain(self):
+        calls = []
+        post, get, put = self.fake_linkedin(calls)
+
+        def dropping(url, **kw):
+            if url.endswith("/rest/posts"):
+                calls.append(("POST", url))
+                raise ConnectionError("('Connection aborted.', ConnectionResetError(104))")
+            return post(url, **kw)
+        with TemporaryDirectory() as tmp, \
+                mock.patch.object(wc.requests, "post", side_effect=dropping), \
+                mock.patch.object(wc.requests, "get", side_effect=get), \
+                mock.patch.object(wc.requests, "put", side_effect=put):
+            Week(tmp, EN_WEEK)
+            (Path(tmp) / ".env").write_text("LI_ACCESS_TOKEN=t\n")
+            rc, out = run(["--dir", tmp, "--date", "2026-11-08"])
+            rec = Path(tmp) / "carousels" / "ai-pulse" / "2026-11-08.json"
+            record = json.loads(rec.read_text())
+            self.assertEqual(rc, wc.pt.EXIT_UNCERTAIN, out)
+            self.assertIn("Connection", record["uncertain"])
+            self.assertNotIn("post_id", record)
+            calls.clear()
+            rc, out = run(["--dir", tmp, "--date", "2026-11-08"])
+        self.assertEqual(rc, wc.pt.EXIT_UNCERTAIN, out)
+        self.assertFalse(any(u.endswith("/rest/posts") for _, u in calls))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -102,6 +102,8 @@ int test_rule_for_fills_the_match() {
     const auto r = funes::heal::rule_for(p, "probe_newsletter:post.ai-pulse-es.5");
     CHECK(r && r->args["arguments"]["post"] == "ai-pulse-es.5");
     CHECK(!funes::heal::rule_for(p, "probe_newsletter:linkedin_token"));
+    // An uncertain post is not a "post." key: no retry is proposed for it.
+    CHECK(!funes::heal::rule_for(p, "probe_newsletter:post_unsure.ai-pulse-es.5"));
     // The probe failing to run is not a post.
     CHECK(!funes::heal::rule_for(p, "probe_newsletter:(run)"));
     return 0;
