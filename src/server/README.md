@@ -78,6 +78,11 @@ and neither alone authenticates anything).
 | `/api/sessions/<name>` | DELETE | Delete one conversation (turns, summary, stored results; memories survive) |
 | `/api/jobs` | GET | List the caller's scheduled cron jobs. `?all=1` lists every account's, with the owning username (*admin*) |
 | `/api/upload` | POST | Upload file to workspace |
+| `/api/upload-batch` | POST | Several files into a named workspace subfolder; returns a manifest |
+| `/api/files` | GET | `?path=` → list the caller's workspace |
+| `/api/files/download` | GET | `?path=` → one workspace file |
+| `/api/files` | DELETE | `?path=` → delete a workspace file or folder |
+| `/api/me/locale` | PUT | The caller's own language (never another account's — that is `funes locale`) |
 | `/*` | GET | Static files (web UI) |
 
 ### What `/api/auth/status` reports about permissions

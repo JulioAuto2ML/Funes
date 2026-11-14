@@ -32,7 +32,8 @@ What this script decides for itself rather than trusting the caller or the TV:
 
 Exit codes: 0 done, 1 the TV failed or refused, 2 bad arguments,
 3 not configured (an installation fault, not something a retry fixes),
-4 the TV is off or not on the network (and was not, or could not be, woken).
+4 the TV is off or not on the network (and was not, or could not be, woken),
+5 the TV is there but did not answer in time (a scheduled caller retries).
 
 `--no-wake` skips Wake-on-LAN: scheduled runs use it, since an empty living
 room is not a reason to switch the set on. `perform(argv)` is the same run
@@ -165,6 +166,16 @@ def wake(mac, broadcast):
         s.close()
 
 
+def is_no_answer(e):
+    """The set is there but did not answer in time: a TimeoutError, or
+    samsungtvws's own ConnectionFailure ("Websocket Time out"), which is not
+    an OSError at all."""
+    if isinstance(e, TimeoutError):
+        return True
+    text = f"{type(e).__name__} {e}".lower()
+    return "time out" in text or "timed out" in text or "timeout" in text
+
+
 def is_unreachable(e):
     return isinstance(e, OSError) and not isinstance(e, TimeoutError) \
         and (e.errno in UNREACHABLE or isinstance(e, ConnectionError))
@@ -284,6 +295,9 @@ def run(session, args, token_file, image):
 
 
 EXIT_UNREACHABLE = 4
+# Reachable, but no answer in time (often mid-upload, the set dozing off).
+# A scheduled caller treats it like a sleeping set: try again next run.
+EXIT_NO_ANSWER = 5
 
 
 def perform(argv):
@@ -319,6 +333,9 @@ def perform(argv):
             hint = "" if mac or args["no_wake"] else " (set FUNES_TV_MAC to let tv_art wake it)"
             log(f"the TV is off or not on the network ({host}): {e}{hint}")
             return EXIT_UNREACHABLE, None
+        if is_no_answer(e):
+            log(f"the TV did not answer in time ({host}): {type(e).__name__}: {e}")
+            return EXIT_NO_ANSWER, None
         log(f"failed: {type(e).__name__}: {e}")
         return 1, None
 

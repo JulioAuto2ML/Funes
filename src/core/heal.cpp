@@ -125,6 +125,31 @@ std::string parse_policy(const std::string& yaml_text, Policy& out) {
         }
         p.rules.push_back(std::move(r));
     }
+    if (root["runbooks"]) {
+        if (!root["runbooks"].IsSequence()) return "`runbooks:` is a list";
+        int m = 0;
+        for (const auto& node : root["runbooks"]) {
+            ++m;
+            const std::string at = "runbook " + std::to_string(m);
+            if (!node.IsMap()) return at + ": a map with id, action, agent, tool, args, undo";
+            auto str = [&node](const char* k) { return node[k] ? node[k].as<std::string>() : std::string(); };
+            doctor::Runbook rb{str("id"), str("action"), str("agent"), str("tool"), nlohmann::json::object()};
+            const bool id_ok = !rb.id.empty() && rb.id.size() <= 40 &&
+                std::all_of(rb.id.begin(), rb.id.end(),
+                            [](unsigned char c) { return std::islower(c) || std::isdigit(c) || c == '_' || c == '-'; });
+            if (!id_ok || rb.id == "explain")
+                return at + ": id is [a-z0-9_-], at most 40 characters, and not 'explain'";
+            if (rb.action.empty() || rb.agent.empty() || rb.tool.empty())
+                return at + " (" + rb.id + "): needs action, agent and tool";
+            if (str("undo") != "none")
+                return at + " (" + rb.id + "): needs `undo: none`, as a rule that proposes does";
+            if (node["args"]) {
+                if (!node["args"].IsMap()) return at + " (" + rb.id + "): args is a map";
+                rb.args = yaml_to_json(node["args"]);
+            }
+            p.runbooks.push_back(std::move(rb));
+        }
+    }
     out = std::move(p);
     return "";
 }
@@ -142,7 +167,13 @@ std::string Healer::on_open(const incidents::Incident& i) {
     std::string matched;
     for (const auto& r : policy_.rules)
         if (matches(r.when, i.key, &matched)) { found = &r; break; }
-    if (!found || found->level == Level::Observe) return "";
+    if (!found) {
+        // H3: no rule — the doctor may know. It runs elsewhere (a model call
+        // must not hold up the probes) and sends its own message.
+        if (opt_.unmatched) opt_.unmatched(i);
+        return "";
+    }
+    if (found->level == Level::Observe) return "";
 
     Rule rule = *found;
     rule.args = substitute(rule.args, matched);

@@ -49,8 +49,9 @@ Decisions this script owns:
   Art Mode blanks the screen; a scheduled run then reports shown=false and
   exits 0, so an empty living room does not fill the job log with FAILED.
 
-Exit codes: 0 done (shown or deliberately not), 1 a source or the TV failed,
-2 bad arguments, 3 not configured.
+Exit codes: 0 done (shown or deliberately not — including a scheduled run to
+a set that did not answer in time, which the next run retries), 1 a source or
+the TV failed, 2 bad arguments, 3 not configured.
 
 Config (manifest env, from config/funes.local and the service):
     FUNES_WEATHER_LAT, FUNES_WEATHER_LON, FUNES_WEATHER_PLACE
@@ -479,6 +480,9 @@ def publish(args, cache, record, force):
         code, shown = tv_art.perform(argv)
         if code == tv_art.EXIT_UNREACHABLE and not args["wake"]:
             return 0, answer(record, reason="TV asleep or off; it will be sent when it is on")
+        if code == tv_art.EXIT_NO_ANSWER and not args["wake"]:
+            event(cache, event="publish", ok=False, code=code)
+            return 0, answer(record, reason="the TV did not answer in time; it will be sent on a later run")
         if code != 0:
             event(cache, event="publish", ok=False, code=code)
             return code, None

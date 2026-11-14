@@ -459,6 +459,10 @@ ask`, or WhatsApp — read by the guardian itself, so it works with Funes down).
 explain / propose / act; a runbook is a tool call an agent already has, run as
 an (auto-)approved proposal, and `act` holds back to proposing after two tries
 a day.
+7.21 adds H3: for an incident no rule covers, `src/core/doctor.h` asks the
+model to pick a runbook from `heal.yaml`'s `runbooks:` catalog or `explain`
+(the code gathers the evidence; the model calls no tool), only ever proposed;
+`bin/heal_eval` scores a model on this installation's incidents.
 
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (the

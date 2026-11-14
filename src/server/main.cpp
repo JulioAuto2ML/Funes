@@ -28,6 +28,7 @@
 #include "host_collector.h"
 #include "host_events.h"
 #include "guardian.h"
+#include "doctor.h"
 #include "heal.h"
 #include "incidents.h"
 #include "probes.h"
@@ -40,6 +41,8 @@
 #include "httplib.h"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <csignal>
 #include <filesystem>
 #include <fstream>
@@ -969,7 +972,90 @@ int main(int argc, char** argv) {
                 std::cerr << "[heal] " << heal_path << " ignored: " << err << "\n";
             return p;
         };
+        // H3 (doctor.h): an incident no rule covers goes to the doctor, on its
+        // own thread — a model call waits for the GPU to be free of chat, and
+        // must not hold up the probes. What it picks is proposed, never run.
+        struct DoctorJob { funes::incidents::Incident incident; std::vector<funes::doctor::Runbook> runbooks; };
+        auto doctor_q = std::make_shared<std::pair<std::mutex, std::vector<DoctorJob>>>();
+        auto doctor_cv = std::make_shared<std::condition_variable>();
+        const bool doctor_on = funes::env("FUNES_DOCTOR", "on") != "off";
+        // Shared, not a local: the callback outlives this block.
+        auto healer_ref = std::make_shared<std::weak_ptr<funes::heal::Healer>>();
+        ho.unmatched = [doctor_q, doctor_cv, doctor_on, healer_ref](const funes::incidents::Incident& i) {
+            const auto h = healer_ref->lock();
+            if (!doctor_on || !h) return;
+            {
+                std::lock_guard<std::mutex> lock(doctor_q->first);
+                doctor_q->second.push_back({i, h->runbooks()});
+            }
+            doctor_cv->notify_one();
+        };
         auto healer = std::make_shared<funes::heal::Healer>(load_policy(), std::move(ho));
+        *healer_ref = healer;
+        if (doctor_on) {
+            const int per_day = std::max(1, funes::env_int("FUNES_DOCTOR_PER_DAY", 10));
+            std::thread([doctor_q, doctor_cv, per_day, first_admin, &defaults, &tools, &proposals,
+                         &users, inc = incidents.get()] {
+                LLMClient llm(defaults.llm_url, defaults.llm_api_key, defaults.llm_model, defaults.llm_provider);
+                llm.set_max_tokens(400);
+                std::vector<int64_t> runs;
+                for (;;) {
+                    DoctorJob job;
+                    {
+                        std::unique_lock<std::mutex> lock(doctor_q->first);
+                        doctor_cv->wait(lock, [&] { return !doctor_q->second.empty(); });
+                        job = doctor_q->second.front();
+                        doctor_q->second.erase(doctor_q->second.begin());
+                    }
+                    const int64_t now = static_cast<int64_t>(std::time(nullptr));
+                    runs.erase(std::remove_if(runs.begin(), runs.end(),
+                                              [now](int64_t t) { return now - t >= 86400; }), runs.end());
+                    const auto admin = first_admin();
+                    if (!admin || static_cast<int>(runs.size()) >= per_day) {
+                        std::cerr << "[doctor] #" << job.incident.id << " skipped ("
+                                  << (admin ? "daily limit" : "no admin") << ")\n";
+                        continue;
+                    }
+                    runs.push_back(now);
+                    funes::doctor::Case c{job.incident.key, job.incident.summary, job.incident.evidence, ""};
+                    ToolContext ctx{"doctor", "doctor-" + std::to_string(job.incident.id)};
+                    ctx.user_id = admin->id;
+                    const auto changes = tools.call("host_changes", {{"since_hours", 6}}, ctx);
+                    if (!changes.error) c.recent_changes = changes.text;
+                    std::string refusal;
+                    const auto v = funes::doctor::diagnose([&llm](const std::vector<ChatMessage>& m) {
+                        funes::load::wait_until_quiet();
+                        return llm.complete(m).content;
+                    }, c, job.runbooks, &refusal);
+                    const funes::doctor::Runbook* chosen = nullptr;
+                    for (const auto& r : job.runbooks) if (r.id == v.choice) chosen = &r;
+                    int64_t proposal = 0;
+                    if (chosen)
+                        proposal = proposals.create(admin->id, chosen->agent, chosen->tool, chosen->args,
+                                                    "doctor-" + std::to_string(job.incident.id),
+                                                    "doctor, incident #" + std::to_string(job.incident.id) +
+                                                        " (" + job.incident.key + ")",
+                                                    funes::effect_name(funes::builtin_effect(chosen->tool)));
+                    std::cerr << "[doctor] #" << job.incident.id << " " << job.incident.key << " → " << v.choice
+                              << (refusal.empty() ? "" : " (answer refused: " + refusal + ")")
+                              << (proposal ? ", proposal #" + std::to_string(proposal) : "") << "\n";
+                    const std::string bridge = funes::env("WHATSAPP_BRIDGE_URL");
+                    for (const auto& u : users.list_users()) {
+                        if (u.role != UserStore::ROLE_ADMIN) continue;
+                        const std::string jid = users.jid_for_user(u.id);
+                        if (jid.empty()) continue;
+                        const std::string err = send_via_whatsapp_bridge(
+                            bridge, jid, funes::doctor::verdict_text(c, v, chosen, proposal, u.locale));
+                        if (!err.empty()) std::cerr << "[doctor] notice to " << u.username << " failed: " << err << "\n";
+                    }
+                    if (inc) {
+                        const auto cur = inc->get(job.incident.id);
+                        inc->set_action(job.incident.id, (cur ? cur->action : "") + "\n\n" +
+                                        funes::doctor::verdict_text(c, v, chosen, proposal, admin->locale));
+                    }
+                }
+            }).detach();
+        }
         auto policy_mtime = std::make_shared<fs::file_time_type>();
         po.on_open = [healer, heal_path, policy_mtime, load_policy](const funes::incidents::Incident& i) {
             std::error_code ec;

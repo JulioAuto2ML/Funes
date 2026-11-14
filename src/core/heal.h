@@ -25,6 +25,7 @@
 // =============================================================================
 
 #pragma once
+#include "doctor.h"
 #include "incidents.h"
 #include "json.hpp"
 #include <cstdint>
@@ -51,6 +52,9 @@ struct Rule {
 
 struct Policy {
     std::vector<Rule> rules;
+    // What the doctor (doctor.h, H3) may choose from for an incident no rule
+    // covers. Same shape as a rule's call; always proposed, never acted.
+    std::vector<doctor::Runbook> runbooks;
 };
 
 // config/heal.yaml → policy. "" or the first thing wrong with it.
@@ -65,6 +69,8 @@ struct Options {
     // Run it now. {ok, what the call answered}.
     std::function<std::pair<bool, std::string>(const Rule&, const incidents::Incident&)> act;
     std::function<int64_t()> now;
+    // An incident no rule covers (H3): handed to the doctor, off this thread.
+    std::function<void(const incidents::Incident&)> unmatched;
     std::string locale = "es";
 };
 
@@ -75,6 +81,8 @@ public:
     // returns the text to add to its notice ("" for observe).
     std::string on_open(const incidents::Incident& i);
     void set_policy(Policy p) { policy_ = std::move(p); }
+    // A copy, taken on the probe thread (the one that calls set_policy).
+    std::vector<doctor::Runbook> runbooks() const { return policy_.runbooks; }
 
 private:
     Policy policy_;

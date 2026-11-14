@@ -19,6 +19,10 @@
 # nothing to put back (a restart, a retry). Anything that needs sudo, a
 # credential or the GPU is `explain` — a person does it.
 #
+# `runbooks:` (H3) is what the doctor may choose from for an incident no rule
+# covers: a model reads the evidence and picks one of these ids, or "explain".
+# A doctor's choice is always proposed, never acted on.
+#
 # This file is the admin's, like the agents: nothing Funes runs can write it.
 # Raise a level when a rule has earned it (docs/self-healing-plan.md, "the
 # ladder").
@@ -76,3 +80,31 @@ rules:
   - when: "probe_newsletter:linkedin_posts"
     level: explain
     explain: "El error está en data/newsletter/post_log.txt. Si es el token, renovalo; un slot se puede reintentar a mano: `python3 publishing/post_tweet.py N --dir data/newsletter` (y `--publication ai-pulse-es` para el español)."
+
+# What the doctor (src/core/doctor.h) may propose for an incident no rule above
+# covers. Ids are what the model answers with.
+runbooks:
+  - id: restart_bridge_funes
+    action: reiniciar el bridge de WhatsApp de Funes (whatsapp-bridge-funes)
+    agent: sysadmin
+    tool: run_script
+    args: {name: restart_unit, arguments: {unit: whatsapp-bridge-funes}}
+    undo: none
+  - id: restart_bridge_personal
+    action: reiniciar el bridge de WhatsApp personal (whatsapp-bridge)
+    agent: sysadmin
+    tool: run_script
+    args: {name: restart_unit, arguments: {unit: whatsapp-bridge}}
+    undo: none
+  - id: restart_autoresponder
+    action: reiniciar el autoresponder de WhatsApp (whatsapp-autoresponder)
+    agent: sysadmin
+    tool: run_script
+    args: {name: restart_unit, arguments: {unit: whatsapp-autoresponder}}
+    undo: none
+  - id: restart_monitor
+    action: reiniciar el panel de monitoreo de yoda (yoda-monitor)
+    agent: sysadmin
+    tool: run_script
+    args: {name: restart_unit, arguments: {unit: yoda-monitor}}
+    undo: none

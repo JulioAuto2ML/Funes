@@ -56,6 +56,10 @@ add_executable(test_incidents test_incidents.cpp)
 target_link_libraries(test_incidents PRIVATE funes_core)
 add_test(NAME incidents COMMAND test_incidents)
 
+add_executable(test_doctor test_doctor.cpp)
+target_link_libraries(test_doctor PRIVATE funes_core)
+add_test(NAME doctor COMMAND test_doctor)
+
 add_executable(test_heal test_heal.cpp)
 target_link_libraries(test_heal PRIVATE funes_core)
 add_test(NAME heal COMMAND test_heal ${CMAKE_SOURCE_DIR}/config/heal.yaml)
@@ -211,6 +215,15 @@ target_link_libraries(memory_eval PRIVATE funes_core)
 target_compile_definitions(memory_eval PRIVATE
     FUNES_EVAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/memory_eval/fixture.json")
 add_test(NAME memory_eval_runs COMMAND memory_eval --no-embed)
+
+# The doctor's score (self-healing H3): heal_eval --url <yoda's model>. In
+# ctest only as a dry run — the fixtures and the shipped catalog must agree.
+add_executable(heal_eval heal_eval/heal_eval.cpp)
+target_link_libraries(heal_eval PRIVATE funes_core)
+target_compile_definitions(heal_eval PRIVATE
+    FUNES_HEAL_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/heal_eval/fixture.json"
+    FUNES_HEAL_POLICY_FILE="${CMAKE_SOURCE_DIR}/config/heal.yaml")
+add_test(NAME heal_eval_runs COMMAND heal_eval --dry-run)
 
 # What a phase-6 migration does to a real pool: top-k before and after, on a
 # copy of a memory.db. A tool for reading, not a test — see the file header.

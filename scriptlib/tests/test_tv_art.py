@@ -377,9 +377,22 @@ class TestOtherActions(Base):
         self.art.upload = lambda *a, **k: (_ for _ in ()).throw(TimeoutError("slow"))
         (self.ws / "a.jpg").write_bytes(JPEG)
         code, _, err = self.run_main("--action=show", "--image=a.jpg")
-        self.assertEqual(code, 1)
+        self.assertEqual(code, tv_art.EXIT_NO_ANSWER)
         self.assertNotIn("off or not on the network", err)
         self.assertIn("TimeoutError", err)
+
+    # 2026-11-14, every few hours: samsungtvws raises its own ConnectionFailure
+    # (not an OSError) with "Websocket Time out" when the set stops answering
+    # mid-upload. The same "did not answer in time", not a fault in tv_art.
+    def test_websocket_timeout_is_no_answer(self):
+        class ConnectionFailure(Exception):
+            pass
+        self.art.upload = lambda *a, **k: (_ for _ in ()).throw(
+            ConnectionFailure("Websocket Time out: Connection timed out"))
+        (self.ws / "a.jpg").write_bytes(JPEG)
+        code, _, err = self.run_main("--action=show", "--image=a.jpg")
+        self.assertEqual(code, tv_art.EXIT_NO_ANSWER)
+        self.assertIn("did not answer in time", err)
 
 
 if __name__ == "__main__":

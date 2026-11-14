@@ -308,6 +308,20 @@ class TestRun(unittest.TestCase):
         self.assertFalse(os.path.isabs(image))
         self.assertEqual(Image.open(self.ws / image).size, (3840, 2160))
 
+    # A scheduled publish to a set that did not answer in time is a "not yet",
+    # like a sleeping set: shown=false, exit 0, sent on a later run. Before,
+    # it failed the every-minute job and opened an incident.
+    def test_a_tv_that_does_not_answer_in_time_is_not_a_failed_run(self):
+        self.perform.return_value = (twa.tv_art.EXIT_NO_ANSWER, None)
+        code, out, err = self.run_main()
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertFalse(result["shown"])
+        self.assertIn("did not answer", result["reason"])
+        # A person asking (--wake) is told it failed.
+        code, _, _ = self.run_main("--wake")
+        self.assertNotEqual(code, 0)
+
     def test_wake_flag_lets_tv_art_wake_the_set(self):
         self.run_main("--wake")
         self.assertNotIn("--no-wake", self.perform.call_args[0][0])
