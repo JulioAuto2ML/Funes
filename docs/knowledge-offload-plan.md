@@ -1,7 +1,8 @@
 # Knowledge offloading — a research plan on Funes
 
-Status: **plan** (2026-11-14), a research track, not the current work and
-not a Funes version by itself. Nothing built. Source: a conversation julio had
+Status: **plan** (2026-11-14), a research track meant to become a paper
+(see "The paper"), starting soon; not a Funes version by itself. Nothing
+built. Source: a conversation julio had
 about moving a model's factual knowledge into a local database and leaving its
 parameters for skills (`docs/LLM memory.txt` on yoda). This turns that idea
 into questions Funes can actually answer, experiments that answer them on the
@@ -394,7 +395,7 @@ what") and the most physics-like.
 | 3 | E1b: venv (ComfyUI's ROCm torch) + LMLM pairs on yoda's GPU, reproduce, then edits and Funes as backend | LMLM vs Standard table |
 | 4 | E2 conflicts, incl. supersede vs contradict in Funes | faithfulness vs size |
 | 5 | E3 + E4 | lookup/abstention table; store-shape table |
-| — | **checkpoint**: write up E1–E4 as a short technical report | report v1 |
+| — | **checkpoint**: write up E1–E4 + E1b, tested against H1–H6 | preprint draft (arXiv) |
 | 6 | E7 steps 1–2: Funes skill suite, size sweep with the store | skill floor vs VRAM |
 | 7–9 | E5 (rented GPU) on the model below the floor = E7 step 3 | LoRA vs base, on Funes |
 | 9–10 | E6 if time | layer ablation plot |
@@ -414,6 +415,96 @@ out before the expensive part starts.
   noticiero or the newsletter crons run (`scripts/yoda.crontab`).
 - Negative results are kept and written down — the memory plan's
   "extraction costs recall@4" was the most useful line in it.
+
+## The paper
+
+The experiments are designed to be published, not just to steer Funes.
+That changes how they're run more than what they are.
+
+### Contribution, in one sentence
+
+*We measure the knowledge/skill split inside a deployed agent: the same
+models and tasks with facts in the weights, in a local store, and on the
+web — and what each costs in accuracy, VRAM, latency, privacy and safety
+gating.*
+
+What's new against the related work: LMLM, Co-LMLM and KLLMs study isolated
+models on QA and perplexity; RAG studies compare retrievers, not where the
+knowledge should live; agent-memory papers compare memory designs, not
+model size. Nobody has the three-way comparison inside a working agent, and
+nobody counts the safety cost of outside content (taint → approvals) as part
+of the price of a lookup.
+
+Working title: *Facts Outside the Weights: How Much Model Does a Local
+Agent Need?*
+
+### Hypotheses, stated before running
+
+Written here first and committed — the commit date is the pre-registration
+(optionally mirrored to OSF). A result is reported against these whether it
+confirms them or not; anything found later is labelled exploratory.
+
+| | hypothesis | test | experiment |
+|---|---|---|---|
+| H1 | Supplying facts flattens the accuracy-vs-size curve on long-tail QA: the `store` slope is < ½ the `closed` slope | slope ratio, bootstrap CI over questions | E1 |
+| H2 | It does not flatten it on fact-free reasoning (GSM8K): `store` slope ≈ `closed` slope | same | E1 |
+| H3 | Larger models override edited facts more often (parametric override rises with size) | logistic regression of override on log(params) | E2 |
+| H4 | Masking facts in pre-training improves the non-fact part: LMLM < Standard perplexity on non-fact tokens at equal size | paired difference per document, CI | E1b |
+| H5 | Forcing a lookup (`tool+contract`) lowers hallucination on unanswerable questions vs letting the model decide, at no accuracy cost on answerable ones | McNemar, paired | E3 |
+| H6 | `web+cache` reaches `store` accuracy on the second pass, with taint on every cached answer | paired accuracy; taint rate | E0/E1 |
+| H7 | A model ≤ 8 GB VRAM with the store is within 5 points of the 27B on the Funes skill suite | difference, CI | E7 |
+
+### Statistics
+
+- **Paired by design**: every condition sees the same questions, so
+  comparisons are paired (McNemar for accuracy, paired bootstrap for
+  differences), not two independent means.
+- **Uncertainty everywhere**: 95% bootstrap CIs (10k resamples over
+  questions) on every number in a table or plot. 1k questions gives about
+  ±3 points at 50% accuracy — the sample size per cell is chosen from that,
+  not from what finishes overnight.
+- **Run-to-run noise**: greedy decoding (temperature 0) for the main
+  results, and **3 repeats** per cell anyway — llama.cpp on GPU is not
+  bit-reproducible across batch sizes, and the memory plan already saw two
+  runs disagree. Report the spread.
+- **Multiple comparisons**: Holm correction across H1–H7.
+- **Confounds named, not hidden**: quantisation differing across sizes
+  (measure one size at two quants), prompt template (fixed per family), the
+  judge for any LLM-graded item (agreement with 100 hand labels reported).
+
+### Reproducibility
+
+Released with the paper: the harness, every config, GGUF file hashes,
+dataset versions and splits, the raw per-question JSON for every run, and
+the plotting code — enough that a figure can be rebuilt from the JSON
+without a GPU. The skill suite is released as tasks, not as Funes
+conversations: nothing from yoda's pool, ever.
+
+### Structure
+
+1. Introduction — the VRAM question, the three places a fact can live.
+2. Related work — knowledge-offloaded LMs (LMLM, Co-LMLM, KLLMs, KOFF,
+   Mobius), RAG and adaptive retrieval (PopQA, Self-RAG), knowledge conflicts
+   (CounterFact, MemoReason), agent memory, layer localisation.
+3. Setup — Funes as the testbed (one paragraph and a diagram; the system
+   isn't the contribution), models, datasets, the eight conditions.
+4. Results — E1 (headline figure), E1b, E2, E3, E7.
+5. Analysis — E4 store shape, E6 layers if done, cost table (VRAM, latency,
+   API cost, taint rate per condition).
+6. Limitations — one GPU, one model family per sweep, small-model LMLMs,
+   a skill suite drawn from one installation.
+
+### Where and when
+
+- **arXiv first**, as soon as E1–E3 + E1b hold up (the report checkpoint in
+  "Order of work" becomes the preprint draft).
+- Then a venue: a NeurIPS or ICLR workshop on memory / agents / efficient
+  models is realistic with inference-only results; COLM if E7 lands clearly.
+  A main-track ML conference most likely wants E5 (training) as well.
+  Check deadlines when the draft exists, not now.
+- Author: julio, independent. Acknowledge the LMLM / Co-LMLM authors for
+  released weights; worth writing to them once E1b reproduces — they may
+  want to know their models run as a backend for a real agent.
 
 ## Reading list (verified on alphaXiv, 2026-11-14)
 
