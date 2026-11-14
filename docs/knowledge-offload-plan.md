@@ -69,12 +69,17 @@ which nobody has numbers for.
   window (`~/launch_llama.sh stop …`), as is already done for image
   generation — fine, as long as it avoids the newsletter/noticiero crons and
   every run records the window and restores `qwen27b`.
-- yoda has 213 GB of free disk and 15 GB of RAM, and no PyTorch yet. The
-  released LMLM models (below) are 176M–382M parameters (≤1.5 GB fp32): in a
-  model-swap window they go on the GPU. That needs a PyTorch ROCm build
-  recent enough for the RX 9060 XT (gfx1200, RDNA4) — LMLM pins torch 2.4,
-  which predates it, so the pin has to be lifted and the paper's numbers
-  re-checked after. CPU stays as the fallback, not the plan.
+- yoda has 213 GB of free disk and 15 GB of RAM. The released LMLM models
+  (below) are 176M–382M parameters (≤1.5 GB fp32): in a model-swap window
+  they go on the GPU. PyTorch already runs on the RX 9060 XT there:
+  ComfyUI's venv (`~/ComfyUI-Installs/ComfyUI/ComfyUI/.venv`, Python 3.13)
+  has `torch 2.12.0+rocm7.14.0` from AMD's index
+  (`repo.amd.com/rocm/whl-multi-arch/`, pinned in that install's
+  `requirements-amd.txt`), and `~/torch72-test` has `2.12.1+rocm7.2`; both
+  see the GPU. The research venv is a **new** one with ComfyUI's torch pin —
+  never pip-installing into ComfyUI's own venv, whose image generation must
+  not break. LMLM pins torch 2.4 / transformers 4.49, so those pins are
+  lifted and the paper's numbers re-checked after (E1b step 1).
 - The RAM limit is about the **stores**, not the models: LMLM's 54.6M-triple
   DB and Co-LMLM's 113 GB FAISS index don't fit in 16 GB of VRAM either, so
   they stay in RAM / memory-mapped from disk whichever device the model runs
@@ -302,7 +307,7 @@ what") and the most physics-like.
 |---|---|---|
 | 1 | E0 harness, PopQA sample, one model | runner + first table |
 | 2–3 | E1 size sweep on yoda in model-swap windows | size-curve plot — the headline |
-| 3 | E1b: venv + LMLM pairs on yoda's GPU, reproduce, then edits and Funes as backend | LMLM vs Standard table |
+| 3 | E1b: venv (ComfyUI's ROCm torch) + LMLM pairs on yoda's GPU, reproduce, then edits and Funes as backend | LMLM vs Standard table |
 | 4 | E2 conflicts, incl. supersede vs contradict in Funes | faithfulness vs size |
 | 5 | E3 + E4 | lookup/abstention table; store-shape table |
 | — | **checkpoint**: write up E1–E4 as a short technical report | report v1 |
