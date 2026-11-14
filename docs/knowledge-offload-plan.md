@@ -70,8 +70,15 @@ which nobody has numbers for.
   generation — fine, as long as it avoids the newsletter/noticiero crons and
   every run records the window and restores `qwen27b`.
 - yoda has 213 GB of free disk and 15 GB of RAM, and no PyTorch yet. The
-  released LMLM models (below) are 176M–382M parameters: CPU inference is
-  enough, so they need a venv with CPU torch, not ROCm.
+  released LMLM models (below) are 176M–382M parameters (≤1.5 GB fp32): in a
+  model-swap window they go on the GPU. That needs a PyTorch ROCm build
+  recent enough for the RX 9060 XT (gfx1200, RDNA4) — LMLM pins torch 2.4,
+  which predates it, so the pin has to be lifted and the paper's numbers
+  re-checked after. CPU stays as the fallback, not the plan.
+- The RAM limit is about the **stores**, not the models: LMLM's 54.6M-triple
+  DB and Co-LMLM's 113 GB FAISS index don't fit in 16 GB of VRAM either, so
+  they stay in RAM / memory-mapped from disk whichever device the model runs
+  on (and a FAISS GPU build for ROCm is not a stock wheel).
 - Inference experiments never run on the laptop's CPU (standing rule): they
   call yoda's llama-server endpoints.
 - Training (E5) on yoda is only possible for ≤4B models with QLoRA and the
@@ -88,8 +95,8 @@ pre-training.
 
 | what | weights | store | runs on yoda? |
 |---|---|---|---|
-| **LMLM** (Zhao et al., ICLR 2026) — LLaMA-2 176M / 382M pretrained on annotated Wikipedia, emits `dblookup(entity, relation)` and splices the value | `kilian-group/LMLM-llama2-{176M,382M}` + `Standard-llama2-{176M,382M}` baselines, MIT code | `kilian-group/LMLM-database`: 54.6M (entity, relation, value) triples, 7.96 GB JSON; MiniLM fuzzy match at 0.6; precomputed FAISS cache | yes, CPU. The DB is **plain triples → editable by hand**, and only a subset is loaded at inference (RAM) |
-| **Co-LMLM** (Feldman et al., 2607.07707) — SmolLM2 360M on FineWeb-Edu; at `<FACT>` its hidden state *is* the query | `lil-lab/CoLMLM-360M-FW` + `CoLMLM-Standard-LM-Baseline-360M-FW`, plus the fact-span annotator | Wikipedia index: 236M entries, ~113 GB FAISS (fits on disk; needs `LMLM_FAISS_MMAP=1` for 15 GB RAM). A 1.07 TB FineWeb+Wiki index does not fit | yes, CPU + mmap, slow. Keys are hidden states, so **a fact can't be edited by typing it** — only by re-encoding a context with the model |
+| **LMLM** (Zhao et al., ICLR 2026) — LLaMA-2 176M / 382M pretrained on annotated Wikipedia, emits `dblookup(entity, relation)` and splices the value | `kilian-group/LMLM-llama2-{176M,382M}` + `Standard-llama2-{176M,382M}` baselines, MIT code | `kilian-group/LMLM-database`: 54.6M (entity, relation, value) triples, 7.96 GB JSON; MiniLM fuzzy match at 0.6; precomputed FAISS cache | yes, GPU (CPU fallback). The DB is **plain triples → editable by hand**, and only a subset is loaded at inference (RAM) |
+| **Co-LMLM** (Feldman et al., 2607.07707) — SmolLM2 360M on FineWeb-Edu; at `<FACT>` its hidden state *is* the query | `lil-lab/CoLMLM-360M-FW` + `CoLMLM-Standard-LM-Baseline-360M-FW`, plus the fact-span annotator | Wikipedia index: 236M entries, ~113 GB FAISS (fits on disk; needs `LMLM_FAISS_MMAP=1` for 15 GB RAM). A 1.07 TB FineWeb+Wiki index does not fit | yes: model on GPU, index mmap'd from disk (slow lookups). Keys are hidden states, so **a fact can't be edited by typing it** — only by re-encoding a context with the model |
 | LMLM annotator — LLaMA-3.1-8B-Instruct LoRA that writes `dblookup` annotations into text | `kilian-group/LMLM-Annotator` | — | as a GGUF on :8080, yes. Useful to build E5's training data |
 | Intern-S2-Mobius (2608.14290) — 35B, shared FFN "memory" + attention "reasoners", from Qwen3.5-35B | `internlm/Intern-S2-Mobius`, Apache-2.0, BF16/FP8, custom code | inside the weights, not a DB | no: too large, custom modeling code, no llama.cpp path. Reading only |
 | KLLMs, KARLA, KOFF, Mixture-of-Memories | no weights or code found | | no |
@@ -221,7 +228,7 @@ LMLM vs Standard (176M, 382M) and Co-LMLM vs its baseline (360M): same data,
 same size, only the masking differs. The cleanest test of the idea there is.
 
 1. **Reproduce** the paper's PopQA / T-REx numbers on a 1k sample — if they
-   don't reproduce on CPU, nothing built on top is worth anything.
+   don't reproduce on yoda (and after lifting the torch pin), nothing built on top is worth anything.
 2. **Where did the capacity go?** Perplexity on the *non-fact* tokens, and
    the NLU tasks (`eval_nlu_task.sh`), LMLM vs Standard. The paper reports
    "no loss"; the stronger claim — the masked model is *better* at what's
@@ -280,7 +287,7 @@ pre-training (Co-LMLM scale), not Funes.
 
 ### E6 — where the knowledge sits (optional, weeks 8–9)
 
-Small model (≤2B, transformers on CPU is acceptable here: no serving, short
+Small model (≤2B, transformers on yoda's GPU in a swap window, CPU if ROCm torch fights back; no serving, short
 runs). Ablate or zero-out MLP blocks layer by layer and measure the drop on
 PopQA `closed`, PopQA `oracle`, and GSM8K. If the literature is right
 (recall in mid-layer MLPs, reasoning higher up), there is a band of layers
@@ -295,7 +302,7 @@ what") and the most physics-like.
 |---|---|---|
 | 1 | E0 harness, PopQA sample, one model | runner + first table |
 | 2–3 | E1 size sweep on yoda in model-swap windows | size-curve plot — the headline |
-| 3 | E1b: venv + LMLM pairs on CPU, reproduce, then edits and Funes as backend | LMLM vs Standard table |
+| 3 | E1b: venv + LMLM pairs on yoda's GPU, reproduce, then edits and Funes as backend | LMLM vs Standard table |
 | 4 | E2 conflicts, incl. supersede vs contradict in Funes | faithfulness vs size |
 | 5 | E3 + E4 | lookup/abstention table; store-shape table |
 | — | **checkpoint**: write up E1–E4 as a short technical report | report v1 |
