@@ -879,7 +879,10 @@ int main(int argc, char** argv) {
                 return "exit " + std::to_string(r.exit_code) + ": " + r.stderr_output.substr(0, 400);
             return funes::validate_output(spec, r.output, out);
         };
-        po.builtins.push_back({"jobs", 120, 1, [&memory]() {
+        // fail_after 2: a job that runs every minute (the TV's) fails now and
+        // then when the TV does not answer; two checks in a row is a job that
+        // is broken, not one that had a bad minute.
+        po.builtins.push_back({"jobs", 120, 2, [&memory]() {
             std::vector<funes::incidents::CheckResult> checks;
             for (const auto& j : memory.list_cron_jobs(-1)) {
                 if (j.last_run_at == 0 || j.running) continue;

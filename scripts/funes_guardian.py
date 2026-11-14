@@ -57,6 +57,10 @@ DEPLOY_CONFIRM = 600
 FAILURES_TO_UNDO = 2           # consecutive failed checks (the timer runs every minute)
 ABANDON_AFTER = 3600           # begun, never applied: the change did not happen
 KEEP_DAYS = 30                 # snapshots of finished changes
+# An incident whose key also opened in this many days before a change is the
+# system's weather (a TV that does not answer), not something the change did.
+# 2026-11-14: the 7.20.0 deploy was undone over the TV job's usual timeout.
+HISTORY_DAYS = 7
 
 UNDO_RE = re.compile(r"^\s*(?:deshacer|undo)\s+#?(\d{1,6})\s*[.!]?\s*$", re.IGNORECASE)
 
@@ -249,14 +253,18 @@ class Guardian:
         try:
             con = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True, timeout=5)
             try:
-                return con.execute("SELECT key, summary FROM incidents WHERE opened_at >= ? "
-                                   "AND resolved_at = 0 ORDER BY id", (since,)).fetchall()
+                return con.execute(
+                    "SELECT key, summary FROM incidents i WHERE opened_at >= ? AND resolved_at = 0 "
+                    "AND NOT EXISTS (SELECT 1 FROM incidents h WHERE h.key = i.key "
+                    "AND h.opened_at < ? AND h.opened_at >= ?) ORDER BY id",
+                    (since, since, since - HISTORY_DAYS * 86400)).fetchall()
             finally:
                 con.close()
         except sqlite3.Error:
             return []   # no incidents table (probes off, or an older Funes)
 
     def health(self, t: dict) -> str:
+        # Incidents new to this change only (see HISTORY_DAYS).
         """"" when healthy, else why not."""
         if not self.funes_up():
             return "Funes no responde (Funes does not answer)"

@@ -157,6 +157,29 @@ class GuardianTest(unittest.TestCase):
         self.assertEqual(t["state"], "undone")
         self.assertIn("llama-server", t["undo_reason"])
 
+    # 2026-11-14: the 7.20.0 deploy was undone because the TV job — which
+    # runs every minute and fails whenever the TV does not answer — failed in
+    # the window. It had failed the same way an hour before the deploy. A key
+    # with incidents before the change is the system's weather, not the change.
+    def test_an_incident_that_also_happened_before_the_change_is_not_the_change(self):
+        db = self.root / "data" / "memory.db"
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE incidents (id INTEGER PRIMARY KEY, key TEXT, summary TEXT, "
+                    "opened_at INTEGER, resolved_at INTEGER)")
+        con.execute("INSERT INTO incidents(key, summary, opened_at, resolved_at) VALUES(?,?,?,?)",
+                    ("jobs:5", "arte y clima failed", int(self.fake.now) - 3600, int(self.fake.now) - 3000))
+        con.commit()
+        n = self.g.begin("deploy", "deploy", ["agents/researcher.yaml"])
+        self.g.applied(n, confirm_after=600)
+        con.execute("INSERT INTO incidents(key, summary, opened_at, resolved_at) VALUES(?,?,?,0)",
+                    ("jobs:5", "arte y clima failed", int(self.fake.now) + 30))
+        con.commit()
+        con.close()
+        for _ in range(11):
+            self.fake.now += 60
+            self.g.watch()
+        self.assertEqual(self.g.load(n)["state"], "confirmed")
+
     def test_a_begun_change_never_applied_is_abandoned_not_undone(self):
         n = self.g.begin("x", "funes:create_agent", ["agents/researcher.yaml"])
         (self.root / "agents" / "researcher.yaml").write_text("changed")
