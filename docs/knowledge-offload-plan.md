@@ -57,6 +57,35 @@ personal facts. Two different situations:
     disagree ("my doctor is X" vs a public record), the personal one wins, and
     recall ranking has to say so (`source_weight`).
 
+### Or don't install it: look it up online
+
+The alternative to a world store is the one Funes already has —
+`web_search` (Parallel, Tavily fallback) and page reading. It costs some
+local-first, but it may well be the better default. What it trades:
+
+| | world store | web |
+|---|---|---|
+| install | tens of GB, versioned imports | nothing |
+| freshness | as old as the import | today |
+| offline | works | doesn't (yoda lost its route out on 2026-11-14) |
+| privacy | the question never leaves | every lookup tells a search provider what is being asked |
+| latency / cost | ms, free | seconds per lookup, a paid API per call |
+| noise | curated triples | pages; a small model has to read them |
+| **effects gate** | admin-installed, plausibly untainted | **tainted** — every run that searched proposes instead of acting |
+
+The last row is the Funes-specific one: a small model that searches for
+everything turns every later `host`/`external` call in the run into a
+proposal (7.11, 7.14). That's the gate working, but it changes what a
+"fact lookup" costs.
+
+The middle ground needs nothing new: **demand-driven memory.** What the
+model looked up and used is stored — tainted, with its URL, as `remember`
+after a page already does — so the store grows only with what this
+household actually asks, and the second time is local. Possibly plus a small
+curated head (the popular entities, where the model's own weights were
+right anyway). The experiments measure all three as conditions (`web`,
+`web+cache` beside `store`) rather than picking one now.
+
 ## The question
 
 *If facts live in a database the model consults, how much of the model is
@@ -184,13 +213,18 @@ One runner: `dataset × model × condition → answers → scored`. Conditions:
 - `funes` — the real thing: the question through `/api/chat` of a
   throwaway account whose pool was loaded with the facts. End-to-end, with
   every safety layer in the way.
+- `web` — no store; the model gets `web_search` and page reading. Same
+  questions, so the long tail can be compared store vs web directly, with
+  latency, API cost and taint per answer recorded.
+- `web+cache` — `web`, but what was looked up is remembered; run the set
+  twice and measure the second pass (and stale answers when the cache is old).
 
 Scoring: exact/alias match for short answers (PopQA-style), LLM-judge only
 where unavoidable and then with the judge fixed and its agreement checked on
 50 hand-labelled items. Cost per answer: prompt + completion tokens and
 wall time from llama-server's own timings.
 
-Done when: PopQA (1k sample) runs in all six conditions against Qwen 9B and
+Done when: PopQA (1k sample) runs in all eight conditions against Qwen 9B and
 the numbers repeat within noise.
 
 ### E1 — the size curve (weeks 2–3) · flagship
