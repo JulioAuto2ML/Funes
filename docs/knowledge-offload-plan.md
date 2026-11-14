@@ -8,6 +8,28 @@ parameters for skills (`docs/LLM memory.txt` on yoda). This turns that idea
 into questions Funes can actually answer, experiments that answer them on the
 hardware there is, and an order to run them in.
 
+## Which Claude for which part
+
+Prices per million tokens in/out (2026-11): Fable 5.1 $10/$50, Opus 5.5
+$4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50. On a subscription the
+same ratios roughly decide how fast the limit goes. Effort is a second lever as big as the
+model: a stronger model at `medium` often beats a weaker one at `high`, so
+raise effort before raising the model.
+
+| part | model · effort | why |
+|---|---|---|
+| Design decisions: hypotheses, statistics plan, what a surprising result means, the paper's argument | **Fable 5.1** · high, a few sessions only | Where a reasoning mistake costs weeks or a retraction. Short sessions with lots of thought, not long coding runs. |
+| Driving the project day to day; Funes C++ (typed fact table, `lookup` route, `memory_eval` modes, E7 skill suite) | **Opus 5.5** · high | The core has isolation, taint and safety layers that compose; a change there needs the whole `CLAUDE.md` in mind. |
+| Python harness (E0 runner, scorers, plots), venv setup, LMLM / Co-LMLM integration | **Sonnet 5.5** · medium | Ordinary scripting with clear specs, at half Opus's price. Escalate to Opus when the bug is subtle, not when the file is long. |
+| Reading papers, literature sweeps | **Sonnet 5.5** subagents to read, Opus 5.5 to synthesise | Reading fills context; the synthesis is the part worth paying for. |
+| Running the experiments, swapping models on yoda, watching runs | **no model** — scripts and cron | A run that needs a model to babysit it is a run that isn't reproducible. Haiku 5.5 at most, to summarise logs. |
+| LLM judge (only where exact match can't grade) | **Haiku 5.5** or **Sonnet 5.5**, one fixed version, Batch API | Cheap and frozen for the whole study; its agreement with 100 hand labels goes in the paper. Changing the judge mid-study invalidates every earlier number. |
+| Generating E5's training data, if `LMLM-Annotator` on yoda isn't enough | **Haiku 5.5** via Batch API (50% off) | Volume work; check a sample by hand. Local first, though. |
+| Writing the paper | **Opus 5.5** with the `julio-writing-style` skill; **Fable 5.1** for the final adversarial review | Drafting is long; the reviewer-style critique is short and is where Fable earns its price. |
+
+Not a rule for the models *under study*: those are the local ones on yoda.
+Claude builds and reviews; it never answers a benchmark question.
+
 ## What it changes in Funes
 
 Little, and only where a result asks for it. Most of the plan *uses* Funes
