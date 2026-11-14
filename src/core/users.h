@@ -148,6 +148,9 @@ public:
     bool map_jid(const std::string& chat_jid, int64_t user_id);
     std::optional<User> resolve_jid(const std::string& chat_jid);
     bool unmap_jid(const std::string& chat_jid);
+    // The other direction, for notify_user: where to reach this account. The
+    // jid mapped last when there are several; "" when none.
+    std::string jid_for_user(int64_t user_id);
 
     // ── local identity (7.8, src/server/local_socket.h) ───────────────────────
     // A connection to funes.sock comes with the peer's uid, vouched for by the

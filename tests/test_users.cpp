@@ -191,6 +191,29 @@ int test_jid_mapping() {
     return 0;
 }
 
+// notify_user (7.17) sends to the jid mapped to the run's account — the only
+// direction of the mapping nothing used before. Nobody mapped means "", never
+// another account's number; with two, the one mapped last.
+int test_jid_for_user() {
+    UserStore users(temp_db("jid_for"));
+    int64_t ana = users.create_user("ana", "pw", "Ana", "admin");
+    int64_t bob = users.create_user("bob", "pw", "Bob", "member");
+    CHECK(users.jid_for_user(ana).empty());
+
+    CHECK(users.map_jid("111@lid", ana));
+    CHECK(users.map_jid("222@lid", bob));
+    CHECK(users.jid_for_user(ana) == "111@lid");
+    CHECK(users.jid_for_user(bob) == "222@lid");
+
+    CHECK(users.map_jid("333@s.whatsapp.net", ana));
+    CHECK(users.jid_for_user(ana) == "333@s.whatsapp.net");
+
+    CHECK(users.unmap_jid("222@lid"));
+    CHECK(users.jid_for_user(bob).empty());
+    CHECK(users.jid_for_user(9999).empty());
+    return 0;
+}
+
 int test_list_users() {
     UserStore users(temp_db("list"));
     users.create_user("a", "pw", "A", "admin");
@@ -273,6 +296,7 @@ int main() {
     rc |= test_expired_token_does_not_resolve();
     rc |= test_delete_user_revokes_tokens();
     rc |= test_jid_mapping();
+    rc |= test_jid_for_user();
     rc |= test_list_users();
     rc |= test_reopen_persists();
     if (rc == 0) std::cout << "test_users: all passed\n";

@@ -38,6 +38,7 @@ through `src/core/extension.h`'s queue. `docs/julio-README.md` documents them.
 
 | Tool | File | What it does |
 |---|---|---|
+| `notify_user` | `notify_tool.cpp` | A WhatsApp message to the run's own account, from Funes's number (`WHATSAPP_BRIDGE_URL`), to the jid `funes jid-map` gave it. No recipient argument. External. What a scheduled reminder uses (7.17). |
 | `schedule_job` | `cron_tool.cpp` | Creates a recurring cron job: an agent task, a library script (`kind="script"` — no shell access needed, grant re-checked at fire time), or a shell command. |
 | `list_jobs` | `cron_tool.cpp` | Lists all scheduled jobs with status and last run. |
 | `cancel_job` | `cron_tool.cpp` | Deletes a scheduled job. |

@@ -41,6 +41,10 @@ system_prompt: |
     judgment or generation. The available agents are listed below this prompt.
     Prefer this over `shell` whenever the task needs an agent's tools (e.g.
     sending a WhatsApp message, reading email, doing web research).
+    A reminder or alert for the person who asked is an `agent` job for
+    `funes`, task "Send me this reminder with notify_user: <exact text>" —
+    it arrives from Funes's number. whatsapp-assistant sends from the
+    person's own number, so it is only for messages to someone else.
   - `shell` runs a command directly with no LLM involved, same as
     `execute_shell` but unattended — also needs FUNES_ALLOW_SHELL=1. Use this
     only for deterministic scripts, not to replicate what an agent already does.

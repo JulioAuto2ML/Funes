@@ -417,6 +417,15 @@ bool UserStore::unmap_jid(const std::string& chat_jid) {
     return sqlite3_changes(db_) > 0;
 }
 
+std::string UserStore::jid_for_user(int64_t user_id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    // rowid, not the jid: INSERT OR REPLACE gives a remapped number a new one.
+    Stmt s(db_, "SELECT chat_jid FROM jid_users WHERE user_id = ? ORDER BY rowid DESC LIMIT 1");
+    s.bind_int64(1, user_id);
+    if (!s.step()) return "";
+    return s.col_text(0);
+}
+
 // ── local identity ────────────────────────────────────────────────────────────
 
 bool UserStore::map_uid(int64_t uid, int64_t user_id) {

@@ -16,6 +16,7 @@
 #include "permissions.h"
 #include "tools.h"
 #include "tools/cron_tool.h"
+#include "tools/notify_tool.h"
 #include "tools/http_tool_runtime.h"
 #include "extension.h"
 #include "tools/process_runner.h"
@@ -468,6 +469,17 @@ int main(int argc, char** argv) {
     register_file_tools(tools, workspace_dir);
     register_shell_tool(tools, workspace_dir);
     register_script_tools(tools, workspace_dir, scripts_dir);
+    // notify_user: Funes's own WhatsApp number (whatsapp-bridge-funes), to the
+    // jid mapped to the run's account. The same WHATSAPP_BRIDGE_URL the
+    // autoresponder replies through — never the personal-number bridge.
+    {
+        const std::string bridge = funes::env("WHATSAPP_BRIDGE_URL");
+        register_notify_tool(tools, {
+            [&users](int64_t uid) { return users.jid_for_user(uid); },
+            [bridge](const std::string& jid, const std::string& text) {
+                return send_via_whatsapp_bridge(bridge, jid, text);
+            }});
+    }
     funes::tools::register_all_generated_tools(tools);
     register_tool_builder(tools, generated_tools_dir);
     // Self-registering tool packs (src/julio; see src/core/extension.h).

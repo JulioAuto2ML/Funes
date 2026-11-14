@@ -31,6 +31,7 @@ Effect builtin_effect(const std::string& tool) {
         {"create_agent",     Effect::Host},
         {"create_tool",      Effect::Host},
         {"publish_issue",    Effect::External},   // the newsletter, to its subscribers
+        {"notify_user",      Effect::External},   // a WhatsApp message, to the caller only
         // A job runs unattended and ungated later; scheduling one is the
         // approval, so a tainted run must not be able to give it.
         {"schedule_job",     Effect::External},
