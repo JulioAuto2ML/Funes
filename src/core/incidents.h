@@ -55,6 +55,8 @@ struct Incident {
     int64_t     occurrences = 0;   // failing runs while open
     bool        noticed_open = false;
     bool        noticed_resolved = false;
+    // What the healer did or proposes (heal.h), added to the opening notice.
+    std::string action;
 };
 
 enum class Transition { None, Opened, Resolved };
@@ -85,6 +87,8 @@ public:
     // Newest first, open or not, opened at or after `since`.
     std::vector<Incident> recent(int64_t since, int limit = 50);
     std::optional<Incident> get(int64_t id);
+    std::optional<Incident> open_for(const std::string& key);
+    void set_action(int64_t id, const std::string& action);
 
     // Incidents with something nobody has been told yet, oldest first.
     std::vector<Incident> pending_notices();

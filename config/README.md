@@ -20,6 +20,7 @@ was dropped in 5.2). Old `funes.local` copies go in `config/backups/`
 |---|---|---|
 | `funes.conf` | Yes | Documented defaults for every setting. Read this to understand what is configurable. |
 | `funes.local` | No (.gitignored) | API keys, passwords, machine-specific overrides. Never committed. |
+| `heal.yaml` | Yes | What Funes does when a health check fails (self-healing H2): explain, propose («aprobar N») or act, per incident key. Re-read when it changes. |
 
 ## Key settings
 

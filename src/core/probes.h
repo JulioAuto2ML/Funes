@@ -58,6 +58,9 @@ struct Options {
     // Runs one; "" and `out` set on success, else why it could not run.
     std::function<std::string(const std::string& name, nlohmann::json& out)> run_script;
     std::vector<BuiltinProbe> builtins;
+    // Called once when an incident opens (heal.h); what it returns is kept
+    // on the incident and added to its notice.
+    std::function<std::string(const Incident&)> on_open;
     // Sends one notice; false when it could not (it stays pending).
     std::function<bool(const Incident&)> notify;
     // "23-8": no notices from 23:00 to 07:59 local time, except critical

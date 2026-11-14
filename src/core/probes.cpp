@@ -85,8 +85,9 @@ std::string notice_text(const Incident& i, const std::string& locale) {
     if (evidence.size() > 300) evidence = evidence.substr(0, 300) + "…";
     std::string t;
     if (i.resolved_at > 0 && !i.noticed_open) {
-        t = (es ? "⚠️→✅ Hubo un problema y ya se resolvió solo: " : "⚠️→✅ Something broke and recovered: ") +
+        t = (es ? "⚠️→✅ Hubo un problema y ya se resolvió: " : "⚠️→✅ Something broke and recovered: ") +
             i.summary + " (" + i.key + ", " + clock(i.opened_at) + "–" + clock(i.resolved_at) + ")";
+        if (!i.action.empty()) t += i.action;
     } else if (i.resolved_at > 0) {
         t = (es ? "✅ Resuelto: " : "✅ Resolved: ") + i.summary + " (" + i.key + ", " +
             (es ? "duró " : "lasted ") + duration(i.resolved_at - i.opened_at, es) + ")";
@@ -95,6 +96,7 @@ std::string notice_text(const Incident& i, const std::string& locale) {
             std::string(es ? "Funes detectó un problema: " : "Funes found a problem: ") +
             i.summary + "\n(" + i.key + (es ? ", desde las " : ", since ") + clock(i.opened_at) + ")";
         if (!evidence.empty()) t += "\n\n" + evidence;
+        if (!i.action.empty()) t += i.action;
     }
     return t;
 }
@@ -111,6 +113,14 @@ void Runner::record(const std::string& probe, const std::vector<CheckResult>& ch
         if (t == incidents::Transition::Opened) {
             ++r.opened;
             std::cerr << "[probe] OPEN " << c.key << ": " << c.summary << "\n";
+            if (opt_.on_open) {
+                if (const auto inc = store_.open_for(c.key)) {
+                    std::string action;
+                    try { action = opt_.on_open(*inc); }
+                    catch (const std::exception& e) { std::cerr << "[heal] " << c.key << ": " << e.what() << "\n"; }
+                    if (!action.empty()) store_.set_action(inc->id, action);
+                }
+            }
         } else if (t == incidents::Transition::Resolved) {
             ++r.resolved;
             std::cerr << "[probe] resolved " << c.key << "\n";

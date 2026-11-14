@@ -1,6 +1,6 @@
 # Funes heals itself — plan
 
-Status: **H0 built** (7.18.0, 2026-11-14): probes, incidents, WhatsApp notices, `require_tools` on cron jobs. **H1 built** (7.19.0, same day): the guardian — see "H1 — what was built" at the end. H2–H5 are plans.
+Status: **H0 built** (7.18.0, 2026-11-14): probes, incidents, WhatsApp notices, `require_tools` on cron jobs. **H1 built** (7.19.0, same day): the guardian — see "H1 — what was built" at the end. **H2 built** (7.20.0, same day) — see "H2 — what was built". H3–H5 are plans.
 
 ## The question
 
@@ -261,3 +261,32 @@ Not yet: database snapshots (nothing that changes data runs through it until
 runbooks, H2); the guardian does not restart anything but what a change names.
 Tests: `scripts/tests/test_funes_guardian.py` (in `ctest -R julio_autoresponder`,
 which runs `scripts/tests/`), `tests/test_guardian.cpp` (`ctest -R guardian`).
+
+## H2 — what was built (7.20.0)
+
+`config/heal.yaml` (admin-edited, re-read when it changes) and
+`src/core/heal.h`. When an incident opens, the first rule whose `when` matches
+its key decides, and what it did rides on the opening notice:
+
+| Level | What happens | Shipped rules |
+|---|---|---|
+| observe | the notice only | anything without a rule |
+| explain | the notice says what to run and why Funes cannot | llama-server, embeddings, disk, internet, LinkedIn token and posts |
+| propose | the call is stored as a proposal; «aprobar N» runs it | restart the personal bridge; retry a failed job (`jobs:*`, `run_job_now` with `${match}`) |
+| act | the call runs at once, as an auto-approved proposal (same record) | restart Funes's own bridge — if it is down, no proposal could reach anyone |
+
+Differences from the plan, on purpose:
+
+- **Runbooks are tool calls agents already have**, not a new kind of script:
+  `sysadmin`'s `run_script restart_unit`, `operator`'s `run_job_now`. They run
+  with that agent's grants through `execute_proposal`, so the healer can do
+  nothing no agent was given, and every action is a proposal row.
+- **`undo:` is required for propose/act, and only `none` exists yet.** A rule
+  whose call would write (prune_backups) stays `explain` until the guardian
+  snapshot is wired into the healer.
+- **Limits in code:** `act` at most twice per incident key in 24 h, then it
+  proposes ("ya lo hice 2 veces y no se sostuvo"); at most `max_per_day` per
+  rule. A `*` rule never matches a probe's own `:(run)` incident.
+
+Tests: `tests/test_heal.cpp` (`ctest -R heal`, which also loads the shipped
+`config/heal.yaml`).

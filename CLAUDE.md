@@ -455,6 +455,10 @@ snapshotted before it happens, watched after, and put back by itself when Funes
 stops answering or an incident opens, or on "deshacer N" (web chat, `funes
 ask`, or WhatsApp — read by the guardian itself, so it works with Funes down).
 `create_agent` goes through it, and refuses to write without a snapshot.
+7.20 adds H2: `config/heal.yaml` (`src/core/heal.h`) maps an incident key to
+explain / propose / act; a runbook is a tool call an agent already has, run as
+an (auto-)approved proposal, and `act` holds back to proposing after two tries
+a day.
 
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (the

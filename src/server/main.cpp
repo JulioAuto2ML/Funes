@@ -28,6 +28,7 @@
 #include "host_collector.h"
 #include "host_events.h"
 #include "guardian.h"
+#include "heal.h"
 #include "incidents.h"
 #include "probes.h"
 #include "script_library.h"
@@ -911,6 +912,70 @@ int main(int argc, char** argv) {
                 return true;
             }
             return reached;
+        };
+        // H2 (heal.h): config/heal.yaml says what to do when an incident
+        // opens. A proposal or an action belongs to the first admin, runs with
+        // the rule's agent's grants, and is recorded like any approved call.
+        const std::string heal_path = funes::env("FUNES_HEAL_POLICY", resolve_dir("", "config") + "/heal.yaml");
+        auto first_admin = [&users]() -> std::optional<UserStore::User> {
+            for (const auto& u : users.list_users())
+                if (u.role == UserStore::ROLE_ADMIN) return u;
+            return std::nullopt;
+        };
+        funes::heal::Options ho;
+        ho.now = [] { return static_cast<int64_t>(std::time(nullptr)); };
+        ho.locale = first_admin() ? first_admin()->locale : "en";
+        auto make_proposal = [&proposals, first_admin](const funes::heal::Rule& r,
+                                                       const funes::incidents::Incident& i) -> int64_t {
+            const auto admin = first_admin();
+            if (!admin) return 0;
+            return proposals.create(admin->id, r.agent, r.tool, r.args, "heal-" + std::to_string(i.id),
+                                    "incident #" + std::to_string(i.id) + " (" + i.key + ")",
+                                    funes::effect_name(funes::builtin_effect(r.tool)));
+        };
+        ho.propose = make_proposal;
+        ho.act = [&proposals, &api, &tools, &memory, &defaults, first_admin, make_proposal](
+                     const funes::heal::Rule& r, const funes::incidents::Incident& i) -> std::pair<bool, std::string> {
+            const auto admin = first_admin();
+            const int64_t id = make_proposal(r, i);
+            if (!admin || !id) return {false, "no admin to act as"};
+            if (proposals.decide(admin->id, id, true) != funes::ProposalStore::Decision::Ok)
+                return {false, "proposal #" + std::to_string(id) + " could not be approved"};
+            const auto p = proposals.get(admin->id, id);
+            const AgentConfig cfg = api.find_agent(r.agent);
+            ToolResult res;
+            if (!p || cfg.name.empty()) res = {"the agent '" + r.agent + "' does not exist", true};
+            else {
+                try {
+                    FunesAgent agent(cfg, tools, memory, defaults);
+                    res = agent.execute_proposal(*p, funes::Permissions::parse(admin->permissions, true));
+                } catch (const std::exception& e) {
+                    res = {e.what(), true};
+                }
+            }
+            proposals.finish(admin->id, id, !res.error, res.text);
+            return {!res.error, res.text};
+        };
+        auto load_policy = [heal_path]() {
+            funes::heal::Policy p;
+            std::ifstream f(heal_path);
+            if (!f) return p;
+            std::stringstream s;
+            s << f.rdbuf();
+            if (const std::string err = funes::heal::parse_policy(s.str(), p); !err.empty())
+                std::cerr << "[heal] " << heal_path << " ignored: " << err << "\n";
+            return p;
+        };
+        auto healer = std::make_shared<funes::heal::Healer>(load_policy(), std::move(ho));
+        auto policy_mtime = std::make_shared<fs::file_time_type>();
+        po.on_open = [healer, heal_path, policy_mtime, load_policy](const funes::incidents::Incident& i) {
+            std::error_code ec;
+            const auto mtime = fs::last_write_time(heal_path, ec);
+            if (!ec && mtime != *policy_mtime) {
+                *policy_mtime = mtime;
+                healer->set_policy(load_policy());
+            }
+            return healer->on_open(i);
         };
         po.quiet_hours = funes::env("FUNES_INCIDENT_QUIET_HOURS", "23-8");
         po.local_hour = [](int64_t now) {

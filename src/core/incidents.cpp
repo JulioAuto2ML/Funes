@@ -14,7 +14,7 @@ namespace {
 
 const char COLUMNS[] =
     "id, key, severity, summary, evidence, opened_at, last_seen_at, resolved_at, "
-    "occurrences, noticed_open, noticed_resolved";
+    "occurrences, noticed_open, noticed_resolved, action";
 
 Incident read_incident(Stmt& s) {
     Incident i;
@@ -29,6 +29,7 @@ Incident read_incident(Stmt& s) {
     i.occurrences      = s.col_int64(8);
     i.noticed_open     = s.col_int64(9) != 0;
     i.noticed_resolved = s.col_int64(10) != 0;
+    i.action           = s.col_text(11);
     return i;
 }
 
@@ -83,6 +84,8 @@ IncidentStore::IncidentStore(const std::string& db_path) {
             last_run_at  INTEGER NOT NULL DEFAULT 0
         );
     )sql");
+    // 7.20 (H2): what the healer did about it.
+    funes::sqlite::add_column_if_missing(db_, "incidents", "action", "TEXT NOT NULL DEFAULT ''");
 }
 
 IncidentStore::~IncidentStore() {
@@ -191,6 +194,24 @@ std::optional<Incident> IncidentStore::get(int64_t id) {
     auto rows = query(db_, "WHERE id = ?", id, true);
     if (rows.empty()) return std::nullopt;
     return rows[0];
+}
+
+std::optional<Incident> IncidentStore::open_for(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mu_);
+    std::string sql = std::string("SELECT ") + COLUMNS +
+                      " FROM incidents WHERE key = ? AND resolved_at = 0 ORDER BY id DESC LIMIT 1";
+    Stmt s(db_, sql.c_str());
+    s.bind_text(1, key);
+    if (!s.step()) return std::nullopt;
+    return read_incident(s);
+}
+
+void IncidentStore::set_action(int64_t id, const std::string& action) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "UPDATE incidents SET action = ? WHERE id = ?");
+    s.bind_text(1, action);
+    s.bind_int64(2, id);
+    s.step();
 }
 
 std::vector<Incident> IncidentStore::pending_notices() {

@@ -56,6 +56,10 @@ add_executable(test_incidents test_incidents.cpp)
 target_link_libraries(test_incidents PRIVATE funes_core)
 add_test(NAME incidents COMMAND test_incidents)
 
+add_executable(test_heal test_heal.cpp)
+target_link_libraries(test_heal PRIVATE funes_core)
+add_test(NAME heal COMMAND test_heal ${CMAKE_SOURCE_DIR}/config/heal.yaml)
+
 add_executable(test_guardian test_guardian.cpp)
 target_link_libraries(test_guardian PRIVATE funes_core)
 add_test(NAME guardian COMMAND test_guardian)
