@@ -30,6 +30,52 @@ raise effort before raising the model.
 Not a rule for the models *under study*: those are the local ones on yoda.
 Claude builds and reviews; it never answers a benchmark question.
 
+### When to switch — said out loud, not guessed
+
+Every step in "Order of work" names its Claude and effort. The session
+working on this project **says so before starting**, in one line, whenever
+what it's about to do doesn't match the model it's running on:
+
+> ⚠ Model: this is E4's C++ (Opus 5.5 · high); this session is Sonnet 5.5.
+> Switch, or go ahead?
+
+and waits for the answer — it doesn't switch on its own, and it doesn't
+quietly carry on. The triggers:
+
+- **A step boundary** in "Order of work" whose model or effort differs.
+- **Escalate** when a bug has survived two honest attempts, when a result
+  contradicts a hypothesis, or when the next decision changes the paper's
+  claims (a metric, an exclusion, a dataset).
+- **Step down** when an expensive session is doing mechanical work —
+  plotting, renaming, re-running a script, editing prose for typos.
+- **Effort first**: when the model is right but the work got harder or
+  easier, propose an effort change before a model change.
+
+### Switching without dragging the conversation along
+
+A switch is a **new session**, never the same conversation continued on
+another model: prompt caches are per model, so the new one would re-read
+the whole transcript at full price, and most of it is noise by then. What
+carries over lives in files:
+
+- **This plan** — what and why; changes only when a decision changes.
+- **`benchmarks/knowledge-offload/NOTEBOOK.md`** — the lab notebook. Each
+  session ends by appending a dated entry of ≤ 15 lines: step, what was done,
+  decisions made (and why), results by pointer (`results/<run>.json`, a plot
+  path — never pasted numbers beyond a headline), open problems, the exact
+  next action, and the Claude that action needs. The top of the file holds a
+  "Now" block (current step, blocker, next action) rewritten every session.
+- **`results/`** — the raw JSON; the notebook and the paper cite it, nobody
+  pastes it into a conversation.
+- **Decisions** that change the paper (an exclusion, a metric, a judge)
+  go in the notebook *and* as a dated line here, so the paper's methods
+  section can be written from the record, not from memory.
+
+A new session starts by reading the plan's relevant section, the notebook's
+"Now" block and its last three entries — a few thousand tokens, not a
+conversation. If that isn't enough to continue, the notebook entry was too
+thin, and that is the thing to fix.
+
 ## What it changes in Funes
 
 Little, and only where a result asks for it. Most of the plan *uses* Funes
@@ -410,17 +456,17 @@ what") and the most physics-like.
 
 ## Order of work
 
-| weeks | what | output |
-|---|---|---|
-| 1 | E0 harness, PopQA sample, one model | runner + first table |
-| 2–3 | E1 size sweep on yoda in model-swap windows | size-curve plot — the headline |
-| 3 | E1b: venv (ComfyUI's ROCm torch) + LMLM pairs on yoda's GPU, reproduce, then edits and Funes as backend | LMLM vs Standard table |
-| 4 | E2 conflicts, incl. supersede vs contradict in Funes | faithfulness vs size |
-| 5 | E3 + E4 | lookup/abstention table; store-shape table |
-| — | **checkpoint**: write up E1–E4 + E1b, tested against H1–H6 | preprint draft (arXiv) |
-| 6 | E7 steps 1–2: Funes skill suite, size sweep with the store | skill floor vs VRAM |
-| 7–9 | E5 (rented GPU) on the model below the floor = E7 step 3 | LoRA vs base, on Funes |
-| 9–10 | E6 if time | layer ablation plot |
+| weeks | what | output | Claude |
+|---|---|---|---|
+| 1 | E0 harness, PopQA sample, one model | runner + first table | Sonnet 5.5 · medium |
+| 2–3 | E1 size sweep on yoda in model-swap windows | size-curve plot — the headline | none (scripts); Opus 5.5 to read the result |
+| 3 | E1b: venv (ComfyUI's ROCm torch) + LMLM pairs on yoda's GPU, reproduce, then edits and Funes as backend | LMLM vs Standard table | Sonnet 5.5 · medium |
+| 4 | E2 conflicts, incl. supersede vs contradict in Funes | faithfulness vs size | Sonnet 5.5; Opus 5.5 for the supersede-vs-contradict design |
+| 5 | E3 + E4 | lookup/abstention table; store-shape table | Sonnet 5.5 (E3); Opus 5.5 · high (E4, C++) |
+| — | **checkpoint**: write up E1–E4 + E1b, tested against H1–H6 | preprint draft (arXiv) | Fable 5.1 · high to judge results vs hypotheses; Opus 5.5 to draft |
+| 6 | E7 steps 1–2: Funes skill suite, size sweep with the store | skill floor vs VRAM | Opus 5.5 · high |
+| 7–9 | E5 (rented GPU) on the model below the floor = E7 step 3 | LoRA vs base, on Funes | Sonnet 5.5 · medium |
+| 9–10 | E6 if time | layer ablation plot | Sonnet 5.5; Fable 5.1 to interpret |
 
 The checkpoint is deliberate: E1–E4 are a complete result by themselves
 (inference only, reproducible by anyone with a llama-server), and should go
