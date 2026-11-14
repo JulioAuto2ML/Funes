@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.17.0 LANGUAGES C CXX)
+project(Funes VERSION 7.18.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -140,8 +140,11 @@ add_library(funes_core STATIC
     src/core/host_events.cpp
     src/core/host_sources.cpp
     src/core/host_collector.cpp
+    src/core/incidents.cpp
+    src/core/probes.cpp
     src/core/local_peer.cpp
     src/core/tools/host_tools.cpp
+    src/core/tools/incident_tools.cpp
     src/core/extension.cpp
     src/core/version.cpp
 )

@@ -41,6 +41,11 @@ using FindPermissionsFn = std::function<funes::Permissions(int64_t user_id)>;
 // immediately. `memory`, `tools`, and `find_agent`'s captured state must
 // outlive the process — true for everything main() constructs before
 // calling this.
+// Adds the job's require_tools to the agent's own completion contract
+// (completion_contract.h) for this run: a job that ends without the calls it
+// exists for is FAILED, recorded as an error, and reported by the jobs probe.
+void apply_job_contract(AgentConfig& target, const MemoryStore::CronJob& job);
+
 void start_cron_runner(MemoryStore& memory, ToolRegistry& tools,
                        const AgentDefaults& defaults, const std::string& workspace_dir,
                        FindAgentFn find_agent, FindPermissionsFn find_permissions,

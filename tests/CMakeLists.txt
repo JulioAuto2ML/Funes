@@ -52,6 +52,14 @@ add_executable(test_file_tools test_file_tools.cpp)
 target_link_libraries(test_file_tools PRIVATE funes_core)
 add_test(NAME file_tools COMMAND test_file_tools)
 
+add_executable(test_incidents test_incidents.cpp)
+target_link_libraries(test_incidents PRIVATE funes_core)
+add_test(NAME incidents COMMAND test_incidents)
+
+add_executable(test_probes test_probes.cpp)
+target_link_libraries(test_probes PRIVATE funes_core)
+add_test(NAME probes COMMAND test_probes)
+
 add_executable(test_notify_tool test_notify_tool.cpp)
 target_link_libraries(test_notify_tool PRIVATE funes_core)
 add_test(NAME notify_tool COMMAND test_notify_tool)

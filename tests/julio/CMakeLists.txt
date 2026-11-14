@@ -43,6 +43,12 @@ if(Python3_FOUND)
     add_test(NAME scriptlib_sysadmin
              COMMAND ${Python3_EXECUTABLE} -m unittest scriptlib/tests/test_sysadmin.py
              WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # The self-healing probes (H0, src/core/probes.h): what each check says in
+    # the cases the incidents came from — an expired token, posts that did not
+    # go out, no internet.
+    add_test(NAME scriptlib_probes
+             COMMAND ${Python3_EXECUTABLE} -m unittest scriptlib/tests/test_probes.py
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 else()
     message(STATUS "python3 not found — skipping the publishing/ tests")
 endif()

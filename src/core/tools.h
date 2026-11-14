@@ -168,6 +168,9 @@ namespace funes::host { class EventStore; }
 // tools then say so.
 void register_host_tools(ToolRegistry& reg, funes::host::EventStore* store,
                          MemoryStore& memory, std::function<int64_t()> machine_uid);
+namespace funes::incidents { class IncidentStore; }
+// incidents (self-healing H0). store null when the probes are off.
+void register_incident_tools(ToolRegistry& reg, funes::incidents::IncidentStore* store);
 void register_result_tools(ToolRegistry& reg, MemoryStore& store); // read_result
 void register_context_tools(ToolRegistry& reg, MemoryStore& store,
                             const AgentDefaults& defaults);        // compress_context

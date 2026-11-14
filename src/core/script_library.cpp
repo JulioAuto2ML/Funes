@@ -347,6 +347,24 @@ std::string load_script(const std::string& library_path, const std::string& name
         spec.effects = *e;
     }
 
+    if (root["probe"]) {
+        const YAML::Node& p = root["probe"];
+        if (!p.IsMap() || !p["every"])
+            return "Script '" + id + "': probe must be a map with every: <seconds>.";
+        try {
+            spec.probe_every = p["every"].as<int>();
+            if (p["fail_after"]) spec.probe_fail_after = p["fail_after"].as<int>();
+        } catch (const YAML::Exception&) {
+            return "Script '" + id + "': probe.every and probe.fail_after must be whole numbers.";
+        }
+        if (spec.probe_every < 60 || spec.probe_fail_after < 1)
+            return "Script '" + id + "': probe.every is at least 60 seconds and "
+                   "probe.fail_after at least 1.";
+        if (spec.output_format != "json")
+            return "Script '" + id + "': a probe prints JSON checks, so it needs "
+                   "output: {format: json}.";
+    }
+
     if (root["env"] && root["env"].IsMap())
         for (const auto& kv : root["env"])
             spec.env.emplace_back(kv.first.as<std::string>(),

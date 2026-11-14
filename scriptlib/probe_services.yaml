@@ -1,0 +1,19 @@
+# Self-healing probe (H0, src/core/probes.h): run by the server every two
+# minutes, never by a model. The model server, the embedding server, both
+# WhatsApp bridges and free disk space; a URL that is not configured is skipped.
+description: Self-healing probe — are llama-server, the embedding server and both WhatsApp bridges answering, and is there disk space left?
+run: probe_services.py
+interpreter: python3
+effects: none
+admin_only: true
+timeout_seconds: 30
+output: {format: json}
+probe: {every: 120, fail_after: 2}
+env:
+  LLM_URL: ${FUNES_LLM_URL}
+  EMBED_URL: ${FUNES_EMBED_URL}
+  FUNES_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL}
+  PERSONAL_BRIDGE_URL: ${WHATSAPP_PERSONAL_BRIDGE_URL}
+  DATA_DIR: ${FUNES_ROOT}/data
+access:
+  connect: [8080, 8081, 8090, 8091]

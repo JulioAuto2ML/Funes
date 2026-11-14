@@ -21,6 +21,13 @@
 
 namespace funes::cron {
 
+void apply_job_contract(AgentConfig& target, const MemoryStore::CronJob& job) {
+    for (const auto& t : job.require_tools)
+        if (std::find(target.require_tools.begin(), target.require_tools.end(), t) ==
+            target.require_tools.end())
+            target.require_tools.push_back(t);
+}
+
 namespace {
 
 // Job outputs are read by a human via list_jobs, not fed back into an LLM
@@ -73,6 +80,7 @@ std::pair<bool, std::string> run_agent_job(const MemoryStore::CronJob& job,
     AgentConfig target = find_agent(job.agent);
     if (target.name.empty())
         return {false, "Unknown agent '" + job.agent + "'"};
+    apply_job_contract(target, job);
 
     try {
         FunesAgent sub(target, tools, memory, defaults);

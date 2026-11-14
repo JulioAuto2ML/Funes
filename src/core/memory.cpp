@@ -159,6 +159,8 @@ void MemoryStore::migrate() {
     // running the wrong thing.
     add_column_if_missing(db_, "cron_jobs", "script",      "TEXT NOT NULL DEFAULT ''");
     add_column_if_missing(db_, "cron_jobs", "script_args", "TEXT NOT NULL DEFAULT ''");
+    // Comma-separated tool names (they cannot contain one).
+    add_column_if_missing(db_, "cron_jobs", "require_tools", "TEXT NOT NULL DEFAULT ''");
 
     // The pre-4.0 unique constraint was UNIQUE(agent, text), which would make
     // one user storing a fact block every other user from storing it — and
@@ -1883,6 +1885,13 @@ MemoryStore::CronJob cron_job_from_row(Stmt& s) {
     job.user_id     = s.col_int64(12);
     job.script      = s.col_text(13);
     job.script_args = s.col_text(14);
+    const std::string req = s.col_text(15);
+    for (size_t a = 0; a < req.size();) {
+        size_t b = req.find(',', a);
+        if (b == std::string::npos) b = req.size();
+        if (b > a) job.require_tools.push_back(req.substr(a, b - a));
+        a = b + 1;
+    }
     return job;
 }
 
@@ -1892,7 +1901,7 @@ MemoryStore::CronJob cron_job_from_row(Stmt& s) {
 constexpr const char* kCronJobColumns =
     "id, name, kind, agent, task, command, schedule, running, "
     "next_run_at, last_run_at, last_status, last_output, user_id, "
-    "script, script_args";
+    "script, script_args, require_tools";
 
 } // namespace
 
@@ -1900,8 +1909,8 @@ int64_t MemoryStore::create_cron_job(const CronJob& job) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, R"sql(
         INSERT INTO cron_jobs(name, kind, agent, task, command, script, script_args,
-                              schedule, created_at, next_run_at, user_id)
-        VALUES (?,?,?,?,?,?,?,?,strftime('%s','now'),?,?)
+                              schedule, created_at, next_run_at, user_id, require_tools)
+        VALUES (?,?,?,?,?,?,?,?,strftime('%s','now'),?,?,?)
     )sql");
     s.bind_text(1, job.name);
     s.bind_text(2, job.kind);
@@ -1913,6 +1922,9 @@ int64_t MemoryStore::create_cron_job(const CronJob& job) {
     s.bind_text(8, job.schedule);
     s.bind_int64(9, job.next_run_at);
     s.bind_int64(10, job.user_id);
+    std::string req;
+    for (const auto& t : job.require_tools) req += (req.empty() ? "" : ",") + t;
+    s.bind_text(11, req);
     s.step();
     return sqlite3_last_insert_rowid(db_);
 }

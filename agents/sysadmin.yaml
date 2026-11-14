@@ -16,7 +16,7 @@ tool_choice: auto
 # (7.7), and after it has read the journal a restart waits for the person and
 # a deletion runs against an overlay first (7.11–7.12). The scripts are
 # admin_only, so a member's call is refused by the runtime, not the prompt.
-tools: [list_scripts, run_script, host_changes, machine_recall, read_result]
+tools: [list_scripts, run_script, host_changes, machine_recall, read_result, incidents]
 scripts: [system_health, disk_usage, unit_status, journal, restart_unit, prune_backups]
 max_steps: 10
 context_limit: 8192

@@ -537,6 +537,10 @@ public:
         int64_t     last_run_at = 0;  // 0 = never run
         std::string last_status;      // "ok" | "error", empty if never run
         std::string last_output;      // bounded preview of the last run
+        // kind=agent: tools the run must have called successfully, on top of
+        // the agent's own require_tools (cron_runner.h, apply_job_contract).
+        // A reminder that answered without sending anything is a failed run.
+        std::vector<std::string> require_tools;
     };
 
     // Returns the new job's id.

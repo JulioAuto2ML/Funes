@@ -18,9 +18,10 @@ namespace {
 // process's own rights; create_agent and create_tool write into the install
 // itself, which outlives the conversation that asked for them. host_changes and
 // machine_recall read the machine's memory (7.7) — what runs, what was
-// installed, when it broke: an admin's view of the box.
+// installed, when it broke: an admin's view of the box. incidents (7.18) is
+// the same view, from the self-healing probes.
 const char* const PRIVILEGED[] = {"execute_shell", "create_agent", "create_tool",
-                                  "host_changes", "machine_recall"};
+                                  "host_changes", "machine_recall", "incidents"};
 
 } // namespace
 

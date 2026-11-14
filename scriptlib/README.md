@@ -352,6 +352,28 @@ Tests: `scriptlib/tests/test_sysadmin.py` (`ctest -R scriptlib_sysadmin`).
 | `restart_unit` | external | Restart a WhatsApp bridge, the autoresponder or the monitor dashboard (a `choices:` list; never `funes`). After the journal was read, it waits for "aprobar N". |
 | `prune_backups` | host | Delete `data/backups` entries older than N days (≥ 7), always keeping the newest K; `dry_run` lists them. After outside content it is staged: the deletions are shown and applied on approval. |
 
+## The self-healing probes (7.18)
+
+Run by the server, never by a model (`src/core/probes.h`): a manifest with a
+`probe:` block —
+
+```yaml
+output: {format: json}
+probe: {every: 300, fail_after: 2}   # seconds; failures in a row before an incident
+```
+
+— is run on that timer in the sandbox its `access:` describes, and prints
+`{"checks": [{"name", "ok", "summary", "severity"?, "evidence"?}]}`. Each check
+is its own incident (`<script>:<name>`); a probe that cannot run is one too
+(`<script>:(run)`). Tests: `scriptlib/tests/test_probes.py`
+(`ctest -R scriptlib_probes`).
+
+| Probe | Every | Checks |
+|---|---|---|
+| `probe_services` | 2 min | `llm` (critical), `embeddings`, `bridge-funes`, `bridge-personal`, `disk` (< 10% free) |
+| `probe_internet` | 5 min | `internet`: 443 on github/linkedin/google; the evidence names the default route's interface |
+| `probe_newsletter` | 10 min | `linkedin_token` (≤ 2 days left; expired is critical), `linkedin_posts` (slots due today per `scripts/yoda.crontab` missing from `posted/`) |
+
 ### Setup (once per machine)
 
 ```bash

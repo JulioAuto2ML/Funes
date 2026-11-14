@@ -436,6 +436,16 @@ to the changes before it. Admins read it with `host_changes` (no model) and
 `machine_recall`; `funes machine-probe` shows what the sources see. Log text is
 hostile: quoted, capped, tainted.
 
+7.18 starts the self-healing plan (`docs/self-healing-plan.md`, phase H0 only:
+noticing, no repairs). `src/core/probes.h` runs library scripts with a
+`probe:` block (`scriptlib/probe_*`, in their own sandbox, never by a model)
+and a built-in `jobs` probe; `src/core/incidents.h` keeps one open incident
+per failing check and a pending notice for it, sent to every admin with a
+mapped jid from Funes's own number (`notify_user`'s bridge), held through
+`FUNES_INCIDENT_QUIET_HOURS` unless critical. A cron job's `require_tools`
+joins the run's completion contract, so a reminder that sent nothing is a
+failed run — and an incident — rather than "ok".
+
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (the
 WhatsApp autoresponder uses it to share `funes`'s memory). That is orthogonal to

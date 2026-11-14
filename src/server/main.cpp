@@ -27,6 +27,9 @@
 #include "fact_extraction.h"
 #include "host_collector.h"
 #include "host_events.h"
+#include "incidents.h"
+#include "probes.h"
+#include "script_library.h"
 #include "sandbox.h"
 #include "staging.h"
 #include "sd_notify.h"
@@ -446,6 +449,11 @@ int main(int argc, char** argv) {
     std::unique_ptr<funes::host::EventStore> host_events;
     if (funes::env("FUNES_MACHINE_MEMORY", "on") != "off")
         host_events = std::make_unique<funes::host::EventStore>(db_path);
+    // Self-healing H0 (probes.h, incidents.h): health checks on a timer,
+    // incidents, a WhatsApp notice to the admins. FUNES_PROBES=off skips it.
+    std::unique_ptr<funes::incidents::IncidentStore> incidents;
+    if (funes::env("FUNES_PROBES", "on") != "off")
+        incidents = std::make_unique<funes::incidents::IncidentStore>(db_path);
     std::atomic<int64_t> machine_uid{0};
     auto machine_account = [&users, &machine_uid]() -> int64_t {
         if (const int64_t id = machine_uid.load()) return id;
@@ -462,6 +470,7 @@ int main(int argc, char** argv) {
     register_web_tools(tools);
     register_memory_tools(tools, memory);
     register_host_tools(tools, host_events.get(), memory, machine_account);
+    register_incident_tools(tools, incidents.get());
     register_result_tools(tools, memory);
     register_context_tools(tools, memory, defaults);
     register_classify_decision_tool(tools, defaults);
@@ -823,6 +832,100 @@ int main(int argc, char** argv) {
         }).detach();
     }
 
+    // ── Self-healing probes (H0) ──────────────────────────────────────────────
+    // Script probes are library scripts with a `probe:` block, run in the
+    // sandbox run_script would give them (their `access:`), from a working
+    // directory of their own; the built-in one reads the cron jobs. Notices go
+    // to every admin with a mapped WhatsApp number, from Funes's own number,
+    // in that admin's language.
+    if (incidents) {
+        funes::probes::Options po;
+        po.list_scripts = [scripts_dir]() {
+            std::vector<funes::probes::ScriptProbe> out;
+            for (const auto& name : funes::list_script_names(scripts_dir)) {
+                funes::ScriptSpec spec;
+                if (funes::load_script(scripts_dir, name, spec).empty() && spec.probe_every > 0)
+                    out.push_back({name, spec.probe_every, spec.probe_fail_after});
+            }
+            return out;
+        };
+        const fs::path probe_dir = fs::path(workspace_dir) / "_probes";
+        po.run_script = [scripts_dir, probe_dir](const std::string& name, json& out) -> std::string {
+            funes::ScriptSpec spec;
+            if (std::string err = funes::load_script(scripts_dir, name, spec); !err.empty()) return err;
+            std::vector<std::string> argv;
+            if (std::string err = funes::build_argv(spec, json::object(), argv); !err.empty()) return err;
+            std::error_code ec;
+            fs::create_directories(probe_dir, ec);
+            const auto r = funes::proc::run_argv(argv, probe_dir.string(), spec.timeout_seconds,
+                                                 1u << 20, spec.env, true, spec.limits,
+                                                 funes::script_policy(spec, probe_dir));
+            if (r.timed_out) return "timed out after " + std::to_string(spec.timeout_seconds) + "s";
+            if (r.exit_code != 0)
+                return "exit " + std::to_string(r.exit_code) + ": " + r.stderr_output.substr(0, 400);
+            return funes::validate_output(spec, r.output, out);
+        };
+        po.builtins.push_back({"jobs", 120, 1, [&memory]() {
+            std::vector<funes::incidents::CheckResult> checks;
+            for (const auto& j : memory.list_cron_jobs(-1)) {
+                if (j.last_run_at == 0 || j.running) continue;
+                const bool ok = j.last_status == "ok";
+                checks.push_back({"jobs:" + std::to_string(j.id), ok, "warning",
+                                  "Scheduled job #" + std::to_string(j.id) + " '" + j.name + "' " +
+                                      (ok ? "ran fine" : "failed its last run"),
+                                  ok ? "" : j.last_output});
+            }
+            return checks;
+        }});
+        po.notify = [&users](const funes::incidents::Incident& i) {
+            const std::string bridge = funes::env("WHATSAPP_BRIDGE_URL");
+            bool reached = false, anyone = false;
+            for (const auto& u : users.list_users()) {
+                if (u.role != UserStore::ROLE_ADMIN) continue;
+                const std::string jid = users.jid_for_user(u.id);
+                if (jid.empty()) continue;
+                anyone = true;
+                const std::string err = send_via_whatsapp_bridge(
+                    bridge, jid, funes::probes::notice_text(i, u.locale));
+                if (err.empty()) reached = true;
+                else std::cerr << "[probe] notice to " << u.username << " failed: " << err << "\n";
+            }
+            if (!anyone) {
+                // Nobody to tell is not a reason to keep it pending for ever:
+                // the incident stays in the table and the `incidents` tool.
+                std::cerr << "[probe] no admin has a WhatsApp number mapped (funes jid-map); "
+                             "incident #" << i.id << " not sent\n";
+                return true;
+            }
+            return reached;
+        };
+        po.quiet_hours = funes::env("FUNES_INCIDENT_QUIET_HOURS", "23-8");
+        po.local_hour = [](int64_t now) {
+            std::time_t t = static_cast<std::time_t>(now);
+            std::tm tm{};
+            localtime_r(&t, &tm);
+            return tm.tm_hour;
+        };
+        auto runner = std::make_shared<funes::probes::Runner>(*incidents, std::move(po));
+        const int delay = std::max(0, funes::env_int("FUNES_PROBES_DELAY", 90));
+        std::thread([runner, delay] {
+            // After a boot the model may still be loading: give it a moment
+            // before the first round, so the first notice is not a false one.
+            std::this_thread::sleep_for(std::chrono::seconds(delay));
+            for (;;) {
+                try {
+                    const auto r = runner->tick(static_cast<int64_t>(std::time(nullptr)));
+                    if (r.opened || r.resolved || r.noticed)
+                        std::cerr << "[probe] " << r.ran << " ran, " << r.opened << " opened, "
+                                  << r.resolved << " resolved, " << r.noticed << " notice(s) sent\n";
+                } catch (const std::exception& e) {
+                    std::cerr << "[probe] tick failed: " << e.what() << "\n";
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(60));
+            }
+        }).detach();
+    }
+
     // ── HTTP server ───────────────────────────────────────────────────────────
     httplib::Server srv;
     srv.set_read_timeout(60);
@@ -870,6 +973,10 @@ int main(int argc, char** argv) {
                                      : machine_account() > 0
                                          ? "memory on (account #" + std::to_string(machine_account()) + ")"
                                          : std::string("events on; memory starts once a person has an account"))
+              << "\n"
+              << "  Probes:    " << (incidents ? "on (incidents to admins on WhatsApp, quiet " +
+                                                     funes::env("FUNES_INCIDENT_QUIET_HOURS", "23-8") + ")"
+                                                : std::string("off"))
               << "\n"
               << "\n" << std::flush;
 

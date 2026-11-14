@@ -1,0 +1,23 @@
+# Self-healing probe (H0, src/core/probes.h): run by the server every ten
+# minutes. Reads only what it checks: .env (for LI_TOKEN_EXPIRY alone), the run
+# records, the issues, the posted records, the post log and the crontab.
+description: Self-healing probe — is the LinkedIn token still valid, and did today's LinkedIn posts go out?
+run: probe_newsletter.py
+interpreter: python3
+effects: none
+admin_only: true
+timeout_seconds: 30
+output: {format: json}
+probe: {every: 600, fail_after: 1}
+env:
+  NEWSLETTER_DIR: ${FUNES_ROOT}/data/newsletter
+  CRONTAB_FILE: ${FUNES_ROOT}/scripts/yoda.crontab
+access:
+  read:
+    - ${FUNES_ROOT}/data/newsletter/.env
+    - ${FUNES_ROOT}/data/newsletter/runs
+    - ${FUNES_ROOT}/data/newsletter/issues
+    - ${FUNES_ROOT}/data/newsletter/posted
+    - ${FUNES_ROOT}/data/newsletter/post_log.txt
+    - ${FUNES_ROOT}/scripts/yoda.crontab
+  connect: []

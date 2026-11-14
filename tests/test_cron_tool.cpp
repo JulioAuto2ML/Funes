@@ -33,6 +33,7 @@ namespace {
 AgentConfig find_agent(const std::string& name) {
     AgentConfig cfg;
     if (name == "researcher") { cfg.name = "researcher"; cfg.system_prompt = "You research."; }
+    if (name == "funes") { cfg.name = "funes"; cfg.tools = {"recall", "notify_user"}; }
     return cfg;  // empty name for anything else — "not found"
 }
 
@@ -414,6 +415,47 @@ int test_reschedule_moves_next_run() {
     return 0;
 }
 
+// A job may say what "done" means (7.18, self-healing H0): a reminder that
+// ran "ok" without calling notify_user reached nobody — the 23/12 appointment
+// job would have. require_tools becomes the run's completion contract, so
+// that run ends FAILED and the jobs probe reports it.
+int test_jobs_declare_required_tools() {
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_require.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+    AgentDefaults defaults;
+    ToolRegistry reg;
+    register_cron_tool(reg, memory, defaults, (fs::temp_directory_path() / "funes_test_cron_ws5").string(),
+                       find_agent);
+    ToolContext ctx{"operator", "s1"};
+
+    auto bad = reg.call("schedule_job",
+        {{"name", "r"}, {"schedule", "0 20 * * *"}, {"kind", "agent"}, {"agent", "funes"},
+         {"task", "remind me"}, {"require_tools", json::array({"execute_shell"})}}, ctx);
+    CHECK(bad.error);
+    CHECK(bad.text.find("execute_shell") != std::string::npos);
+    CHECK(reg.call("schedule_job",
+        {{"name", "r"}, {"schedule", "0 20 * * *"}, {"kind", "agent"}, {"agent", "funes"},
+         {"task", "remind me"}, {"require_tools", "notify_user"}}, ctx).error);
+
+    auto ok = reg.call("schedule_job",
+        {{"name", "Relvar"}, {"schedule", "0 20 * * *"}, {"kind", "agent"}, {"agent", "funes"},
+         {"task", "remind me"}, {"require_tools", json::array({"notify_user"})}}, ctx);
+    CHECK(!ok.error);
+    auto jobs = memory.list_cron_jobs(ctx.user_id);
+    CHECK(jobs.size() == 1);
+    CHECK(jobs[0].require_tools == std::vector<std::string>{"notify_user"});
+    CHECK(reg.call("list_jobs", json::object(), ctx).text.find("requires notify_user") != std::string::npos);
+
+    AgentConfig target = find_agent("funes");
+    target.require_tools = {"recall"};
+    funes::cron::apply_job_contract(target, jobs[0]);
+    CHECK((target.require_tools == std::vector<std::string>{"recall", "notify_user"}));
+    funes::cron::apply_job_contract(target, jobs[0]);
+    CHECK(target.require_tools.size() == 2);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_stale_running_flags_cleared_at_startup();
@@ -423,6 +465,7 @@ int main() {
     rc |= test_script_jobs();
     rc |= test_shell_jobs_need_execute_shell_permission();
     rc |= test_reschedule_moves_next_run();
+    rc |= test_jobs_declare_required_tools();
     if (rc == 0) std::cout << "test_cron_tool: all tests passed\n";
     return rc;
 }

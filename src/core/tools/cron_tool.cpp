@@ -61,10 +61,29 @@ ToolResult schedule_job_handler(MemoryStore& memory,
         const std::string task  = args.value("task", "");
         if (agent.empty()) return {"kind='agent' requires 'agent'", true};
         if (task.empty())  return {"kind='agent' requires 'task'", true};
-        if (find_agent(agent).name.empty())
+        const AgentConfig target = find_agent(agent);
+        if (target.name.empty())
             return {"Unknown agent '" + agent + "'", true};
         job.agent = agent;
         job.task  = task;
+        // What "done" means for this job: tools the run must call. Checked
+        // against the agent now — a contract it can never meet would fail every
+        // firing, which is the problem this exists to report, not to cause.
+        if (args.contains("require_tools")) {
+            const json& req = args["require_tools"];
+            if (!req.is_array())
+                return {"'require_tools' must be an array of tool names, e.g. [\"notify_user\"]", true};
+            for (const auto& t : req) {
+                if (!t.is_string() || t.get<std::string>().empty())
+                    return {"'require_tools' must be an array of tool names", true};
+                const std::string name = t.get<std::string>();
+                if (!target.tools.empty() &&
+                    std::find(target.tools.begin(), target.tools.end(), name) == target.tools.end())
+                    return {"Agent '" + agent + "' does not have the tool '" + name +
+                            "', so a job requiring it could never succeed.", true};
+                job.require_tools.push_back(name);
+            }
+        }
     } else if (kind == "script") {
         const std::string script = args.value("script", "");
         if (script.empty()) return {"kind='script' requires 'script' (a name from list_scripts)", true};
@@ -120,6 +139,10 @@ ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext
         out << "#" << j.id << " '" << j.name << "' (" << j.kind << ") — schedule '"
             << j.schedule << "'";
         if (j.kind == "agent")  out << ", agent=" << j.agent;
+        if (!j.require_tools.empty()) {
+            out << ", requires";
+            for (const auto& t : j.require_tools) out << " " << t;
+        }
         if (j.kind == "script") out << ", script=" << j.script
                                     << (j.script_args == "{}" ? "" : " " + j.script_args);
         out << (j.running ? ", running now" : "") << "\n"
@@ -199,7 +222,11 @@ void register_cron_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefau
                 {"arguments",{{"type", "object"},
                              {"description", "kind='script': the script's declared parameters, same as run_script"}}},
                 {"command",  {{"type", "string"},
-                             {"description", "kind='shell': the command to run, each run"}}}
+                             {"description", "kind='shell': the command to run, each run"}}},
+                {"require_tools", {{"type", "array"}, {"items", {{"type", "string"}}},
+                             {"description", "kind='agent': tools the run must call for it to count "
+                                             "as done, e.g. [\"notify_user\"] for a reminder. A run "
+                                             "that answers without them is recorded as failed."}}}
             }},
             {"required", json::array({"name", "schedule", "kind"})}
         },

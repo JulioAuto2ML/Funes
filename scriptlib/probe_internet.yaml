@@ -1,0 +1,14 @@
+# Self-healing probe (H0, src/core/probes.h): run by the server every five
+# minutes. Two failures in a row before it is an incident — one dropped
+# connection is not an outage.
+description: Self-healing probe — can this machine reach the internet, and which interface does the default route use?
+run: probe_internet.py
+interpreter: python3
+effects: none
+admin_only: true
+timeout_seconds: 30
+output: {format: json}
+probe: {every: 300, fail_after: 2}
+access:
+  read: [/proc/net/route]
+  connect: [443]

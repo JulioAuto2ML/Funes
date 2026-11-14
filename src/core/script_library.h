@@ -116,6 +116,11 @@ struct ScriptSpec {
     // the services). A member runs it only with an explicit
     // "run_script:<name>": true in their permissions, like a privileged tool.
     bool admin_only = false;
+    // probe: {every: <seconds>, fail_after: <n>} — a self-healing probe
+    // (probes.h): run on a timer by the server, its JSON `checks` turned into
+    // incidents. 0 = not a probe. Needs `output: {format: json}`.
+    int probe_every = 0;
+    int probe_fail_after = 2;
 
     // A parameter list rendered for the model: "path (string, required) — …".
     std::string usage() const;
