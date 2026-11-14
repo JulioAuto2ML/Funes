@@ -1,11 +1,30 @@
 # Knowledge offloading — a research plan on Funes
 
-Status: **plan** (2026-11-14), for a future major version (8 or 9), not
-the current work. Nothing built. Source: a conversation julio had
+Status: **plan** (2026-11-14), a research track, not the current work and
+not a Funes version by itself. Nothing built. Source: a conversation julio had
 about moving a model's factual knowledge into a local database and leaving its
 parameters for skills (`docs/LLM memory.txt` on yoda). This turns that idea
 into questions Funes can actually answer, experiments that answer them on the
 hardware there is, and an order to run them in.
+
+## What it changes in Funes
+
+Little, and only where a result asks for it. Most of the plan *uses* Funes
+— its API with throwaway accounts, `MemoryStore`, the harness logs — and
+lives in `benchmarks/knowledge-offload/`, outside the runtime. Changing the
+model is config (`launch_llama.sh`, `FUNES_LLM_URL`), independent of all this.
+
+| piece | where | lands in Funes only if |
+|---|---|---|
+| E0–E3, E1b, E5, E6 | `benchmarks/`, Python, separate venv | never — research code |
+| E7's skill suite | `tests/` beside `memory_eval` / `heal_eval`, or `benchmarks/` | it's worth keeping as a regression check on model changes |
+| `require_tools: [recall]` for agents that answer factual questions | agent YAML | E3 shows forced lookup beats letting the model decide |
+| a typed fact table (subject, predicate, object, provenance) + exact-key lookup beside vector recall | `memory.cpp`, a tool | E4's adaptive store clearly beats today's recall |
+| a `lookup(entity, relation)` route so an LMLM-style model can use the store | `api.cpp` or a read-only adapter outside | E1b step 4 works and something will actually call it |
+| a smaller default model | config | E7 finds a floor ≤ 8 GB |
+
+So a version number belongs to whichever of the last four rows ships, if any,
+not to the plan.
 
 ## The question
 
