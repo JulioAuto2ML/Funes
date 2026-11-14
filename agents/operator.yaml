@@ -44,7 +44,11 @@ system_prompt: |
     A reminder or alert for the person who asked is an `agent` job for
     `funes`, task "Send me this reminder with notify_user: <exact text>",
     require_tools ["notify_user"] — it arrives from Funes's number, and a
-    run that did not send it is recorded as failed, not "ok". whatsapp-assistant sends from the
+    run that did not send it is recorded as failed, not "ok". A reminder for
+    a date ("el 23/12 a las 9") also takes once: true: a cron expression with
+    a day and month matches every year. And never restrict both the day of
+    the month and the weekday — cron ORs them ("0 10 21 11 6" is the 21st
+    *or* any Saturday). whatsapp-assistant sends from the
     person's own number, so it is only for messages to someone else.
   - `shell` runs a command directly with no LLM involved, same as
     `execute_shell` but unattended — also needs FUNES_ALLOW_SHELL=1. Use this

@@ -161,6 +161,8 @@ void MemoryStore::migrate() {
     add_column_if_missing(db_, "cron_jobs", "script_args", "TEXT NOT NULL DEFAULT ''");
     // Comma-separated tool names (they cannot contain one).
     add_column_if_missing(db_, "cron_jobs", "require_tools", "TEXT NOT NULL DEFAULT ''");
+    add_column_if_missing(db_, "cron_jobs", "once",    "INTEGER NOT NULL DEFAULT 0");
+    add_column_if_missing(db_, "cron_jobs", "done_at", "INTEGER NOT NULL DEFAULT 0");
 
     // The pre-4.0 unique constraint was UNIQUE(agent, text), which would make
     // one user storing a fact block every other user from storing it — and
@@ -1892,6 +1894,8 @@ MemoryStore::CronJob cron_job_from_row(Stmt& s) {
         if (b > a) job.require_tools.push_back(req.substr(a, b - a));
         a = b + 1;
     }
+    job.once    = s.col_int64(16) != 0;
+    job.done_at = s.col_int64(17);
     return job;
 }
 
@@ -1901,7 +1905,7 @@ MemoryStore::CronJob cron_job_from_row(Stmt& s) {
 constexpr const char* kCronJobColumns =
     "id, name, kind, agent, task, command, schedule, running, "
     "next_run_at, last_run_at, last_status, last_output, user_id, "
-    "script, script_args, require_tools";
+    "script, script_args, require_tools, once, done_at";
 
 } // namespace
 
@@ -1909,8 +1913,8 @@ int64_t MemoryStore::create_cron_job(const CronJob& job) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, R"sql(
         INSERT INTO cron_jobs(name, kind, agent, task, command, script, script_args,
-                              schedule, created_at, next_run_at, user_id, require_tools)
-        VALUES (?,?,?,?,?,?,?,?,strftime('%s','now'),?,?,?)
+                              schedule, created_at, next_run_at, user_id, require_tools, once)
+        VALUES (?,?,?,?,?,?,?,?,strftime('%s','now'),?,?,?,?)
     )sql");
     s.bind_text(1, job.name);
     s.bind_text(2, job.kind);
@@ -1925,6 +1929,7 @@ int64_t MemoryStore::create_cron_job(const CronJob& job) {
     std::string req;
     for (const auto& t : job.require_tools) req += (req.empty() ? "" : ",") + t;
     s.bind_text(11, req);
+    s.bind_int64(12, job.once ? 1 : 0);
     s.step();
     return sqlite3_last_insert_rowid(db_);
 }
@@ -1972,7 +1977,7 @@ bool MemoryStore::reschedule_cron_job(int64_t user_id, int64_t id,
 std::vector<MemoryStore::CronJob> MemoryStore::due_cron_jobs(int64_t now) {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, (std::string("SELECT ") + kCronJobColumns +
-                " FROM cron_jobs WHERE running = 0 "
+                " FROM cron_jobs WHERE running = 0 AND done_at = 0 "
                 "AND next_run_at <= ? ORDER BY next_run_at").c_str());
     s.bind_int64(1, now);
     std::vector<CronJob> out;
@@ -2015,7 +2020,8 @@ void MemoryStore::record_cron_job_run(int64_t id, bool ok, const std::string& ou
             last_run_at = strftime('%s','now'),
             last_status = ?,
             last_output = ?,
-            next_run_at = ?
+            next_run_at = ?,
+            done_at = CASE WHEN once = 1 THEN strftime('%s','now') ELSE done_at END
         WHERE id = ?
     )sql");
     s.bind_text(1, ok ? "ok" : "error");

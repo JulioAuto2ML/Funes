@@ -541,6 +541,12 @@ public:
         // the agent's own require_tools (cron_runner.h, apply_job_contract).
         // A reminder that answered without sending anything is a failed run.
         std::vector<std::string> require_tools;
+        // A single run (7.22): a reminder for a date is a cron expression that
+        // matches once a year, and "0 9 23 12 *" fired again every December.
+        // After its run, ok or not, done_at is set and it is never due again;
+        // the row stays, so the run is still on record.
+        bool        once = false;
+        int64_t     done_at = 0;
     };
 
     // Returns the new job's id.

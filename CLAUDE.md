@@ -337,6 +337,9 @@ Three things compose with the layers above rather than sitting beside them:
   switch. Before that it checked only the switch — a member denied the shell
   could schedule one anyway (`tests/test_cron_tool.cpp`,
   `test_shell_jobs_need_execute_shell_permission`).
+  A job may also be `once` (7.22): it runs at the schedule's next match and
+  is then `done_at` — never due again, still listed. A reminder for a date is
+  a cron expression that matches every year without it.
 
 A manifest's `admin_only: true` (7.13, `script_permitted`) makes a script
 privileged the way `execute_shell` is: a member runs it only with an explicit

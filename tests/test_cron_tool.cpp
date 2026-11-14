@@ -493,6 +493,48 @@ int test_cancel_job_needs_the_jobs_name() {
     return 0;
 }
 
+// A reminder for a date is a cron expression that matches once a year:
+// "0 9 23 12 *" fired again every 23 December. `once` makes it a single run —
+// after it (ok or not) the job is done: kept, listed, never due again.
+int test_one_shot_jobs_run_once() {
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_once.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+    AgentDefaults defaults;
+    ToolRegistry reg;
+    register_cron_tool(reg, memory, defaults, (fs::temp_directory_path() / "funes_test_cron_ws7").string(),
+                       find_agent);
+    ToolContext ctx{"operator", "s1"};
+    CHECK(reg.call("schedule_job", {{"name", "r"}, {"schedule", "0 10 21 11 *"}, {"kind", "agent"},
+                                    {"agent", "funes"}, {"task", "x"}, {"once", "yes"}}, ctx).error);
+    auto s = reg.call("schedule_job",
+        {{"name", "Recordatorio H4"}, {"schedule", "0 10 21 11 *"}, {"kind", "agent"},
+         {"agent", "funes"}, {"task", "remind me"}, {"once", true}}, ctx);
+    CHECK(!s.error);
+    CHECK(s.text.find("once") != std::string::npos);
+    auto jobs = memory.list_cron_jobs(ctx.user_id);
+    CHECK(jobs.size() == 1 && jobs[0].once && jobs[0].done_at == 0);
+    const int64_t id = jobs[0].id;
+    const int64_t when = jobs[0].next_run_at;
+    CHECK(memory.due_cron_jobs(when).size() == 1);
+
+    memory.record_cron_job_run(id, true, "sent", when + 365 * 86400);
+    jobs = memory.list_cron_jobs(ctx.user_id);
+    CHECK(jobs[0].done_at > 0);
+    CHECK(memory.due_cron_jobs(when + 400 * 86400).empty());
+    CHECK(reg.call("list_jobs", json::object(), ctx).text.find("once, done") != std::string::npos);
+
+    // A recurring job is untouched by all of this.
+    CHECK(!reg.call("schedule_job", {{"name", "daily"}, {"schedule", "0 9 * * *"}, {"kind", "agent"},
+                                     {"agent", "funes"}, {"task", "x"}}, ctx).error);
+    for (const auto& j : memory.list_cron_jobs(ctx.user_id))
+        if (j.name == "daily") {
+            memory.record_cron_job_run(j.id, true, "ok", j.next_run_at + 86400);
+            CHECK(memory.get_cron_job(ctx.user_id, j.id)->done_at == 0);
+        }
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_stale_running_flags_cleared_at_startup();
@@ -504,6 +546,7 @@ int main() {
     rc |= test_reschedule_moves_next_run();
     rc |= test_jobs_declare_required_tools();
     rc |= test_cancel_job_needs_the_jobs_name();
+    rc |= test_one_shot_jobs_run_once();
     if (rc == 0) std::cout << "test_cron_tool: all tests passed\n";
     return rc;
 }

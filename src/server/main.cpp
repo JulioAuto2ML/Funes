@@ -887,8 +887,12 @@ int main(int argc, char** argv) {
         // is broken, not one that had a bad minute.
         po.builtins.push_back({"jobs", 120, 2, [&memory]() {
             std::vector<funes::incidents::CheckResult> checks;
+            const int64_t now = static_cast<int64_t>(std::time(nullptr));
             for (const auto& j : memory.list_cron_jobs(-1)) {
                 if (j.last_run_at == 0 || j.running) continue;
+                // A one-shot job never runs again: its failure is news for a
+                // day, then it stops being reported (and its incident closes).
+                if (j.done_at && now - j.done_at > 86400) continue;
                 const bool ok = j.last_status == "ok";
                 checks.push_back({"jobs:" + std::to_string(j.id), ok, "warning",
                                   "Scheduled job #" + std::to_string(j.id) + " '" + j.name + "' " +

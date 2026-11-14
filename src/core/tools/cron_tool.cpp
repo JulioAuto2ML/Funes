@@ -125,11 +125,17 @@ ToolResult schedule_job_handler(MemoryStore& memory,
         job.command = command;
     }
 
+    if (args.contains("once")) {
+        if (!args["once"].is_boolean())
+            return {"'once' is true or false", true};
+        job.once = args["once"].get<bool>();
+    }
     job.next_run_at = static_cast<int64_t>(funes::cron::next_run_after(expr, time(nullptr)));
     int64_t id = memory.create_cron_job(job);
 
     return {"Scheduled job #" + std::to_string(id) + " '" + name + "' (" + kind +
-            "), schedule '" + schedule + "', next run " + format_epoch(job.next_run_at)};
+            "), schedule '" + schedule + "', " + (job.once ? "runs once, at " : "next run ") +
+            format_epoch(job.next_run_at)};
 }
 
 ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext& ctx) {
@@ -147,9 +153,10 @@ ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext
         }
         if (j.kind == "script") out << ", script=" << j.script
                                     << (j.script_args == "{}" ? "" : " " + j.script_args);
-        out << (j.running ? ", running now" : "") << "\n"
-            << "  next run: " << format_epoch(j.next_run_at) << "\n"
-            << "  last run: " << format_epoch(j.last_run_at);
+        if (j.once) out << (j.done_at ? ", once, done " + format_epoch(j.done_at) : ", once");
+        out << (j.running ? ", running now" : "") << "\n";
+        if (!j.done_at) out << "  next run: " << format_epoch(j.next_run_at) << "\n";
+        out << "  last run: " << format_epoch(j.last_run_at);
         if (!j.last_status.empty()) {
             out << " (" << j.last_status << ")";
             if (!j.last_output.empty()) out << " — " << j.last_output;
@@ -257,6 +264,10 @@ void register_cron_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefau
                              {"description", "kind='script': the script's declared parameters, same as run_script"}}},
                 {"command",  {{"type", "string"},
                              {"description", "kind='shell': the command to run, each run"}}},
+                {"once",     {{"type", "boolean"},
+                             {"description", "Run a single time, at the schedule's next match, then never "
+                                             "again — for a reminder on a date. Without it, '0 9 23 12 *' "
+                                             "repeats every 23 December."}}},
                 {"require_tools", {{"type", "array"}, {"items", {{"type", "string"}}},
                              {"description", "kind='agent': tools the run must call for it to count "
                                              "as done, e.g. [\"notify_user\"] for a reminder. A run "
