@@ -35,11 +35,12 @@ output:
 # directory; the pairing token, its upload state and the weather cache live in
 # data/tv, next to FUNES_TV_TOKEN_FILE. Move the token elsewhere and this has
 # to follow it.
-# connect: the TV's websocket API (learned with `funes script-learn`, 7.9;
-# wake-on-LAN is UDP, which Landlock does not restrict).
+# No `connect:` list: `show` sends the picture over a second socket to a port
+# the TV picks per upload (samsungtvws's D2D upload), and Landlock rules are
+# per port. The 8002-only list learned in 7.9.1 watched runs that never
+# uploaded, and every upload since failed with PermissionError (7.22.1).
 access:
   write: ["${FUNES_ROOT}/data/tv"]
-  connect: [8002]
 
 env:
   FUNES_TV_HOST: "${FUNES_TV_HOST}"

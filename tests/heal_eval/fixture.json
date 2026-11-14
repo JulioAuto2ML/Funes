@@ -66,6 +66,14 @@
    "expect": "explain"
   },
   {
+   "name": "TV upload refused by the sandbox (2026-11-14)",
+   "key": "jobs:5",
+   "summary": "Scheduled job #5 'arte y clima (publish)' failed its last run",
+   "evidence": "exit_code: 1\nstderr:\ntv_art: uploading arte_y_clima.jpg (1173546 bytes)\ntv_art: failed: PermissionError: [Errno 13] Permission denied",
+   "changes": "11-14 12:54  change  config  funes.conf edited",
+   "expect": "explain"
+  },
+  {
    "name": "bridge logged out",
    "key": "probe_services:bridge-personal",
    "summary": "The personal WhatsApp bridge at http://localhost:8090 does not answer",
