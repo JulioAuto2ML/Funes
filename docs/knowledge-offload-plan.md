@@ -22,9 +22,40 @@ model is config (`launch_llama.sh`, `FUNES_LLM_URL`), independent of all this.
 | a typed fact table (subject, predicate, object, provenance) + exact-key lookup beside vector recall | `memory.cpp`, a tool | E4's adaptive store clearly beats today's recall |
 | a `lookup(entity, relation)` route so an LMLM-style model can use the store | `api.cpp` or a read-only adapter outside | E1b step 4 works and something will actually call it |
 | a smaller default model | config | E7 finds a floor ≤ 8 GB |
+| a shared world-knowledge pool (below) | `memory.cpp`, `users.cpp`, import CLI | a smaller default model needs facts it no longer carries |
 
 So a version number belongs to whichever of the last four rows ships, if any,
 not to the plan.
+
+### Facts Funes doesn't have
+
+The stores the experiments need are **world** knowledge — PopQA's Wikidata
+triples, LMLM's 54.6M-triple DB — and `memory.db` holds a household's
+personal facts. Two different situations:
+
+- **During the experiments**: a separate scratch database (`FUNES_DB`
+  pointed elsewhere), never yoda's `data/memory.db`, not even under its own
+  account. Isolation would hold (per-account pools, partitioned vectors), but
+  the background passes wouldn't care: consolidation, link backfill and
+  extraction would spend the GPU on millions of rows, and the nightly backups
+  would grow with them.
+- **If E7 succeeds**, a smaller model needs world facts in production, and
+  that is a real design change, not an import:
+  - **Whose pool?** Not a person's. A shared, read-only knowledge pool —
+    like the `machine` account (7.7), a system owner nobody logs in as —
+    recalled for every account, never consolidated, pruned or superseded by
+    a conversation; replaced only by re-importing a versioned dataset.
+  - **Vectors don't scale to it.** sqlite-vec's vec0 is brute-force KNN, and
+    54.6M × 768-dim floats is ~170 GB. A world store is triples with exact
+    and FTS lookup (E4's typed table), with vectors kept for the personal
+    pool — or an external ANN index, which is a dependency Funes has avoided.
+  - **Provenance and taint.** An imported fact carries its dataset and
+    version. Is it own data or outside content to the effects gate? It's
+    admin-installed like `scriptlib/`, which argues for untainted — but it's
+    still third-party text read into a run. Decide before shipping, not after.
+  - **Personal over world.** When the person's pool and the world pool
+    disagree ("my doctor is X" vs a public record), the personal one wins, and
+    recall ranking has to say so (`source_weight`).
 
 ## The question
 
