@@ -36,6 +36,9 @@ Effect builtin_effect(const std::string& tool) {
         // approval, so a tainted run must not be able to give it.
         {"schedule_job",     Effect::External},
         {"run_job_now",      Effect::External},
+        // Deleting one is an act on the person's schedule too: on 2026-11-14 a
+        // run that had read email deleted the Spanish newsletter's job unasked.
+        {"cancel_job",       Effect::External},
     };
     auto it = kEffects.find(tool);
     return it == kEffects.end() ? Effect::None : it->second;

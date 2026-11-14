@@ -12,6 +12,7 @@
 #include "agent.h"
 #include "memory.h"
 #include "cron_runner.h"
+#include "effects.h"
 #include "permissions.h"
 #include "tools/cron_tool.h"
 #include <cstdlib>
@@ -126,10 +127,10 @@ int test_schedule_list_cancel_roundtrip() {
     CHECK(listed.text.find("daily-research") != std::string::npos);
     CHECK(listed.text.find("0 9 * * *") != std::string::npos);
 
-    auto cancel_wrong = reg.call("cancel_job", {{"id", id + 999}}, ctx);
+    auto cancel_wrong = reg.call("cancel_job", {{"id", id + 999}, {"name", "daily-research"}}, ctx);
     CHECK(cancel_wrong.error);
 
-    auto cancel_ok = reg.call("cancel_job", {{"id", id}}, ctx);
+    auto cancel_ok = reg.call("cancel_job", {{"id", id}, {"name", "  Daily-Research "}}, ctx);
     CHECK(!cancel_ok.error);
 
     auto listed_after = reg.call("list_jobs", json::object(), ctx);
@@ -456,6 +457,42 @@ int test_jobs_declare_required_tools() {
     return 0;
 }
 
+// 2026-11-14: asked to drop a reminder that was only ever proposal #3, the
+// operator called cancel_job(3) — and job #3 was the Spanish newsletter. The
+// id alone is a number a model can take from anywhere; the job's name has to
+// come along and match. The refusal does not say what #N is called, or the
+// model would just call again with it.
+int test_cancel_job_needs_the_jobs_name() {
+    fs::path db = fs::temp_directory_path() / "funes_test_cron_cancel_name.db";
+    fs::remove(db);
+    MemoryStore memory(db.string(), nullptr);
+    AgentDefaults defaults;
+    ToolRegistry reg;
+    register_cron_tool(reg, memory, defaults, (fs::temp_directory_path() / "funes_test_cron_ws6").string(),
+                       find_agent);
+    ToolContext ctx{"operator", "s1"};
+    auto s = reg.call("schedule_job",
+        {{"name", "Daily AI Newsletter (ES)"}, {"schedule", "30 10 * * 2,4,6"}, {"kind", "agent"},
+         {"agent", "researcher"}, {"task", "publish"}}, ctx);
+    CHECK(!s.error);
+    const int64_t id = memory.list_cron_jobs(ctx.user_id)[0].id;
+
+    auto no_name = reg.call("cancel_job", {{"id", id}}, ctx);
+    CHECK(no_name.error);
+    auto wrong = reg.call("cancel_job",
+        {{"id", id}, {"name", "Recordatorio cuota School of Rock diciembre 2026"}}, ctx);
+    CHECK(wrong.error);
+    CHECK(wrong.text.find("Newsletter") == std::string::npos);
+    CHECK(memory.list_cron_jobs(ctx.user_id).size() == 1);
+
+    CHECK(!reg.call("cancel_job", {{"id", id}, {"name", "daily ai newsletter (es)"}}, ctx).error);
+    CHECK(memory.list_cron_jobs(ctx.user_id).empty());
+
+    // Deleting a job is an act on the person's schedule, gated like creating one.
+    CHECK(funes::builtin_effect("cancel_job") == funes::Effect::External);
+    return 0;
+}
+
 int main() {
     int rc = 0;
     rc |= test_stale_running_flags_cleared_at_startup();
@@ -466,6 +503,7 @@ int main() {
     rc |= test_shell_jobs_need_execute_shell_permission();
     rc |= test_reschedule_moves_next_run();
     rc |= test_jobs_declare_required_tools();
+    rc |= test_cancel_job_needs_the_jobs_name();
     if (rc == 0) std::cout << "test_cron_tool: all tests passed\n";
     return rc;
 }

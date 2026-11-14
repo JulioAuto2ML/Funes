@@ -8,6 +8,8 @@
 #include "../cron_schedule.h"
 #include "../funes_config.h"
 #include <algorithm>
+#include <cctype>
+#include <iostream>
 #include <ctime>
 #include <sstream>
 
@@ -157,13 +159,45 @@ ToolResult list_jobs_handler(MemoryStore& memory, const json&, const ToolContext
     return {out.str()};
 }
 
+// Case-folded, blanks collapsed: "Daily-Research " is "daily-research".
+std::string job_name_key(const std::string& s) {
+    std::string out;
+    for (unsigned char c : s) {
+        if (std::isspace(c)) {
+            if (!out.empty() && out.back() != ' ') out += ' ';
+        } else {
+            out += static_cast<char>(std::tolower(c));
+        }
+    }
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    return out;
+}
+
+// The id and the job's name, both. On 2026-11-14 the operator was told to drop
+// a reminder that had only ever been proposal #3, called cancel_job(3), and
+// deleted job #3 — the Spanish newsletter. A number can come from anywhere in
+// a conversation (a proposal, an issue item, a list position); the name has to
+// be read from list_jobs. A mismatch does not say what the job is called, or
+// the model would simply call again with that name.
 ToolResult cancel_job_handler(MemoryStore& memory, const json& args, const ToolContext& ctx) {
     if (!args.contains("id") || !args["id"].is_number_integer())
         return {"Missing 'id' argument", true};
-    int64_t id = args["id"].get<int64_t>();
+    if (!args.contains("name") || !args["name"].is_string() || args["name"].get<std::string>().empty())
+        return {"Missing 'name': cancel_job takes the job's id and its exact name, both from "
+                "list_jobs. Call list_jobs first.", true};
+    const int64_t id = args["id"].get<int64_t>();
+    const std::string name = args["name"].get<std::string>();
+    const auto job = memory.get_cron_job(ctx.user_id, id);
+    if (!job) return {"No job with id " + std::to_string(id) + ". Nothing was cancelled.", true};
+    if (job_name_key(job->name) != job_name_key(name)) {
+        std::cerr << "[cron] cancel_job refused: #" << id << " is not named '" << name.substr(0, 80) << "'\n";
+        return {"Job #" + std::to_string(id) + " is not named '" + name + "'. Nothing was cancelled. "
+                "Call list_jobs and find the job by its name; a number from a proposal (\"aprobar N\") "
+                "or a list is not a job id. If no job has that name, there is nothing to cancel.", true};
+    }
     if (!memory.delete_cron_job(ctx.user_id, id))
-        return {"No job with id " + std::to_string(id), true};
-    return {"Cancelled job #" + std::to_string(id)};
+        return {"No job with id " + std::to_string(id) + ". Nothing was cancelled.", true};
+    return {"Cancelled job #" + std::to_string(id) + " '" + job->name + "'"};
 }
 
 ToolResult run_job_now_handler(MemoryStore& memory, ToolRegistry& tools,
@@ -247,11 +281,15 @@ void register_cron_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefau
 
     reg.add({
         "cancel_job",
-        "Permanently remove a scheduled job by id (see list_jobs).",
+        "Permanently remove a scheduled job. Takes its id AND its exact name, both read "
+        "from list_jobs; a mismatch cancels nothing. A pending proposal is not a job.",
         {
             {"type", "object"},
-            {"properties", {{"id", {{"type", "integer"}}}}},
-            {"required", json::array({"id"})}
+            {"properties", {
+                {"id",   {{"type", "integer"}, {"description", "The job's id, from list_jobs"}}},
+                {"name", {{"type", "string"},  {"description", "The job's name, exactly as list_jobs shows it"}}}
+            }},
+            {"required", json::array({"id", "name"})}
         },
         [&memory](const json& args, const ToolContext& ctx) {
             return cancel_job_handler(memory, args, ctx);

@@ -48,7 +48,7 @@ system_prompt: |
     every minute: sends the newest picture once the TV is on, so turning it
     on shows data at most 15 min old. It never wakes the TV and never takes
     over a set someone is watching.
-  Call `list_jobs` first; cancel any existing job for the same purpose
+  Call `list_jobs` first; cancel (by its id and exact name) any existing job for the same purpose
   (whatever its kind or name, including an older hourly "arte y clima") and
   create these two in its place.
 
