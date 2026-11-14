@@ -78,30 +78,41 @@ class Newsletter(unittest.TestCase):
     def test_no_token_configured_is_no_check(self):
         self.assertNotIn("linkedin_token", self.checks())
 
-    # The 2026-11-13 shape: the issue went out, the 13:00 and 14:00 posts did not.
+    # The 2026-11-13 shape: the issue went out, the 13:00 and 14:00 posts did
+    # not. One check per post since 7.23, so an incident names what to retry.
     def test_posts_due_but_not_posted(self):
         self.issue()
         self.write("post_log.txt", "Posting #1\nERROR: LinkedIn access token has expired (valid for 60 days).\n")
-        c = self.checks()["linkedin_posts"]
-        self.assertFalse(c["ok"])
-        # 13:00 and 14:00 are owed; 15:00 is still within its grace period.
-        self.assertIn("2 of 2", c["summary"])
-        self.assertIn("ai-pulse #1", c["summary"])
-        self.assertIn("token has expired", c["evidence"])
+        checks = self.checks()
+        for slot in (1, 2):
+            c = checks[f"post.ai-pulse.{slot}"]
+            self.assertFalse(c["ok"])
+            self.assertIn(f"ai-pulse #{slot}", c["summary"])
+            self.assertIn("token has expired", c["evidence"])
+        # 15:00 is still within its grace period.
+        self.assertNotIn("post.ai-pulse.3", checks)
 
     def test_posts_that_went_out(self):
         self.issue()
-        self.write("posted/ai-pulse/2026-11-16.json", {"1": {"post_id": "a"}, "2": {"post_id": "b"}})
-        self.assertTrue(self.checks()["linkedin_posts"]["ok"])
+        self.write("posted/ai-pulse/2026-11-16.json", {"1": {"post_id": "a"}})
+        checks = self.checks()
+        self.assertTrue(checks["post.ai-pulse.1"]["ok"])
+        self.assertFalse(checks["post.ai-pulse.2"]["ok"])
+
+    def test_check_names_are_probe_safe(self):
+        # probes.cpp accepts [A-Za-z0-9_.-]; retry_post takes the part after "post."
+        self.issue()
+        for name in self.checks():
+            self.assertRegex(name, r"^[A-Za-z0-9_.-]+$")
 
     def test_withdrawn_and_missing_items_are_not_owed(self):
         self.issue(items=1, withdrawn=(1,))
-        self.assertNotIn("linkedin_posts", self.checks())
+        self.assertEqual([n for n in self.checks() if n.startswith("post.")], [])
 
     def test_no_issue_today_is_not_this_probes_failure(self):
         self.issue(status="blocked")
-        self.assertNotIn("linkedin_posts", self.checks())
-        self.assertNotIn("linkedin_posts", self.checks(now=MONDAY_1510 + DAY))   # Tuesday: ES day, no ES issue
+        self.assertEqual([n for n in self.checks() if n.startswith("post.")], [])
+        self.assertEqual([n for n in self.checks(now=MONDAY_1510 + DAY) if n.startswith("post.")], [])
 
     def test_cron_dow(self):
         self.assertTrue(probe_newsletter.cron_dow_matches("1,3,5", 3))

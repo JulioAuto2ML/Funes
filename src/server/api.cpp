@@ -9,6 +9,7 @@
 #include "../core/base64.h"
 #include "../core/password.h"
 #include "../core/permissions.h"
+#include "../core/proposal_text.h"
 #include "../core/staging.h"
 #include "../core/text_utils.h"
 #include "../core/version.h"
@@ -1383,8 +1384,8 @@ std::string FunesApi::answer_approval(const UserStore::User& user, const funes::
                    "La propuesta " + n + " ya estaba decidida (" + p->status + ").");
     if (!cmd.approve && !p->stage.empty()) funes::staging::discard(p->stage);
     if (!cmd.approve)
-        return say("Dropped " + n + " (" + p->tool + "). Nothing was done.",
-                   "Descarté la " + n + " (" + p->tool + "). No se hizo nada.");
+        return say("Dropped " + n + " (" + funes::describe_call(p->tool, p->args, false) + "). Nothing was done.",
+                   "Descarté la " + n + " (" + funes::describe_call(p->tool, p->args, true) + "). No se hizo nada.");
 
     ToolResult r;
     const AgentConfig cfg = find_agent(p->agent);
@@ -1401,10 +1402,16 @@ std::string FunesApi::answer_approval(const UserStore::User& user, const funes::
             r = {e.what(), true};
         }
     }
-    store->finish(user.id, p->id, !r.error, r.text);
+    store->finish(user.id, p->id, !r.error && !r.nothing_done, r.text);
     std::string out = r.text;
     funes::truncate_utf8_safe(out, 1500);
     if (out.size() < r.text.size()) out += "…";
-    return r.error ? say(n + " (" + p->tool + ") failed: " + out, "La " + n + " (" + p->tool + ") falló: " + out)
-                   : say("Done — " + n + " (" + p->tool + "): " + out, "Listo — " + n + " (" + p->tool + "): " + out);
+    // Said in the code's words (proposal_text.h), and "Done" only when it did
+    // something: «aprobar 7» re-sent nothing and was answered "Listo".
+    const std::string what = funes::describe_call(p->tool, p->args, es);
+    if (r.error) return say(n + " (" + what + ") failed: " + out, "La " + n + " (" + what + ") falló: " + out);
+    if (r.nothing_done)
+        return say(n + " (" + what + ") ran but changed nothing: " + out,
+                   "La " + n + " (" + what + ") corrió pero no se hizo nada: " + out);
+    return say("Done — " + n + " (" + what + "): " + out, "Listo — " + n + " (" + what + "): " + out);
 }

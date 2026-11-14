@@ -50,6 +50,10 @@ if(Python3_FOUND)
     add_test(NAME scriptlib_probes
              COMMAND ${Python3_EXECUTABLE} -m unittest scriptlib/tests/test_probes.py
              WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # retry_post (7.23): one slot of one publication, nothing else accepted.
+    add_test(NAME scriptlib_retry_post
+             COMMAND ${Python3_EXECUTABLE} -m unittest scriptlib/tests/test_retry_post.py
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 else()
     message(STATUS "python3 not found — skipping the publishing/ tests")
 endif()

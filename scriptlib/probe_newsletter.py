@@ -8,8 +8,10 @@ post failed for a day with the error only in post_log.txt:
                     left. The daily `linkedin_token.py check` already sends the
                     renewal link from a week out; this is the alarm for when
                     that link was not used.
-  linkedin_posts  — every post slot whose time has passed today (from the
-                    crontab's post_tweet.py lines) is in the posted record.
+  post.<pub>.<n>   — one per post slot whose time has passed today (from the
+                    crontab's post_tweet.py lines): is it in the posted record?
+                    (One aggregate `linkedin_posts` check until 7.23; one per
+                    post since, so an incident names the post to retry.)
                     A slot past its item count, or whose item is withdrawn,
                     is not owed.
 
@@ -118,23 +120,26 @@ def posts_check(news_dir: Path, crontab: str, now: datetime):
         if slot > len(items) or items[slot - 1].get("withdrawn"):
             continue
         owed.setdefault(pub, []).append(slot)
-    if not owed:
-        return None
-    missing = []
+    # One check per post owed (7.23): an incident a retry can name. The key is
+    # probe_newsletter:post.<publication>.<slot>, and heal.yaml proposes
+    # retry_post for it; a post that went out reports ok, which closes it.
+    checks = []
+    log = news_dir / "post_log.txt"
     for pub, slots in sorted(owed.items()):
         try:
             posted = json.loads((news_dir / "posted" / pub / f"{today}.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             posted = {}
-        missing += [f"{pub} #{s}" for s in sorted(slots) if str(s) not in posted]
-    due = sum(len(s) for s in owed.values())
-    if not missing:
-        return {"name": "linkedin_posts", "ok": True,
-                "summary": f"All {due} LinkedIn post(s) due so far today went out"}
-    return {"name": "linkedin_posts", "ok": False, "severity": "warning",
-            "summary": f"{len(missing)} of {due} LinkedIn post(s) due today did not go out: "
-                       + ", ".join(missing[:6]) + ("…" if len(missing) > 6 else ""),
-            "evidence": last_errors(news_dir / "post_log.txt") or "nothing in post_log.txt"}
+        for s in sorted(slots):
+            name = f"post.{pub}.{s}"
+            if posted.get(str(s), {}).get("post_id"):
+                checks.append({"name": name, "ok": True,
+                               "summary": f"LinkedIn post {pub} #{s} went out today"})
+            else:
+                checks.append({"name": name, "ok": False, "severity": "warning",
+                               "summary": f"Today's LinkedIn post {pub} #{s} did not go out",
+                               "evidence": last_errors(log) or "nothing in post_log.txt"})
+    return checks
 
 
 def collect(news_dir: Path, crontab_file: Path, now: float) -> list:
@@ -144,7 +149,7 @@ def collect(news_dir: Path, crontab_file: Path, now: float) -> list:
     except OSError:
         crontab = ""
     if crontab:
-        checks.append(posts_check(news_dir, crontab, datetime.fromtimestamp(now)))
+        checks += posts_check(news_dir, crontab, datetime.fromtimestamp(now))
     return [c for c in checks if c]
 
 

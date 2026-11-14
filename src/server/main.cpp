@@ -487,7 +487,8 @@ int main(int argc, char** argv) {
     register_web_tools(tools);
     register_memory_tools(tools, memory);
     register_host_tools(tools, host_events.get(), memory, machine_account);
-    register_incident_tools(tools, incidents.get());
+    register_incident_tools(tools, incidents.get(), &proposals,
+                            funes::env("FUNES_HEAL_POLICY", resolve_dir("", "config") + "/heal.yaml"));
     register_result_tools(tools, memory);
     register_context_tools(tools, memory, defaults);
     register_classify_decision_tool(tools, defaults);
@@ -967,13 +968,9 @@ int main(int argc, char** argv) {
             return {!res.error, res.text};
         };
         auto load_policy = [heal_path]() {
-            funes::heal::Policy p;
-            std::ifstream f(heal_path);
-            if (!f) return p;
-            std::stringstream s;
-            s << f.rdbuf();
-            if (const std::string err = funes::heal::parse_policy(s.str(), p); !err.empty())
-                std::cerr << "[heal] " << heal_path << " ignored: " << err << "\n";
+            std::string err;
+            funes::heal::Policy p = funes::heal::load_policy_file(heal_path, &err);
+            if (!err.empty()) std::cerr << "[heal] " << heal_path << " ignored: " << err << "\n";
             return p;
         };
         // H3 (doctor.h): an incident no rule covers goes to the doctor, on its

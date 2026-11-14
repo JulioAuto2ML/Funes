@@ -1324,6 +1324,8 @@ check "an untainted run acts at once" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-di
 OUT=$(gate_chat curl "gate-after-read note two" it-gate-2)
 check "a tainted run's send is proposed" "$OUT" 'proposed as #[0-9]'
 check "the UI gets a proposal event" "$OUT" 'event: proposal'
+# 7.23: the person reads what was proposed in the code's words, under the reply.
+check "the reply lists the proposal" "$OUT" 'Proposal #[0-9]* (gate-tester): send_note'
 check_absent "and it did not happen" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-after-read'
 check "the proposal is logged" "$(cat /tmp/funes_it.log)" 'send_note (external) → proposal #'
 PID_N=$(echo "$OUT" | grep -o 'proposed as #[0-9]*' | head -1 | grep -o '[0-9]*$')
@@ -1331,7 +1333,7 @@ OUT=$(gate_chat mcurl "aprobar $PID_N" it-gate-m)
 check "another account cannot approve it" "$OUT" "no proposal #$PID_N\|ninguna propuesta #$PID_N"
 check_absent "so it still did not happen" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-after-read'
 OUT=$(gate_chat curl "aprobar $PID_N" it-gate-2)
-check "the owner's approval runs it" "$OUT" "#$PID_N (send_note): NOTE-SENT"
+check "the owner's approval runs it" "$OUT" "#$PID_N (send_note .*): NOTE-SENT"
 check "with the arguments the model gave" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-after-read'
 OUT=$(gate_chat curl "approve $PID_N" it-gate-2)
 check "a second approval does not run it again" "$OUT" 'already decided\|ya estaba decidida'
@@ -1339,7 +1341,7 @@ check "it ran exactly once" "$(grep -c 'SENT-after-read' "$SENT_FILE")" '^1$'
 OUT=$(gate_chat curl "gate-after-read note three" it-gate-3)
 PID_R=$(echo "$OUT" | grep -o 'proposed as #[0-9]*' | head -1 | grep -o '[0-9]*$')
 OUT=$(gate_chat curl "rechazar $PID_R" it-gate-3)
-check "a rejection drops it" "$OUT" "#$PID_R (send_note)"
+check "a rejection drops it" "$OUT" "#$PID_R (send_note "
 OUT=$(gate_chat curl "aprobar $PID_R" it-gate-3)
 check "a rejected proposal cannot be approved after" "$OUT" 'already decided\|ya estaba decidida'
 check_absent "and it never ran" "$(cat "$SENT_FILE" 2>/dev/null)" 'SENT-after-read-3'
@@ -1420,7 +1422,7 @@ if grep -q "Staging:   host scripts" /tmp/funes_it.log; then
     check "the staging is logged" "$(cat /tmp/funes_it.log)" 'staged 3 change(s) → proposal #'
     SID=$(echo "$OUT" | grep -o 'proposal #[0-9]*' | head -1 | grep -o '[0-9]*$')
     OUT=$(stage_chat "aprobar $SID" it-stage-2)
-    check "approving applies the staged changes" "$OUT" "#$SID (run_script): applied 3 change"
+    check "approving applies the staged changes" "$OUT" "#$SID (run the script «[a-z_]*».*): applied 3 change"
     check "the host has them" "$(cat "$STAGE_HOST/app.conf")" '^port = 8080$'
     check "the deletion too" "$(ls "$STAGE_HOST")" 'new.conf'
     check_absent "and old.conf is gone" "$(ls "$STAGE_HOST")" 'old.conf'

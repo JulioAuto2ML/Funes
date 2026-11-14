@@ -15,6 +15,7 @@
 #include "context_budget.h"
 #include "mcp_sse_client.h"
 #include "mcp_launch.h"
+#include "proposal_text.h"
 #include "result_store.h"
 #include "run_outcome.h"
 #include "script_library.h"
@@ -316,6 +317,8 @@ ToolResult FunesAgent::propose(const std::string& name, const json& args, const 
               << ", after reading " << read << "\n";
     ToolResult r{"NOT RUN YET — proposed as #" + std::to_string(id) + ". This run has read outside content (" +
                  read + "), so " + what + " waits for the person's approval before anything happens. "
+                 "What it does: " + funes::describe_call(name, args, false) + ". The person will see that line, "
+                 "written by the system, under your reply; do not describe the proposal as anything else. "
                  "Tell them exactly what you proposed, and that they can reply \"aprobar " + std::to_string(id) +
                  "\" (or \"approve " + std::to_string(id) + "\") to run it, or \"rechazar " + std::to_string(id) +
                  "\" to drop it. Do not call " + name + " again for this, and do not say it was done.",
@@ -667,7 +670,20 @@ std::string FunesAgent::run(const std::string& user_message, const std::string& 
     //    continue on the main model which is better at multi-step reasoning.
     const bool use_vision = vision_llm_ && !images.empty();
     int prompt_tokens = 0;
+    // What this run (and the agents it delegates to, which share the session)
+    // proposes is listed under its reply in the code's words (proposal_text.h).
+    const int64_t proposals_before =
+        (writes_history && defaults_.proposals) ? defaults_.proposals->max_id() : -1;
     std::string final_text = run_loop(history, ctx, emit, prompt_tokens, use_vision);
+    if (proposals_before >= 0) {
+        try {
+            const bool es = defaults_.user_locale && defaults_.user_locale(user_id).rfind("es", 0) == 0;
+            final_text += funes::proposals_footer(
+                defaults_.proposals->made_since(user_id, session, proposals_before), es);
+        } catch (const std::exception& e) {
+            std::cerr << "[agent:" << cfg_.name << "] proposal footer failed: " << e.what() << "\n";
+        }
+    }
 
     // 5. Persist the exchange, per the Persist mode (see agent.h):
     //    session history unless this is a delegated call, and the long-term

@@ -492,4 +492,17 @@ funes::sandbox::Policy script_policy(const ScriptSpec& spec, const fs::path& wor
     return policy;
 }
 
+std::string sandbox_refusal_hint(const std::string& script, const std::string& output) {
+    static const char* const kSigns[] = {"Permission denied", "PermissionError", "EACCES",
+                                         "Operation not permitted", "EPERM"};
+    bool found = false;
+    for (const char* sign : kSigns) found = found || output.find(sign) != std::string::npos;
+    if (!found) return "";
+    return "\n\nNOTE: '" + script + "' runs in a sandbox, and a permission error is often the "
+           "sandbox refusing a file or a network port its manifest's `access:` block does not "
+           "grant — not file modes or settings. Only an administrator can change that (they can "
+           "check with `funes script-learn " + script + " --user <name>`). Do not retry or look "
+           "for another way: tell the person this, with the error above.";
+}
+
 } // namespace funes

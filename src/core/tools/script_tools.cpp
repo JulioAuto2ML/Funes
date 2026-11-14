@@ -253,6 +253,8 @@ ToolResult run_script_handler(const fs::path& default_workspace, const std::stri
     // stream; without this the model gets an exit code and an empty body.
     if (!r.stderr_output.empty() && (r.timed_out || r.exit_code != 0))
         text += "\nstderr:\n" + r.stderr_output;
+    if (!r.timed_out && r.exit_code != 0 && funes::sandbox::enabled())
+        text += funes::sandbox_refusal_hint(spec.name, text);
 
     return ran({text, r.timed_out || r.exit_code != 0});
 }

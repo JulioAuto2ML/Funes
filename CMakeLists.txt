@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.22.1 LANGUAGES C CXX)
+project(Funes VERSION 7.23.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -136,6 +136,7 @@ add_library(funes_core STATIC
     src/core/mcp_pool.cpp
     src/core/effects.cpp
     src/core/proposals.cpp
+    src/core/proposal_text.cpp
     src/core/staging.cpp
     src/core/host_events.cpp
     src/core/host_sources.cpp

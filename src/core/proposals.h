@@ -69,6 +69,13 @@ public:
     // The owner's pending proposals, newest first, expired ones excluded.
     std::vector<Proposal> pending(int64_t user_id, int limit = 20);
 
+    // The newest proposal's id, any owner (0 for none): a run notes it before
+    // its loop so made_since() can find what it proposed.
+    int64_t max_id();
+    // The owner's proposals in `session` with an id above `after_id`, oldest
+    // first — what one run (and the agents it delegated to) proposed.
+    std::vector<Proposal> made_since(int64_t user_id, const std::string& session, int64_t after_id);
+
     // The stages of proposals still waiting (pending, not expired) — what
     // staging::prune must keep.
     std::set<std::string> live_stages();

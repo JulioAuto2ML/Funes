@@ -1,0 +1,34 @@
+# Retry one of today's LinkedIn posts (7.23). What heal.yaml proposes when the
+# newsletter probe finds a post that did not go out; post_tweet.py refuses a
+# slot already posted, so approving it twice posts once. External: it posts
+# on the person's LinkedIn.
+description: Retry one of today's newsletter LinkedIn posts that did not go out (e.g. post=ai-pulse-es/5). Never re-posts one that went out.
+run: retry_post.py
+interpreter: python3
+effects: external
+admin_only: true
+timeout_seconds: 300
+params:
+  - name: post
+    description: The publication and slot, as the incident names it — e.g. ai-pulse-es/5.
+    type: string
+    required: true
+output:
+  format: json
+  schema:
+    type: object
+    required: [ok, post, exit_code]
+    properties:
+      ok:        {type: boolean}
+      post:      {type: string}
+      exit_code: {type: integer}
+env:
+  FUNES_ROOT: ${FUNES_ROOT}
+  NEWSLETTER_DIR: ${FUNES_ROOT}/data/newsletter
+# post_tweet.py reads the issue, the image and .env, and writes the posted
+# record, the token refresh and post_log.txt — all under data/newsletter.
+# connect: LinkedIn's API (443).
+access:
+  read: ["${FUNES_ROOT}/publishing"]
+  write: ["${FUNES_ROOT}/data/newsletter"]
+  connect: [443]

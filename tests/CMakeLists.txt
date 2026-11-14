@@ -279,3 +279,8 @@ add_test(NAME staging COMMAND test_staging)
 add_executable(test_chat_runs test_chat_runs.cpp)
 target_link_libraries(test_chat_runs PRIVATE funes_core)
 add_test(NAME chat_runs COMMAND test_chat_runs)
+
+# 7.23: proposals described by the code, fix_incident, the sandbox hint.
+add_executable(test_fix_incident test_fix_incident.cpp)
+target_link_libraries(test_fix_incident PRIVATE funes_core)
+add_test(NAME fix_incident COMMAND test_fix_incident)

@@ -169,6 +169,13 @@ std::vector<std::string> list_script_names(const std::string& library_path);
 std::vector<ScriptSpec> load_scripts(const std::string& dir,
                                      const std::vector<std::string>& allowed);
 
+// What a failing run's output adds when it looks like the sandbox said no: a
+// permission error ("Permission denied", PermissionError, EACCES, EPERM) from a
+// sandboxed script. Landlock answers EACCES with no word of why, and on
+// 2026-11-14 three agents spent an evening on file modes and funes.conf while
+// tv_art's `connect:` list was refusing the TV's upload port. "" otherwise.
+std::string sandbox_refusal_hint(const std::string& script, const std::string& output);
+
 // Checks a finished script's stdout against `output_format`/`output_schema`.
 // Returns an error string (empty = fine) and, for a JSON script, the parsed
 // value in `parsed`. A text script always passes: there is nothing declared to

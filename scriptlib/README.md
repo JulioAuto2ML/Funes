@@ -337,7 +337,7 @@ executable per script, granted per agent under `scripts:`.
 
 ## The sysadmin scripts (OS plan, phase 7)
 
-Granted to `agents/sysadmin.yaml`. All five are `admin_only: true`: a member
+Granted to `agents/sysadmin.yaml`. All seven are `admin_only: true`: a member
 running one is refused by `run_script` itself (and it is left out of their
 listings) unless their permissions grant `"run_script:<name>": true` — what
 runs on the box, and what it logs, is an administrator's view.
@@ -351,6 +351,7 @@ Tests: `scriptlib/tests/test_sysadmin.py` (`ctest -R scriptlib_sysadmin`).
 | `journal` | none | `journalctl --user`, by unit, `since` ("2h", "today"), priority; at most 150 lines, each compacted (no year, host or pid) and cut at 240 characters. Log text taints the run. |
 | `restart_unit` | external | Restart a WhatsApp bridge, the autoresponder or the monitor dashboard (a `choices:` list; never `funes`). After the journal was read, it waits for "aprobar N". |
 | `prune_backups` | host | Delete `data/backups` entries older than N days (≥ 7), always keeping the newest K; `dry_run` lists them. After outside content it is staged: the deletions are shown and applied on approval. |
+| `retry_post` | external | Retry one of today's newsletter LinkedIn posts (`post`: `ai-pulse-es/5` or `ai-pulse-es.5`) by running `publishing/post_tweet.py` for that slot, which never posts one twice; logged to `post_log.txt`. What `heal.yaml` proposes for a `probe_newsletter:post.*` incident (7.23). Tests: `scriptlib/tests/test_retry_post.py`. |
 
 ## The self-healing probes (7.18)
 

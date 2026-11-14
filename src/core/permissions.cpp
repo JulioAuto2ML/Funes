@@ -19,9 +19,10 @@ namespace {
 // itself, which outlives the conversation that asked for them. host_changes and
 // machine_recall read the machine's memory (7.7) — what runs, what was
 // installed, when it broke: an admin's view of the box. incidents (7.18) is
-// the same view, from the self-healing probes.
+// the same view, from the self-healing probes, and fix_incident (7.23) acts
+// on it.
 const char* const PRIVILEGED[] = {"execute_shell", "create_agent", "create_tool",
-                                  "host_changes", "machine_recall", "incidents"};
+                                  "host_changes", "machine_recall", "incidents", "fix_incident"};
 
 } // namespace
 

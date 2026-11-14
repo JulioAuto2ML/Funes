@@ -77,9 +77,18 @@ rules:
     level: explain
     explain: "Abrí el link de renovación que manda `linkedin_token.py` por WhatsApp (o en yoda: `python3 ~/Funes/publishing/linkedin_token.py url`) y aprobá la app."
 
-  - when: "probe_newsletter:linkedin_posts"
-    level: explain
-    explain: "El error está en data/newsletter/post_log.txt. Si es el token, renovalo; un slot se puede reintentar a mano: `python3 publishing/post_tweet.py N --dir data/newsletter` (y `--publication ai-pulse-es` para el español)."
+  # One incident per post since 7.23 (probe_newsletter:post.<publication>.<n>).
+  # post_tweet.py never posts a slot twice, so this is safe to approve; it is
+  # not `act` because a post that failed for a reason (the token, a wrong item)
+  # should be looked at once by a person first.
+  - when: "probe_newsletter:post.*"
+    level: propose
+    action: reintentar el post de LinkedIn
+    agent: sysadmin
+    tool: run_script
+    args: {name: retry_post, arguments: {post: "${match}"}}
+    undo: none
+    explain: "El error está en data/newsletter/post_log.txt. Si es el token, renovalo antes de aprobar (linkedin_token.py url)."
 
 # What the doctor (src/core/doctor.h) may propose for an incident no rule above
 # covers. Ids are what the model answers with.

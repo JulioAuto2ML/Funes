@@ -466,6 +466,12 @@ a day.
 model to pick a runbook from `heal.yaml`'s `runbooks:` catalog or `explain`
 (the code gathers the evidence; the model calls no tool), only ever proposed;
 `bin/heal_eval` scores a model on this installation's incidents.
+7.23: `fix_incident(id)` is the model's only way to act on an incident — it
+proposes `heal.yaml`'s call, passes on its `explain`, or says no fix is known;
+and a proposal reaches the person in the code's words (`proposal_text.h`),
+under the reply and in the answer to «aprobar N», never only as the model's
+paraphrase (the curator once described re-sending a newsletter as "the post
+is ready").
 
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (the

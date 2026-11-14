@@ -315,3 +315,35 @@ Tests: `tests/test_heal.cpp` (`ctest -R heal`, which also loads the shipped
   how many times it chose a fix where a person was needed (the costly
   mistake). `ctest -R heal_eval_runs` only checks that fixtures and catalog
   agree. H4 raises a doctor's choice above "propose" only on this number.
+
+## 7.23 — knowing what it does not know
+
+The evening of 2026-11-14 showed the gap between H3 and a person asking Funes
+to "fix it". Funes delegated: the curator, asked to retry one LinkedIn post,
+had no tool for it, re-ran the harvest and proposed `publish_issue` — the
+whole newsletter, again — describing it as "the post is ready"; the person
+approved; only the already-sent guard stopped a second mailing, and the answer
+to the approval began "Listo". The same evening three agents looked at file
+modes and `funes.conf` while `tv_art`'s sandbox was refusing the TV's upload
+port. What was built:
+
+- **`fix_incident(id)`** (`incident_tools.cpp`) is Funes's only way to act on
+  an incident. It does what `heal.yaml` says for that key: the rule's call is
+  stored as a proposal in the conversation, or its `explain` is handed back,
+  or the answer is "NO KNOWN FIX" with the evidence — and the prompt says that
+  "I don't know how to fix this" is a good answer. It never improvises.
+- **Proposals in the code's words** (`proposal_text.h`): the reply of a run
+  that proposed something ends with one line per proposal, written from the
+  tool and its arguments ("enviar el newsletter ai-pulse-es (2026-11-14) a
+  todos sus suscriptores"); the answer to «aprobar N» names it the same way.
+- **"No se hizo nada"**: a tool can mark a successful call as having changed
+  nothing (`ToolResult::nothing_done`, set by publish_issue's re-send refusal);
+  the approval answer then says so instead of "Listo".
+- **One incident per post**: `probe_newsletter` reports
+  `post.<publication>.<slot>`, and `heal.yaml` proposes `retry_post` for it
+  (sysadmin, one call per run). Not `act`: a post that failed for a reason
+  should be looked at once first.
+- **The sandbox says so**: a sandboxed script that fails with a permission
+  error gets a note that it is probably the sandbox, that only an admin can
+  change the manifest's `access:`, and not to retry.
+

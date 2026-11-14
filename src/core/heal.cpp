@@ -3,6 +3,8 @@
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <sstream>
 #include <iostream>
 
 namespace funes::heal {
@@ -158,6 +160,29 @@ const Rule* match(const Policy& policy, const std::string& key) {
     for (const auto& r : policy.rules)
         if (matches(r.when, key)) return &r;
     return nullptr;
+}
+
+std::optional<Rule> rule_for(const Policy& policy, const std::string& key) {
+    std::string matched;
+    for (const auto& r : policy.rules) {
+        if (!matches(r.when, key, &matched)) continue;
+        Rule out = r;
+        out.args = substitute(out.args, matched);
+        return out;
+    }
+    return std::nullopt;
+}
+
+Policy load_policy_file(const std::string& path, std::string* error) {
+    Policy p;
+    std::ifstream f(path);
+    if (!f) return p;
+    std::stringstream s;
+    s << f.rdbuf();
+    const std::string err = parse_policy(s.str(), p);
+    if (error) *error = err;
+    if (!err.empty()) return Policy{};
+    return p;
 }
 
 Healer::Healer(Policy policy, Options opt) : policy_(std::move(policy)), opt_(std::move(opt)) {}

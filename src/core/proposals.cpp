@@ -190,6 +190,25 @@ std::vector<Proposal> ProposalStore::pending(int64_t user_id, int limit) {
     return out;
 }
 
+int64_t ProposalStore::max_id() {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, "SELECT COALESCE(MAX(id), 0) FROM proposals");
+    return s.step() ? s.col_int64(0) : 0;
+}
+
+std::vector<Proposal> ProposalStore::made_since(int64_t user_id, const std::string& session,
+                                                int64_t after_id) {
+    std::lock_guard<std::mutex> lock(mu_);
+    Stmt s(db_, (std::string("SELECT ") + kColumns +
+                 " FROM proposals WHERE user_id = ? AND session = ? AND id > ? ORDER BY id").c_str());
+    s.bind_int64(1, user_id);
+    s.bind_text(2, session);
+    s.bind_int64(3, after_id);
+    std::vector<Proposal> out;
+    while (s.step()) out.push_back(read_row(s));
+    return out;
+}
+
 std::set<std::string> ProposalStore::live_stages() {
     std::lock_guard<std::mutex> lock(mu_);
     Stmt s(db_, "SELECT stage FROM proposals WHERE stage != '' AND status IN ('pending', 'approved') "

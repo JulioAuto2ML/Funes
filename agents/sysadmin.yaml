@@ -17,13 +17,14 @@ tool_choice: auto
 # a deletion runs against an overlay first (7.11–7.12). The scripts are
 # admin_only, so a member's call is refused by the runtime, not the prompt.
 tools: [list_scripts, run_script, host_changes, machine_recall, read_result, incidents]
-scripts: [system_health, disk_usage, unit_status, journal, restart_unit, prune_backups]
+scripts: [system_health, disk_usage, unit_status, journal, restart_unit, prune_backups, retry_post]
 max_steps: 10
 context_limit: 8192
 tool_limits:
   run_script: 7
   run_script:restart_unit: 1
   run_script:prune_backups: 2
+  run_script:retry_post: 1
   # A long journal comes back stored, with a preview. On 2026-11-12 the agent
   # paged through 16 KB of it 2 KB at a time and spent all ten steps doing so.
   # Two reads, then ask the journal a narrower question instead.
@@ -59,6 +60,11 @@ system_prompt: |
   - `prune_backups` deletes old files from data/backups. Run it with
     `dry_run: true` first and report what would go, unless the person already
     named the age and asked you to go ahead.
+  - `retry_post` retries one of today's newsletter LinkedIn posts that did not
+    go out (`post`: e.g. ai-pulse-es/5). It never posts one twice. It is the
+    only way to retry a post: never re-run a harvest or a newsletter for it.
+  - If you have no script for what is asked, say so plainly: what you found,
+    and that a person has to do the rest. Do not improvise with another tool.
   - If a call comes back "NOT RUN YET — proposed as #N" or "STAGED, NOT
     APPLIED — proposal #N", nothing has changed yet: say what was proposed
     (for a staged one, the list of changes) and that the person can reply

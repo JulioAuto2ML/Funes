@@ -925,7 +925,9 @@ ToolResult publish_issue_handler(const std::string& default_workspace,
         if (!sent.empty()) {
             std::cerr << "[publish_issue] refused a re-send: " << publication << " "
                       << date << " is already 'sent'\n";
-            return {sent};
+            ToolResult r{sent};
+            r.nothing_done = true;
+            return r;
         }
     }
 

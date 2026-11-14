@@ -119,6 +119,11 @@ struct ToolResult {
     // (effects.h, proposals.h). Not an error — the run did what it could —
     // and the text says plainly that nothing happened yet.
     int64_t proposal_id = 0;
+    // Set by a tool that succeeded without changing anything — publish_issue
+    // on an issue already sent. Not an error for the model (its job is done),
+    // but an approved proposal that did nothing must not be answered "Done"
+    // (7.23: «aprobar 7» re-sent nothing and was answered "Listo").
+    bool nothing_done = false;
 };
 
 using ToolHandler = std::function<ToolResult(const json& args, const ToolContext& ctx)>;
@@ -169,8 +174,13 @@ namespace funes::host { class EventStore; }
 void register_host_tools(ToolRegistry& reg, funes::host::EventStore* store,
                          MemoryStore& memory, std::function<int64_t()> machine_uid);
 namespace funes::incidents { class IncidentStore; }
-// incidents (self-healing H0). store null when the probes are off.
-void register_incident_tools(ToolRegistry& reg, funes::incidents::IncidentStore* store);
+namespace funes { class ProposalStore; }
+// incidents (self-healing H0), and fix_incident (7.23) when `proposals` is
+// given: what heal.yaml (`heal_policy`) says to do about one incident, as a
+// proposal or as words for a person. store null when the probes are off.
+void register_incident_tools(ToolRegistry& reg, funes::incidents::IncidentStore* store,
+                             funes::ProposalStore* proposals = nullptr,
+                             const std::string& heal_policy = "");
 void register_result_tools(ToolRegistry& reg, MemoryStore& store); // read_result
 void register_context_tools(ToolRegistry& reg, MemoryStore& store,
                             const AgentDefaults& defaults);        // compress_context

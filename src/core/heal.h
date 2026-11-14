@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -62,6 +63,14 @@ std::string parse_policy(const std::string& yaml_text, Policy& out);
 
 // The first rule whose `when` matches `key`; null when none does.
 const Rule* match(const Policy& policy, const std::string& key);
+
+// The first rule matching `key`, with "${match}" filled in — what on_open
+// would do, for fix_incident (7.23) to offer by hand. nullopt when none does.
+std::optional<Rule> rule_for(const Policy& policy, const std::string& key);
+
+// config/heal.yaml read and parsed; an empty policy when it is missing or wrong
+// (`error` says which, "" for missing or fine).
+Policy load_policy_file(const std::string& path, std::string* error = nullptr);
 
 struct Options {
     // Store the rule's call as a proposal; its number, 0 on failure.
