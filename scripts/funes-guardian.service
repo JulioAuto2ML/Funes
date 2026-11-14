@@ -1,0 +1,25 @@
+# systemd --user unit for scripts/funes_guardian.py watch (self-healing H1),
+# started every minute by funes-guardian.timer: verifies the changes it is
+# watching (undoing one by itself when Funes stops answering or an incident
+# opens), and answers "deshacer N" sent to Funes's WhatsApp number by an
+# admin. Its own unit, not part of funes: it has to work when funes does not.
+#
+# Install (on yoda):
+#   cp scripts/funes-guardian.service scripts/funes-guardian.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now funes-guardian.timer
+#
+# Not sandboxed like the others, on purpose: restoring files in the checkout
+# and restarting units is what it is for. It runs nothing a model wrote.
+
+[Unit]
+Description=funes-guardian: watch changes, undo what breaks Funes
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/julio/Funes
+ExecStart=/usr/bin/python3 /home/julio/Funes/scripts/funes_guardian.py watch
+Environment=FUNES_PORT=8485
+Environment=FUNES_DB=/home/julio/Funes/data/memory.db
+NoNewPrivileges=yes
+TimeoutStartSec=300

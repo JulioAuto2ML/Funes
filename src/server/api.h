@@ -138,6 +138,9 @@ private:
     // the approval must not depend on one reading it right. The returned text
     // is the reply, in the caller's language.
     std::string answer_approval(const UserStore::User& user, const funes::ApprovalCommand& cmd);
+    // "aprobar N" / "deshacer N": the messages /api/chat and funes.sock answer
+    // themselves, never a model. nullopt for anything else.
+    std::optional<std::string> answer_command(const UserStore::User& user, const std::string& message);
 
     ToolRegistry& tools_;
     MemoryStore&  memory_;

@@ -4,6 +4,7 @@
 
 #include "funes_config.h"
 #include "api.h"
+#include "../core/guardian.h"
 #include "../core/mcp_pool.h"
 #include "../core/base64.h"
 #include "../core/password.h"
@@ -674,11 +675,12 @@ void FunesApi::mount(httplib::Server& srv) {
         if (!valid_session(session))
             return json_error(res, 400, "'session' must match [A-Za-z0-9_-]{1,64}");
 
-        // An answer to a proposal (effects.h) is not a message for a model:
-        // decided and run here, the same from the web UI and from WhatsApp.
+        // An answer to a proposal (effects.h), or an undo (guardian.h), is not
+        // a message for a model: decided and run here, the same from the web
+        // UI and from WhatsApp.
         if (images.empty()) {
-            if (const auto cmd = funes::parse_approval(message)) {
-                const std::string reply = answer_approval(*user, *cmd);
+            if (const auto command_reply = answer_command(*user, message)) {
+                const std::string reply = *command_reply;
                 const std::string agent = agent_name.empty() ? default_agent_ : agent_name;
                 memory_.append_turn(user->id, session, agent, "user", message);
                 memory_.append_turn(user->id, session, agent, "assistant", reply);
@@ -1332,14 +1334,31 @@ std::string FunesApi::run_local(int64_t user_id, const std::string& agent_name,
     // `funes ask "aprobar 3"` — but not with piped input: a command that
     // arrives framed with stdin is the stdin's, not the person's.
     if (input_origins.empty()) {
-        if (const auto cmd = funes::parse_approval(message)) {
-            const std::string reply = answer_approval(*user, *cmd);
-            if (emit) emit("delta", {{"text", reply}});
-            return reply;
+        if (const auto reply = answer_command(*user, message)) {
+            if (emit) emit("delta", {{"text", *reply}});
+            return *reply;
         }
     }
     FunesAgent agent(cfg, tools_, memory_, defaults_);
     return agent.run(message, session, user->id, perms, emit, {}, persist);
+}
+
+std::optional<std::string> FunesApi::answer_command(const UserStore::User& user,
+                                                   const std::string& message) {
+    if (const auto cmd = funes::parse_approval(message)) return answer_approval(user, *cmd);
+    const auto n = funes::guardian::parse_undo(message);
+    if (!n) return std::nullopt;
+    const bool es = user.locale.rfind("es", 0) == 0;
+    // A change to the installation is an admin's to undo, like the change.
+    if (user.role != UserStore::ROLE_ADMIN)
+        return std::string(es ? "Solo un administrador puede deshacer cambios de la instalación."
+                              : "Only an administrator can undo changes to the installation.");
+    if (!funes::guardian::enabled())
+        return std::string(es ? "El guardián no está configurado en esta instalación: no hay cambios para deshacer."
+                              : "The guardian is not configured on this installation: there are no changes to undo.");
+    const auto r = funes::guardian::undo(*n, user.username);
+    return r.message.empty() ? std::string(es ? "No pude deshacer ese cambio." : "Could not undo that change.")
+                             : r.message;
 }
 
 std::string FunesApi::answer_approval(const UserStore::User& user, const funes::ApprovalCommand& cmd) {

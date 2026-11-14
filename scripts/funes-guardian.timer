@@ -1,0 +1,11 @@
+# Every minute; see funes-guardian.service.
+[Unit]
+Description=funes-guardian every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

@@ -78,7 +78,10 @@ are handled before `load_config()` precisely so a refusal touches nothing.
 ## Deployment (yoda)
 
 Production is `~/Funes` on yoda, same layout as here: `git pull --ff-only`,
-rebuild, then `systemctl --user restart funes`. Units (copied from
+rebuild, then `systemctl --user restart funes` — or, since 7.19, all three as
+one watched change: `python3 scripts/funes_guardian.py deploy`, which goes back
+to the old commit and binary by itself if Funes stops answering or an incident
+opens in the next ten minutes (`funes_guardian.py list` / `undo N`). Units (copied from
 `scripts/*.service` to `~/.config/systemd/user/`): `funes` (:8485),
 `whatsapp-bridge` (:8090, personal number), `whatsapp-bridge-funes` (:8091,
 dedicated number), `whatsapp-autoresponder`. `funes` is `Type=notify` with a
@@ -445,6 +448,13 @@ mapped jid from Funes's own number (`notify_user`'s bridge), held through
 `FUNES_INCIDENT_QUIET_HOURS` unless critical. A cron job's `require_tools`
 joins the run's completion contract, so a reminder that sent nothing is a
 failed run — and an incident — rather than "ok".
+
+7.19 adds H1, the guardian (`scripts/funes_guardian.py`, its own
+`funes-guardian.timer`; `src/core/guardian.h` on the server side): a change is
+snapshotted before it happens, watched after, and put back by itself when Funes
+stops answering or an incident opens, or on "deshacer N" (web chat, `funes
+ask`, or WhatsApp — read by the guardian itself, so it works with Funes down).
+`create_agent` goes through it, and refuses to write without a snapshot.
 
 Each agent has an isolated memory namespace by name unless it sets
 `memory_scope:` to share another agent's pool (the

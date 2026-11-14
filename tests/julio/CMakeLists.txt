@@ -34,7 +34,8 @@ if(Python3_FOUND)
                      ${CMAKE_SOURCE_DIR}/publishing/publish_newsletter.py --self-test)
     # scripts/ (Python). Where whatsapp_autoresponder.py looks for its config
     # is the kind of thing that breaks silently on a move, so it is pinned by
-    # tests rather than by a comment.
+    # tests rather than by a comment. scripts/tests/ also holds the guardian's
+    # suite (self-healing H1): what an undo restores, against a real checkout.
     add_test(NAME julio_autoresponder
              COMMAND ${Python3_EXECUTABLE}
                      ${CMAKE_SOURCE_DIR}/scripts/whatsapp_autoresponder.py --self-test)

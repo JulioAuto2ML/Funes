@@ -56,6 +56,10 @@ add_executable(test_incidents test_incidents.cpp)
 target_link_libraries(test_incidents PRIVATE funes_core)
 add_test(NAME incidents COMMAND test_incidents)
 
+add_executable(test_guardian test_guardian.cpp)
+target_link_libraries(test_guardian PRIVATE funes_core)
+add_test(NAME guardian COMMAND test_guardian)
+
 add_executable(test_probes test_probes.cpp)
 target_link_libraries(test_probes PRIVATE funes_core)
 add_test(NAME probes COMMAND test_probes)

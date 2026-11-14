@@ -14,6 +14,7 @@ configuration in `config/`, state in `data/`. Until 5.2 the units were
 
 | Script | Purpose |
 |---|---|
+| `funes_guardian.py` | Self-healing H1: snapshots a change before it happens, watches it, puts it back when Funes stops answering or an incident opens, or on "deshacer N". `deploy` = pull, build, restart, watched (undo = `git reset` to the old commit + the old binary). `list` shows the changes. |
 | `funesctl.sh` | Thin wrapper around `systemctl --user start/stop/restart/status funes.service`. |
 | `funes_bench.py` | Tool-calling benchmark: drives `/api/chat` through a fixed suite of prompts and scores whether the currently-connected model calls the right tools (and avoids the wrong ones). Run after swapping `FUNES_LLM_MODEL` to check the new model still works with Funes' agents before trusting it. `--list` for cases, `--compare` to diff saved runs across models. |
 | `whatsapp_autoresponder.py` | Polls the WhatsApp bridge for incoming messages, asks the `whatsapp-autoresponder` agent for a reply, sends it back. |
@@ -61,6 +62,7 @@ Features:
 | `whatsapp-autoresponder.service` | the autoresponder script against funes on :8485. Needs `FUNES_SERVICE_TOKEN`, `WHATSAPP_WHITELIST` and `FUNES_API_URL` in `config/funes.local`, plus a `funes jid-map` per sender |
 | `whatsapp-bridge.service` | the personal WhatsApp bridge (port 8090), binary in `third-party/whatsapp-mcp/whatsapp-bridge/`, session in `data/whatsapp/store` |
 | `whatsapp-bridge-funes.service` | the dedicated Funes WhatsApp bridge (port 8091), same binary, session in `data/whatsapp/store-funes` |
+| `funes-guardian.service` + `.timer` | `funes_guardian.py watch` every minute, outside the funes unit (it has to work when funes does not) |
 | `yoda.crontab` | the whole of yoda's crontab (newsletter images, LinkedIn posts, Sunday carousels); install with `crontab scripts/yoda.crontab` |
 | `deploy_alternating_editions.sh` | one-off (2026-11-02): pull, build, put the issue cron jobs on alternate days, install `yoda.crontab`, restart |
 | `migrate_to_one_checkout.sh` | one-off (5.2): moved yoda's state from `~/.funes-v4`, `~/Documents/X_posts`, `~/whatsapp-bridge` and `~/funes-julio` into the checkout |

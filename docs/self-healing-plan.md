@@ -1,6 +1,6 @@
 # Funes heals itself — plan
 
-Status: **H0 built** (7.18.0, 2026-11-14): probes, incidents, WhatsApp notices, `require_tools` on cron jobs. H1–H5 are plans.
+Status: **H0 built** (7.18.0, 2026-11-14): probes, incidents, WhatsApp notices, `require_tools` on cron jobs. **H1 built** (7.19.0, same day): the guardian — see "H1 — what was built" at the end. H2–H5 are plans.
 
 ## The question
 
@@ -243,3 +243,21 @@ neither needs a model.
    bridges and `send_renewal_link` seem safe; everything else at 2.
 4. Whether `rollback_deploy` may rebuild (minutes of CPU on yoda) or only
    swap back `bin/funes.prev`.
+
+## H1 — what was built (7.19.0)
+
+`scripts/funes_guardian.py`, run every minute by `funes-guardian.timer` (its
+own unit, outside `funes`), and `src/core/guardian.h` on the server side.
+
+| Piece | What |
+|---|---|
+| Transactions | `begin` tars the paths a change may touch (inside the checkout, never `data/guardian/`), noting the ones that do not exist yet; `applied` starts a 15-minute watch (10 for a deploy). |
+| Commit-confirmed | Each minute: Funes must answer `/api/auth/status` and no incident may have opened since the change. Two failed checks in a row and the snapshot goes back by itself, the units it names are restarted, and the admins are told why. A change that stays healthy for its window is `confirmed`; one begun and never applied is `abandoned` after an hour, not undone. |
+| Undo | "deshacer N" / "undo N", alone in a message. In the web chat and `funes ask` it is answered by `/api/chat` itself (admins only, like the change). On WhatsApp the guardian reads it from Funes's store and answers through the bridge itself, so it works while Funes is down; the autoresponder leaves it alone. `funes_guardian.py undo N` from a shell. |
+| `create_agent` | The one live self-modification (agent-doctor rewriting `agents/*.yaml`): snapshot first, and **no snapshot, no write**. The admins get "Cambio #N … «deshacer N»". |
+| `deploy` | `funes_guardian.py deploy` on yoda: refuses a dirty checkout, `git pull --ff-only`, build, restart, watched. A failed build or a failed watch is undone to the old commit (`git reset --hard`) and the old `bin/funes`. Still a pull, never a copy. |
+
+Not yet: database snapshots (nothing that changes data runs through it until
+runbooks, H2); the guardian does not restart anything but what a change names.
+Tests: `scripts/tests/test_funes_guardian.py` (in `ctest -R julio_autoresponder`,
+which runs `scripts/tests/`), `tests/test_guardian.cpp` (`ctest -R guardian`).

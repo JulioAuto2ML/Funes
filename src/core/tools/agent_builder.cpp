@@ -7,6 +7,7 @@
 // wires in main.cpp, so a new agent shows up in the UI's agent picker right
 // after this tool returns.
 
+#include "../guardian.h"
 #include "../tools.h"
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
@@ -127,6 +128,21 @@ ToolResult create_agent_handler(const ToolRegistry& reg, const std::string& agen
     const std::string yaml_text = emit_agent_yaml(name, description, model, tool_choice,
                                                   tools, max_steps, context_limit, system_prompt,
                                                   workspace_dir, delegation_notes, mcp_servers);
+    // Funes changing its own agents is the one live self-modification it has
+    // (agent-doctor), so the guardian snapshots the file first and watches the
+    // change after (guardian.h). No snapshot, no write.
+    int64_t change = 0;
+    if (funes::guardian::enabled()) {
+        const auto g = funes::guardian::begin(
+            "create_agent " + name + (fs::exists(path) ? " (rewrite)" : " (new)"),
+            "funes:create_agent", {path.string()}, {"funes"});
+        if (!g.ok)
+            return {"Not written: the guardian could not snapshot " + path.string() +
+                    " first, so the change could not be undone (" + g.message + "). "
+                    "Report this; do not try another way of writing the file.", true};
+        change = g.id;
+    }
+
     std::ofstream f(path, std::ios::trunc);
     if (!f)
         return {"Could not write " + path.string(), true};
@@ -134,9 +150,14 @@ ToolResult create_agent_handler(const ToolRegistry& reg, const std::string& agen
     f.close();
 
     if (reload_agents) reload_agents();
+    if (change) funes::guardian::applied(change, 900);
 
-    return {"Created agent '" + name + "' at " + path.string() +
-            " and reloaded — it's available now in the agent picker."};
+    std::string text = "Created agent '" + name + "' at " + path.string() +
+                       " and reloaded — it's available now in the agent picker.";
+    if (change)
+        text += " This is change #" + std::to_string(change) + ": the person can undo it with "
+                "\"deshacer " + std::to_string(change) + "\" (tell them).";
+    return {text};
 }
 
 } // namespace

@@ -27,6 +27,7 @@
 #include "fact_extraction.h"
 #include "host_collector.h"
 #include "host_events.h"
+#include "guardian.h"
 #include "incidents.h"
 #include "probes.h"
 #include "script_library.h"
@@ -465,6 +466,18 @@ int main(int argc, char** argv) {
                          "install; machine events are recorded but not remembered\n";
         return id;
     };
+
+    // The guardian (self-healing H1, guardian.h): scripts/funes_guardian.py in
+    // this checkout, unless FUNES_GUARDIAN=off. Absent on a checkout without
+    // it, and then create_agent writes unguarded, as before 7.19.
+    std::string guardian_script;
+    if (funes::env("FUNES_GUARDIAN", "on") != "off") {
+        const std::string scripts = resolve_dir("", "scripts");
+        if (fs::exists(scripts + "/funes_guardian.py")) {
+            guardian_script = scripts + "/funes_guardian.py";
+            funes::guardian::configure(guardian_script, fs::path(scripts).parent_path().string());
+        }
+    }
 
     ToolRegistry tools;
     register_web_tools(tools);
@@ -973,6 +986,9 @@ int main(int argc, char** argv) {
                                      : machine_account() > 0
                                          ? "memory on (account #" + std::to_string(machine_account()) + ")"
                                          : std::string("events on; memory starts once a person has an account"))
+              << "\n"
+              << "  Guardian:  " << (guardian_script.empty() ? std::string("off — create_agent writes unguarded")
+                                                            : guardian_script + " (\"deshacer N\" undoes change N)")
               << "\n"
               << "  Probes:    " << (incidents ? "on (incidents to admins on WhatsApp, quiet " +
                                                      funes::env("FUNES_INCIDENT_QUIET_HOURS", "23-8") + ")"

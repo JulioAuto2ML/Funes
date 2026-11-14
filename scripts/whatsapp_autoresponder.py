@@ -190,6 +190,23 @@ def save_state(state):
 
 
 RESET_COMMAND = "/new"
+# "/clear" is what people type out of habit (2026-11-13: it reached the model
+# as a message). Same rotation.
+RESET_COMMANDS = {RESET_COMMAND, "/clear"}
+# "deshacer N" is the guardian's (scripts/funes_guardian.py): it reads it from
+# the store itself, so an undo works while Funes is down. Forwarded here too,
+# it would be undone twice and answered twice.
+UNDO_RE = re.compile(r"^\s*(?:deshacer|undo)\s+#?\d{1,6}\s*[.!]?\s*$", re.IGNORECASE)
+
+
+def local_command(text: str) -> str:
+    """"reset" / "undo" for the messages that never reach Funes, else ""."""
+    t = (text or "").strip()
+    if t.lower() in RESET_COMMANDS:
+        return "reset"
+    if UNDO_RE.match(t):
+        return "undo"
+    return ""
 
 
 def sanitize_session(chat_jid: str, generation: int = 0) -> str:
@@ -512,7 +529,11 @@ def main():
             # Handled directly, never forwarded to Funes: this is a
             # mechanical session-rotation, not something needing model
             # judgment (see the project's deterministic-over-agentic rule).
-            if not media_type and message_text.lower() == RESET_COMMAND:
+            command = "" if media_type else local_command(message_text)
+            if command == "undo":
+                log(f"Left 'deshacer' from {chat_jid} to the guardian.")
+                continue
+            if command == "reset":
                 bump_session_generation(state, chat_jid)
                 save_state(state)
                 log(f"Reset session for {chat_jid} (new generation "
