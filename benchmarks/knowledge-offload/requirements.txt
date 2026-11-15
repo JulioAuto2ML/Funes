@@ -1,0 +1,4 @@
+# The harness itself is stdlib-only (as benchmarks/jevbench is). The venv exists
+# so E1b's ROCm torch pin and anything else research-only never touches the
+# system Python or Funes's own tooling.
+pytest>=8

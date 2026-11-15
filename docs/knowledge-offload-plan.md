@@ -296,6 +296,13 @@ wall time from llama-server's own timings.
 Done when: PopQA (1k sample) runs in all eight conditions against Qwen 9B and
 the numbers repeat within noise.
 
+Built 2026-11-15 in `benchmarks/knowledge-offload/` (README there). Decisions
+the methods section needs: primary metric is PopQA's alias-`contains`, with
+`exact` kept beside it; the sample is 1000 items of PopQA `test.tsv` (14,267
+rows, sha256 in every result), dataset seed 0, separate from the decoding
+seed; the `store` condition retrieves from all 14,267 triples by BM25, not
+from the sample alone.
+
 ### E1 — the size curve (weeks 2–3) · flagship
 
 Datasets: **PopQA** (entity popularity is in the data — the long tail is
