@@ -1,0 +1,3 @@
+serving Qwen3.8-9B-Q8_0.gguf (Q8_0) at http://localhost:8080
+skip popqa-n1000-qwen3.8-9b-q8-tool-search_first-r0.json (exists)
+web repeat 0 seed 0

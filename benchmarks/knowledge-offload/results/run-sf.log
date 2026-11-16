@@ -1,0 +1,18 @@
+serving Qwen3.8-9B-Q8_0.gguf (Q8_0) at http://localhost:8080
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.960
+  tool r0 pass1 200/1000 acc=0.975
+  tool r0 pass1 300/1000 acc=0.973
+  tool r0 pass1 400/1000 acc=0.973
+  tool r0 pass1 500/1000 acc=0.968
+  tool r0 pass1 600/1000 acc=0.972
+  tool r0 pass1 700/1000 acc=0.976
+  tool r0 pass1 800/1000 acc=0.976
+  tool r0 pass1 900/1000 acc=0.978
+  tool r0 pass1 1000/1000 acc=0.979
+  -> popqa-n1000-qwen3.8-9b-q8-tool-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.979, 'exact': 0.824, 'hedge_rate': 0.084, 'acc_nohedge': 0.902, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.964, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 107.412, 'completion_tokens': 45.546, 'wall_ms': 1677.42554, 'calls': 1.964}}}
+web repeat 0 seed 0
+  web r0 pass1 100/1000 acc=0.500
+  web r0 pass1 200/1000 acc=0.545
+  web r0 pass1 300/1000 acc=0.550
+  web r0 pass1 400/1000 acc=0.575

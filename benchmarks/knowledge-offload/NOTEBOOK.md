@@ -4,10 +4,11 @@ Plan: `docs/knowledge-offload-plan.md`. A new session reads the plan section it
 needs, this "Now" block and the last three entries, nothing else.
 
 ## Now
-- **Step:** 1, E0 harness. Code done and smoke-tested; **the E0 run itself has not happened.**
-- **Blocker:** yoda :8080 serves Qwen3.8-27B (production). `Qwen3.8-9B-Q8_0.gguf` is on disk, not loaded. A swap is julio's call (log it, undo it, not during the crons in `scripts/yoda.crontab`). Web conditions wait for the six-condition run (pid 2609426) to finish.
-- **Next action (web, after the six-condition run ends, 9B still on :8080):** the command in the 2026-11-15 web entry. (Older note: julio swaps :8080 to the 9B, then `python3 -u run.py run --model-tag qwen3.8-9b-q8 --expect-model 9B > results/run.log 2>&1`, then restore `qwen27b`.)
-- **Claude needed:** none for the run (script). Sonnet 5.5 · medium to fix what it shows.
+- **Step:** 1, E0. Six local conditions done on the 9B (3 repeats; funes@3000 3). `tool/search_first` done (1 repeat). **`web` and `web+cache` (search_first) are NOT done: Parallel's search returns 429 and Tavily's 1,000/month cannot cover ~3,000 answers.**
+- **Blocker (needs julio):** a way to run ~3,000 web-search answers: a Parallel API key (`FUNES_PARALLEL_API_KEY`, higher limits), or more Tavily quota, or a smaller web sample (e.g. n=200), or Parallel after its limit resets. yoda is back on the 27B (guard `ko_restore_27b.sh`, 2026-11-15 night). The 9B must be swapped in again for any resume.
+- **Resume (from `~/funes-ko/benchmarks/knowledge-offload`, 9B on :8080, `git pull` first; cells are resumable, a partial cell is redone):**
+  `export FUNES_TAVILY_API_KEY=...; python3 -u run.py run --model-tag qwen3.8-9b-q8 --expect-model 9B --repeats 1 --prompt-variant search_first --llm-url http://localhost:8080 --allow-local --conditions web web+cache > results/run-sf3.log 2>&1`
+- **Claude needed:** none for the run. Sonnet 5.5 · medium for the stats table and E1 sample config.
 
 ## 2026-11-15 · step 1 · E0 harness · Sonnet 5.5 · medium
 - Built `benchmarks/knowledge-offload/`: `run.py` + `ko/` (8 conditions, scorer, FTS5 triple store, llama-server client with timings, scratch-Funes driver, stats), 16 hermetic tests pass, README. PopQA `test.tsv` fetched (sha256 in results).
@@ -40,3 +41,9 @@ needs, this "Now" block and the last three entries, nothing else.
   `python3 -u run.py run --model-tag qwen3.8-9b-q8 --expect-model 9B --conditions web web+cache > results/run-web.log 2>&1`
   Then `python3 run.py summarize --by-bucket`; count `search_backends` per backend.
 - Next: full-pool funes and stratified runs when julio schedules them. Claude: none to run.
+
+## 2026-11-16 · step 1 · search_first run · Sonnet 5.5 · medium
+- **Why a variant:** on the 9B the default prompt ("reply with only the answer") made it skip tools (`tool` 6 lookups/1000, `web` 1 call/answer, acc = closed). New row `--prompt-variant search_first` (tool, tool+contract, web, web+cache); old prompt and every old result untouched; variant is in meta, file names and payload dirs. n=20 validation on the 9B passed first time: lookup/search rate tool .95, tool+contract 1.0, web .80, web+cache .85; web acc .40 vs closed .20.
+- **`tool/search_first`, n=1000, 1 repeat:** acc .979 [.970,.987], lookup rate 0.964, acc-hedge .902 (hedge .084), vs closed +.773 [+.748,+.798] (McNemar p<1e-232). Same as `tool+contract` (.977) without a contract: the contract's effect on this model was prompt wording. Per bucket .977-.983 across 1e1-1e5.
+- **Web: blocked.** Parallel answered the 20-question validation and ~250 answers, then returned HTTP 429 on every call (also after a 5/15/45/120 s backoff, added in bd294a1; one search then took >3 min). ~130 Tavily calls spent of the 1,000/month (cap in code: 800). No complete web cell exists; the partial `web` r0 (~350 questions, payloads kept on yoda only) was not saved as a result. At the 429 rate the full web+web+cache plan (~3,000 answers) could not finish; I stopped the run (SIGTERM) rather than burn Tavily. Guard swapped :8080 back to the 27B.
+- Open: web numbers need a Parallel key or more Tavily quota, or a smaller web n (decide with julio); `web` acc at n=20 was .40, so expect the web conditions to sit well below `tool/search_first`.
