@@ -530,6 +530,12 @@ out before the expensive part starts.
 
 ## Rules
 
+- **Provenance before GPU hours (added 2026-11-16 after the E0 lineage error,
+  notebook).** Every cell records the GGUF's sha256 and the repo it came from;
+  the runner refuses a model whose hash is not in `models.lock` (repo, file,
+  sha256, size, quant, lineage). One size curve = one lineage and one quant
+  producer; a model's name in a launch script is not evidence of what it is.
+  Deterministic conditions run once after a 100-item identity check.
 - **One variable per comparison.** Same quant, same prompt template, same k,
   same seed set across sizes; a change to any of them is a new row.
 - **Funes's production pool is never the dataset.** Experiments use throwaway
@@ -667,10 +673,10 @@ decoupling); not verified yet.
 
 - Which model family has enough GGUF sizes on ROCm to make E1's curve 5
   points long, and does the 27B have to be IQ4 while the rest are Q8 (a
-  confound to either remove or measure)? **Decided 2026-11-16:** IQ4_XS at every
-  size on the main axis, Q8_0 at ≤ 9B as a control curve; roster in the
-  notebook entry of that date; availability of the sub-9B Qwen3.8 sizes
-  unverified.
+  confound to either remove or measure)? **Decided 2026-11-16 (revised the same
+  day, notebook D9 → D10):** official Qwen3.5 0.8/2/4/9/27B, `unsloth` IQ4_XS at
+  every size on the main axis, Q8_0 at ≤ 9B as a control curve. Qwen3.8 has no
+  official sizes below 27B; the "Qwen3.8 9B" E0 used is a community distill.
 - ~~Is the end-to-end `funes` condition worth its noise~~ One labelled row per
   size (2026-11-15).
 - E5's budget: rented GPU hours, or E1b's results say a LoRA isn't needed.
