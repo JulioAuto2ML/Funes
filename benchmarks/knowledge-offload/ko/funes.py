@@ -31,7 +31,11 @@ def _free_port() -> int:
 
 
 class FunesInstance:
-    def __init__(self, llm_url: str, embed_url: str, binary: Path | None = None):
+    def __init__(self, llm_url: str, embed_url: str, binary: Path | None = None,
+                 pool: Path | None = None):
+        """`pool`: a directory made by `build_pool` — its memory.db is copied into
+        the scratch dir and its throwaway account is logged into, not created."""
+        self.pool = Path(pool) if pool else None
         self.binary = Path(binary or REPO / "bin" / "funes")
         if not self.binary.exists():
             raise ConditionUnavailable(f"{self.binary} not built (cmake --build build)")
@@ -45,6 +49,9 @@ class FunesInstance:
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
         self.username = "ko_" + secrets.token_hex(3)
         self._password = secrets.token_urlsafe(16)
+        if self.pool:
+            acct = json.loads((self.pool / "account.json").read_text())
+            self.username, self._password = acct["username"], acct["password"]
 
     # -- lifecycle --------------------------------------------------------
     def __enter__(self):
@@ -53,6 +60,9 @@ class FunesInstance:
             not db.resolve().is_relative_to(REPO / "data"), "refusing a non-scratch FUNES_DB"
         prod = REPO / "data" / "memory.db"
         self._prod_mtime = prod.stat().st_mtime if prod.exists() else None
+        if self.pool:
+            for f in self.pool.glob("memory.db*"):        # -wal / -shm travel with the db
+                shutil.copy2(f, self.scratch / f.name)
         env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "LC_ALL")}
         env.update({
             "FUNES_DB": str(db), "FUNES_DATA_DIR": str(self.scratch / "data"),
@@ -76,18 +86,22 @@ class FunesInstance:
                 continue
         else:
             raise ConditionUnavailable(f"funes did not come up; see {self.log}")
-        self._req("/api/auth/bootstrap", {"username": self.username, "password": self._password,
-                                          "display_name": "KO bench"})
+        if not self.pool:
+            self._req("/api/auth/bootstrap", {"username": self.username, "password": self._password,
+                                              "display_name": "KO bench"})
         self._req("/api/login", {"username": self.username, "password": self._password})
         return self
 
-    def __exit__(self, *exc):
+    def _stop(self):
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
             try:
-                self.proc.wait(10)
+                self.proc.wait(30)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
+
+    def __exit__(self, *exc):
+        self._stop()
         prod = REPO / "data" / "memory.db"
         now = prod.stat().st_mtime if prod.exists() else None
         shutil.rmtree(self.scratch, ignore_errors=True)
@@ -102,12 +116,28 @@ class FunesInstance:
         with self.opener.open(req, timeout=timeout) as r:
             return r.read().decode()
 
-    def load_facts(self, texts) -> int:
+    def load_facts(self, texts, log=None) -> int:
         n = 0
         for t in texts:
             self._req("/api/memories", {"text": t})
             n += 1
+            if log and n % 1000 == 0:
+                log(f"  pool {n}/{len(texts)}")
         return n
+
+    def save_pool(self, dest: Path) -> Path:
+        """Stop the server (so the WAL is folded into the db) and keep its
+        memory.db and account. Ends this instance: build a pool, then open
+        each run on a copy of it."""
+        self._stop()
+        dest = Path(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        for f in self.scratch.glob("memory.db*"):
+            shutil.copy2(f, dest / f.name)
+        (dest / "account.json").write_text(json.dumps(
+            {"username": self.username, "password": self._password, "embed_url": self.embed_url}))
+        (dest / "account.json").chmod(0o600)
+        return dest
 
     def ask(self, question: str) -> Answer:
         t0 = time.monotonic()

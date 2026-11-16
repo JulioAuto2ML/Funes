@@ -303,6 +303,16 @@ rows, sha256 in every result), dataset seed 0, separate from the decoding
 seed; the `store` condition retrieves from all 14,267 triples by BM25, not
 from the sample alone.
 
+2026-11-15 (pre-E1 decisions, notebook entry of the same date): `funes` is one
+labelled line per size (1 repeat, temperature 0.2, wall time only), not an H1
+condition; `store` and `funes` load the same 14,267 triples; H6's taint clause
+is a reported rate, not a hypothesis — its test is pass-2 accuracy vs pass-1
+`web` with web calls ≈ 0; E1's kill criterion becomes "retrieval_hit < 0.9 or
+store < oracle − 10 points at any size"; a `hedge` flag (answer names ≥ 2
+candidate objects) is reported beside `contains`; E2 excludes homonym
+subjects; deterministic cells run once after a 100-item identity check,
+3 repeats only for `funes` and the web conditions.
+
 ### E1 — the size curve (weeks 2–3) · flagship
 
 Datasets: **PopQA** (entity popularity is in the data — the long tail is

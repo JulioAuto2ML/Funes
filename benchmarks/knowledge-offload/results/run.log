@@ -1,0 +1,218 @@
+serving Qwen3.8-9B-Q8_0.gguf (Q8_0) at http://yoda:8080
+funes: loading 3000 facts into a scratch pool ...
+closed repeat 0 seed 0
+  closed r0 pass1 100/1000 acc=0.160
+  closed r0 pass1 200/1000 acc=0.205
+  closed r0 pass1 300/1000 acc=0.233
+  closed r0 pass1 400/1000 acc=0.237
+  closed r0 pass1 500/1000 acc=0.234
+  closed r0 pass1 600/1000 acc=0.223
+  closed r0 pass1 700/1000 acc=0.216
+  closed r0 pass1 800/1000 acc=0.212
+  closed r0 pass1 900/1000 acc=0.213
+  closed r0 pass1 1000/1000 acc=0.206
+  -> popqa-n1000-qwen3.8-9b-q8-closed-r0.json {'pass1': {'n': 1000, 'acc': 0.206, 'exact': 0.186, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.619, 'completion_tokens': 4.529, 'wall_ms': 228.05187000000012, 'calls': 1.0}}}
+oracle repeat 0 seed 0
+  oracle r0 pass1 100/1000 acc=0.990
+  oracle r0 pass1 200/1000 acc=0.995
+  oracle r0 pass1 300/1000 acc=0.997
+  oracle r0 pass1 400/1000 acc=0.998
+  oracle r0 pass1 500/1000 acc=0.998
+  oracle r0 pass1 600/1000 acc=0.997
+  oracle r0 pass1 700/1000 acc=0.997
+  oracle r0 pass1 800/1000 acc=0.998
+  oracle r0 pass1 900/1000 acc=0.997
+  oracle r0 pass1 1000/1000 acc=0.997
+  -> popqa-n1000-qwen3.8-9b-q8-oracle-r0.json {'pass1': {'n': 1000, 'acc': 0.997, 'exact': 0.996, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 37.561, 'completion_tokens': 4.274, 'wall_ms': 235.98062999999985, 'calls': 1.0}}}
+store repeat 0 seed 0
+  store r0 pass1 100/1000 acc=0.960
+  store r0 pass1 200/1000 acc=0.965
+  store r0 pass1 300/1000 acc=0.977
+  store r0 pass1 400/1000 acc=0.978
+  store r0 pass1 500/1000 acc=0.978
+  store r0 pass1 600/1000 acc=0.978
+  store r0 pass1 700/1000 acc=0.980
+  store r0 pass1 800/1000 acc=0.979
+  store r0 pass1 900/1000 acc=0.978
+  store r0 pass1 1000/1000 acc=0.980
+  -> popqa-n1000-qwen3.8-9b-q8-store-r0.json {'pass1': {'n': 1000, 'acc': 0.98, 'exact': 0.851, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.991, 'per_answer': {'prompt_tokens': 78.836, 'completion_tokens': 5.333, 'wall_ms': 353.6067399999995, 'calls': 1.0}}}
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.200
+  tool r0 pass1 200/1000 acc=0.230
+  tool r0 pass1 300/1000 acc=0.243
+  tool r0 pass1 400/1000 acc=0.242
+  tool r0 pass1 500/1000 acc=0.238
+  tool r0 pass1 600/1000 acc=0.228
+  tool r0 pass1 700/1000 acc=0.223
+  tool r0 pass1 800/1000 acc=0.221
+  tool r0 pass1 900/1000 acc=0.223
+  tool r0 pass1 1000/1000 acc=0.216
+  -> popqa-n1000-qwen3.8-9b-q8-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.216, 'exact': 0.175, 'abstain': 0.002, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.006, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.599, 'completion_tokens': 9.964, 'wall_ms': 409.30698000000035, 'calls': 1.006}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.960
+  tool+contract r0 pass1 200/1000 acc=0.965
+  tool+contract r0 pass1 300/1000 acc=0.970
+  tool+contract r0 pass1 400/1000 acc=0.970
+  tool+contract r0 pass1 500/1000 acc=0.970
+  tool+contract r0 pass1 600/1000 acc=0.972
+  tool+contract r0 pass1 700/1000 acc=0.974
+  tool+contract r0 pass1 800/1000 acc=0.974
+  tool+contract r0 pass1 900/1000 acc=0.976
+  tool+contract r0 pass1 1000/1000 acc=0.977
+  -> popqa-n1000-qwen3.8-9b-q8-toolpluscontract-r0.json {'pass1': {'n': 1000, 'acc': 0.977, 'exact': 0.694, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 193.588, 'completion_tokens': 57.147, 'wall_ms': 2237.0880499999957, 'calls': 2.994}}}
+funes repeat 0 seed 0
+  funes r0 pass1 100/1000 acc=0.880
+  funes r0 pass1 200/1000 acc=0.875
+  funes r0 pass1 300/1000 acc=0.893
+  funes r0 pass1 400/1000 acc=0.890
+  funes r0 pass1 500/1000 acc=0.892
+  funes r0 pass1 600/1000 acc=0.890
+  funes r0 pass1 700/1000 acc=0.889
+  funes r0 pass1 800/1000 acc=0.891
+  funes r0 pass1 900/1000 acc=0.894
+  funes r0 pass1 1000/1000 acc=0.893
+  -> popqa-n1000-qwen3.8-9b-q8-funes-r0.json {'pass1': {'n': 1000, 'acc': 0.893, 'exact': 0.0, 'abstain': 0.0, 'errors': 0, 'tainted': 0.003, 'lookup_rate': 0.006, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 0.0, 'completion_tokens': 0.0, 'wall_ms': 5168.328500000001, 'calls': 1.0}}}
+closed repeat 1 seed 1
+  closed r1 pass1 100/1000 acc=0.160
+  closed r1 pass1 200/1000 acc=0.205
+  closed r1 pass1 300/1000 acc=0.233
+  closed r1 pass1 400/1000 acc=0.237
+  closed r1 pass1 500/1000 acc=0.234
+  closed r1 pass1 600/1000 acc=0.223
+  closed r1 pass1 700/1000 acc=0.216
+  closed r1 pass1 800/1000 acc=0.212
+  closed r1 pass1 900/1000 acc=0.213
+  closed r1 pass1 1000/1000 acc=0.206
+  -> popqa-n1000-qwen3.8-9b-q8-closed-r1.json {'pass1': {'n': 1000, 'acc': 0.206, 'exact': 0.186, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.619, 'completion_tokens': 4.529, 'wall_ms': 218.58678999999987, 'calls': 1.0}}}
+oracle repeat 1 seed 1
+  oracle r1 pass1 100/1000 acc=0.990
+  oracle r1 pass1 200/1000 acc=0.995
+  oracle r1 pass1 300/1000 acc=0.997
+  oracle r1 pass1 400/1000 acc=0.998
+  oracle r1 pass1 500/1000 acc=0.998
+  oracle r1 pass1 600/1000 acc=0.997
+  oracle r1 pass1 700/1000 acc=0.997
+  oracle r1 pass1 800/1000 acc=0.998
+  oracle r1 pass1 900/1000 acc=0.997
+  oracle r1 pass1 1000/1000 acc=0.997
+  -> popqa-n1000-qwen3.8-9b-q8-oracle-r1.json {'pass1': {'n': 1000, 'acc': 0.997, 'exact': 0.996, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 37.561, 'completion_tokens': 4.274, 'wall_ms': 223.1465300000001, 'calls': 1.0}}}
+store repeat 1 seed 1
+  store r1 pass1 100/1000 acc=0.960
+  store r1 pass1 200/1000 acc=0.965
+  store r1 pass1 300/1000 acc=0.977
+  store r1 pass1 400/1000 acc=0.978
+  store r1 pass1 500/1000 acc=0.978
+  store r1 pass1 600/1000 acc=0.978
+  store r1 pass1 700/1000 acc=0.980
+  store r1 pass1 800/1000 acc=0.979
+  store r1 pass1 900/1000 acc=0.978
+  store r1 pass1 1000/1000 acc=0.980
+  -> popqa-n1000-qwen3.8-9b-q8-store-r1.json {'pass1': {'n': 1000, 'acc': 0.98, 'exact': 0.851, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.991, 'per_answer': {'prompt_tokens': 78.836, 'completion_tokens': 5.333, 'wall_ms': 323.6177099999999, 'calls': 1.0}}}
+tool repeat 1 seed 1
+  tool r1 pass1 100/1000 acc=0.200
+  tool r1 pass1 200/1000 acc=0.230
+  tool r1 pass1 300/1000 acc=0.243
+  tool r1 pass1 400/1000 acc=0.242
+  tool r1 pass1 500/1000 acc=0.238
+  tool r1 pass1 600/1000 acc=0.228
+  tool r1 pass1 700/1000 acc=0.223
+  tool r1 pass1 800/1000 acc=0.221
+  tool r1 pass1 900/1000 acc=0.223
+  tool r1 pass1 1000/1000 acc=0.216
+  -> popqa-n1000-qwen3.8-9b-q8-tool-r1.json {'pass1': {'n': 1000, 'acc': 0.216, 'exact': 0.175, 'abstain': 0.002, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.006, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.599, 'completion_tokens': 9.964, 'wall_ms': 413.5280600000009, 'calls': 1.006}}}
+tool+contract repeat 1 seed 1
+  tool+contract r1 pass1 100/1000 acc=0.960
+  tool+contract r1 pass1 200/1000 acc=0.965
+  tool+contract r1 pass1 300/1000 acc=0.970
+  tool+contract r1 pass1 400/1000 acc=0.970
+  tool+contract r1 pass1 500/1000 acc=0.970
+  tool+contract r1 pass1 600/1000 acc=0.972
+  tool+contract r1 pass1 700/1000 acc=0.974
+  tool+contract r1 pass1 800/1000 acc=0.974
+  tool+contract r1 pass1 900/1000 acc=0.976
+  tool+contract r1 pass1 1000/1000 acc=0.977
+  -> popqa-n1000-qwen3.8-9b-q8-toolpluscontract-r1.json {'pass1': {'n': 1000, 'acc': 0.977, 'exact': 0.694, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 193.588, 'completion_tokens': 57.147, 'wall_ms': 2194.440720000002, 'calls': 2.994}}}
+funes repeat 1 seed 1
+  funes r1 pass1 100/1000 acc=0.860
+  funes r1 pass1 200/1000 acc=0.875
+  funes r1 pass1 300/1000 acc=0.880
+  funes r1 pass1 400/1000 acc=0.880
+  funes r1 pass1 500/1000 acc=0.888
+  funes r1 pass1 600/1000 acc=0.887
+  funes r1 pass1 700/1000 acc=0.889
+  funes r1 pass1 800/1000 acc=0.895
+  funes r1 pass1 900/1000 acc=0.898
+  funes r1 pass1 1000/1000 acc=0.897
+  -> popqa-n1000-qwen3.8-9b-q8-funes-r1.json {'pass1': {'n': 1000, 'acc': 0.897, 'exact': 0.0, 'abstain': 0.0, 'errors': 0, 'tainted': 0.002, 'lookup_rate': 0.004, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 0.0, 'completion_tokens': 0.0, 'wall_ms': 5268.638569999995, 'calls': 1.0}}}
+closed repeat 2 seed 2
+  closed r2 pass1 100/1000 acc=0.160
+  closed r2 pass1 200/1000 acc=0.205
+  closed r2 pass1 300/1000 acc=0.233
+  closed r2 pass1 400/1000 acc=0.237
+  closed r2 pass1 500/1000 acc=0.234
+  closed r2 pass1 600/1000 acc=0.223
+  closed r2 pass1 700/1000 acc=0.216
+  closed r2 pass1 800/1000 acc=0.212
+  closed r2 pass1 900/1000 acc=0.213
+  closed r2 pass1 1000/1000 acc=0.206
+  -> popqa-n1000-qwen3.8-9b-q8-closed-r2.json {'pass1': {'n': 1000, 'acc': 0.206, 'exact': 0.186, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.591, 'completion_tokens': 4.529, 'wall_ms': 219.7008800000001, 'calls': 1.0}}}
+oracle repeat 2 seed 2
+  oracle r2 pass1 100/1000 acc=0.990
+  oracle r2 pass1 200/1000 acc=0.995
+  oracle r2 pass1 300/1000 acc=0.997
+  oracle r2 pass1 400/1000 acc=0.998
+  oracle r2 pass1 500/1000 acc=0.998
+  oracle r2 pass1 600/1000 acc=0.997
+  oracle r2 pass1 700/1000 acc=0.997
+  oracle r2 pass1 800/1000 acc=0.998
+  oracle r2 pass1 900/1000 acc=0.997
+  oracle r2 pass1 1000/1000 acc=0.997
+  -> popqa-n1000-qwen3.8-9b-q8-oracle-r2.json {'pass1': {'n': 1000, 'acc': 0.997, 'exact': 0.996, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 37.561, 'completion_tokens': 4.274, 'wall_ms': 220.78805000000014, 'calls': 1.0}}}
+store repeat 2 seed 2
+  store r2 pass1 100/1000 acc=0.960
+  store r2 pass1 200/1000 acc=0.965
+  store r2 pass1 300/1000 acc=0.977
+  store r2 pass1 400/1000 acc=0.978
+  store r2 pass1 500/1000 acc=0.978
+  store r2 pass1 600/1000 acc=0.978
+  store r2 pass1 700/1000 acc=0.980
+  store r2 pass1 800/1000 acc=0.979
+  store r2 pass1 900/1000 acc=0.978
+  store r2 pass1 1000/1000 acc=0.980
+  -> popqa-n1000-qwen3.8-9b-q8-store-r2.json {'pass1': {'n': 1000, 'acc': 0.98, 'exact': 0.851, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.991, 'per_answer': {'prompt_tokens': 78.836, 'completion_tokens': 5.333, 'wall_ms': 320.3292600000003, 'calls': 1.0}}}
+tool repeat 2 seed 2
+  tool r2 pass1 100/1000 acc=0.200
+  tool r2 pass1 200/1000 acc=0.230
+  tool r2 pass1 300/1000 acc=0.243
+  tool r2 pass1 400/1000 acc=0.242
+  tool r2 pass1 500/1000 acc=0.238
+  tool r2 pass1 600/1000 acc=0.228
+  tool r2 pass1 700/1000 acc=0.223
+  tool r2 pass1 800/1000 acc=0.221
+  tool r2 pass1 900/1000 acc=0.223
+  tool r2 pass1 1000/1000 acc=0.216
+  -> popqa-n1000-qwen3.8-9b-q8-tool-r2.json {'pass1': {'n': 1000, 'acc': 0.216, 'exact': 0.175, 'abstain': 0.002, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.006, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.599, 'completion_tokens': 9.964, 'wall_ms': 410.89121, 'calls': 1.006}}}
+tool+contract repeat 2 seed 2
+  tool+contract r2 pass1 100/1000 acc=0.960
+  tool+contract r2 pass1 200/1000 acc=0.965
+  tool+contract r2 pass1 300/1000 acc=0.970
+  tool+contract r2 pass1 400/1000 acc=0.970
+  tool+contract r2 pass1 500/1000 acc=0.970
+  tool+contract r2 pass1 600/1000 acc=0.972
+  tool+contract r2 pass1 700/1000 acc=0.974
+  tool+contract r2 pass1 800/1000 acc=0.974
+  tool+contract r2 pass1 900/1000 acc=0.976
+  tool+contract r2 pass1 1000/1000 acc=0.977
+  -> popqa-n1000-qwen3.8-9b-q8-toolpluscontract-r2.json {'pass1': {'n': 1000, 'acc': 0.977, 'exact': 0.694, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 193.588, 'completion_tokens': 57.147, 'wall_ms': 2206.7791700000007, 'calls': 2.994}}}
+funes repeat 2 seed 2
+  funes r2 pass1 100/1000 acc=0.890
+  funes r2 pass1 200/1000 acc=0.900
+  funes r2 pass1 300/1000 acc=0.897
+  funes r2 pass1 400/1000 acc=0.890
+  funes r2 pass1 500/1000 acc=0.892
+  funes r2 pass1 600/1000 acc=0.895
+  funes r2 pass1 700/1000 acc=0.894
+  funes r2 pass1 800/1000 acc=0.895
+  funes r2 pass1 900/1000 acc=0.897
+  funes r2 pass1 1000/1000 acc=0.894
+  -> popqa-n1000-qwen3.8-9b-q8-funes-r2.json {'pass1': {'n': 1000, 'acc': 0.894, 'exact': 0.0, 'abstain': 0.0, 'errors': 0, 'tainted': 0.003, 'lookup_rate': 0.007, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 0.0, 'completion_tokens': 0.0, 'wall_ms': 5519.872430000002, 'calls': 1.0}}}

@@ -1,5 +1,6 @@
 """One cell = (dataset, model, condition, repeat) -> one result JSON."""
 import datetime as dt
+import gzip
 import json
 import subprocess
 import time
@@ -27,15 +28,43 @@ def git_state() -> dict:
 def build_store(items: list[popqa.Item]) -> FactStore:
     """The whole PopQA triple set, not just the sample: the sample's neighbours
     (same-name entities, same relation) are the distractors a real store has."""
-    return FactStore(Fact(i.subj, i.prop, i.obj) for i in items)
+    return FactStore(Fact(*t) for t in popqa.facts(items))
 
 
-def cell_path(tag: str, n: int, condition: str, rep: int) -> Path:
-    return RESULTS / f"popqa-n{n}-{tag}-{condition.replace('+', 'plus')}-r{rep}.json"
+def pool_texts(items: list[popqa.Item]) -> list[str]:
+    """The same triples as `build_store`, as the text `funes` is given to remember."""
+    return [Fact(*t).text() for t in popqa.facts(items)]
+
+
+def cell_path(tag: str, n: int, condition: str, rep: int, *, sample: str = "random",
+              dataset_seed: int = 0, pool: int | None = None) -> Path:
+    """Defaults keep the E0 names (`popqa-n1000-<tag>-<cond>-r<k>.json`) as they
+    were; a stratified sample and a non-default funes pool say so in the name,
+    so a new row never overwrites an old one."""
+    head = "popqa" if sample == "random" else f"popqa-{sample}{dataset_seed}"
+    cond = condition.replace("+", "plus") + (f"-pool{pool}" if pool and condition == "funes" else "")
+    return RESULTS / f"{head}-n{n}-{tag}-{cond}-r{rep}.json"
+
+
+def payload_dir(tag: str, condition: str, rep: int, passno: int, *, sample: str = "random",
+                dataset_seed: int = 0) -> Path:
+    """results/payloads/<run>/<condition>-r<rep>-p<pass>/<question id>.json.gz"""
+    run = f"{tag}" if sample == "random" else f"{tag}-{sample}{dataset_seed}"
+    return RESULTS / "payloads" / run / f"{condition.replace('+', 'plus')}-r{rep}-p{passno}"
+
+
+def write_payloads(directory: Path, qid: str, payloads: list) -> None:
+    if not payloads:
+        return
+    directory.mkdir(parents=True, exist_ok=True)
+    with gzip.open(directory / f"{qid}.json.gz", "wt", encoding="utf-8") as f:
+        json.dump({"id": qid, "payloads": payloads}, f, ensure_ascii=False)
 
 
 def run_cell(*, condition: str, items, ctx: C.Context, rep: int, meta: dict,
-             log=print) -> dict:
+             log=print, candidates: dict | None = None, payloads_to=None) -> dict:
+    """`candidates` (popqa.candidate_sets) turns on the `hedge` flag;
+    `payloads_to(passno) -> Path` is where raw web payloads go, one file per question."""
     fn = C.REGISTRY[condition]
     passes = 2 if condition == "web+cache" else 1
     rows, t_start = [], time.monotonic()
@@ -48,7 +77,10 @@ def run_cell(*, condition: str, items, ctx: C.Context, rep: int, meta: dict,
                 raise
             except LLMError as e:
                 a = C.Answer(error=str(e))
-            s = score(a.text, list(item.aliases))
+            s = score(a.text, list(item.aliases),
+                      None if candidates is None else candidates.get((item.subj, item.prop)))
+            if payloads_to and a.payloads:
+                write_payloads(payloads_to(p), item.id, a.payloads)
             rows.append({"id": item.id, "pass": p, "pop_bucket": popqa.pop_bucket(item),
                          "prediction": a.text, **s, "usage": a.usage.as_dict(),
                          "tools": a.tools, "steps": a.steps, "nudges": a.nudges,
@@ -75,6 +107,9 @@ def summarize_rows(rows: list[dict]) -> dict:
         out[f"pass{p}"] = {
             "n": n, "acc": sum(r["contains"] for r in rs) / n,
             "exact": sum(r["exact"] for r in rs) / n,
+            **({"hedge_rate": sum(r["hedge"] for r in rs) / n,
+                "acc_nohedge": sum(r["contains"] and not r["hedge"] for r in rs) / n}
+               if all("hedge" in r for r in rs) else {}),
             "abstain": sum(r["abstained"] for r in rs) / n,
             "errors": sum(1 for r in rs if r["error"]),
             "tainted": sum(r["tainted"] for r in rs) / n,

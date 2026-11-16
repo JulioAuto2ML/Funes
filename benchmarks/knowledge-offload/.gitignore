@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 # smoke runs prove the plumbing, not a result
 results/*smoke*
+results/payloads/

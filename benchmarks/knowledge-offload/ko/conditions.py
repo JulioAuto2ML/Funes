@@ -40,6 +40,7 @@ class Answer:
     tainted: bool = False
     error: str | None = None
     extra: dict = field(default_factory=dict)
+    payloads: list = field(default_factory=list)    # raw web payloads; stored beside, not in, the result
 
 
 @dataclass
@@ -141,9 +142,11 @@ def _web_executors(ctx):
 def web(ctx, item):
     if ctx.web is None or not ctx.web.available:
         raise ConditionUnavailable("no search backend (FUNES_SEARCH_BACKEND=parallel, or a Tavily key)")
-    n0 = len(ctx.web.calls)
+    n0, p0 = len(ctx.web.calls), len(ctx.web.payloads)
     a = tool_loop(ctx, item.question, [T.WEB_SEARCH, T.WEB_FETCH], _web_executors(ctx))
     a.extra["search_backends"] = ctx.web.calls[n0:]
+    a.payloads = ctx.web.payloads[p0:]
+    del ctx.web.payloads[p0:]          # handed to the answer; the run keeps nothing
     a.tainted = any(t.startswith("web_") for t in a.tools)   # outside content was read
     return a
 
@@ -159,11 +162,13 @@ def web_cache(ctx, item):
     system = (SYSTEM_TOOL + " First call recall to check what you already noted. If it does not "
               "answer the question, search the web, then call remember with one short fact "
               "that includes its source URL.")
-    before, n0 = ctx.notes.served, len(ctx.web.calls)
+    before, n0, p0 = ctx.notes.served, len(ctx.web.calls), len(ctx.web.payloads)
     a = tool_loop(ctx, item.question, [T.RECALL, T.WEB_SEARCH, T.WEB_FETCH, T.REMEMBER], ex,
                   system=system)
     # A note came from a web page: an answer built on one is as tainted as the search.
     a.extra["search_backends"] = ctx.web.calls[n0:]
+    a.payloads = ctx.web.payloads[p0:]
+    del ctx.web.payloads[p0:]          # handed to the answer; the run keeps nothing
     a.tainted = any(t.startswith("web_") for t in a.tools) or ctx.notes.served > before
     a.extra["pass"] = ctx.passno
     return a

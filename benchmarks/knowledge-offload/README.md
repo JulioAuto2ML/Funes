@@ -74,3 +74,11 @@ endpoint, n_ctx (from the server, at run start), git commit + dirty flag, datase
 sha256 and sample seed, decoding seed, date, store size, then every answer
 (prediction, scores, usage, tools called, nudges, taint) and a summary. `*smoke*`
 files are plumbing checks and are gitignored.
+
+## Added after the E0 design review (2026-11-15)
+
+- **Raw web payloads** go to `results/payloads/<tag>/<condition>-r<rep>-p<pass>/<question id>.json.gz` (gitignored): every search attempt's raw reply (Parallel and Tavily) and every fetched page, so web cells can be re-scored.
+- **`hedge`**: the answer names >= 2 distinct objects of the same (subject, property) set. `summarize` prints `acc-hedge` (`contains` and not hedged) and the hedge rate; it computes both from stored predictions for older cells.
+- **`funes` pool**: `--funes-pool full` (default) loads all 14,267 triples, the list `store` is built from, once into `data/pools/` and copies it per run. `--funes-pool distractors` is the E0 plumbing pool (shown as `funes@3000`).
+- **`--sample stratified`** (equal items per popularity bucket; give it a new `--dataset-seed`). Names carry `stratified<seed>`.
+- **`summarize --by-bucket`**: accuracy per popularity bucket with n.

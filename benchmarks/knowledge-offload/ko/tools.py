@@ -103,6 +103,10 @@ class Web:
         self.searches = 0
         self.fetches = 0
         self.calls: list[dict] = []     # [{"backend": "parallel"|"tavily", "fallback_reason": ...}]
+        # What the engines actually sent back, before any formatting or
+        # truncation: the web cells can be re-scored only if this is kept.
+        self.payloads: list[dict] = []
+        self._attempts: list[dict] = []
 
     @property
     def available(self) -> bool:
@@ -135,10 +139,12 @@ class Web:
                     "name": "web_search",
                     "arguments": {"objective": query, "search_queries": [query]}}},
                     self._session or None)
+                self._attempts.append({"backend": "parallel", "raw": text})
                 msg = _mcp_json(text)
                 break
-            except Exception:
+            except Exception as e:
                 self._session = None
+                self._attempts.append({"backend": "parallel", "error": f"{type(e).__name__}: {e}"[:300]})
                 if attempt:
                     raise
         res = msg.get("result", {})
@@ -161,11 +167,20 @@ class Web:
         raw = self.transport("https://api.tavily.com/search",
                              {"api_key": self.key, "query": query, "max_results": 5,
                               "search_depth": "basic", "include_answer": False})
+        self._attempts.append({"backend": "tavily", "raw": raw})
         results = json.loads(raw).get("results", [])
         return "\n".join(f"{r.get('title','')} | {r.get('url','')} | "
                          f"{(r.get('content') or '')[:400]}" for r in results) or "no results"
 
     def search(self, query: str) -> str:
+        self._attempts = []
+        try:
+            return self._search(query)
+        finally:
+            self.payloads.append({"kind": "search", "query": query, "attempts": self._attempts,
+                                  "backend": self.calls[-1]["backend"] if self.calls else None})
+
+    def _search(self, query: str) -> str:
         self.searches += 1
         if self.backend == "parallel":
             try:
@@ -189,6 +204,7 @@ class Web:
             return "error: only http(s) URLs"
         self.fetches += 1
         raw = self.transport(url, None)
+        self.payloads.append({"kind": "fetch", "url": url, "raw": raw})
         text = re.sub(r"(?is)<(script|style).*?</\1>", " ", raw)
         text = html.unescape(re.sub(r"<[^>]+>", " ", text))
         return " ".join(text.split())[:self.max_chars]

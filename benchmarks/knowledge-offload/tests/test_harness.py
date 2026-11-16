@@ -215,3 +215,165 @@ def test_web_condition_puts_backends_in_the_answer():
     c = C.Context(client=FakeClient([call("web_search", query="q"), text("politician")]), web=web)
     a = C.web(c, GOLD)
     assert a.extra["search_backends"] == [{"backend": "parallel"}] and a.tainted
+
+
+# ---- 2026-11-15 additions: payloads, hedge, shared pool, stratified sample, buckets ----
+import gzip                                                             # noqa: E402
+import importlib.util                                                   # noqa: E402
+import json                                                             # noqa: E402
+
+from ko import popqa, runner                                            # noqa: E402
+from ko.scoring import named_candidates                                 # noqa: E402
+
+CANDS = (("politician", "political leader"), ("journalist",), ("Georgia",),
+         ("Georgia Institute of Technology",))
+
+
+def it(i, subj, prop, obj, pop, aliases=None):
+    return Item(str(i), f"What is {subj}'s {prop}?", subj, prop, obj, tuple(aliases or [obj]), pop)
+
+
+def test_payloads_keep_the_raw_reply_and_both_attempts_on_fallback():
+    post, _ = fake_parallel()
+    web = T.Web(None, post=post)
+    web.search("george rankin")
+    p = web.payloads[0]
+    assert p["kind"] == "search" and p["backend"] == "parallel"
+    assert p["attempts"][0]["backend"] == "parallel" and "politician" in p["attempts"][0]["raw"]
+    post, _ = fake_parallel(fail=True)
+    web = T.Web("k", post=post, transport=lambda url, body=None: '{"results":[{"title":"t","url":"http://x","content":"c"}]}')
+    web.search("q")
+    kinds = [(x["backend"], "raw" in x or "error" in x) for x in web.payloads[0]["attempts"]]
+    assert ("parallel", True) in kinds and ("tavily", True) in kinds     # the failure and the answer
+    web.fetch("http://x/page")
+    assert web.payloads[-1] == {"kind": "fetch", "url": "http://x/page", "raw": web.transport("http://x/page")}
+
+
+def test_web_answer_carries_payloads_and_the_run_hands_them_on(tmp_path):
+    post, _ = fake_parallel()
+    web = T.Web(None, post=post)
+    c = C.Context(client=FakeClient([call("web_search", query="q"), text("politician")]), web=web)
+    a = C.web(c, GOLD)
+    assert len(a.payloads) == 1 and web.payloads == []                  # taken, not kept in memory
+    runner.write_payloads(tmp_path / "web-r0-p1", GOLD.id, a.payloads)
+    got = json.loads(gzip.open(tmp_path / "web-r0-p1" / "1.json.gz", "rt").read())
+    assert got["id"] == "1" and got["payloads"][0]["attempts"][0]["raw"]
+    runner.write_payloads(tmp_path / "none", "9", [])                   # nothing to keep, no empty file
+    assert not (tmp_path / "none").exists()
+
+
+def test_payload_dir_is_keyed_by_run_condition_repeat_and_pass():
+    d = runner.payload_dir("t9b", "web+cache", 1, 2)
+    assert d.parts[-3:] == ("payloads", "t9b", "webpluscache-r1-p2")
+    assert "strat1" in str(runner.payload_dir("t9b", "web", 0, 1, sample="strat", dataset_seed=1))
+
+
+def test_hedge_is_two_candidate_objects_named_not_a_substring():
+    assert named_candidates("politician", CANDS) == 1
+    assert named_candidates("He was a politician and a journalist", CANDS) == 2
+    assert named_candidates("Georgia Institute of Technology", CANDS) == 1    # not also "Georgia"
+    assert named_candidates("Georgia or Georgia Institute of Technology", CANDS) == 2
+    assert named_candidates("", CANDS) == 0
+    s = score("politician or journalist", ["politician"], CANDS[:2])
+    assert s["contains"] and s["hedge"]
+    assert not score("politician", ["politician"], CANDS[:2])["hedge"]
+    assert "hedge" not in score("politician", ["politician"])                 # old call sites unchanged
+
+
+def test_candidate_sets_group_the_homonyms_of_one_subject_and_property():
+    items = [it(1, "Paris", "country", "France", 9), it(2, "Paris", "country", "United States", 3),
+             it(3, "Paris", "occupation", "city", 1), it(4, "Paris", "country", "France", 2)]
+    c = popqa.candidate_sets(items)
+    assert len(c[("Paris", "country")]) == 2          # France once, not twice
+    assert len(c[("Paris", "occupation")]) == 1
+
+
+def test_run_cell_records_hedge_and_the_summary_reports_it_adjusted(tmp_path):
+    items = [GOLD, it(2, "John Mayne", "occupation", "journalist", 50)]
+    cand = popqa.candidate_sets(items + [it(3, "John Mayne", "occupation", "poet", 5)])
+    c = C.Context(client=FakeClient([text("journalist or poet"), text("politician")]),
+                  store=FactStore(FACTS))
+    res = runner.run_cell(condition="closed", items=[items[1], items[0]], ctx=c, rep=0,
+                          meta={"model_tag": "t"}, candidates=cand, log=lambda *_: None)
+    assert [r["hedge"] for r in res["answers"]] == [True, False]
+    s = res["summary"]["pass1"]
+    assert s["acc"] == 1.0 and s["acc_nohedge"] == 0.5 and s["hedge_rate"] == 0.5
+
+
+def test_one_triple_list_feeds_store_and_funes_pool():
+    items = [it(1, "Alpha Town", "country", "x", 1), it(2, "Beta Town", "occupation", "y", 2)]
+    assert runner.pool_texts(items) == [Fact(*t).text() for t in popqa.facts(items)]
+    assert [f.text() for f in runner.build_store(items).search("Alpha Town country", k=5)][0] == \
+        "Alpha Town | country | x"
+    assert runner.pool_texts(items)[0] == "Alpha Town | country | x"
+
+
+def test_stratified_sample_equalises_buckets_caps_small_ones_and_is_deterministic():
+    items = ([it(i, f"a{i}", "p", "x", 5) for i in range(200)]               # 1e0
+             + [it(1000 + i, f"b{i}", "p", "x", 50) for i in range(200)]     # 1e1
+             + [it(2000 + i, f"c{i}", "p", "x", 5000) for i in range(3)])    # 1e3: only 3
+    s = popqa.stratified_sample(items, 30, seed=1)
+    by = {}
+    for x in s:
+        by[popqa.pop_bucket(x)] = by.get(popqa.pop_bucket(x), 0) + 1
+    assert len(s) == 30 and by["1e3"] == 3 and abs(by["1e0"] - by["1e1"]) <= 1 and by["1e0"] + by["1e1"] == 27   # shortfall spread
+    assert [x.id for x in s] == [x.id for x in popqa.stratified_sample(items, 30, seed=1)]
+    assert [x.id for x in s] != [x.id for x in popqa.stratified_sample(items, 30, seed=2)]
+    assert len({x.id for x in s}) == 30
+
+
+def test_cell_names_keep_e0_files_and_new_rows_do_not_overwrite_them():
+    old = runner.cell_path("t", 1000, "funes", 0)
+    assert old.name == "popqa-n1000-t-funes-r0.json"                          # E0's own file
+    assert runner.cell_path("t", 1000, "funes", 0, pool=14267).name == "popqa-n1000-t-funes-pool14267-r0.json"
+    assert runner.cell_path("t", 1000, "store", 0, pool=14267).name == "popqa-n1000-t-store-r0.json"
+    assert runner.cell_path("t", 1000, "closed", 0, sample="stratified", dataset_seed=1).name == \
+        "popqa-stratified1-n1000-t-closed-r0.json"
+
+
+def test_funes_pool_is_copied_per_run_and_logged_into_not_bootstrapped(tmp_path):
+    from ko.funes import FunesInstance
+    binary = tmp_path / "funes"
+    binary.write_text("")
+    pool = tmp_path / "pool"
+    pool.mkdir()
+    (pool / "memory.db").write_bytes(b"db")
+    (pool / "memory.db-wal").write_bytes(b"wal")
+    (pool / "account.json").write_text(json.dumps({"username": "ko_abc", "password": "pw"}))
+    inst = FunesInstance("http://x", "http://y", binary, pool=pool)
+    assert (inst.username, inst._password) == ("ko_abc", "pw")
+    # save_pool is what builds one: it folds the scratch db and the account into a directory
+    (inst.scratch / "memory.db").write_bytes(b"built")
+    out = inst.save_pool(tmp_path / "saved")
+    assert (out / "memory.db").read_bytes() == b"built"
+    assert json.loads((out / "account.json").read_text())["username"] == "ko_abc"
+    import shutil
+    shutil.rmtree(inst.scratch, ignore_errors=True)
+
+
+def load_run_module():
+    spec = importlib.util.spec_from_file_location("ko_run", Path(__file__).resolve().parent.parent / "run.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_summarize_labels_funes_pools_and_samples_and_computes_hedge_for_old_cells():
+    run = load_run_module()
+    assert run.cell_label({"condition": "funes", "funes_pool": 3000}) == "funes@3000"
+    assert run.cell_label({"condition": "store"}) == "store"
+    assert run.cell_label({"condition": "store", "sample": "stratified", "dataset_seed": 1}) == "store [stratified s1]"
+    items = [it(1, "P", "p", "x", 1), it(2, "P", "p", "y", 1)]
+    cand, by_id = popqa.candidate_sets(items), {i.id: i for i in items}
+    r = {"answers": [{"id": "1", "prediction": "x or y"}, {"id": "2", "prediction": "y"}]}
+    run.with_hedge(r, cand, by_id)
+    assert [a["hedge"] for a in r["answers"]] == [True, False]
+
+
+def test_by_bucket_table_counts_n_per_bucket(capsys):
+    run = load_run_module()
+    ans = [{"pass": 1, "pop_bucket": "1e1", "contains": True}, {"pass": 1, "pop_bucket": "1e1", "contains": False},
+           {"pass": 1, "pop_bucket": "1e3", "contains": True}]
+    run.by_bucket({("t", "store"): [{"answers": ans}]})
+    out = capsys.readouterr().out
+    assert "0.500 [2]" in out and "1.000 [1]" in out
