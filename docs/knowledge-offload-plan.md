@@ -330,8 +330,47 @@ size and `oracle`/`store` is nearly flat, size was buying recall. GSM8K should
 show the opposite (flat external lines are irrelevant there; size still
 helps). The ratio of the two slopes is the paper's headline number.
 
-Kill criterion: if `store` doesn't beat `closed` for the 9B on the long tail,
-the retrieval is the problem — go to E4 before anything else.
+Kill criterion (superseded 2026-11-16, see below): if `store` doesn't beat
+`closed` for the 9B on the long tail, the retrieval is the problem — go to E4.
+
+#### E1 pre-registration (Opus 5.5, 2026-11-16; supersedes the above where they differ)
+
+- **Sample.** 1000 items, stratified by popularity bucket, drawn only from
+  *unambiguous* items (`candidate_sets` size 1 over all 14,267 triples), a new
+  dataset seed. The store is still all 14,267 triples (homonyms stay in it as
+  distractors). `exact` and `contains ∧ ¬hedge` are secondary; on this sample
+  hedge ≈ 0, so the three coincide.
+- **Primary metric: `contains` on unambiguous items.** E0: all store hedges
+  (81 of 142 ambiguous items, 0 of 858 others) are on homonym subjects ("The
+  Walk", "Love"), where the question is genuinely ambiguous and listing the
+  candidates is the right answer. `contains` rewards the list, hedge-adjusted
+  penalises it (store .980 vs .905), and `oracle`/`closed` cannot hedge at all,
+  so either metric on the full sample compares conditions on ambiguity
+  handling, not knowledge. E0 restated on the 858 unambiguous items: closed
+  .212, store .992, oracle .998, tool/sf .993, tool+contract .994, web .638,
+  funes@3000 .909. Ambiguous items: reported separately, exploratory (E0: 142).
+- **Arms, per size:** `closed`, `oracle`, `store`, `tool/search_first`,
+  `tool+contract` (1 repeat after the identity check); `funes` one row (D1);
+  `web` at 0.8B-or-smallest, 9B and 27B (Parallel quota); `web+writeback` at
+  9B only (H6). GSM8K arm for H2: `closed` and `store`/tool with the same
+  distractor-only store, H2 = the `store` slope is *not* flattened (≥ ½ of `closed`).
+- **`ablated` arm (H5b, hallucination).** The first 200 sample questions again,
+  with the question's own triple excluded from retrieval (one filter, no second
+  store). Prompt variant `abstain_ok` ("if the facts do not contain the answer
+  and you do not know it, say so"); conditions `closed`, `store`,
+  `tool/search_first`, `tool+contract`. Outcome: correct (from weights) /
+  abstained / hallucinated. The abstain regex is checked on 50 hand labels first.
+- **Kill / branch criteria.** `retrieval_hit` < .9 on the unambiguous sample →
+  E4 first (retrieval is the problem; evaluate once, BM25 does not depend on
+  size). `store` < `oracle` − 10 pts at a size, with retrieval fine → not a
+  kill: a reading-capacity limit of that size, reported as a finding. Original
+  "store beats closed" is unreachable (+.78 at 9B) and dropped.
+- **`web+writeback` (H6).** After each answer that used `web_search`, the
+  harness stores "Q … A … (per url)" tainted, through the same path as
+  Funes's `FUNES_AUTO_MEMORY=extract` (the model never calls `remember`, which
+  is why E0's model-driven cache stayed empty); wrong answers are cached too.
+  Pass 2 repeats the same question, so it measures write/recall fidelity and
+  web-call reduction, not generalisation; say so in the paper.
 
 ### E2 — conflicts and edits (week 4)
 
@@ -531,12 +570,13 @@ confirms them or not; anything found later is labelled exploratory.
 
 | | hypothesis | test | experiment |
 |---|---|---|---|
-| H1 | Supplying facts flattens the accuracy-vs-size curve on long-tail QA: the `store` slope is < ½ the `closed` slope | slope ratio, bootstrap CI over questions | E1 |
+| H1 | Supplying facts flattens the accuracy-vs-size curve on long-tail QA (unambiguous items): the `store` slope is < ½ the `closed` slope, and the smallest model + `store` ≥ the 27B `closed` (2026-11-16) | slope ratio, bootstrap CI over questions | E1 |
 | H2 | It does not flatten it on fact-free reasoning (GSM8K): `store` slope ≈ `closed` slope | same | E1 |
 | H3 | Larger models override edited facts more often (parametric override rises with size) | logistic regression of override on log(params) | E2 |
 | H4 | Masking facts in pre-training improves the non-fact part: LMLM < Standard perplexity on non-fact tokens at equal size | paired difference per document, CI | E1b |
-| H5 | Forcing a lookup (`tool+contract`) lowers hallucination on unanswerable questions vs letting the model decide, at no accuracy cost on answerable ones | McNemar, paired | E3 |
-| H6 | `web+cache` reaches `store` accuracy on the second pass, with taint on every cached answer | paired accuracy; taint rate | E0/E1 |
+| H5 | Reframed 2026-11-16 (E0: `tool/search_first` − `tool+contract` = +.002, p=.82). (a) Forcing costs no accuracy on answerable questions (equivalence ±2 pts). (b) On questions whose fact is absent from the store (`ablated`), forcing a lookup *changes* the hallucination rate — two-sided: reading the store may lower it, near-miss triples fed to a model that must now answer may raise it. (c) descriptive: under the default prompt the contract rescues a tool-skipping model (.977 vs .216), i.e. it is insurance against the prompt | McNemar, paired, per size; confirmatory = Mantel-Haenszel over sizes | E1 (`ablated` arm), E3 |
+| H6 | Demoted to **exploratory** 2026-11-16 (E0: `web+cache` pass 2 − `store` = −.403; the cache never formed, 4 `remember` per 1000). With harness write-back (below), pass-2 accuracy ≥ pass-1 − 2 pts and pass-2 web calls ≤ 10 % of pass 1; stale and wrong answers that persist are reported. Not "reaches `store`" | paired accuracy; call counts | E1, 9B only |
+| H8 | Exploratory: lookup propensity under the default prompt rises with size | rate vs log(params) | E1 |
 | H7 | A model ≤ 8 GB VRAM with the store is within 5 points of the 27B on the Funes skill suite | difference, CI | E7 |
 
 ### Statistics
@@ -549,10 +589,12 @@ confirms them or not; anything found later is labelled exploratory.
   ±3 points at 50% accuracy — the sample size per cell is chosen from that,
   not from what finishes overnight.
 - **Run-to-run noise**: greedy decoding (temperature 0) for the main
-  results, and **3 repeats** per cell anyway — llama.cpp on GPU is not
+  results, and **3 repeats** per cell anyway (E1: 1 repeat for deterministic
+  cells after a 100-item identity check per size; CIs from 10k resamples, E0's
+  table used 2000) — llama.cpp on GPU is not
   bit-reproducible across batch sizes, and the memory plan already saw two
   runs disagree. Report the spread.
-- **Multiple comparisons**: Holm correction across H1–H7.
+- **Multiple comparisons**: Holm correction across the confirmatory family H1–H5, H7; H6 and H8 are exploratory and outside it (2026-11-16).
 - **Confounds named, not hidden**: quantisation differing across sizes
   (measure one size at two quants), prompt template (fixed per family), the
   judge for any LLM-graded item (agreement with 100 hand labels reported).
@@ -625,9 +667,12 @@ decoupling); not verified yet.
 
 - Which model family has enough GGUF sizes on ROCm to make E1's curve 5
   points long, and does the 27B have to be IQ4 while the rest are Q8 (a
-  confound to either remove or measure)?
-- Is the end-to-end `funes` condition worth its noise, or does it belong only
-  in a final "and in the real system" row?
+  confound to either remove or measure)? **Decided 2026-11-16:** IQ4_XS at every
+  size on the main axis, Q8_0 at ≤ 9B as a control curve; roster in the
+  notebook entry of that date; availability of the sub-9B Qwen3.8 sizes
+  unverified.
+- ~~Is the end-to-end `funes` condition worth its noise~~ One labelled row per
+  size (2026-11-15).
 - E5's budget: rented GPU hours, or E1b's results say a LoRA isn't needed.
 - LMLM pins torch 2.4 / transformers 4.49; Co-LMLM uses uv on Python 3.12.
   Two venvs, not one.
