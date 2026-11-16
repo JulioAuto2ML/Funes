@@ -73,7 +73,7 @@ def run_cell(*, condition: str, items, ctx: C.Context, rep: int, meta: dict,
     """`candidates` (popqa.candidate_sets) turns on the `hedge` flag;
     `payloads_to(passno) -> Path` is where raw web payloads go, one file per question."""
     fn = C.REGISTRY[condition]
-    passes = 2 if condition == "web+cache" else 1
+    passes = 2 if condition in C.TWO_PASS else 1
     rows, t_start = [], time.monotonic()
     for p in range(1, passes + 1):
         ctx.passno = p
@@ -125,6 +125,8 @@ def summarize_rows(rows: list[dict]) -> dict:
                if all("outcome" in r for r in rs) else {}),
             "errors": sum(1 for r in rs if r["error"]),
             "tainted": sum(r["tainted"] for r in rs) / n,
+            **({"searches_per_answer": sum(r["tools"].count("web_search") for r in rs) / n}
+               if any("web_search" in r["tools"] for r in rs) else {}),
             "lookup_rate": sum(1 for r in rs if r["tools"]) / n,
             "retrieval_hit": (sum(bool(r["retrieval_hit"]) for r in rs) / n
                               if rs[0]["retrieval_hit"] is not None else None),

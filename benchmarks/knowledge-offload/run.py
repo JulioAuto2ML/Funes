@@ -140,7 +140,7 @@ def cmd_run(a):
                 ctx = C.Context(client=client, store=store, seed=a.seed + rep, web=web,
                                 notes=T.Notes(), funes=funes_inst, variant=var,
                                 ablated=a.ablated)
-                if cond in ("web", "web+cache") and search_blocked:
+                if cond in C.WEB_CONDITIONS and search_blocked:
                     print(f"skip {path.name}: search blocked earlier in this run")
                     continue
                 print(f"{cond} repeat {rep} seed {ctx.seed}")
@@ -213,7 +213,7 @@ def cmd_summarize(a):
     print(f"{'model':<20}{'condition':<26}{'reps':>4}{'acc (95% CI)':>24}{'sd':>7}{'range':>7}"
           f"{'acc-hedge':>10}{'hedge':>7}{'ms/ans':>9}{'tok/ans':>9}")
     for (tag, cond), reps in sorted(cells.items()):
-        ps = ["pass1", "pass2"] if cond.startswith("web+cache") else ["pass1"]
+        ps = ["pass1", "pass2"] if cond.split("/")[0].split(" ")[0] in C.TWO_PASS else ["pass1"]
         for ps_ in ps:
             if ps_ not in reps[0]["summary"]:
                 continue
@@ -248,8 +248,28 @@ def cmd_summarize(a):
                                                  [float(b[i]) for i in ids], a.resamples)
             m = stats.mcnemar([c[i] for i in ids], [b[i] for i in ids])
             print(f"  {tag} {cond} - closed: {d:+.3f} [{lo:+.3f},{hi:+.3f}]  McNemar p={m['p']:.3g}")
+    writeback_report(cells)
     if a.by_bucket:
         by_bucket(cells)
+
+
+def writeback_report(cells: dict) -> None:
+    """H6 as pre-registered: pass-2 accuracy against pass 1, and how many web searches
+    pass 2 still made. Same questions, so the accuracy difference is paired."""
+    for (tag, cond), reps in sorted(cells.items()):
+        if cond.split("/")[0].split(" ")[0] != "web+writeback":
+            continue
+        rows = reps[0]["answers"]
+        p1 = {x["id"]: x["contains"] for x in rows if x["pass"] == 1}
+        p2 = {x["id"]: x["contains"] for x in rows if x["pass"] == 2}
+        ids = [i for i in p1 if i in p2]
+        if not ids:
+            continue
+        d, (lo, hi) = stats.paired_bootstrap([float(p2[i]) for i in ids], [float(p1[i]) for i in ids], 10_000)
+        m = stats.mcnemar([p2[i] for i in ids], [p1[i] for i in ids])
+        s1, s2 = (reps[0]["summary"][p].get("searches_per_answer", 0.0) for p in ("pass1", "pass2"))
+        print(f"  {tag} {cond} pass2 - pass1: {d:+.3f} [{lo:+.3f},{hi:+.3f}] McNemar p={m['p']:.3g}; "
+              f"web searches per answer {s1:.2f} -> {s2:.2f}" + (f" (ratio {s2 / s1:.2f})" if s1 else ""))
 
 
 def by_bucket(cells: dict) -> None:
@@ -278,7 +298,7 @@ def main():
                    help="where the server's model files are, to hash the one being served")
     r.add_argument("--lock-name-only", action="store_true",
                    help="accept a locked file name when its bytes are not reachable from here (recorded in meta)")
-    r.add_argument("--conditions", nargs="+", default=None, choices=C.CONDITIONS)
+    r.add_argument("--conditions", nargs="+", default=None, choices=C.CONDITIONS + C.EXTRA_CONDITIONS)
     r.add_argument("--repeats", type=int, default=3)
     r.add_argument("--n", type=int, default=1000)
     r.add_argument("--dataset-seed", type=int, default=0)
@@ -294,7 +314,7 @@ def main():
     r.add_argument("--funes-distractors", type=int, default=2000,
                    help="with --funes-pool distractors: non-sample facts also loaded")
     r.add_argument("--prompt-variant", choices=C.VARIANTS, default="default",
-                   help="system prompt of tool, tool+contract, web, web+cache; search_first says to "
+                   help="system prompt of tool, tool+contract, web, web+cache, web+writeback; search_first says to "
                         "call the tool before answering. Other conditions ignore it.")
     r.add_argument("--sample", choices=["random", "stratified"], default="random",
                    help="stratified: equal items per popularity bucket (use a new --dataset-seed)")

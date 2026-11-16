@@ -4,6 +4,7 @@ What differs between them is only what the model is given and may do; the
 system prompt, decoding settings, k and the step cap are shared constants, so a
 change to any of them is a new row in the notebook, not a quiet edit here.
 """
+import re
 from dataclasses import dataclass, field
 
 from .llm import Client, Reply, Usage
@@ -12,6 +13,10 @@ from .store import Fact, FactStore
 from . import tools as T
 
 CONDITIONS = ["closed", "oracle", "store", "tool", "tool+contract", "funes", "web", "web+cache"]
+# Not in the default run: H6's mechanism, run on the 9B only (E1 pre-registration).
+EXTRA_CONDITIONS = ["web+writeback"]
+WEB_CONDITIONS = ("web", "web+cache", "web+writeback")
+TWO_PASS = ("web+cache", "web+writeback")      # pass 2 repeats the questions
 
 K = 5                # facts handed to / returned by the store
 MAX_STEPS = 4        # tool rounds before tools are withheld and an answer forced
@@ -43,7 +48,7 @@ ABSTAIN_PLAIN = (" If you do not know the answer and the facts given, if any, do
                  "reply exactly: I don't know.")
 ABSTAIN_TOOL = (" If the lookup returns nothing that answers the question and you do not know the "
                 "answer, reply exactly: I don't know.")
-TOOL_CONDITIONS = ("tool", "tool+contract", "web", "web+cache")
+TOOL_CONDITIONS = ("tool", "tool+contract", "web", "web+cache", "web+writeback")
 VARIANT_APPLIES = {"default": (), "search_first": TOOL_CONDITIONS, "search_first2": TOOL_CONDITIONS,
                    "abstain_ok": ("closed", "store", "tool", "tool+contract")}
 ABLATED_CONDITIONS = ("closed", "store", "tool", "tool+contract")
@@ -227,6 +232,42 @@ def web_cache(ctx, item):
     return a
 
 
+def web_writeback(ctx, item):
+    """`web+cache` with the harness doing the writing. E0's model never called
+    `remember` (4 in 1000), so its cache stayed empty and pass 2 searched as often as
+    pass 1. Funes does not leave this to the model either: its extract mode writes
+    the facts of an exchange afterwards. Here, after an answer that used `web_search`,
+    the harness stores "Q … A … (per url)", tainted, wrong answers included; the model
+    only has `recall`. Pass 2 repeats the question, so it measures whether a stored
+    answer is found and trusted, not generalisation."""
+    if ctx.web is None or not ctx.web.available:
+        raise ConditionUnavailable("no search backend (FUNES_SEARCH_BACKEND=parallel, or a Tavily key)")
+    seen = []
+
+    def search(args):
+        out = ctx.web.search(str(args.get("query", "")))
+        seen.append(out)
+        return out
+    ex = _web_executors(ctx)
+    ex["web_search"] = search
+    ex["recall"] = lambda a: ctx.notes.recall(str(a.get("query", "")))
+    system = (system_for(ctx, "recall, and web_search if it has nothing") + " First call recall to check "
+              "what you already learned. If it does not answer the question, search the web, then answer.")
+    before, n0, p0 = ctx.notes.served, len(ctx.web.calls), len(ctx.web.payloads)
+    a = tool_loop(ctx, item.question, [T.RECALL, T.WEB_SEARCH, T.WEB_FETCH], ex, system=system)
+    a.extra["search_backends"] = ctx.web.calls[n0:]
+    a.payloads = ctx.web.payloads[p0:]
+    del ctx.web.payloads[p0:]
+    a.extra["wrote"] = False
+    if "web_search" in a.tools and a.text.strip():
+        m = re.search(r"\|\s*(https?://\S+)\s*\|", seen[-1] if seen else "")
+        ctx.notes.writeback(item.question, a.text, m.group(1) if m else "web")
+        a.extra["wrote"] = True
+    a.tainted = any(t.startswith("web_") for t in a.tools) or ctx.notes.served > before
+    a.extra["pass"] = ctx.passno
+    return a
+
+
 def funes(ctx, item):
     if ctx.funes is None:
         raise ConditionUnavailable("no scratch Funes instance (pass --funes-bin or run from the repo root)")
@@ -234,4 +275,5 @@ def funes(ctx, item):
 
 
 REGISTRY = {"closed": closed, "oracle": oracle, "store": store, "tool": tool,
-            "tool+contract": tool_contract, "funes": funes, "web": web, "web+cache": web_cache}
+            "tool+contract": tool_contract, "funes": funes, "web": web, "web+cache": web_cache,
+            "web+writeback": web_writeback}

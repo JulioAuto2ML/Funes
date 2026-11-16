@@ -263,6 +263,11 @@ class Notes:
         self.count += 1
         return "saved"
 
+    def writeback(self, question: str, answer: str, url: str) -> None:
+        """The harness writes the note, not the model: "Q … A … (per url)"."""
+        self.store.add(Fact(subj=f"Q: {question} A: {answer} (per {url})", prop="note", obj=""))
+        self.count += 1
+
     def recall(self, query: str) -> str:
         hits = self.store.search(query, k=3)
         self.served += bool(hits)
