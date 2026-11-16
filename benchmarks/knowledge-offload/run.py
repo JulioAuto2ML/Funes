@@ -84,9 +84,11 @@ def cmd_run(a):
                  "git": runner.git_state(), "date": dt.date.today().isoformat(),
                  "k": C.K, "max_steps": C.MAX_STEPS, "temperature": 0.0,
                  "store_size": len(store)}
-    web = T.Web(T.tavily_key())
-    meta_base["search_backend"] = web.backend + ("+tavily-fallback" if web.key else "")
+    # Parallel only: Tavily is reserved for the newsletter, so there is no key to fall back on.
+    web = T.Web(None, backend="parallel")
+    meta_base["search_backend"] = "parallel-keyed" if web.parallel_key else "parallel-anonymous"
     blocked = []
+    search_blocked = False
     funes_inst = None
     pool_n = None                       # None = the E0 plumbing pool (sample + distractors)
     try:
@@ -121,7 +123,11 @@ def cmd_run(a):
                     continue
                 ctx = C.Context(client=client, store=store, seed=a.seed + rep, web=web,
                                 notes=T.Notes(), funes=funes_inst, variant=var)
+                if cond in ("web", "web+cache") and search_blocked:
+                    print(f"skip {path.name}: search blocked earlier in this run")
+                    continue
                 print(f"{cond} repeat {rep} seed {ctx.seed}")
+                rl0, s0 = web.rate_limited, web.searches
                 try:
                     res = runner.run_cell(
                         condition=cond, items=items, ctx=ctx, rep=rep, meta={**meta_base, "prompt_variant": var},
@@ -132,6 +138,12 @@ def cmd_run(a):
                 except C.ConditionUnavailable as e:
                     blocked.append((cond, str(e)))
                     continue
+                except T.SearchBlocked as e:
+                    search_blocked = True
+                    blocked.append((cond, f"{e}; {web.rate_limited - rl0} 429s in {web.searches - s0} searches, "
+                                          f"cell not written, rerun resumes it"))
+                    continue
+                res["search"] = {"rate_limited": web.rate_limited - rl0, "searches": web.searches - s0}
                 runner.write_cell(path, res)
                 print(f"  -> {path.name} {res['summary']}")
     finally:
@@ -139,6 +151,8 @@ def cmd_run(a):
             funes_inst.__exit__(None, None, None)
     for cond, why in dict.fromkeys(blocked):
         print(f"BLOCKED {cond}: {why}")
+    if search_blocked:
+        sys.exit(3)          # a watcher can tell "stopped by Parallel" from "finished"
 
 
 def cell_label(r: dict) -> str:

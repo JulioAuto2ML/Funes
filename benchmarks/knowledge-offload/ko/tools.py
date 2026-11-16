@@ -81,6 +81,12 @@ def _mcp_json(text: str) -> dict:
     raise ValueError("no JSON-RPC message in reply")
 
 
+class SearchBlocked(RuntimeError):
+    """Parallel kept answering 429 through the whole backoff and there is no
+    other backend to spend. Not a tool failure to show the model: the run stops,
+    the unfinished cell is not written, and a later run redoes it."""
+
+
 class Web:
     """web_search and web_fetch, as Funes's own web_search does it: Parallel's
     free search MCP first (FUNES_SEARCH_BACKEND=parallel, keyless), Tavily as the
@@ -154,7 +160,7 @@ class Web:
                     raise
                 self.MIN_GAP = min(self.MIN_GAP + 1.0, 10.0)
                 self.rate_limited += 1
-        raise RuntimeError("parallel 429 after backoff")
+        raise SearchBlocked(f"parallel returned 429 on {1 + len(self.BACKOFF)} attempts over the backoff")
 
     def _parallel_once(self, query: str) -> str:
         for attempt in (0, 1):             # a stale session gets one fresh start
@@ -222,6 +228,8 @@ class Web:
                 reason = f"{type(e).__name__}: {str(e)[:120]}"
                 if not self.key:
                     self.calls.append({"backend": "none", "fallback_reason": reason})
+                    if isinstance(e, SearchBlocked):
+                        raise
                     raise RuntimeError(f"parallel failed and no Tavily key: {reason}") from e
                 out = self._tavily(query)
                 self.calls.append({"backend": "tavily", "fallback_reason": reason})
