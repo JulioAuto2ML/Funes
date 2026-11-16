@@ -1,0 +1,35 @@
+serving Qwen3.8-9B-Q8_0.gguf (Q8_0) at http://localhost:8080
+web repeat 0 seed 0
+  web r0 pass1 100/1000 acc=0.500
+  web r0 pass1 200/1000 acc=0.575
+  web r0 pass1 300/1000 acc=0.570
+  web r0 pass1 400/1000 acc=0.593
+  web r0 pass1 500/1000 acc=0.590
+  web r0 pass1 600/1000 acc=0.588
+  web r0 pass1 700/1000 acc=0.596
+  web r0 pass1 800/1000 acc=0.588
+  web r0 pass1 900/1000 acc=0.594
+  web r0 pass1 1000/1000 acc=0.591
+  -> popqa-n1000-qwen3.8-9b-q8-web-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.591, 'exact': 0.22, 'hedge_rate': 0.004, 'acc_nohedge': 0.589, 'abstain': 0.001, 'errors': 0, 'tainted': 0.827, 'lookup_rate': 0.827, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 881.24, 'completion_tokens': 48.591, 'wall_ms': 2409.33819, 'calls': 1.829}}}
+web+cache repeat 0 seed 0
+  web+cache r0 pass1 100/1000 acc=0.510
+  web+cache r0 pass1 200/1000 acc=0.585
+  web+cache r0 pass1 300/1000 acc=0.577
+  web+cache r0 pass1 400/1000 acc=0.590
+  web+cache r0 pass1 500/1000 acc=0.572
+  web+cache r0 pass1 600/1000 acc=0.577
+  web+cache r0 pass1 700/1000 acc=0.593
+  web+cache r0 pass1 800/1000 acc=0.580
+  web+cache r0 pass1 900/1000 acc=0.589
+  web+cache r0 pass1 1000/1000 acc=0.582
+  web+cache r0 pass2 100/1000 acc=0.490
+  web+cache r0 pass2 200/1000 acc=0.560
+  web+cache r0 pass2 300/1000 acc=0.557
+  web+cache r0 pass2 400/1000 acc=0.575
+  web+cache r0 pass2 500/1000 acc=0.558
+  web+cache r0 pass2 600/1000 acc=0.567
+  web+cache r0 pass2 700/1000 acc=0.584
+  web+cache r0 pass2 800/1000 acc=0.574
+  web+cache r0 pass2 900/1000 acc=0.583
+  web+cache r0 pass2 1000/1000 acc=0.577
+  -> popqa-n1000-qwen3.8-9b-q8-webpluscache-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.582, 'exact': 0.246, 'hedge_rate': 0.001, 'acc_nohedge': 0.581, 'abstain': 0.0, 'errors': 0, 'tainted': 0.844, 'lookup_rate': 0.848, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 1102.544, 'completion_tokens': 76.319, 'wall_ms': 3520.617730000002, 'calls': 2.75}}, 'pass2': {'n': 1000, 'acc': 0.577, 'exact': 0.252, 'hedge_rate': 0.004, 'acc_nohedge': 0.573, 'abstain': 0.0, 'errors': 0, 'tainted': 0.845, 'lookup_rate': 0.848, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 1086.815, 'completion_tokens': 74.841, 'wall_ms': 3453.4912599999984, 'calls': 2.731}}}
