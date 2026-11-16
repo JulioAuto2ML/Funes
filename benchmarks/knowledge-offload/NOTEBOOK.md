@@ -4,9 +4,10 @@ Plan: `docs/knowledge-offload-plan.md`. A new session reads the plan section it
 needs, this "Now" block and the last three entries, nothing else.
 
 ## Now
-- **Step:** 1, E0 is complete on the 9B: six local conditions (3 repeats; funes@3000 3), `tool/search_first`, `web/search_first`, `web+cache/search_first` (1 repeat each, n=1000). yoda is back on the 27B.
-- **Open for the paper (needs a decision, not a run):** `web` is .591 vs `store` .980 (see the 2026-11-16 web entry); the `web+cache` cache did not form (4 `remember` calls in 1000 answers), so H6 as worded cannot be tested with this prompt. Next step is E1 (stratified sample, new `--dataset-seed`); a `remember`-forcing prompt for `web+cache` is a separate, small variant if wanted.
-- **Claude needed:** Sonnet 5.5 · medium for the E0 stats table with CIs and the E1 sample config; nothing needs a model on yoda.
+- **Step:** 1, E0 is complete and tabulated (`results/E0_TABLE.md`, regenerate with `python3 stats_e0.py`, no model): 9B, n=1000, ten cells. yoda is on the 27B. E1 is not configured yet (peer's instruction).
+- **Flagged for Opus (see the 2026-11-16 stats entry):** (1) H6 as written ("web+cache reaches store accuracy") is false here by −.40 and untestable as re-worded because the cache never formed; (2) H5's contrast (`tool+contract` vs "model decides") collapses under `search_first` (+.002, p=.82), so it depends on the prompt; (3) the headline `contains` accuracy for `store`/`tool` counts a hedge (naming both candidates) as correct: .980 vs .905 hedge-adjusted, so the primary metric needs choosing before E1.
+- **Next:** E1 stratified-sample config (`--sample stratified`, new `--dataset-seed`), on Opus's call on the three flags; not started.
+- **Claude needed:** Opus 5.5 · high to judge the three flags against H1–H6; then Sonnet 5.5 · medium for the E1 config.
 
 ## 2026-11-15 · step 1 · E0 harness · Sonnet 5.5 · medium
 - Built `benchmarks/knowledge-offload/`: `run.py` + `ko/` (8 conditions, scorer, FTS5 triple store, llama-server client with timings, scratch-Funes driver, stats), 16 hermetic tests pass, README. PopQA `test.tsv` fetched (sha256 in results).
@@ -54,3 +55,11 @@ needs, this "Now" block and the last three entries, nothing else.
 - Hedge rate .001–.004 (web answers name one object), so hedge-adjusted ≈ plain.
 - Read for the paper: at equal model, `store`/`tool` over a store holding the facts beat open-web search by 39 points on PopQA and faster (`tool/search_first` 1.7 s/answer vs `web` 2.4 s); caveat: the store is built from the benchmark's own triples (oracle-adjacent), the web is not, so this bounds what the store can give, not what search lacks.
 - Not done: the stats table with CIs for all of E0 and the E1 stratified-sample config.
+
+## 2026-11-16 · step 1 · E0 stats table · Sonnet 5.5 · medium
+- `stats_e0.py` (stdlib + `run.py`'s hedge helper, no model) writes `results/E0_TABLE.md`: accuracy with percentile-bootstrap CIs (2000 resamples over questions), hedge-adjusted accuracy, 18 paired differences with McNemar exact p, and accuracy by popularity bucket for all ten cells. Hedge-adjusted numbers match `run.py summarize`.
+- Headline (9B, contains, 95% CI): closed .206 [.182,.231]; oracle .997; store .980 [.971,.988]; tool .216 (the model skips the tool); tool+contract .977; tool/search_first .979; funes@3000 .895; web .591; web+cache p1 .582 / p2 .577. Hedge-adjusted: store .905, tool+contract .903, tool/sf .902, funes .885, web .589.
+- Paired: store−closed +.774 (776 vs 2 discordant); tool+contract−store −.003 [−.013,+.007] and tool/sf−store −.001 (equivalent); tool/sf−tool+contract +.002 (p=.82); tool−closed +.010 (p=.17); funes@3000−store −.085 [−.104,−.067] (pool 3000, not full 14,267); web−store −.389; web+cache p2−p1 −.005 (p=.51); web+cache p2−store −.403.
+- Buckets: `closed` rises with popularity (.13 at 1e2–1e3, .50 at 1e4, .80 at 1e5); `store`, `tool+contract`, `tool/sf` are flat at .97–1.00 in every bucket; `web` follows `closed`'s shape at a higher level (.52–.54 at 1e2–1e3, .91 at 1e5). 1e6 has n=2, read nothing into it.
+- **Against the hypotheses (E0 only, one model size, so none is tested yet):** H1 direction consistent: the store removes the popularity dependence (closed spans .13→.80, store ±.02), but H1 is a slope over model size, E1. **H6 contradicted as written** (web+cache p2 is .403 below store; the cache never formed, see the web entry). **H5**: with `search_first` the unforced model looks up as reliably as the contract (.979 vs .977), so the "forcing vs deciding" contrast is a prompt effect; unanswerable questions are not in E0, so hallucination is untested. H2, H3, H4, H7 untouched by E0.
+- Not in the table: homonym-excluded numbers (needs the PopQA subject-disambiguation pass) and funes with the full 14,267-triple pool (path built, never run live).
