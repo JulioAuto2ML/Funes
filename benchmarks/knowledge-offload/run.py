@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from ko import conditions as C, popqa, runner, stats, tools as T       # noqa: E402
+from ko import conditions as C, models, popqa, runner, stats, tools as T  # noqa: E402
 from ko.llm import Client, LLMError                                    # noqa: E402
 
 
@@ -70,13 +70,17 @@ def cmd_run(a):
         info = client.server_info()
     except LLMError as e:
         sys.exit(f"cannot reach {a.llm_url}: {e}")
-    if a.expect_model.lower() not in info["model_file"].lower():
-        sys.exit(f"{a.llm_url} serves {info['model_file']!r}, expected {a.expect_model!r}. "
-                 "Not running: a swap is a logged, undone step, never a side effect of a run.")
-    print(f"serving {info['model_file']} ({info['quant']}) at {info['endpoint']}")
+    try:
+        locked = models.verify(info["model_file"], models_dir=Path(a.models_dir), expect=a.expect,
+                               name_only=a.lock_name_only)
+    except models.ModelRefused as e:
+        sys.exit(f"{a.llm_url}: {e} Not running: a swap is a logged, undone step, never a side effect of a run.")
+    print(f"serving {locked['id']} [{locked['lineage']}] {info['model_file']} ({info['quant']}) at {info['endpoint']}, "
+          f"verified by {locked['verified']}")
     store = runner.build_store(all_items)
     meta_base = {"dataset": "popqa", "dataset_sha256": popqa.sha256(data),
                  "dataset_seed": a.dataset_seed, "sample": a.sample, "model_tag": a.model_tag, "server": info,
+                 "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
                  "git": runner.git_state(), "date": dt.date.today().isoformat(),
                  "k": C.K, "max_steps": C.MAX_STEPS, "temperature": 0.0,
                  "store_size": len(store)}
@@ -235,8 +239,12 @@ def main():
     sub.add_parser("fetch").set_defaults(fn=cmd_fetch)
     r = sub.add_parser("run")
     r.add_argument("--model-tag", required=True, help="label in file names, e.g. qwen3.8-9b-q8")
-    r.add_argument("--expect-model", required=True,
-                   help="substring the served model file must contain; refuses otherwise")
+    r.add_argument("--expect", default=None, metavar="LOCK_ID",
+                   help="optional models.lock id the served model must be; the sha256 gate runs regardless")
+    r.add_argument("--models-dir", default=str(models.DEFAULT_MODELS_DIR),
+                   help="where the server's model files are, to hash the one being served")
+    r.add_argument("--lock-name-only", action="store_true",
+                   help="accept a locked file name when its bytes are not reachable from here (recorded in meta)")
     r.add_argument("--conditions", nargs="+", default=C.CONDITIONS, choices=C.CONDITIONS)
     r.add_argument("--repeats", type=int, default=3)
     r.add_argument("--n", type=int, default=1000)

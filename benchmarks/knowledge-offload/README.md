@@ -23,14 +23,18 @@ tests/            hermetic unit tests (fake LLM, fake web)   python3 -m pytest t
 ```bash
 ./setup_venv.sh                    # separate venv (E1b later adds ROCm torch here)
 python3 run.py fetch               # PopQA test.tsv -> data/ (sha256 goes into every result)
-python3 -u run.py run --model-tag qwen3.8-9b-q8 --expect-model 9B \
+python3 -u run.py run --model-tag qwen3.5-9b-iq4_xs --expect qwen3.5-9b-iq4_xs \
     > results/run.log 2>&1         # 1k sample, 8 conditions, 3 repeats, resumable
 python3 run.py summarize
 ```
 
-`--expect-model` is not optional: the run aborts unless the file yoda's
-:8080 serves contains it. A model swap on yoda is a logged, undone step
-(plan, Rules) done by hand outside the newsletter/noticiero cron windows —
+The model gate is not optional: the run aborts unless the file :8080 serves is
+in `models.lock` (repo, file, sha256, size, quant, lineage) **and its bytes hash
+to the locked value**; run it on the host that holds the models (`--models-dir`),
+or pass `--lock-name-only` through a tunnel (recorded in the cell). The matching
+lock row goes into every result's `model` meta. `--expect <lock id>` additionally
+pins which model. A model swap on yoda is a logged, undone step (plan, Rules)
+done outside the newsletter/noticiero cron windows (`scripts/ko_swap.sh`) —
 never a side effect of a run. Cells already on disk are skipped (`--force`
 redoes them), so an interrupted run resumes.
 

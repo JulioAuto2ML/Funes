@@ -1,0 +1,126 @@
+{
+ "_comment": "Every model the benchmark may serve. The runner refuses a served file whose sha256 is not here (ko/models.py). Add a model by adding its row, with the repository's own LFS sha256.",
+ "models": [
+  {
+   "id": "qwen3.5-0.8b-iq4_xs",
+   "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+   "file": "Qwen3.5-0.8B-IQ4_XS.gguf",
+   "sha256": "619917ae92f61eb6515a7070e944a0a7c2b198a2cf6536386f475485188a36ff",
+   "size": 492605696,
+   "quant": "IQ4_XS",
+   "params_b": 0.8,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "main"
+  },
+  {
+   "id": "qwen3.5-2b-iq4_xs",
+   "repo": "unsloth/Qwen3.5-2B-GGUF",
+   "file": "Qwen3.5-2B-IQ4_XS.gguf",
+   "sha256": "3639f34b5ca22aa1c51f3616566eae8c355111554f6924ad97ee2652ed11c1cd",
+   "size": 1172996352,
+   "quant": "IQ4_XS",
+   "params_b": 2.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "main"
+  },
+  {
+   "id": "qwen3.5-4b-iq4_xs",
+   "repo": "unsloth/Qwen3.5-4B-GGUF",
+   "file": "Qwen3.5-4B-IQ4_XS.gguf",
+   "sha256": "658a9e7e406deb06d0179755e3c14f6a82915a4be4962a2f92a64d948d2e572f",
+   "size": 2477053088,
+   "quant": "IQ4_XS",
+   "params_b": 4.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "main"
+  },
+  {
+   "id": "qwen3.5-9b-iq4_xs",
+   "repo": "unsloth/Qwen3.5-9B-GGUF",
+   "file": "Qwen3.5-9B-IQ4_XS.gguf",
+   "sha256": "7e918aeca06c52bcb528ea6b04b4ec957e75ee8c0a73138854c0dfcf371ea429",
+   "size": 5168653536,
+   "quant": "IQ4_XS",
+   "params_b": 9.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "main"
+  },
+  {
+   "id": "qwen3.5-27b-iq4_xs",
+   "repo": "unsloth/Qwen3.5-27B-GGUF",
+   "file": "Qwen3.5-27B-IQ4_XS.gguf",
+   "sha256": "fb829c84491b30cda875b7366e29ce3e4cede19b40daf5b824003936bfc4dbbb",
+   "size": 14977484704,
+   "quant": "IQ4_XS",
+   "params_b": 27.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "main"
+  },
+  {
+   "id": "qwen3.5-0.8b-q8_0",
+   "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+   "file": "Qwen3.5-0.8B-Q8_0.gguf",
+   "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+   "size": 811843840,
+   "quant": "Q8_0",
+   "params_b": 0.8,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "control"
+  },
+  {
+   "id": "qwen3.5-2b-q8_0",
+   "repo": "unsloth/Qwen3.5-2B-GGUF",
+   "file": "Qwen3.5-2B-Q8_0.gguf",
+   "sha256": "1b04acba824817554f4ce23639bc8495ff70453b8fcb047900c731521021f2c1",
+   "size": 2012012800,
+   "quant": "Q8_0",
+   "params_b": 2.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "control"
+  },
+  {
+   "id": "qwen3.5-4b-q8_0",
+   "repo": "unsloth/Qwen3.5-4B-GGUF",
+   "file": "Qwen3.5-4B-Q8_0.gguf",
+   "sha256": "10cc391b403021dd11c614679d2fd92f611c3681d29e29651b717316965d61e1",
+   "size": 4482403488,
+   "quant": "Q8_0",
+   "params_b": 4.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "control"
+  },
+  {
+   "id": "qwen3.5-9b-q8_0",
+   "repo": "unsloth/Qwen3.5-9B-GGUF",
+   "file": "Qwen3.5-9B-Q8_0.gguf",
+   "sha256": "809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
+   "size": 9527502048,
+   "quant": "Q8_0",
+   "params_b": 9.0,
+   "lineage": "qwen3.5-official (unsloth GGUF)",
+   "role": "control"
+  },
+  {
+   "id": "qwen3.8-9b-distill-q8_0",
+   "repo": "empero-ai/Qwen3.8-9B-Distill-GGUF (inferred from size, hash unverified)",
+   "file": "Qwen3.8-9B-Q8_0.gguf",
+   "sha256": "79ca5d342a07922f2bbf38c8d892a79a3c8620c65feaf4b1c66b7830ae724db8",
+   "size": 9786060096,
+   "quant": "Q8_0",
+   "params_b": 9.0,
+   "lineage": "community-distill (inferred)",
+   "role": "e0-cross-check"
+  },
+  {
+   "id": "qwen3.8-27b-iq4_xs-smaller",
+   "repo": "unknown (producer not recorded)",
+   "file": "Qwen3.8-27B-i1-IQ4_XS-GGUF-Smaller.gguf",
+   "sha256": "4dff967bae0798f04cbd250ddef212e6c131fdc50c8113cf63fe74f145c94cea",
+   "size": 13543869408,
+   "quant": "IQ4_XS",
+   "params_b": 27.0,
+   "lineage": "qwen3.8-27b official-derived quant (producer unverified)",
+   "role": "production"
+  }
+ ]
+}
