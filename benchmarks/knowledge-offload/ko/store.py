@@ -51,23 +51,27 @@ class FactStore:
         self.db.execute("insert into fts(rowid, subj, prop) values (?,?,?)",
                         (cur.lastrowid, f.subj, f.prop))
 
-    def search(self, query: str, k: int = 5) -> list[Fact]:
+    def search(self, query: str, k: int = 5, exclude: Fact | None = None) -> list[Fact]:
+        """`exclude` filters one triple out of the result (the `ablated` arm: the
+        question's own fact is absent from retrieval, every near-miss stays)."""
         terms = _terms(query)
         if not terms:
             return []
         match = " OR ".join('"%s"' % t.replace('"', "") for t in terms)
+        skip = "and not (f.subj = ? and f.prop = ? and f.obj = ?) " if exclude else ""
+        args = (match, *(((exclude.subj, exclude.prop, exclude.obj)) if exclude else ()), k)
         rows = self.db.execute(
             "select f.subj, f.prop, f.obj from fts join f on f.id = fts.rowid "
-            "where fts match ? order by bm25(fts, 5.0, 1.0) limit ?", (match, k)).fetchall()
+            f"where fts match ? {skip}order by bm25(fts, 5.0, 1.0) limit ?", args).fetchall()
         return [Fact(*r) for r in rows]
 
-    def lookup(self, entity: str, relation: str = "", k: int = 5) -> list[Fact]:
+    def lookup(self, entity: str, relation: str = "", k: int = 5, exclude: Fact | None = None) -> list[Fact]:
         """Exact entity match (normalised), relation matched loosely; falls back
         to a fuzzy search on the entity if the exact key is absent — a lookup
         that fails on a typo would measure the typo, not the decision."""
         ent = normalize(entity)
         rows = self.db.execute("select subj, prop, obj from f where nsubj = ?", (ent,)).fetchall()
-        facts = [Fact(*r) for r in rows] or self.search(entity, k=k)
+        facts = [Fact(*r) for r in rows if Fact(*r) != exclude] or self.search(entity, k=k, exclude=exclude)
         rel = normalize(relation)
         if rel:
             narrowed = [f for f in facts if rel in normalize(f.prop) or normalize(f.prop) in rel]

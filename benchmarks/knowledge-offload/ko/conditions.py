@@ -25,7 +25,7 @@ SYSTEM_TOOL = SYSTEM + " Use the tools you are given when they help."
 # line above made the model answer from memory and skip the tools (6 lookups in
 # 1000 questions, 1 call/answer and no search in `web`): "reply with only the
 # answer" outweighed "use the tools". `search_first` says when to use them.
-VARIANTS = ["default", "search_first", "search_first2"]
+VARIANTS = ["default", "search_first", "search_first2", "abstain_ok"]
 _SF = {
     "search_first": (
         "You answer factual questions about specific people, places and works. Your memory of them "
@@ -37,6 +37,23 @@ _SF = {
         "{tool} call for the entity the question names. An answer with no {tool} call before it is "
         "wrong. After the call, reply with only the answer: a short phrase, nothing else."),
 }
+# `abstain_ok` (the `ablated` arm): a way out that is not a guess. Tool conditions keep the
+# search_first instruction, so an abstention has to come after a lookup that found nothing.
+ABSTAIN_PLAIN = (" If you do not know the answer and the facts given, if any, do not contain it, "
+                 "reply exactly: I don't know.")
+ABSTAIN_TOOL = (" If the lookup returns nothing that answers the question and you do not know the "
+                "answer, reply exactly: I don't know.")
+TOOL_CONDITIONS = ("tool", "tool+contract", "web", "web+cache")
+VARIANT_APPLIES = {"default": (), "search_first": TOOL_CONDITIONS, "search_first2": TOOL_CONDITIONS,
+                   "abstain_ok": ("closed", "store", "tool", "tool+contract")}
+ABLATED_CONDITIONS = ("closed", "store", "tool", "tool+contract")
+
+
+def variant_for(condition: str, variant: str) -> str:
+    """The variant a condition actually runs under; one it does not apply to runs `default`."""
+    return variant if condition in VARIANT_APPLIES[variant] else "default"
+
+
 NUDGE = "You have not used {tool} yet. Call it before you answer."
 
 
@@ -62,6 +79,8 @@ class Answer:
 def system_for(ctx, tool: str) -> str:
     """The system prompt of a tool-using condition; `tool` names what to call first."""
     v = getattr(ctx, "variant", "default")
+    if v == "abstain_ok":
+        return _SF["search_first"].format(tool=tool) + ABSTAIN_TOOL
     return SYSTEM_TOOL if v == "default" else _SF[v].format(tool=tool)
 
 
@@ -75,6 +94,7 @@ class Context:
     funes: object = None            # ko.funes.FunesInstance
     passno: int = 1
     variant: str = "default"
+    ablated: bool = False           # the question's own triple is withheld from retrieval
 
 
 def _gold(item: Item) -> Fact:
@@ -88,8 +108,13 @@ def _norm_hit(facts, item: Item) -> bool:
                and normalize(f.obj) in al for f in facts)
 
 
+def _exclude(ctx: Context, item: Item):
+    return _gold(item) if ctx.ablated else None
+
+
 def _plain(ctx: Context, item: Item, user: str) -> Answer:
-    r = ctx.client.chat([{"role": "system", "content": SYSTEM},
+    system = SYSTEM + (ABSTAIN_PLAIN if ctx.variant == "abstain_ok" else "")
+    r = ctx.client.chat([{"role": "system", "content": system},
                          {"role": "user", "content": user}], seed=ctx.seed, max_tokens=MAX_TOKENS)
     return Answer(text=r.text, usage=r.usage, steps=1)
 
@@ -103,7 +128,7 @@ def oracle(ctx, item):
 
 
 def store(ctx, item):
-    facts = ctx.store.search(item.question, k=K)
+    facts = ctx.store.search(item.question, k=K, exclude=_exclude(ctx, item))
     listing = "\n".join(f"- {f.text()}" for f in facts) or "- (nothing retrieved)"
     a = _plain(ctx, item, f"Facts:\n{listing}\n\nQuestion: {item.question}")
     a.retrieval_hit = _norm_hit(facts, item)
@@ -151,13 +176,13 @@ def tool_loop(ctx: Context, item_question: str, schemas, executors, require=None
 
 def tool(ctx, item):
     return tool_loop(ctx, item.question, [T.LOOKUP],
-                     {"lookup": lambda a: T.run_lookup(ctx.store, a)},
+                     {"lookup": lambda a: T.run_lookup(ctx.store, a, _exclude(ctx, item))},
                      system=system_for(ctx, "the lookup tool"))
 
 
 def tool_contract(ctx, item):
     return tool_loop(ctx, item.question, [T.LOOKUP],
-                     {"lookup": lambda a: T.run_lookup(ctx.store, a)}, require="lookup",
+                     {"lookup": lambda a: T.run_lookup(ctx.store, a, _exclude(ctx, item))}, require="lookup",
                      system=system_for(ctx, "the lookup tool"))
 
 

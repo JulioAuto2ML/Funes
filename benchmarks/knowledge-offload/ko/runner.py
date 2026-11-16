@@ -8,7 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from . import conditions as C
-from . import popqa
+from . import ablate, popqa
 from .llm import Client, LLMError, Usage
 from .scoring import score
 from .store import Fact, FactStore
@@ -38,12 +38,12 @@ def pool_texts(items: list[popqa.Item]) -> list[str]:
 
 def cell_path(tag: str, n: int, condition: str, rep: int, *, sample: str = "random",
               dataset_seed: int = 0, pool: int | None = None, variant: str = "default",
-              unambiguous: bool = False) -> Path:
+              unambiguous: bool = False, arm: str = "main") -> Path:
     """Defaults keep the E0 names (`popqa-n1000-<tag>-<cond>-r<k>.json`) as they
     were; a stratified sample and a non-default funes pool say so in the name,
     so a new row never overwrites an old one."""
     head = "popqa" if sample == "random" else f"popqa-{sample}{dataset_seed}"
-    head += "u" if unambiguous else ""
+    head += ("u" if unambiguous else "") + ("-ablated" if arm == "ablated" else "")
     cond = condition.replace("+", "plus") + (f"-pool{pool}" if pool and condition == "funes" else "")
     if variant != "default":
         cond += f"-{variant}"
@@ -51,10 +51,11 @@ def cell_path(tag: str, n: int, condition: str, rep: int, *, sample: str = "rand
 
 
 def payload_dir(tag: str, condition: str, rep: int, passno: int, *, sample: str = "random",
-                dataset_seed: int = 0, variant: str = "default", unambiguous: bool = False) -> Path:
+                dataset_seed: int = 0, variant: str = "default", unambiguous: bool = False,
+                arm: str = "main") -> Path:
     """results/payloads/<run>/<condition>-r<rep>-p<pass>/<question id>.json.gz"""
     run = f"{tag}" if sample == "random" else f"{tag}-{sample}{dataset_seed}"
-    run += "u" if unambiguous else ""
+    run += ("u" if unambiguous else "") + ("-ablated" if arm == "ablated" else "")
     cond = condition.replace("+", "plus") + ("" if variant == "default" else f"-{variant}")
     return RESULTS / "payloads" / run / f"{cond}-r{rep}-p{passno}"
 
@@ -85,6 +86,8 @@ def run_cell(*, condition: str, items, ctx: C.Context, rep: int, meta: dict,
                 a = C.Answer(error=str(e))
             s = score(a.text, list(item.aliases),
                       None if candidates is None else candidates.get((item.subj, item.prop)))
+            if ctx.ablated:
+                s["outcome"] = ablate.outcome(a.text, s["contains"])
             if payloads_to and a.payloads:
                 write_payloads(payloads_to(p), item.id, a.payloads)
             rows.append({"id": item.id, "pass": p, "pop_bucket": popqa.pop_bucket(item),
@@ -117,6 +120,9 @@ def summarize_rows(rows: list[dict]) -> dict:
                 "acc_nohedge": sum(r["contains"] and not r["hedge"] for r in rs) / n}
                if all("hedge" in r for r in rs) else {}),
             "abstain": sum(r["abstained"] for r in rs) / n,
+            **({"outcomes": {o: sum(1 for r in rs if r["outcome"] == o) / n
+                             for o in ("correct", "abstained", "hallucinated")}}
+               if all("outcome" in r for r in rs) else {}),
             "errors": sum(1 for r in rs if r["error"]),
             "tainted": sum(r["tainted"] for r in rs) / n,
             "lookup_rate": sum(1 for r in rs if r["tools"]) / n,

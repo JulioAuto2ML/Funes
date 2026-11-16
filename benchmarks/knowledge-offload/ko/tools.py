@@ -36,8 +36,8 @@ REMEMBER = {"type": "function", "function": {
                    "required": ["fact"]}}}
 
 
-def run_lookup(store: FactStore, args: dict) -> str:
-    facts = store.lookup(str(args.get("entity", "")), str(args.get("relation", "")))
+def run_lookup(store: FactStore, args: dict, exclude: Fact | None = None) -> str:
+    facts = store.lookup(str(args.get("entity", "")), str(args.get("relation", "")), exclude=exclude)
     return "\n".join(f.text() for f in facts) or "no stored facts match"
 
 

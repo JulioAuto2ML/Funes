@@ -26,7 +26,6 @@ def cmd_fetch(a):
     print(f"{p} sha256={popqa.sha256(p)}")
 
 
-VARIANT_CONDITIONS = ("tool", "tool+contract", "web", "web+cache")   # the ones that choose a tool
 
 
 def build_pool(a, all_items):
@@ -67,6 +66,17 @@ def cmd_run(a):
     # The store below is always every triple; only the questions are narrowed.
     pool_items = popqa.unambiguous(all_items, candidates) if a.exclude_ambiguous else all_items
     items = sampler(pool_items, a.n, a.dataset_seed)
+    arm = "ablated" if a.ablated else "main"
+    if a.ablated:
+        # H5b: the first 200 questions of the same sample, own triple withheld from retrieval.
+        if a.prompt_variant != "abstain_ok":
+            sys.exit("--ablated needs --prompt-variant abstain_ok (a way out that is not a guess)")
+        items = items[:a.ablate_n]
+        a.conditions = a.conditions or list(C.ABLATED_CONDITIONS)
+        bad = [c for c in a.conditions if c not in C.ABLATED_CONDITIONS]
+        if bad:
+            sys.exit(f"--ablated runs {', '.join(C.ABLATED_CONDITIONS)}, not {', '.join(bad)}")
+    a.conditions = a.conditions or list(C.CONDITIONS)
     print(f"questions: {len(items)} of {len(pool_items)} eligible ({len(all_items)} triples in the store)"
           + (", ambiguous (homonym) subjects excluded" if a.exclude_ambiguous else ""))
     client = Client(a.llm_url, allow_local=a.allow_local)
@@ -84,7 +94,7 @@ def cmd_run(a):
     store = runner.build_store(all_items)
     meta_base = {"dataset": "popqa", "dataset_sha256": popqa.sha256(data),
                  "dataset_seed": a.dataset_seed, "sample": a.sample,
-                 "exclude_ambiguous": a.exclude_ambiguous, "model_tag": a.model_tag, "server": info,
+                 "exclude_ambiguous": a.exclude_ambiguous, "arm": arm, "model_tag": a.model_tag, "server": info,
                  "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
                  "git": runner.git_state(), "date": dt.date.today().isoformat(),
                  "k": C.K, "max_steps": C.MAX_STEPS, "temperature": 0.0,
@@ -118,17 +128,18 @@ def cmd_run(a):
                 funes_inst = None
         for rep in range(a.repeats):
             for cond in a.conditions:
-                var = a.prompt_variant if cond in VARIANT_CONDITIONS else "default"
-                path = runner.cell_path(a.model_tag, a.n, cond, rep, sample=a.sample,
+                var = C.variant_for(cond, a.prompt_variant)
+                path = runner.cell_path(a.model_tag, len(items), cond, rep, sample=a.sample,
                                         dataset_seed=a.dataset_seed, pool=pool_n, variant=var,
-                                        unambiguous=a.exclude_ambiguous)
+                                        unambiguous=a.exclude_ambiguous, arm=arm)
                 if path.exists() and not a.force:
                     print(f"skip {path.name} (exists)")
                     continue
                 if cond == "funes" and funes_inst is None:
                     continue
                 ctx = C.Context(client=client, store=store, seed=a.seed + rep, web=web,
-                                notes=T.Notes(), funes=funes_inst, variant=var)
+                                notes=T.Notes(), funes=funes_inst, variant=var,
+                                ablated=a.ablated)
                 if cond in ("web", "web+cache") and search_blocked:
                     print(f"skip {path.name}: search blocked earlier in this run")
                     continue
@@ -140,7 +151,7 @@ def cmd_run(a):
                         candidates=candidates,
                         payloads_to=lambda p, cond=cond, rep=rep: runner.payload_dir(
                             a.model_tag, cond, rep, p, sample=a.sample, dataset_seed=a.dataset_seed,
-                            variant=var, unambiguous=a.exclude_ambiguous))
+                            variant=var, unambiguous=a.exclude_ambiguous, arm=arm))
                 except C.ConditionUnavailable as e:
                     blocked.append((cond, str(e)))
                     continue
@@ -170,6 +181,8 @@ def cell_label(r: dict) -> str:
         lab += "/" + r["prompt_variant"]
     if lab == "funes" and r.get("funes_pool"):
         lab += f"@{r['funes_pool']}"
+    if r.get("arm") == "ablated":
+        lab += " ablated"
     if r.get("sample", "random") != "random":
         lab += f" [{r['sample']} s{r['dataset_seed']}{' unamb' if r.get('exclude_ambiguous') else ''}]"
     return lab
@@ -265,7 +278,7 @@ def main():
                    help="where the server's model files are, to hash the one being served")
     r.add_argument("--lock-name-only", action="store_true",
                    help="accept a locked file name when its bytes are not reachable from here (recorded in meta)")
-    r.add_argument("--conditions", nargs="+", default=C.CONDITIONS, choices=C.CONDITIONS)
+    r.add_argument("--conditions", nargs="+", default=None, choices=C.CONDITIONS)
     r.add_argument("--repeats", type=int, default=3)
     r.add_argument("--n", type=int, default=1000)
     r.add_argument("--dataset-seed", type=int, default=0)
@@ -288,6 +301,10 @@ def main():
     r.add_argument("--exclude-ambiguous", action="store_true",
                    help="draw the questions only from items whose subject+property has a single object over "
                         "all 14,267 triples (E1's primary sample); the store keeps every triple")
+    r.add_argument("--ablated", action="store_true",
+                   help="H5b: first --ablate-n questions of the sample, each one's own triple withheld "
+                        "from retrieval; needs --prompt-variant abstain_ok; closed/store/tool/tool+contract")
+    r.add_argument("--ablate-n", type=int, default=200)
     r.add_argument("--force", action="store_true")
     r.set_defaults(fn=cmd_run)
     s = sub.add_parser("summarize")
