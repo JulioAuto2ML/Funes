@@ -105,3 +105,12 @@ def facts(items: list[Item]) -> list[tuple[str, str, str]]:
     `store` (FTS5) and `funes` (scratch memory pool) both. Two builders would
     let the two drift, and then funes-vs-store stops being one variable."""
     return [(i.subj, i.prop, i.obj) for i in items]
+
+
+def unambiguous(items: list[Item], candidates: dict | None = None) -> list[Item]:
+    """The items whose (subject, property) has exactly one object over the whole
+    file: a question with a single right answer, whatever a store holds. A
+    homonym subject ("The Walk") has several, so a list is a fair answer to it
+    and `contains` credits it; E1's primary metric is taken on these items only."""
+    cand = candidate_sets(items) if candidates is None else candidates
+    return [i for i in items if len(cand[(i.subj, i.prop)]) == 1]

@@ -63,8 +63,12 @@ def cmd_run(a):
         sys.exit(f"{data} missing: run `run.py fetch`")
     all_items = popqa.load(data)
     sampler = popqa.stratified_sample if a.sample == "stratified" else popqa.sample
-    items = sampler(all_items, a.n, a.dataset_seed)
     candidates = popqa.candidate_sets(all_items)
+    # The store below is always every triple; only the questions are narrowed.
+    pool_items = popqa.unambiguous(all_items, candidates) if a.exclude_ambiguous else all_items
+    items = sampler(pool_items, a.n, a.dataset_seed)
+    print(f"questions: {len(items)} of {len(pool_items)} eligible ({len(all_items)} triples in the store)"
+          + (", ambiguous (homonym) subjects excluded" if a.exclude_ambiguous else ""))
     client = Client(a.llm_url, allow_local=a.allow_local)
     try:
         info = client.server_info()
@@ -79,7 +83,8 @@ def cmd_run(a):
           f"verified by {locked['verified']}")
     store = runner.build_store(all_items)
     meta_base = {"dataset": "popqa", "dataset_sha256": popqa.sha256(data),
-                 "dataset_seed": a.dataset_seed, "sample": a.sample, "model_tag": a.model_tag, "server": info,
+                 "dataset_seed": a.dataset_seed, "sample": a.sample,
+                 "exclude_ambiguous": a.exclude_ambiguous, "model_tag": a.model_tag, "server": info,
                  "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
                  "git": runner.git_state(), "date": dt.date.today().isoformat(),
                  "k": C.K, "max_steps": C.MAX_STEPS, "temperature": 0.0,
@@ -115,7 +120,8 @@ def cmd_run(a):
             for cond in a.conditions:
                 var = a.prompt_variant if cond in VARIANT_CONDITIONS else "default"
                 path = runner.cell_path(a.model_tag, a.n, cond, rep, sample=a.sample,
-                                        dataset_seed=a.dataset_seed, pool=pool_n, variant=var)
+                                        dataset_seed=a.dataset_seed, pool=pool_n, variant=var,
+                                        unambiguous=a.exclude_ambiguous)
                 if path.exists() and not a.force:
                     print(f"skip {path.name} (exists)")
                     continue
@@ -134,7 +140,7 @@ def cmd_run(a):
                         candidates=candidates,
                         payloads_to=lambda p, cond=cond, rep=rep: runner.payload_dir(
                             a.model_tag, cond, rep, p, sample=a.sample, dataset_seed=a.dataset_seed,
-                            variant=var))
+                            variant=var, unambiguous=a.exclude_ambiguous))
                 except C.ConditionUnavailable as e:
                     blocked.append((cond, str(e)))
                     continue
@@ -165,7 +171,7 @@ def cell_label(r: dict) -> str:
     if lab == "funes" and r.get("funes_pool"):
         lab += f"@{r['funes_pool']}"
     if r.get("sample", "random") != "random":
-        lab += f" [{r['sample']} s{r['dataset_seed']}]"
+        lab += f" [{r['sample']} s{r['dataset_seed']}{' unamb' if r.get('exclude_ambiguous') else ''}]"
     return lab
 
 
@@ -279,6 +285,9 @@ def main():
                         "call the tool before answering. Other conditions ignore it.")
     r.add_argument("--sample", choices=["random", "stratified"], default="random",
                    help="stratified: equal items per popularity bucket (use a new --dataset-seed)")
+    r.add_argument("--exclude-ambiguous", action="store_true",
+                   help="draw the questions only from items whose subject+property has a single object over "
+                        "all 14,267 triples (E1's primary sample); the store keeps every triple")
     r.add_argument("--force", action="store_true")
     r.set_defaults(fn=cmd_run)
     s = sub.add_parser("summarize")
