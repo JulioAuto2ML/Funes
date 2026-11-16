@@ -403,3 +403,35 @@ def test_tavily_is_never_spent_past_its_cap():
     with pytest.raises(RuntimeError, match="cap"):
         web.search("c")
     assert web.tavily_calls == 2
+
+
+def test_parallel_429_is_waited_out_and_paced_before_tavily_is_spent():
+    import urllib.error
+    post, log = fake_parallel()
+    state = {"n": 0}
+
+    def flaky(url, body=None, headers=None):
+        if body and body.get("method") == "tools/call":
+            state["n"] += 1
+            if state["n"] <= 2:
+                raise urllib.error.HTTPError(url, 429, "Too Many Requests", {}, None)
+        return post(url, body, headers)
+    web = T.Web(None, post=flaky)
+    slept = []
+    web.sleep = slept.append
+    out = web.search("george rankin")
+    assert "politician" in out and web.calls == [{"backend": "parallel"}]
+    assert state["n"] == 3 and [x for x in slept if x >= 5] == [5, 15] and web.rate_limited == 2 and web.MIN_GAP == 2.0
+
+
+def test_parallel_429_beyond_the_backoff_falls_back():
+    import urllib.error
+
+    def always(url, body=None, headers=None):
+        if body and body.get("method") == "tools/call":
+            raise urllib.error.HTTPError(url, 429, "x", {}, None)
+        return fake_parallel()[0](url, body, headers)
+    web = T.Web("k", post=always, transport=lambda u, b=None: '{"results":[]}')
+    web.sleep = lambda s: None
+    web.search("q")
+    assert web.calls[0]["backend"] == "tavily" and "429" in web.calls[0]["fallback_reason"]

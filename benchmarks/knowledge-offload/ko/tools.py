@@ -3,6 +3,8 @@ import html
 import json
 import os
 import re
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -102,6 +104,9 @@ class Web:
         self._session: str | None = None
         self.searches = 0
         self.tavily_calls = 0
+        self.rate_limited = 0
+        self._last = 0.0
+        self.sleep = time.sleep
         self.fetches = 0
         self.calls: list[dict] = []     # [{"backend": "parallel"|"tavily", "fallback_reason": ...}]
         # What the engines actually sent back, before any formatting or
@@ -131,7 +136,27 @@ class Web:
         self._rpc({"jsonrpc": "2.0", "method": "notifications/initialized"}, sid)
         return sid or ""
 
+    BACKOFF = (5, 15, 45, 120)      # seconds to wait out a 429 before giving Parallel up
+    MIN_GAP = 0.0                   # grows after each 429: the pace Parallel tolerates
+
     def _parallel(self, query: str) -> str:
+        for wait in (0, *self.BACKOFF):
+            if wait:
+                self.sleep(wait)
+            gap = self.MIN_GAP - (time.monotonic() - self._last)
+            if gap > 0:
+                self.sleep(gap)
+            self._last = time.monotonic()
+            try:
+                return self._parallel_once(query)
+            except urllib.error.HTTPError as e:
+                if e.code != 429:
+                    raise
+                self.MIN_GAP = min(self.MIN_GAP + 1.0, 10.0)
+                self.rate_limited += 1
+        raise RuntimeError("parallel 429 after backoff")
+
+    def _parallel_once(self, query: str) -> str:
         for attempt in (0, 1):             # a stale session gets one fresh start
             try:
                 if self._session is None:
@@ -146,7 +171,7 @@ class Web:
             except Exception as e:
                 self._session = None
                 self._attempts.append({"backend": "parallel", "error": f"{type(e).__name__}: {e}"[:300]})
-                if attempt:
+                if attempt or (isinstance(e, urllib.error.HTTPError) and e.code == 429):
                     raise
         res = msg.get("result", {})
         body = "".join(c.get("text", "") for c in res.get("content", []) if c.get("type") == "text")
