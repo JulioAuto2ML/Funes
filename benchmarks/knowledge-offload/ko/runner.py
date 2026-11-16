@@ -37,20 +37,23 @@ def pool_texts(items: list[popqa.Item]) -> list[str]:
 
 
 def cell_path(tag: str, n: int, condition: str, rep: int, *, sample: str = "random",
-              dataset_seed: int = 0, pool: int | None = None) -> Path:
+              dataset_seed: int = 0, pool: int | None = None, variant: str = "default") -> Path:
     """Defaults keep the E0 names (`popqa-n1000-<tag>-<cond>-r<k>.json`) as they
     were; a stratified sample and a non-default funes pool say so in the name,
     so a new row never overwrites an old one."""
     head = "popqa" if sample == "random" else f"popqa-{sample}{dataset_seed}"
     cond = condition.replace("+", "plus") + (f"-pool{pool}" if pool and condition == "funes" else "")
+    if variant != "default":
+        cond += f"-{variant}"
     return RESULTS / f"{head}-n{n}-{tag}-{cond}-r{rep}.json"
 
 
 def payload_dir(tag: str, condition: str, rep: int, passno: int, *, sample: str = "random",
-                dataset_seed: int = 0) -> Path:
+                dataset_seed: int = 0, variant: str = "default") -> Path:
     """results/payloads/<run>/<condition>-r<rep>-p<pass>/<question id>.json.gz"""
     run = f"{tag}" if sample == "random" else f"{tag}-{sample}{dataset_seed}"
-    return RESULTS / "payloads" / run / f"{condition.replace('+', 'plus')}-r{rep}-p{passno}"
+    cond = condition.replace("+", "plus") + ("" if variant == "default" else f"-{variant}")
+    return RESULTS / "payloads" / run / f"{cond}-r{rep}-p{passno}"
 
 
 def write_payloads(directory: Path, qid: str, payloads: list) -> None:

@@ -21,6 +21,22 @@ MAX_TOKENS = 128
 SYSTEM = ("You answer factual questions. Reply with only the answer: a short phrase, "
           "with no explanation and no full sentence.")
 SYSTEM_TOOL = SYSTEM + " Use the tools you are given when they help."
+# Prompt variants (a new row, never an edit of the old one). On the 9B the default
+# line above made the model answer from memory and skip the tools (6 lookups in
+# 1000 questions, 1 call/answer and no search in `web`): "reply with only the
+# answer" outweighed "use the tools". `search_first` says when to use them.
+VARIANTS = ["default", "search_first", "search_first2"]
+_SF = {
+    "search_first": (
+        "You answer factual questions about specific people, places and works. Your memory of them "
+        "is unreliable. When a question names a specific entity, you MUST first call {tool}, then "
+        "answer from what it returns; never answer such a question from memory. "
+        "The final answer is still only a short phrase, with no explanation and no full sentence."),
+    "search_first2": (
+        "Task: answer the question with a short phrase. Rule: before you write any answer, make a "
+        "{tool} call for the entity the question names. An answer with no {tool} call before it is "
+        "wrong. After the call, reply with only the answer: a short phrase, nothing else."),
+}
 NUDGE = "You have not used {tool} yet. Call it before you answer."
 
 
@@ -43,6 +59,12 @@ class Answer:
     payloads: list = field(default_factory=list)    # raw web payloads; stored beside, not in, the result
 
 
+def system_for(ctx, tool: str) -> str:
+    """The system prompt of a tool-using condition; `tool` names what to call first."""
+    v = getattr(ctx, "variant", "default")
+    return SYSTEM_TOOL if v == "default" else _SF[v].format(tool=tool)
+
+
 @dataclass
 class Context:
     client: Client | None = None
@@ -52,6 +74,7 @@ class Context:
     notes: T.Notes | None = None
     funes: object = None            # ko.funes.FunesInstance
     passno: int = 1
+    variant: str = "default"
 
 
 def _gold(item: Item) -> Fact:
@@ -126,12 +149,14 @@ def tool_loop(ctx: Context, item_question: str, schemas, executors, require=None
 
 def tool(ctx, item):
     return tool_loop(ctx, item.question, [T.LOOKUP],
-                     {"lookup": lambda a: T.run_lookup(ctx.store, a)})
+                     {"lookup": lambda a: T.run_lookup(ctx.store, a)},
+                     system=system_for(ctx, "the lookup tool"))
 
 
 def tool_contract(ctx, item):
     return tool_loop(ctx, item.question, [T.LOOKUP],
-                     {"lookup": lambda a: T.run_lookup(ctx.store, a)}, require="lookup")
+                     {"lookup": lambda a: T.run_lookup(ctx.store, a)}, require="lookup",
+                     system=system_for(ctx, "the lookup tool"))
 
 
 def _web_executors(ctx):
@@ -143,7 +168,8 @@ def web(ctx, item):
     if ctx.web is None or not ctx.web.available:
         raise ConditionUnavailable("no search backend (FUNES_SEARCH_BACKEND=parallel, or a Tavily key)")
     n0, p0 = len(ctx.web.calls), len(ctx.web.payloads)
-    a = tool_loop(ctx, item.question, [T.WEB_SEARCH, T.WEB_FETCH], _web_executors(ctx))
+    a = tool_loop(ctx, item.question, [T.WEB_SEARCH, T.WEB_FETCH], _web_executors(ctx),
+                  system=system_for(ctx, "web_search"))
     a.extra["search_backends"] = ctx.web.calls[n0:]
     a.payloads = ctx.web.payloads[p0:]
     del ctx.web.payloads[p0:]          # handed to the answer; the run keeps nothing
@@ -159,7 +185,7 @@ def web_cache(ctx, item):
     ex = _web_executors(ctx)
     ex["recall"] = lambda a: ctx.notes.recall(str(a.get("query", "")))
     ex["remember"] = lambda a: ctx.notes.remember(str(a.get("fact", "")))
-    system = (SYSTEM_TOOL + " First call recall to check what you already noted. If it does not "
+    system = (system_for(ctx, "recall, and web_search if it has nothing") + " First call recall to check what you already noted. If it does not "
               "answer the question, search the web, then call remember with one short fact "
               "that includes its source URL.")
     before, n0, p0 = ctx.notes.served, len(ctx.web.calls), len(ctx.web.payloads)

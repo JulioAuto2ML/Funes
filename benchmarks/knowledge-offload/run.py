@@ -26,6 +26,9 @@ def cmd_fetch(a):
     print(f"{p} sha256={popqa.sha256(p)}")
 
 
+VARIANT_CONDITIONS = ("tool", "tool+contract", "web", "web+cache")   # the ones that choose a tool
+
+
 def build_pool(a, all_items):
     """The full-pool funes memory, built once: every PopQA triple, the same list
     `store` is built from. The embeddings are the :8081 model's, so the pool is
@@ -104,22 +107,24 @@ def cmd_run(a):
                 funes_inst = None
         for rep in range(a.repeats):
             for cond in a.conditions:
+                var = a.prompt_variant if cond in VARIANT_CONDITIONS else "default"
                 path = runner.cell_path(a.model_tag, a.n, cond, rep, sample=a.sample,
-                                        dataset_seed=a.dataset_seed, pool=pool_n)
+                                        dataset_seed=a.dataset_seed, pool=pool_n, variant=var)
                 if path.exists() and not a.force:
                     print(f"skip {path.name} (exists)")
                     continue
                 if cond == "funes" and funes_inst is None:
                     continue
                 ctx = C.Context(client=client, store=store, seed=a.seed + rep, web=web,
-                                notes=T.Notes(), funes=funes_inst)
+                                notes=T.Notes(), funes=funes_inst, variant=var)
                 print(f"{cond} repeat {rep} seed {ctx.seed}")
                 try:
                     res = runner.run_cell(
-                        condition=cond, items=items, ctx=ctx, rep=rep, meta=meta_base,
+                        condition=cond, items=items, ctx=ctx, rep=rep, meta={**meta_base, "prompt_variant": var},
                         candidates=candidates,
                         payloads_to=lambda p, cond=cond, rep=rep: runner.payload_dir(
-                            a.model_tag, cond, rep, p, sample=a.sample, dataset_seed=a.dataset_seed))
+                            a.model_tag, cond, rep, p, sample=a.sample, dataset_seed=a.dataset_seed,
+                            variant=var))
                 except C.ConditionUnavailable as e:
                     blocked.append((cond, str(e)))
                     continue
@@ -137,6 +142,8 @@ def cell_label(r: dict) -> str:
     that make it a different experiment — a funes pool other than the default,
     a stratified sample."""
     lab = r["condition"]
+    if r.get("prompt_variant", "default") != "default":
+        lab += "/" + r["prompt_variant"]
     if lab == "funes" and r.get("funes_pool"):
         lab += f"@{r['funes_pool']}"
     if r.get("sample", "random") != "random":
@@ -169,7 +176,7 @@ def cmd_summarize(a):
     print(f"{'model':<20}{'condition':<26}{'reps':>4}{'acc (95% CI)':>24}{'sd':>7}{'range':>7}"
           f"{'acc-hedge':>10}{'hedge':>7}{'ms/ans':>9}{'tok/ans':>9}")
     for (tag, cond), reps in sorted(cells.items()):
-        ps = ["pass1", "pass2"] if cond == "web+cache" else ["pass1"]
+        ps = ["pass1", "pass2"] if cond.startswith("web+cache") else ["pass1"]
         for ps_ in ps:
             if ps_ not in reps[0]["summary"]:
                 continue
@@ -245,6 +252,9 @@ def main():
                         "distractors: the E0 plumbing pool, sample + --funes-distractors")
     r.add_argument("--funes-distractors", type=int, default=2000,
                    help="with --funes-pool distractors: non-sample facts also loaded")
+    r.add_argument("--prompt-variant", choices=C.VARIANTS, default="default",
+                   help="system prompt of tool, tool+contract, web, web+cache; search_first says to "
+                        "call the tool before answering. Other conditions ignore it.")
     r.add_argument("--sample", choices=["random", "stratified"], default="random",
                    help="stratified: equal items per popularity bucket (use a new --dataset-seed)")
     r.add_argument("--force", action="store_true")

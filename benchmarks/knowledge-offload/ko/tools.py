@@ -101,6 +101,7 @@ class Web:
         self.parallel_url = parallel_url
         self._session: str | None = None
         self.searches = 0
+        self.tavily_calls = 0
         self.fetches = 0
         self.calls: list[dict] = []     # [{"backend": "parallel"|"tavily", "fallback_reason": ...}]
         # What the engines actually sent back, before any formatting or
@@ -161,9 +162,14 @@ class Web:
         return "\n".join(lines) or "no results"
 
     # -- Tavily ---------------------------------------------------------------
+    TAVILY_CAP = 800        # of the 1,000 free a month: never spend past this
+
     def _tavily(self, query: str) -> str:
         if not self.key:
             raise RuntimeError("no Tavily key")
+        if self.tavily_calls >= self.TAVILY_CAP:
+            raise RuntimeError(f"Tavily cap of {self.TAVILY_CAP} calls reached")
+        self.tavily_calls += 1
         raw = self.transport("https://api.tavily.com/search",
                              {"api_key": self.key, "query": query, "max_results": 5,
                               "search_depth": "basic", "include_answer": False})

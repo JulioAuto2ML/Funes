@@ -377,3 +377,29 @@ def test_by_bucket_table_counts_n_per_bucket(capsys):
     run.by_bucket({("t", "store"): [{"answers": ans}]})
     out = capsys.readouterr().out
     assert "0.500 [2]" in out and "1.000 [1]" in out
+
+
+def test_prompt_variant_changes_only_the_system_prompt_and_names_the_row():
+    for cond in ("tool", "tool+contract", "web", "web+cache"):
+        base, sf = C.Context(), C.Context(variant="search_first")
+        assert C.system_for(base, "x") == C.SYSTEM_TOOL
+        assert "MUST first call x" in C.system_for(sf, "x") and "short phrase" in C.system_for(sf, "x")
+    c = C.Context(client=FakeClient([call("lookup", entity="George Rankin"), text("politician")]),
+                  store=FactStore(FACTS), variant="search_first")
+    C.tool(c, GOLD)
+    assert "MUST first call the lookup tool" in c.client.calls[0]["messages"][0]["content"]
+    assert runner.cell_path("t", 1000, "tool", 0).name == "popqa-n1000-t-tool-r0.json"      # old file untouched
+    assert runner.cell_path("t", 1000, "tool", 0, variant="search_first").name == "popqa-n1000-t-tool-search_first-r0.json"
+    assert runner.payload_dir("t", "web", 0, 1, variant="search_first").name == "web-search_first-r0-p1"
+    run = load_run_module()
+    assert run.cell_label({"condition": "web+cache", "prompt_variant": "search_first"}) == "web+cache/search_first"
+    assert run.cell_label({"condition": "tool"}) == "tool"
+
+
+def test_tavily_is_never_spent_past_its_cap():
+    web = T.Web("k", backend="tavily", transport=lambda url, body=None: '{"results":[]}')
+    web.TAVILY_CAP = 2
+    web.search("a"); web.search("b")
+    with pytest.raises(RuntimeError, match="cap"):
+        web.search("c")
+    assert web.tavily_calls == 2
