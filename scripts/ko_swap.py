@@ -289,12 +289,12 @@ def main(argv=None, swap: Swap | None = None) -> int:
     return s.run(a.id, cmd, a.max_minutes)
 
 
-def long_prompt(words: int = 5200) -> str:
+def long_prompt(words: int = 1350) -> str:
     return " ".join(f"item{i}" for i in range(words)) + "\nHow many items were listed? Answer with a number."
 
 
 def loadtest(s: Swap, lock_id: str) -> int:
-    """Does `lock_id` load with the benchmark flags, and answer a prompt that fills most of ctx 8192?
+    """Does `lock_id` load with the benchmark flags, and answer a prompt that fills most of ctx 8192 (items tokenise to ~4.8 tokens each, so 1350 words ~ 6.5k tokens)?
     f16 KV first; if that fails, q4_0 — and q4_0 is then recorded for ALL sizes."""
     for kv in ("f16", "q4_0"):
         try:
