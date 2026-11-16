@@ -281,6 +281,8 @@ def main(argv=None, swap: Swap | None = None) -> int:
         return 0
     if a.cmd == "loadtest":
         return loadtest(s, a.id)
+    while a.command[:1] == ["--max-minutes"] and len(a.command) > 1:  # REMAINDER swallows options after the id
+        a.max_minutes, a.command = int(a.command[1]), a.command[2:]
     cmd = a.command[1:] if a.command[:1] == ["--"] else a.command
     if not cmd:
         raise SystemExit("run needs a command after --")
