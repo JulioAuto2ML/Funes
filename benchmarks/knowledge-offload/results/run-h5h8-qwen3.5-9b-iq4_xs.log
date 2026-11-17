@@ -1,0 +1,32 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.320
+  tool r0 pass1 200/1000 acc=0.335
+  tool r0 pass1 300/1000 acc=0.353
+  tool r0 pass1 400/1000 acc=0.352
+  tool r0 pass1 500/1000 acc=0.346
+  tool r0 pass1 600/1000 acc=0.345
+  tool r0 pass1 700/1000 acc=0.336
+  tool r0 pass1 800/1000 acc=0.340
+  tool r0 pass1 900/1000 acc=0.343
+  tool r0 pass1 1000/1000 acc=0.347
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.347, 'exact': 0.333, 'hedge_rate': 0.0, 'acc_nohedge': 0.347, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.001, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.05, 'completion_tokens': 3.921, 'wall_ms': 139.0761, 'calls': 1.001}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.990
+  tool+contract r0 pass1 200/1000 acc=0.990
+  tool+contract r0 pass1 300/1000 acc=0.990
+  tool+contract r0 pass1 400/1000 acc=0.990
+  tool+contract r0 pass1 500/1000 acc=0.992
+  tool+contract r0 pass1 600/1000 acc=0.988
+  tool+contract r0 pass1 700/1000 acc=0.987
+  tool+contract r0 pass1 800/1000 acc=0.989
+  tool+contract r0 pass1 900/1000 acc=0.990
+  tool+contract r0 pass1 1000/1000 acc=0.991
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-toolpluscontract-r0.json {'pass1': {'n': 1000, 'acc': 0.991, 'exact': 0.973, 'hedge_rate': 0.0, 'acc_nohedge': 0.991, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.989, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 183.414, 'completion_tokens': 48.235, 'wall_ms': 1244.7291499999988, 'calls': 3.035}}}
+main exit 0
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+skip popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-tool-r0.json (exists)
+skip popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-toolpluscontract-r0.json (exists)
+main exit 0

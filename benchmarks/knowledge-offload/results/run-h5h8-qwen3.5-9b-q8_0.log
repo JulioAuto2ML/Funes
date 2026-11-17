@@ -1,0 +1,32 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-q8_0 [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-Q8_0.gguf (Q8_0) at http://localhost:8080, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.300
+  tool r0 pass1 200/1000 acc=0.315
+  tool r0 pass1 300/1000 acc=0.337
+  tool r0 pass1 400/1000 acc=0.335
+  tool r0 pass1 500/1000 acc=0.338
+  tool r0 pass1 600/1000 acc=0.343
+  tool r0 pass1 700/1000 acc=0.337
+  tool r0 pass1 800/1000 acc=0.343
+  tool r0 pass1 900/1000 acc=0.344
+  tool r0 pass1 1000/1000 acc=0.350
+  -> popqa-stratified1u-n1000-qwen3.5-9b-q8_0-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.35, 'exact': 0.339, 'hedge_rate': 0.0, 'acc_nohedge': 0.35, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.004, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.299, 'completion_tokens': 4.212, 'wall_ms': 218.97114, 'calls': 1.004}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.990
+  tool+contract r0 pass1 200/1000 acc=0.995
+  tool+contract r0 pass1 300/1000 acc=0.997
+  tool+contract r0 pass1 400/1000 acc=0.998
+  tool+contract r0 pass1 500/1000 acc=0.998
+  tool+contract r0 pass1 600/1000 acc=0.997
+  tool+contract r0 pass1 700/1000 acc=0.996
+  tool+contract r0 pass1 800/1000 acc=0.996
+  tool+contract r0 pass1 900/1000 acc=0.996
+  tool+contract r0 pass1 1000/1000 acc=0.996
+  -> popqa-stratified1u-n1000-qwen3.5-9b-q8_0-toolpluscontract-r0.json {'pass1': {'n': 1000, 'acc': 0.996, 'exact': 0.985, 'hedge_rate': 0.0, 'acc_nohedge': 0.996, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.996, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 181.506, 'completion_tokens': 48.468, 'wall_ms': 1903.2239499999985, 'calls': 3.008}}}
+main exit 0
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-q8_0 [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-Q8_0.gguf (Q8_0) at http://localhost:8080, verified by sha256
+skip popqa-stratified1u-n1000-qwen3.5-9b-q8_0-tool-r0.json (exists)
+skip popqa-stratified1u-n1000-qwen3.5-9b-q8_0-toolpluscontract-r0.json (exists)
+main exit 0

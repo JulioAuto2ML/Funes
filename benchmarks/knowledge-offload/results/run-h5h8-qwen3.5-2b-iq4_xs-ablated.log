@@ -1,0 +1,16 @@
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.200
+  tool r0 pass1 200/200 acc=0.215
+  -> popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-tool-abstain_default-r0.json {'pass1': {'n': 200, 'acc': 0.215, 'exact': 0.21, 'hedge_rate': 0.0, 'acc_nohedge': 0.215, 'abstain': 0.005, 'outcomes': {'correct': 0.215, 'abstained': 0.005, 'hallucinated': 0.78}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 22.425, 'completion_tokens': 3.715, 'wall_ms': 76.98885000000003, 'calls': 1.0}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/200 acc=0.210
+  tool+contract r0 pass1 200/200 acc=0.220
+  -> popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-toolpluscontract-abstain_default-r0.json {'pass1': {'n': 200, 'acc': 0.22, 'exact': 0.19, 'hedge_rate': 0.0, 'acc_nohedge': 0.22, 'abstain': 0.27, 'outcomes': {'correct': 0.22, 'abstained': 0.27, 'hallucinated': 0.51}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.785, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 253.545, 'completion_tokens': 49.18, 'wall_ms': 564.6256, 'calls': 3.215}}}
+ablated exit 0
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+skip popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-tool-abstain_default-r0.json (exists)
+skip popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-toolpluscontract-abstain_default-r0.json (exists)
+ablated exit 0

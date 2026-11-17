@@ -1,0 +1,27 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-q8_0 [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-Q8_0.gguf (Q8_0) at http://localhost:8080, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.180
+  tool r0 pass1 200/1000 acc=0.175
+  tool r0 pass1 300/1000 acc=0.213
+  tool r0 pass1 400/1000 acc=0.207
+  tool r0 pass1 500/1000 acc=0.216
+  tool r0 pass1 600/1000 acc=0.208
+  tool r0 pass1 700/1000 acc=0.207
+  tool r0 pass1 800/1000 acc=0.212
+  tool r0 pass1 900/1000 acc=0.210
+  tool r0 pass1 1000/1000 acc=0.211
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.211, 'exact': 0.18, 'hedge_rate': 0.0, 'acc_nohedge': 0.211, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.006, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.658, 'completion_tokens': 8.005, 'wall_ms': 111.78591999999999, 'calls': 1.006}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.190
+  tool+contract r0 pass1 200/1000 acc=0.175
+  tool+contract r0 pass1 300/1000 acc=0.213
+  tool+contract r0 pass1 400/1000 acc=0.207
+  tool+contract r0 pass1 500/1000 acc=0.216
+  tool+contract r0 pass1 600/1000 acc=0.208
+  tool+contract r0 pass1 700/1000 acc=0.207
+  tool+contract r0 pass1 800/1000 acc=0.211
+  tool+contract r0 pass1 900/1000 acc=0.209
+  tool+contract r0 pass1 1000/1000 acc=0.210
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-toolpluscontract-r0.json {'pass1': {'n': 1000, 'acc': 0.21, 'exact': 0.183, 'hedge_rate': 0.0, 'acc_nohedge': 0.21, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.006, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 149.743, 'completion_tokens': 20.669, 'wall_ms': 331.46401, 'calls': 2.994}}}
+main exit 0
