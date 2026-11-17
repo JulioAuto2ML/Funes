@@ -27,7 +27,7 @@ PARAMS = {"0.8b": 0.8, "2b": 2.0, "4b": 4.0, "9b": 9.0, "27b": 27.0}
 QUANTS = ["iq4_xs", "q8_0"]
 CONDS = ["closed", "oracle", "store", "tool/search_first", "tool+contract/search_first", "web/search_first",
          "web+writeback/search_first"]
-NB = 2000
+NB = 10000
 
 
 def tag(size, quant):
@@ -71,6 +71,23 @@ def slope(accs, x):
     return (accs - accs.mean(axis=-1, keepdims=True)) @ xc / (xc @ xc)
 
 
+def regex_check(results: Path) -> str:
+    """The abstain regex against julio's hand labels, measured from the tsv (nothing quoted from a report)."""
+    import csv
+    import label_abstain as LA
+    tsv = results / "abstain_labels.tsv"
+    if not tsv.exists():
+        return "The abstain regex is NOT validated (no `results/abstain_labels.tsv`): `abstained` vs `hallucinated` is provisional."
+    with open(tsv, encoding="utf-8", newline="") as f:
+        r = LA.agreement(list(csv.DictReader(f, delimiter="\t")))
+    if not r["labelled"]:
+        return "The abstain regex is NOT validated (`human` column empty): `abstained` vs `hallucinated` is provisional."
+    dis = "; ".join(f"{d['condition']} #{d['id']} {d['prediction']!r} regex={d['regex']} human={d['human']}" for d in r["disagreements"])
+    return (f"Abstain regex vs hand labels (`python3 label_abstain.py score results/abstain_labels.tsv`): "
+            f"{r['agree']}/{r['labelled']} agree ({r['rate']:.1%}; a sample of 50 answers, half the regex called abstained, half not)"
+            + (f"; disagreement: {dis}." if dis else "."))
+
+
 def build(results: Path):
     acc, lookup, bucket, abl = load(results)
     lock = M.load_lock()
@@ -111,7 +128,9 @@ def build(results: Path):
                     row.append("–")
             out.append(f"| {c} | " + " | ".join(row) + " |")
         out.append("")
-    out += ["`web` was run at 0.8B, 9B and 27B (IQ4_XS) only; `web+writeback` at 9B only (pass 1 / pass 2 shown as `p1`/`p2`).", ""]
+    out += ["**The 27B `web` cell is not valid:** from question 446 of 1000 on, every Parallel search returned a 402 'Insufficient credit' error "
+            "(1661 of 2086 searches, 527 of 951 searched questions; measured in `results/WEB_AUDIT.md`), so its .525 mixes the model with an exhausted account. "
+            "`web` was run at 0.8B, 9B and 27B (IQ4_XS) only; `web+writeback` at 9B only (pass 1 / pass 2 shown as `p1`/`p2`).", ""]
 
     # ---- lookup propensity
     out += ["## Lookup rate (share of answers with at least one tool call; prompt `search_first`)", "",
@@ -229,9 +248,8 @@ def build(results: Path):
 
     # ---- ablated
     out += ["## Ablated arm (own triple withheld from retrieval, prompt `abstain_ok`, first 200 questions)", "",
-            "Outcome: correct (answered from weights) / abstained (regex `ko/ablate.py`) / hallucinated (a wrong answer). "
-            "**The abstain regex has NOT been checked against independent labels** (`results/abstain_labels.tsv`, `human` column empty; an earlier 50/50 was circular and is withdrawn): "
-            "read `abstained` vs `hallucinated` as provisional. CI is on the hallucinated share.", "",
+            "Outcome: correct (answered from weights) / abstained (regex `ko/ablate.py`) / hallucinated (a wrong answer). " +
+            regex_check(results) + " CI is on the hallucinated share.", "",
             "| quant | size | condition | n | correct | abstained | hallucinated | 95% CI halluc. | lookup rate |",
             "|---|---|---|---|---|---|---|---|---|"]
     abl_order = ["closed", "store", "tool/abstain_ok", "tool+contract/abstain_ok"]
