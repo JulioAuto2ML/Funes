@@ -81,7 +81,32 @@ def _mcp_json(text: str) -> dict:
     raise ValueError("no JSON-RPC message in reply")
 
 
-class SearchBlocked(RuntimeError):
+class SearchStop(RuntimeError):
+    """The search backend cannot answer. Never a tool result for the model: the run stops, the
+    unfinished cell is not written, and a later run redoes it. (E1's 27B `web` cell was written
+    with 1661 of 2086 searches failed because this was only ever tool text.)"""
+
+
+class SearchFailed(SearchStop):
+    """Parallel answered with an error (HTTP or MCP `isError`, e.g. `402: Insufficient credit`), a body
+    that is not a result list, or not at all, and there is no other backend. `status` is the HTTP/MCP
+    code when one could be read."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
+def error_status(e: BaseException) -> int | None:
+    """The HTTP status of a failed search: urllib's own, else the `NNN:` an MCP error text opens with."""
+    code = getattr(e, "code", None)
+    if isinstance(code, int):
+        return code
+    m = re.search(r"\b([1-5]\d\d):", str(e))
+    return int(m.group(1)) if m else None
+
+
+class SearchBlocked(SearchStop):
     """Parallel kept answering 429 through the whole backoff and there is no
     other backend to spend. Not a tool failure to show the model: the run stops,
     the unfinished cell is not written, and a later run redoes it."""
@@ -111,6 +136,8 @@ class Web:
         self.searches = 0
         self.tavily_calls = 0
         self.rate_limited = 0
+        self.search_errors = 0          # Parallel answered with an error (any status but 429-then-recovered)
+        self.error_log: list[dict] = []  # {"status", "text"} of each, the evidence kept in the result JSON
         self._last = 0.0
         self.sleep = time.sleep
         self.fetches = 0
@@ -226,11 +253,14 @@ class Web:
                 return out
             except Exception as e:
                 reason = f"{type(e).__name__}: {str(e)[:120]}"
+                if not isinstance(e, SearchBlocked):
+                    self.search_errors += 1
+                    self.error_log.append({"status": error_status(e), "text": f"{type(e).__name__}: {e}"[:400]})
                 if not self.key:
                     self.calls.append({"backend": "none", "fallback_reason": reason})
-                    if isinstance(e, SearchBlocked):
+                    if isinstance(e, SearchStop):
                         raise
-                    raise RuntimeError(f"parallel failed and no Tavily key: {reason}") from e
+                    raise SearchFailed(f"parallel failed and no Tavily key: {reason}", error_status(e)) from e
                 out = self._tavily(query)
                 self.calls.append({"backend": "tavily", "fallback_reason": reason})
                 return out

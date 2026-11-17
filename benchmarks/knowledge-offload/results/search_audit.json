@@ -1,0 +1,26 @@
+{
+ "popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-web-search_first-r0.json": {
+  "failed_searches": 0,
+  "reason": "Parallel 402 Insufficient credit in the raw payloads",
+  "searches": 477,
+  "source": "web_payload_audit.py"
+ },
+ "popqa-stratified1u-n1000-qwen3.5-27b-iq4_xs-web-search_first-r0.json": {
+  "failed_searches": 1661,
+  "reason": "Parallel 402 Insufficient credit in the raw payloads",
+  "searches": 2086,
+  "source": "web_payload_audit.py"
+ },
+ "popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-web-search_first-r0.json": {
+  "failed_searches": 0,
+  "reason": "Parallel 402 Insufficient credit in the raw payloads",
+  "searches": 686,
+  "source": "web_payload_audit.py"
+ },
+ "popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-webpluswriteback-search_first-r0.json": {
+  "failed_searches": 0,
+  "reason": "Parallel 402 Insufficient credit in the raw payloads",
+  "searches": 262,
+  "source": "web_payload_audit.py"
+ }
+}

@@ -161,8 +161,8 @@ def tool_loop(ctx: Context, item_question: str, schemas, executors, require=None
                 try:
                     out = fn(call["arguments"]) if fn else f"error: no tool {call['name']}"
                     ok = fn is not None
-                except T.SearchBlocked:
-                    raise                                       # the backend is rate-limiting: stop the run
+                except T.SearchStop:
+                    raise                                       # the backend is rate-limiting or failing: stop the run, not tool text
                 except Exception as e:                          # tool failure is data
                     out, ok = f"error: {e}", False
                 if ok and call["name"] == require:

@@ -11,7 +11,7 @@ Questions: 1000 (same at every size and condition; stratified by popularity, una
 | store | 0.921 [0.904, 0.937] | 0.971 [0.960, 0.981] | 0.984 [0.976, 0.991] | 0.980 [0.971, 0.988] | 0.991 [0.985, 0.996] |
 | tool/search_first | 0.188 [0.164, 0.212] | 0.816 [0.791, 0.839] | 0.988 [0.981, 0.994] | 0.986 [0.978, 0.993] | 0.997 [0.993, 1.000] |
 | tool+contract/search_first | 0.184 [0.160, 0.208] | 0.959 [0.946, 0.971] | 0.988 [0.981, 0.994] | 0.990 [0.983, 0.996] | 0.997 [0.993, 1.000] |
-| web/search_first | 0.436 [0.405, 0.467] | – | – | 0.642 [0.612, 0.671] | 0.525 [0.495, 0.556] |
+| web/search_first | 0.436 [0.405, 0.467] | – | – | 0.642 [0.612, 0.671] | **INVALID** (1661 of 2086 searches failed (Parallel 402 Insufficient credit in the raw payloads)) |
 
 ## Accuracy — Control curve: Q8_0
 
@@ -23,7 +23,9 @@ Questions: 1000 (same at every size and condition; stratified by popularity, una
 | tool/search_first | 0.191 [0.167, 0.215] | 0.982 [0.973, 0.990] | 0.988 [0.981, 0.994] | 0.995 [0.990, 0.999] | – |
 | tool+contract/search_first | 0.191 [0.167, 0.216] | 0.983 [0.975, 0.991] | 0.988 [0.981, 0.994] | 0.995 [0.990, 0.999] | – |
 
-**The 27B `web` cell is not valid:** from question 446 of 1000 on, every Parallel search returned a 402 'Insufficient credit' error (1661 of 2086 searches, 527 of 951 searched questions; measured in `results/WEB_AUDIT.md`), so its .525 mixes the model with an exhausted account. `web` was run at 0.8B, 9B and 27B (IQ4_XS) only; `web+writeback` at 9B only (pass 1 / pass 2 shown as `p1`/`p2`).
+**INVALID: 27b iq4_xs `web/search_first`**: 1661 of 2086 searches failed (Parallel 402 Insufficient credit in the raw payloads). It is left out of every difference, slope and bucket below (`results/invalid_cells.json`, `ko/validity.py`).
+
+`web` was run at 0.8B, 9B and 27B (IQ4_XS) only; `web+writeback` at 9B only (pass 1 / pass 2 shown as `p1`/`p2`).
 
 ## Lookup rate (share of answers with at least one tool call; prompt `search_first`)
 
@@ -33,7 +35,7 @@ Questions: 1000 (same at every size and condition; stratified by popularity, una
 | tool/search_first | q8_0 | 0.007 | 0.987 | 1.000 | 1.000 | – |
 | tool+contract/search_first | iq4_xs | 0.005 | 1.000 | 1.000 | 1.000 | 1.000 |
 | tool+contract/search_first | q8_0 | 0.011 | 1.000 | 1.000 | 1.000 | – |
-| web/search_first | iq4_xs | 0.471 | – | – | 0.686 | 0.951 |
+| web/search_first | iq4_xs | 0.471 | – | – | 0.686 | – |
 
 H8 as written (lookup under the *default* prompt vs size) was not run: E1 used `search_first` for every tool cell, so this table is lookup propensity under that prompt, not H8.
 
@@ -93,13 +95,10 @@ H8 as written (lookup under the *default* prompt vs size) was not run: E1 used `
 |---|---|---|---|---|---|---|---|---|
 | iq4_xs | 0.8b | web/search_first | store | -0.485 | [-0.519, -0.451] | 23 | 508 | 3.4e-120 |
 | iq4_xs | 9b | web/search_first | store | -0.338 | [-0.368, -0.308] | 8 | 346 | 3.2e-91 |
-| iq4_xs | 27b | web/search_first | store | -0.466 | [-0.496, -0.435] | 1 | 467 | 1.2e-138 |
 | iq4_xs | 0.8b | web/search_first | tool/search_first | +0.248 | [+0.216, +0.280] | 282 | 34 | 8.9e-50 |
 | iq4_xs | 9b | web/search_first | tool/search_first | -0.344 | [-0.374, -0.314] | 6 | 350 | 3.8e-95 |
-| iq4_xs | 27b | web/search_first | tool/search_first | -0.472 | [-0.502, -0.441] | 2 | 474 | 1.2e-138 |
 | iq4_xs | 0.8b | web/search_first | closed | +0.223 | [+0.191, +0.256] | 274 | 51 | 4.7e-38 |
 | iq4_xs | 9b | web/search_first | closed | +0.292 | [+0.261, +0.324] | 317 | 25 | 1.4e-65 |
-| iq4_xs | 27b | web/search_first | closed | +0.094 | [+0.065, +0.122] | 153 | 59 | 8.3e-11 |
 
 ## Paired differences — web+writeback vs plain web (9B)
 
@@ -186,7 +185,6 @@ Per-size gap (IQ4_XS):
 | 27b | closed | 0.562 | 0.313 | 0.154 | 0.262 | 0.523 | 0.871 | 1.000 | 0.500 |
 | 27b | store | 1.000 | 1.000 | 0.979 | 0.990 | 0.985 | 1.000 | 1.000 | 1.000 |
 | 27b | tool+contract/search_first | 1.000 | 1.000 | 0.995 | 0.995 | 1.000 | 0.995 | 1.000 | 1.000 |
-| 27b | web/search_first | 0.625 | 0.456 | 0.328 | 0.385 | 0.605 | 0.835 | 0.750 | 0.500 |
 
 ## Accuracy by popularity bucket — q8_0
 

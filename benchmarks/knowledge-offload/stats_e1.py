@@ -19,7 +19,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import stats_e0 as S0                                                   # noqa: E402
-from ko import models as M                                              # noqa: E402
+from ko import models as M, validity as V                                              # noqa: E402
 
 PREFIX = "popqa-stratified1u"
 SIZES = ["0.8b", "2b", "4b", "9b", "27b"]
@@ -51,6 +51,19 @@ def load(results: Path):
             for lab, reps in S0.find_ablated(results, PREFIX, t).items():
                 abl[(s, q, lab)] = [a for a in reps[0]["answers"] if a["pass"] == 1]
     return acc, lookup, bucket, abl
+
+
+def invalid(results: Path) -> dict:
+    """(size, quant, label) -> (status, reason) for every cell that must not be read as a result (ko/validity.py)."""
+    notes, bad = V.annotations(results), {}
+    for q in QUANTS:
+        for s in SIZES:
+            for lab, reps in S0.find_cells(results, PREFIX, tag(s, q)).items():
+                st, why = V.status(reps[0], reps[0]["_file"], notes)
+                for p in S0.passes(lab):
+                    if st != "ok":
+                        bad[(s, q, lab if len(S0.passes(lab)) == 1 else f"{lab} p{p}")] = (st, why)
+    return bad
 
 
 def mat(acc, keys, ids):
@@ -90,6 +103,9 @@ def regex_check(results: Path) -> str:
 
 def build(results: Path):
     acc, lookup, bucket, abl = load(results)
+    bad = invalid(results)
+    acc_all = acc
+    acc = {k: v for k, v in acc_all.items() if k not in bad}      # an INVALID cell enters no difference, slope or bucket
     lock = M.load_lock()
     ids = sorted(set.intersection(*(set(v) for v in acc.values())))
     n = len(ids)
@@ -117,20 +133,23 @@ def build(results: Path):
         out += [f"## Accuracy — {title}", "", "| condition | " + " | ".join(SIZES) + " |",
                 "|---|" + "---|" * len(SIZES)]
         for c in CONDS:
-            if not sizes_have(q, c):
+            if not sizes_have(q, c) and not any((s, q, c) in bad for s in SIZES):
                 continue
             row = []
             for s in SIZES:
-                if (s, q, c) in acc:
+                if (s, q, c) in bad:
+                    row.append("**INVALID** (%s)" % bad[(s, q, c)][1])
+                elif (s, q, c) in acc:
                     m, lo, hi = cell_ci((s, q, c))
                     row.append("%.3f [%.3f, %.3f]" % (m, lo, hi))
                 else:
                     row.append("–")
             out.append(f"| {c} | " + " | ".join(row) + " |")
         out.append("")
-    out += ["**The 27B `web` cell is not valid:** from question 446 of 1000 on, every Parallel search returned a 402 'Insufficient credit' error "
-            "(1661 of 2086 searches, 527 of 951 searched questions; measured in `results/WEB_AUDIT.md`), so its .525 mixes the model with an exhausted account. "
-            "`web` was run at 0.8B, 9B and 27B (IQ4_XS) only; `web+writeback` at 9B only (pass 1 / pass 2 shown as `p1`/`p2`).", ""]
+    for (sz, qn, lab), (st, why) in sorted(bad.items()):
+        out.append(f"**{st}: {sz} {qn} `{lab}`**: {why}. It is left out of every difference, slope and bucket below (`results/invalid_cells.json`, `ko/validity.py`).")
+        out.append("")
+    out += ["`web` was run at 0.8B, 9B and 27B (IQ4_XS) only; `web+writeback` at 9B only (pass 1 / pass 2 shown as `p1`/`p2`).", ""]
 
     # ---- lookup propensity
     out += ["## Lookup rate (share of answers with at least one tool call; prompt `search_first`)", "",
@@ -139,7 +158,7 @@ def build(results: Path):
         for q in QUANTS:
             if sizes_have(q, c):
                 out.append(f"| {c} | {q} | " + " | ".join(
-                    "%.3f" % lookup[(s, q, c)] if (s, q, c) in lookup else "–" for s in SIZES) + " |")
+                    "%.3f" % lookup[(s, q, c)] if (s, q, c) in lookup and (s, q, c) not in bad else "–" for s in SIZES) + " |")
     out += ["", "H8 as written (lookup under the *default* prompt vs size) was not run: E1 used `search_first` for every tool cell, "
             "so this table is lookup propensity under that prompt, not H8.", ""]
 

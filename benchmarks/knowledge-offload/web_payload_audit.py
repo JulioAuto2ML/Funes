@@ -164,6 +164,23 @@ def main():
         sum(views(pay / f"qwen3.5-9b-iq4_xs-stratified1u/web-search_first-r0-p1/{i}.json.gz")[3][0] ==
             views(pay / f"qwen3.5-27b-iq4_xs-stratified1u/web-search_first-r0-p1/{i}.json.gz")[3][0] for i in both)), ""]
 
+    # every web cell's search errors, from the raw payloads, for ko/validity.py (summarize and stats_e1 read this file)
+    audit_json = {}
+    for f in sorted(results.glob(f"{PREFIX}-*-web*-search_first-r0.json")):
+        r = json.loads(f.read_text())
+        stem = f.name.split(r["model_tag"] + "-", 1)[1].removesuffix(".json")
+        nf = ns = 0
+        for p in (1, 2):
+            d = pay / (r["model_tag"] + "-stratified1u") / f"{stem}-p{p}"
+            for g in (d.glob("*.json.gz") if d.exists() else []):
+                v = views(g)
+                nf += v[4]
+                ns += v[2]
+        audit_json[f.name] = {"failed_searches": nf, "searches": ns, "source": "web_payload_audit.py",
+                              "reason": "Parallel 402 Insufficient credit in the raw payloads"}
+    (results / "search_audit.json").write_text(json.dumps(audit_json, indent=1, sort_keys=True) + "\n")
+    out += ["### Search errors per web cell (written to `results/search_audit.json`)", ""] + [
+        f"- `{k}`: {v['failed_searches']} of {v['searches']} searches failed" for k, v in audit_json.items()] + [""]
     # the 27B's failed searches: where in the sample they start, and the clean subset against the 9B
     d27 = pay / "qwen3.5-27b-iq4_xs-stratified1u" / "web-search_first-r0-p1"
     order = [x["id"] for x in json.loads((results / f"{PREFIX}-qwen3.5-27b-iq4_xs-web-search_first-r0.json").read_text())["answers"]]

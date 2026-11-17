@@ -56,6 +56,7 @@ def find_cells(results: Path, prefix: str, tag: str) -> dict[str, list[dict]]:
         r = json.loads(f.read_text())
         if r.get("model_tag") != tag or r.get("arm", "main") != "main" or "answers" not in r:
             continue
+        r["_file"] = f.name
         reps = cells.setdefault(label(r), [])
         if all(x["repeat"] != r["repeat"] for x in reps):
             reps.append(r)

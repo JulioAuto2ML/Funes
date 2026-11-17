@@ -92,6 +92,13 @@ Questions both 9B and 27B searched: 669: 9B 0.567, 27B 0.366. Searched by 27B on
 
 On those 669 questions: gold in the model's view for 9B 486, for 27B 225; the two searched with the same first query on 368 of them.
 
+### Search errors per web cell (written to `results/search_audit.json`)
+
+- `popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-web-search_first-r0.json`: 0 of 477 searches failed
+- `popqa-stratified1u-n1000-qwen3.5-27b-iq4_xs-web-search_first-r0.json`: 1661 of 2086 searches failed
+- `popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-web-search_first-r0.json`: 0 of 686 searches failed
+- `popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-webpluswriteback-search_first-r0.json`: 0 of 262 searches failed
+
 ### 27B: searches that failed with a credit error
 
 First question (position in the sample order) whose search failed: 446 of 1000. Searched questions before it: 424, all clean. Searched questions from it on: 527, with a clean one among them: 0.

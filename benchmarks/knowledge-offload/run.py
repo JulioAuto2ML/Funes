@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from ko import conditions as C, models, popqa, runner, stats, tools as T  # noqa: E402
+from ko import conditions as C, models, popqa, runner, stats, tools as T, validity  # noqa: E402
 from ko.llm import Client, LLMError                                    # noqa: E402
 
 
@@ -104,6 +104,7 @@ def cmd_run(a):
     meta_base["search_backend"] = "parallel-keyed" if web.parallel_key else "parallel-anonymous"
     blocked = []
     search_blocked = False
+    search_failed = False
     funes_inst = None
     pool_n = None                       # None = the E0 plumbing pool (sample + distractors)
     try:
@@ -140,11 +141,11 @@ def cmd_run(a):
                 ctx = C.Context(client=client, store=store, seed=a.seed + rep, web=web,
                                 notes=T.Notes(), funes=funes_inst, variant=var,
                                 ablated=a.ablated)
-                if cond in C.WEB_CONDITIONS and search_blocked:
-                    print(f"skip {path.name}: search blocked earlier in this run")
+                if cond in C.WEB_CONDITIONS and (search_blocked or search_failed):
+                    print(f"skip {path.name}: search blocked or failing earlier in this run")
                     continue
                 print(f"{cond} repeat {rep} seed {ctx.seed}")
-                rl0, s0 = web.rate_limited, web.searches
+                rl0, s0, e0 = web.rate_limited, web.searches, web.search_errors
                 try:
                     res = runner.run_cell(
                         condition=cond, items=items, ctx=ctx, rep=rep, meta={**meta_base, "prompt_variant": var},
@@ -155,12 +156,19 @@ def cmd_run(a):
                 except C.ConditionUnavailable as e:
                     blocked.append((cond, str(e)))
                     continue
+                except T.SearchFailed as e:
+                    search_failed = True
+                    blocked.append((cond, f"SEARCH FAILED (status {e.status}): {e}; {web.search_errors - e0} error(s) in "
+                                          f"{web.searches - s0} searches, last: {web.error_log[-1]['text'] if web.error_log else '-'}; "
+                                          f"cell not written, rerun resumes it"))
+                    continue
                 except T.SearchBlocked as e:
                     search_blocked = True
                     blocked.append((cond, f"{e}; {web.rate_limited - rl0} 429s in {web.searches - s0} searches, "
                                           f"cell not written, rerun resumes it"))
                     continue
-                res["search"] = {"rate_limited": web.rate_limited - rl0, "searches": web.searches - s0}
+                res["search"] = {"rate_limited": web.rate_limited - rl0, "searches": web.searches - s0,
+                                 "errors": web.search_errors - e0, "error_log": web.error_log[len(web.error_log) - (web.search_errors - e0):][:5]}
                 runner.write_cell(path, res)
                 print(f"  -> {path.name} {res['summary']}")
     finally:
@@ -168,6 +176,8 @@ def cmd_run(a):
             funes_inst.__exit__(None, None, None)
     for cond, why in dict.fromkeys(blocked):
         print(f"BLOCKED {cond}: {why}")
+    if search_failed:
+        sys.exit(4)          # Parallel answered with an error (402 credit, MCP isError, not JSON, no reply)
     if search_blocked:
         sys.exit(3)          # a watcher can tell "stopped by Parallel" from "finished"
 
@@ -209,9 +219,12 @@ def cmd_summarize(a):
     for f in sorted((HERE / "results").glob(a.glob)):
         r = json.loads(f.read_text())
         with_hedge(r, candidates, by_id)
+        r["_file"] = f.name
         cells.setdefault((r["model_tag"], cell_label(r)), []).append(r)
+    notes = validity.annotations(HERE / "results")
     print(f"{'model':<20}{'condition':<26}{'reps':>4}{'acc (95% CI)':>24}{'sd':>7}{'range':>7}"
           f"{'acc-hedge':>10}{'hedge':>7}{'ms/ans':>9}{'tok/ans':>9}")
+    flagged = []
     for (tag, cond), reps in sorted(cells.items()):
         ps = ["pass1", "pass2"] if cond.split("/")[0].split(" ")[0] in C.TWO_PASS else ["pass1"]
         for ps_ in ps:
@@ -227,7 +240,10 @@ def cmd_summarize(a):
                 hr = f"{sum(x['hedge'] for x in rows0) / len(rows0):>7.3f}"
             else:
                 nh, hr = f"{'-':>10}", f"{'-':>7}"
-            print(f"{tag:<20}{cond + ('' if ps_ == 'pass1' else ' p2'):<26}{len(reps):>4}"
+            st, why = validity.status(reps[0], reps[0]["_file"], notes)
+            if st != "ok" and ps_ == "pass1":
+                flagged.append((tag, cond, st, why))
+            print(f"{tag:<20}{(cond + ('' if ps_ == 'pass1' else ' p2') + ('' if st == 'ok' else ' [' + st + ']')):<26}{len(reps):>4}"
                   f"{sp['mean']:>11.3f} [{lo:.3f},{hi:.3f}]{sp['sd']:>7.3f}{sp['range']:>7.3f}"
                   f"{nh}{hr}{pa['wall_ms']:>9.0f}{pa['prompt_tokens'] + pa['completion_tokens']:>9.0f}")
     # paired: each condition against closed, repeat 0, same questions (same sample only)
@@ -248,6 +264,8 @@ def cmd_summarize(a):
                                                  [float(b[i]) for i in ids], a.resamples)
             m = stats.mcnemar([c[i] for i in ids], [b[i] for i in ids])
             print(f"  {tag} {cond} - closed: {d:+.3f} [{lo:+.3f},{hi:+.3f}]  McNemar p={m['p']:.3g}")
+    for tag, cond, st, why in flagged:
+        print(f"  {st}: {tag} {cond}: {why}")
     writeback_report(cells)
     if a.by_bucket:
         by_bucket(cells)

@@ -38,11 +38,11 @@ def test_search_blocked_stops_the_tool_loop_instead_of_reaching_the_model():
         C.web(ctx, GOLD)
 
 
-def test_other_search_failures_are_still_tool_errors_the_model_sees():
+def test_other_search_failures_stop_the_run_too_they_are_no_longer_tool_text():
+    # was: "tool errors the model sees". That is how E1's 27B web cell lost 1661 searches unnoticed.
     post, _ = fake_parallel(fail=True)           # an OSError, not a 429
     web = T.Web(None, post=post, backend="parallel")
     client = FakeClient([call("web_search", query="q"), text("politician")])
-    a = C.web(C.Context(client=client, web=web), GOLD)
-    assert a.text == "politician"
-    assert any("error:" in m["content"] for m in client.calls[1]["messages"] if m["role"] == "tool")
-
+    with pytest.raises(T.SearchFailed):
+        C.web(C.Context(client=client, web=web), GOLD)
+    assert web.search_errors == 1
