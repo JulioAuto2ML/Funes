@@ -528,6 +528,25 @@ The checkpoint is deliberate: E1–E4 are a complete result by themselves
 (inference only, reproducible by anyone with a llama-server), and should go
 out before the expensive part starts.
 
+### Decision pending (julio, 2026-11-17): models with knowledge removed
+
+E1 compares sizes and quantisations of whole models; it does **not** compare
+models whose knowledge was taken out. The plan has three routes to that, none
+started: **E1b** (LMLM / Co-LMLM against their Standard twins, same data and
+size, only the fact masking differs), **E6** (zero or ablate MLP layers of a
+≤2B model and see whether `closed` breaks before `oracle` and GSM8K), and **E5**
+(a LoRA that teaches lookup; it changes behaviour, not capacity). Funes cannot
+free parameters itself (see "Feasibility, honestly").
+
+**julio decides whether any of these goes into the paper, when the 36-cell
+`tool` / `tool+contract` default-prompt job (H5/H8) is verified and E1 is
+closed, and not before.** Until then none is scheduled or assumed in or out.
+The decision is made with the Opus session's recommendation in hand and
+the following measured first, not assumed: whether LMLM's pinned torch 2.4 /
+transformers 4.49 runs on yoda's ROCm, how many hours E1b needs, and how many
+of the open E1 items (27B `web`, `funes` rows, E2/E3, GSM8K) are still wanted.
+Whoever coordinates asks julio at that point and writes the answer here.
+
 ## Rules
 
 - **Provenance before GPU hours (added 2026-11-16 after the E0 lineage error,
