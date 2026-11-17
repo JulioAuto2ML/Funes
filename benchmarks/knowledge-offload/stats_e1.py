@@ -230,8 +230,8 @@ def build(results: Path):
     # ---- ablated
     out += ["## Ablated arm (own triple withheld from retrieval, prompt `abstain_ok`, first 200 questions)", "",
             "Outcome: correct (answered from weights) / abstained (regex `ko/ablate.py`) / hallucinated (a wrong answer). "
-            "**The abstain regex was checked on 50 labelled answers** (`results/abstain_labels.tsv`, 25 per regex class; read and labelled by Claude on 2026-11-17, not by a person): "
-            "50/50 agree, so the abstained/hallucinated split is usable; a second labeller is still the better check. CI is on the hallucinated share.", "",
+            "**The abstain regex has NOT been checked against independent labels** (`results/abstain_labels.tsv`, `human` column empty; an earlier 50/50 was circular and is withdrawn): "
+            "read `abstained` vs `hallucinated` as provisional. CI is on the hallucinated share.", "",
             "| quant | size | condition | n | correct | abstained | hallucinated | 95% CI halluc. | lookup rate |",
             "|---|---|---|---|---|---|---|---|---|"]
     abl_order = ["closed", "store", "tool/abstain_ok", "tool+contract/abstain_ok"]
