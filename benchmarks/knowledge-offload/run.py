@@ -69,10 +69,13 @@ def cmd_run(a):
     arm = "ablated" if a.ablated else "main"
     if a.ablated:
         # H5b: the first 200 questions of the same sample, own triple withheld from retrieval.
-        if a.prompt_variant != "abstain_ok":
-            sys.exit("--ablated needs --prompt-variant abstain_ok (a way out that is not a guess)")
+        if a.prompt_variant not in ("abstain_ok", "abstain_default"):
+            sys.exit("--ablated needs --prompt-variant abstain_ok or abstain_default (a way out that is not a guess)")
         items = items[:a.ablate_n]
-        a.conditions = a.conditions or list(C.ABLATED_CONDITIONS)
+        a.conditions = a.conditions or (list(C.VARIANT_APPLIES["abstain_default"]) if a.prompt_variant == "abstain_default"
+                                        else list(C.ABLATED_CONDITIONS))
+        if a.prompt_variant == "abstain_default" and set(a.conditions) - set(C.VARIANT_APPLIES["abstain_default"]):
+            sys.exit("abstain_default applies to tool and tool+contract only (closed/store: use abstain_ok)")
         bad = [c for c in a.conditions if c not in C.ABLATED_CONDITIONS]
         if bad:
             sys.exit(f"--ablated runs {', '.join(C.ABLATED_CONDITIONS)}, not {', '.join(bad)}")
@@ -341,7 +344,7 @@ def main():
                         "all 14,267 triples (E1's primary sample); the store keeps every triple")
     r.add_argument("--ablated", action="store_true",
                    help="H5b: first --ablate-n questions of the sample, each one's own triple withheld "
-                        "from retrieval; needs --prompt-variant abstain_ok; closed/store/tool/tool+contract")
+                        "from retrieval; needs --prompt-variant abstain_ok (search_first tool prompt) or abstain_default (default tool prompt, tool and tool+contract only); closed/store/tool/tool+contract")
     r.add_argument("--ablate-n", type=int, default=200)
     r.add_argument("--force", action="store_true")
     r.set_defaults(fn=cmd_run)

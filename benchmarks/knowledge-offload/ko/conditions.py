@@ -30,7 +30,7 @@ SYSTEM_TOOL = SYSTEM + " Use the tools you are given when they help."
 # line above made the model answer from memory and skip the tools (6 lookups in
 # 1000 questions, 1 call/answer and no search in `web`): "reply with only the
 # answer" outweighed "use the tools". `search_first` says when to use them.
-VARIANTS = ["default", "search_first", "search_first2", "abstain_ok"]
+VARIANTS = ["default", "search_first", "search_first2", "abstain_ok", "abstain_default"]
 _SF = {
     "search_first": (
         "You answer factual questions about specific people, places and works. Your memory of them "
@@ -44,13 +44,16 @@ _SF = {
 }
 # `abstain_ok` (the `ablated` arm): a way out that is not a guess. Tool conditions keep the
 # search_first instruction, so an abstention has to come after a lookup that found nothing.
+# `abstain_default` (D12, H5b under the default prompt): the same way out on the *default* tool prompt, no
+# search_first, so the model decides whether to look up. Only tool and tool+contract differ from `abstain_ok`.
 ABSTAIN_PLAIN = (" If you do not know the answer and the facts given, if any, do not contain it, "
                  "reply exactly: I don't know.")
 ABSTAIN_TOOL = (" If the lookup returns nothing that answers the question and you do not know the "
                 "answer, reply exactly: I don't know.")
 TOOL_CONDITIONS = ("tool", "tool+contract", "web", "web+cache", "web+writeback")
 VARIANT_APPLIES = {"default": (), "search_first": TOOL_CONDITIONS, "search_first2": TOOL_CONDITIONS,
-                   "abstain_ok": ("closed", "store", "tool", "tool+contract")}
+                   "abstain_ok": ("closed", "store", "tool", "tool+contract"),
+                   "abstain_default": ("tool", "tool+contract")}
 ABLATED_CONDITIONS = ("closed", "store", "tool", "tool+contract")
 
 
@@ -86,6 +89,8 @@ def system_for(ctx, tool: str) -> str:
     v = getattr(ctx, "variant", "default")
     if v == "abstain_ok":
         return _SF["search_first"].format(tool=tool) + ABSTAIN_TOOL
+    if v == "abstain_default":
+        return SYSTEM_TOOL + ABSTAIN_TOOL
     return SYSTEM_TOOL if v == "default" else _SF[v].format(tool=tool)
 
 

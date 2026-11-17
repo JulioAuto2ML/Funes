@@ -124,3 +124,51 @@ def test_label_script_picks_both_directions_and_scores_agreement():
     rows[1]["human"] = "maybe"
     with pytest.raises(ValueError):
         L.agreement(rows)
+
+
+def test_abstain_default_is_the_ablated_way_out_on_the_default_tool_prompt():
+    """H5b under the default prompt (D12): no `search_first`, the model decides to look up; same abstain sentence."""
+    assert C.variant_for("tool", "abstain_default") == "abstain_default"
+    assert C.variant_for("tool+contract", "abstain_default") == "abstain_default"
+    assert C.variant_for("store", "abstain_default") == "default"       # closed/store ablated rows already exist (abstain_ok)
+    s = C.system_for(C.Context(variant="abstain_default"), "the lookup tool")
+    assert s == C.SYSTEM_TOOL + C.ABSTAIN_TOOL and "MUST" not in s and "I don't know" in s
+    assert "MUST first call" in C.system_for(C.Context(variant="abstain_ok"), "the lookup tool")   # the old row is unchanged
+
+
+def test_run_accepts_ablated_with_abstain_default_for_tool_conditions_only(tmp_path, monkeypatch):
+    import run
+    from ko import runner
+    tsv = tmp_path / "t.tsv"
+    rows = ["id\tquestion\tsubj\tprop\tobj\tpossible_answers\ts_pop"]
+    for i in range(30):
+        rows.append(f"{i}\tWhat is S{i}'s occupation?\tS{i}\toccupation\tjob{i}\t[\"job{i}\"]\t{10 ** (i % 3 + 1)}")
+    tsv.write_text("\n".join(rows) + "\n")
+
+    class Fake:
+        def __init__(self, *a, **k): pass
+        def server_info(self): return {"endpoint": "e", "model_file": "Tiny.gguf", "quant": "Q8_0", "n_ctx": 1, "build": "b"}
+        def chat(self, messages, **k): return text("I don't know")
+    monkeypatch.setattr(run, "Client", Fake)
+    monkeypatch.setattr(runner, "RESULTS", tmp_path / "results")
+    monkeypatch.setattr(run.models, "verify", lambda f, **k: {"id": "t", "repo": "r", "file": f, "sha256": "0" * 64,
+                                                               "size": 1, "quant": "Q8_0", "lineage": "l", "verified": "sha256"})
+    argv = ["run.py", "run", "--model-tag", "t", "--data", str(tsv), "--n", "20", "--ablate-n", "5", "--ablated",
+            "--prompt-variant", "abstain_default", "--repeats", "1", "--sample", "stratified", "--dataset-seed", "1",
+            "--exclude-ambiguous", "--allow-local", "--llm-url", "http://localhost:1", "--conditions", "tool", "tool+contract"]
+    monkeypatch.setattr(sys, "argv", argv)
+    run.main()
+    names = sorted(f.name for f in (tmp_path / "results").glob("*.json"))
+    assert names == ["popqa-stratified1u-ablated-n5-t-tool-abstain_default-r0.json",
+                     "popqa-stratified1u-ablated-n5-t-toolpluscontract-abstain_default-r0.json"]
+    r = json.loads((tmp_path / "results" / names[0]).read_text())
+    assert r["prompt_variant"] == "abstain_default" and r["arm"] == "ablated"
+
+
+def test_abstain_default_refuses_conditions_it_does_not_change(tmp_path, monkeypatch):
+    import run
+    monkeypatch.setattr(sys, "argv", ["run.py", "run", "--model-tag", "t", "--ablated", "--prompt-variant", "abstain_default",
+                                      "--conditions", "closed", "--allow-local", "--llm-url", "http://localhost:1"])
+    with pytest.raises(SystemExit) as e:
+        run.main()
+    assert "abstain_default applies to tool" in str(e.value)
