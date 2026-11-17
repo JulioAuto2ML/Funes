@@ -3,10 +3,26 @@
 Plan: `docs/knowledge-offload-plan.md`. A new session reads the plan section it
 needs, this "Now" block and the last three entries, nothing else.
 
+## Rules of work (set by julio, 2026-11-17; every session reads this before touching anything)
+**Golden rule: nobody assumes anything in order to move on. Everything is measured.** Science does not suppose, it measures.
+- A number in a decision, a report or a commit message has a source you ran: file sizes (`ls -l`, `du`, sha256), row counts, run times (timestamps in the log, `date` before and after), free disk and VRAM (`df`, `rocm-smi`), git HEAD, process lists. "It should fit", "about 7 minutes", "probably the same" are not results: measure, or write "not measured" and name who measures it and when.
+- "Done" means checked against the real state (the pushed commit, the file on disk, the model actually served), never against another session's report. A report from a session is a claim until you have looked.
+- Sizes, run times and quotas that a plan or an earlier note estimated stay marked "estimated" until a run replaces them with the measured value. Example open items: Qwen3.5-27B Q8_0 size on disk vs the 16 GB card, the ~4,000 s `web` cost at 9B, the Parallel quota per size.
+- If measuring is not possible right now (tool down, no window on yoda), say that and stop on that point; do not fill the gap with a guess and carry on.
+
+**Who does what (one thing per session at a time; julio's main thread assigns work and is the only one that starts or stops sessions):**
+- **Opus 5.5 · high:** design decisions, pre-registration, the plan and this notebook's decisions. No code, no GPU.
+- **Sonnet 5.5 · medium:** code, tests, statistics tables, reading result files and payloads. Touches the plan only to record a result.
+- **yoda and its GPU:** only a job the main thread launches in a window julio chose, through `scripts/ko_swap.py` (it refuses a second swap and always restores qwen27b). No session starts, stops or swaps a model on its own.
+- A session never takes a task assigned to another (if it finds one done or open, it reports that and stops).
+
+**Git:** one branch, `feat/knowledge-offload-e0`. `git pull --rebase origin feat/knowledge-offload-e0` before every commit, push right after, never force. Commit only your own files. Results JSON and tables are committed; `results/payloads/`, `*pilot*` and `*smoke*` are not.
+**Notebook:** each session reads this block and the last three entries when it starts, and when it ends it updates "Now" and adds a dated entry with: what was measured (with the command), what was claimed but not measured, and what it leaves open.
+
 ## Now
 - **Step:** E1 main sweep **done** on official Qwen3.5 0.8/2/4/9/27B IQ4_XS (+ Q8_0 controls at 0.8/2/4/9B), 1 repeat, 1,000 unambiguous items, plus the `ablated` arm; results in `results/popqa-stratified1u-*` (d930b95). Pilot identity check passed (0 of 100 differ, 3 conditions). yoda is back on qwen27b, probes and guardian re-enabled (04:30, 2026-11-17).
 - **Not run yet:** `funes` rows (D1: 3 sizes, full pool, slow), `web` at 2B/4B (planned only 0.8B/9B/27B), `web+writeback` at other sizes, GSM8K arm (H2), Holm table (CIs and H1 slopes are in `E1_TABLE.md`), abstain-regex hand check (50 labels), E2/E3.
-- **Next:** Fable to judge H1/H5/H8 on `results/E1_TABLE.md` (flags in the 2026-11-17 entry). Sonnet 5.5: read `web` payloads (27B vs 9B), hand-label 50 abstain answers (`label_abstain.py`; ablated numbers are provisional until then). Opus: nothing queued.
+- **Next:** Opus 5.5 · high (Fable's window is over): H5/H8 reformulation, Holm, the 27B Q8 point (measure its size first), on `results/E1_TABLE.md` (flags in the 2026-11-17 entry). Sonnet 5.5: read `web` payloads (27B vs 9B) and the `web+writeback` puzzle, Holm table. Abstain-regex check: julio labelled 50 answers, the pre-E1 session reports 50/50 agreement (01b461a); to be re-checked against `results/abstain_labels.tsv` (golden rule), not taken from the report.
 - **julio:** decide whether to run the `funes` rows (about 6 h) and GSM8K next.
 
 ## 2026-11-15 · step 1 · E0 harness · Sonnet 5.5 · medium
