@@ -19,3 +19,9 @@ def test_sign_p():
     assert H.sign_p(0, 0, True) == 1.0
     assert abs(H.sign_p(1, 9, True) - 2 * 11 / 1024) < 1e-12      # 2*(C(10,0)+C(10,1))/2^10
     assert abs(H.sign_p(10, 0, False) - 1 / 1024) < 1e-12
+
+
+def test_h5_default_entry_needs_both_parts():
+    assert H.h5_default_entry(None, 1e-20) == 1.0          # H5a untestable -> H5 does not count
+    assert H.h5_default_entry(0.135, 1e-24) == 0.135       # equivalence not shown dominates
+    assert H.h5_default_entry(1e-4, 0.02) == 0.02

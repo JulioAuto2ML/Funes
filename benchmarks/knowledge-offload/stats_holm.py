@@ -126,6 +126,36 @@ def build(results: Path):
             "H5b with no discordant questions (p = 1) is not a test: the two arms gave identical outcomes.", "",
             "**p-values still missing:** H2 (GSM8K arm not run), H3 (E2 not run), H4 (E1b not run), H7 (E7 not run). "
             "H5(c) is descriptive and has no p. H6 and H8 are outside the family."]
+    out += default_prompt_section(results, raw)
+    return out
+
+
+def h5_default_entry(h5a_p, h5b_p) -> float:
+    """D14: the family's one H5 p is max(pooled H5a TOST p, pooled H5b MH p); an untestable H5a counts as 1."""
+    return max(1.0 if h5a_p is None else h5a_p, h5b_p)
+
+
+def default_prompt_section(results: Path, raw: dict) -> list:
+    """H5 as pre-registered by D12/D14 (default prompt, 36 cells, stats_h5h8.py) in the Holm step; the rows above are the
+    E1 `search_first` arm and are kept as the earlier, superseded form."""
+    import stats_h5h8 as H58
+    res = H58.analyse(results)
+    out = ["", "## Holm with H5 as pre-registered (D12/D14: default-prompt cells, `stats_h5h8.py`)", "",
+           "The H5 rows above come from the `search_first` arm (the E1 form, superseded by D12). Here H5 = max(pooled H5a TOST p over eligible "
+           "sizes, pooled H5b matched-pairs MH p) per quant; H5a with no eligible size counts as p = 1. H2, H3, H4, H7 have no data (p = 1). "
+           "H1 is the E1 value for that quant. The pooled H5b treats sizes as independent strata although the 200 questions repeat (optimistic).", "",
+           "| quant | H1 raw | H5a pooled p | H5b pooled p (exact) | H5 raw | H1 Holm | H5 Holm | H5 survives Holm at .05 |",
+           "|---|---|---|---|---|---|---|---|"]
+    for q in E1.QUANTS:
+        h1 = max(raw[("H1a", q)], raw.get(("H1b", q), 1.0))
+        a = res["h5a_pooled"].get(q, {}).get("p")
+        b = res["h5b_pooled"][q]["p_exact"]
+        h5 = h5_default_entry(a, b)
+        adj = holm({"H1": h1, "H2": 1.0, "H3": 1.0, "H4": 1.0, "H5": h5, "H7": 1.0})
+        out.append("| %s | %s | %s | %.3g | %s | %s | %s | %s |" % (
+            q, fmt(h1), "not testable (no eligible size)" if a is None else fmt(a), b, fmt(h5), fmt(adj["H1"]), fmt(adj["H5"]),
+            "yes" if adj["H5"] < 0.05 else "no"))
+    out += ["", "Tests with data now: H1 (E1; IQ4_XS complete, Q8_0 lacks 27B) and H5 (a, b). Still without data: H2 (GSM8K), H3 (E2), H4 (E1b), H7 (E7)."]
     return out
 
 
