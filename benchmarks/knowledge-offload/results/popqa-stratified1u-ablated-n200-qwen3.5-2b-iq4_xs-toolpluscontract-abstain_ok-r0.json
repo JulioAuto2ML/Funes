@@ -1,0 +1,5880 @@
+{
+ "dataset": "popqa",
+ "dataset_sha256": "9a5227f41bff0e4c331d4a774d946b12f95307892b58f860a9606ef356e6089b",
+ "dataset_seed": 1,
+ "sample": "stratified",
+ "exclude_ambiguous": true,
+ "arm": "ablated",
+ "model_tag": "qwen3.5-2b-iq4_xs",
+ "server": {
+  "endpoint": "http://localhost:8080",
+  "model_file": "Qwen3.5-2B-IQ4_XS.gguf",
+  "quant": "IQ4_XS",
+  "n_ctx": 8192,
+  "build": "b9413-6ed481eea"
+ },
+ "model": {
+  "id": "qwen3.5-2b-iq4_xs",
+  "repo": "unsloth/Qwen3.5-2B-GGUF",
+  "file": "Qwen3.5-2B-IQ4_XS.gguf",
+  "sha256": "3639f34b5ca22aa1c51f3616566eae8c355111554f6924ad97ee2652ed11c1cd",
+  "size": 1172996352,
+  "quant": "IQ4_XS",
+  "lineage": "qwen3.5-official (unsloth GGUF)",
+  "verified": "sha256"
+ },
+ "git": {
+  "commit": "06f34d35e5155937ebc13c20e646225f971aa857",
+  "dirty": true
+ },
+ "date": "2026-11-16",
+ "k": 5,
+ "max_steps": 4,
+ "temperature": 0.0,
+ "store_size": 14267,
+ "search_backend": "parallel-keyed",
+ "prompt_variant": "abstain_ok",
+ "condition": "tool+contract",
+ "repeat": 0,
+ "seed": 0,
+ "n_questions": 200,
+ "wall_s": 192.9,
+ "finished": "2026-11-16T19:56:47",
+ "answers": [
+  {
+   "id": "1881892",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 294,
+    "completion_tokens": 82,
+    "prompt_ms": 109.64,
+    "predicted_ms": 661.65,
+    "wall_ms": 812.19,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "489631",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The producer of *Creature* was **Bruce Kimmel**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 484,
+    "completion_tokens": 127,
+    "prompt_ms": 158.71,
+    "predicted_ms": 1023.26,
+    "wall_ms": 1237.29,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6385629",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Phil Collins.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 45,
+    "prompt_ms": 65.49,
+    "predicted_ms": 360.14,
+    "wall_ms": 451.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3868065",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 464,
+    "completion_tokens": 126,
+    "prompt_ms": 156.05,
+    "predicted_ms": 1017.11,
+    "wall_ms": 1227.97,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "664514",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nUttar Pradesh\n</parameter>\n<parameter=relation>\ncapital\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 878,
+    "completion_tokens": 205,
+    "prompt_ms": 238.0,
+    "predicted_ms": 1656.99,
+    "wall_ms": 1965.01,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2674106",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The director of *The Lovers* was Bharathiraja.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 511,
+    "completion_tokens": 55,
+    "prompt_ms": 118.44,
+    "predicted_ms": 440.4,
+    "wall_ms": 585.23,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5787601",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Roma Downey was the producer of *Son of Cheep Thrills*.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 59,
+    "prompt_ms": 62.81,
+    "predicted_ms": 473.06,
+    "wall_ms": 561.81,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4331878",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nHari-Bhari\n</parameter>\n<parameter=relation>\ndirector\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 813,
+    "completion_tokens": 200,
+    "prompt_ms": 227.84,
+    "predicted_ms": 1614.28,
+    "wall_ms": 1911.44,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1701001",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The Australian Labor Party is in Australia.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 766,
+    "completion_tokens": 89,
+    "prompt_ms": 173.8,
+    "predicted_ms": 714.55,
+    "wall_ms": 928.97,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3311112",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 147,
+    "completion_tokens": 47,
+    "prompt_ms": 64.84,
+    "predicted_ms": 375.75,
+    "wall_ms": 466.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4607987",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Dubai is the capital of the Emirate of Dubai.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 52,
+    "prompt_ms": 59.69,
+    "predicted_ms": 416.17,
+    "wall_ms": 501.68,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6453369",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nBirkenhead\n</parameter>\n<parameter=relation>\nlocation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 952,
+    "completion_tokens": 201,
+    "prompt_ms": 245.12,
+    "predicted_ms": 1623.34,
+    "wall_ms": 1938.55,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6073694",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nUnion State Bank\n</parameter>\n<parameter=relation>\ncountry\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1369,
+    "completion_tokens": 202,
+    "prompt_ms": 304.98,
+    "predicted_ms": 1633.38,
+    "wall_ms": 2007.81,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2189871",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nBarabbas\n</parameter>\n<parameter=relation>\nfilm\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1217,
+    "completion_tokens": 201,
+    "prompt_ms": 286.7,
+    "predicted_ms": 1625.22,
+    "wall_ms": 1982.87,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1152202",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nTake a Chance\n</parameter>\n<parameter=relation>\ndirector\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1376,
+    "completion_tokens": 200,
+    "prompt_ms": 310.55,
+    "predicted_ms": 1618.11,
+    "wall_ms": 1999.01,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1369042",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Pushmo World is a comedy-drama.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 525,
+    "completion_tokens": 50,
+    "prompt_ms": 118.3,
+    "predicted_ms": 404.62,
+    "wall_ms": 548.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5724676",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nSeven\n</parameter>\n<parameter=relation>\ngenre\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1151,
+    "completion_tokens": 192,
+    "prompt_ms": 269.01,
+    "predicted_ms": 1554.64,
+    "wall_ms": 1894.17,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1482020",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nIron Man\n</parameter>\n<parameter=relation>\ndirector\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1231,
+    "completion_tokens": 195,
+    "prompt_ms": 288.54,
+    "predicted_ms": 1576.02,
+    "wall_ms": 1933.83,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "266049",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 513,
+    "completion_tokens": 49,
+    "prompt_ms": 121.2,
+    "predicted_ms": 394.47,
+    "wall_ms": 542.03,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5056791",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The screenwriter for the film *Friday* was **Sandra Thomas**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 246,
+    "completion_tokens": 94,
+    "prompt_ms": 105.06,
+    "predicted_ms": 760.59,
+    "wall_ms": 905.75,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "293869",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nCher\n</parameter>\n<parameter=relation>\nmother\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 853,
+    "completion_tokens": 195,
+    "prompt_ms": 233.01,
+    "predicted_ms": 1574.9,
+    "wall_ms": 1877.89,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "691526",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The capital of the Novgorod Republic is **Novgorod**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 536,
+    "completion_tokens": 56,
+    "prompt_ms": 124.26,
+    "predicted_ms": 449.84,
+    "wall_ms": 600.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5094181",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 140,
+    "completion_tokens": 46,
+    "prompt_ms": 63.12,
+    "predicted_ms": 366.77,
+    "wall_ms": 456.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5915407",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nPoręba-Kocęby\n</parameter>\n<parameter=relation>\ncountry\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 868,
+    "completion_tokens": 220,
+    "prompt_ms": 237.01,
+    "predicted_ms": 1779.28,
+    "wall_ms": 2086.89,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3782263",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 498,
+    "completion_tokens": 44,
+    "prompt_ms": 116.61,
+    "predicted_ms": 352.33,
+    "wall_ms": 495.08,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4591787",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Gunnedah",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 133,
+    "completion_tokens": 45,
+    "prompt_ms": 63.48,
+    "predicted_ms": 360.13,
+    "wall_ms": 449.6,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5773456",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Sarah Kane.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 42,
+    "prompt_ms": 61.75,
+    "predicted_ms": 336.27,
+    "wall_ms": 423.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2549912",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "George Carey was an Anglican.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 48,
+    "prompt_ms": 60.84,
+    "predicted_ms": 385.89,
+    "wall_ms": 472.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2672350",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The screenwriter for *The Butler* was Lee Daniels.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 53,
+    "prompt_ms": 60.8,
+    "predicted_ms": 424.84,
+    "wall_ms": 511.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2122418",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Carlos Santana",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 41,
+    "prompt_ms": 60.57,
+    "predicted_ms": 327.8,
+    "wall_ms": 415.18,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2532884",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 47,
+    "prompt_ms": 65.17,
+    "predicted_ms": 376.63,
+    "wall_ms": 467.55,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1180105",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The producer of Toy Story was **Andrew Stanton**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 369,
+    "completion_tokens": 89,
+    "prompt_ms": 116.55,
+    "predicted_ms": 714.71,
+    "wall_ms": 871.27,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4886186",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 833,
+    "completion_tokens": 172,
+    "prompt_ms": 232.58,
+    "predicted_ms": 1388.04,
+    "wall_ms": 1690.42,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1919197",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nAvatar\n</parameter>\n<parameter=relation>\ngenre\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1356,
+    "completion_tokens": 190,
+    "prompt_ms": 303.95,
+    "predicted_ms": 1539.74,
+    "wall_ms": 1913.06,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1693978",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 772,
+    "completion_tokens": 86,
+    "prompt_ms": 174.17,
+    "predicted_ms": 692.74,
+    "wall_ms": 907.02,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1782515",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "George Washington's mother was **Abigail Adams**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1078,
+    "completion_tokens": 167,
+    "prompt_ms": 263.69,
+    "predicted_ms": 1346.36,
+    "wall_ms": 1680.15,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6206193",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Documentary film.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 520,
+    "completion_tokens": 49,
+    "prompt_ms": 120.84,
+    "predicted_ms": 394.34,
+    "wall_ms": 541.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5776395",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Trinidad and Tobago is **Port of Spain**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 772,
+    "completion_tokens": 140,
+    "prompt_ms": 200.27,
+    "predicted_ms": 1133.31,
+    "wall_ms": 1389.72,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3974408",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "I don't have information about the producer of the film \"Early Man.\"",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 149,
+    "completion_tokens": 55,
+    "prompt_ms": 64.9,
+    "predicted_ms": 441.75,
+    "wall_ms": 532.46,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6263879",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Rodney Dangerfield.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 46,
+    "prompt_ms": 60.74,
+    "predicted_ms": 367.68,
+    "wall_ms": 454.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3718561",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nCho Keung-yeon\n</parameter>\n<parameter=relation>\nname\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 854,
+    "completion_tokens": 216,
+    "prompt_ms": 237.01,
+    "predicted_ms": 1746.75,
+    "wall_ms": 2052.82,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2836657",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The screenwriter of *The Queen's Nose* is Anvita Dutt.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 756,
+    "completion_tokens": 101,
+    "prompt_ms": 177.18,
+    "predicted_ms": 811.58,
+    "wall_ms": 1029.23,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3075565",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 848,
+    "completion_tokens": 176,
+    "prompt_ms": 237.47,
+    "predicted_ms": 1420.43,
+    "wall_ms": 1726.82,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "308097",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "A Painted House is a reality television show.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 525,
+    "completion_tokens": 52,
+    "prompt_ms": 119.69,
+    "predicted_ms": 421.38,
+    "wall_ms": 567.14,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6111599",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 49,
+    "prompt_ms": 61.69,
+    "predicted_ms": 392.91,
+    "wall_ms": 480.51,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4750097",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 133,
+    "completion_tokens": 44,
+    "prompt_ms": 62.26,
+    "predicted_ms": 352.64,
+    "wall_ms": 440.81,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3443220",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Charlie Chaplin.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 46,
+    "prompt_ms": 65.17,
+    "predicted_ms": 367.67,
+    "wall_ms": 458.5,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2013686",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "William Collins was born in Santa Barbara.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 142,
+    "completion_tokens": 49,
+    "prompt_ms": 63.48,
+    "predicted_ms": 392.24,
+    "wall_ms": 481.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1287587",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 49,
+    "prompt_ms": 61.61,
+    "predicted_ms": 390.86,
+    "wall_ms": 478.24,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3640232",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Niamey",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 60.9,
+    "predicted_ms": 352.41,
+    "wall_ms": 439.51,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "995399",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Stamford",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 48,
+    "prompt_ms": 62.92,
+    "predicted_ms": 384.86,
+    "wall_ms": 473.48,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "246607",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The director of *The Claim* is Frank Cottrell-Boyce.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 55,
+    "prompt_ms": 61.67,
+    "predicted_ms": 447.61,
+    "wall_ms": 535.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3295750",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The author of the book *All in a Day* is **George Harrison**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1268,
+    "completion_tokens": 181,
+    "prompt_ms": 294.3,
+    "predicted_ms": 1461.63,
+    "wall_ms": 1826.34,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1404597",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Fox News is a U.S. media company.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 1097,
+    "completion_tokens": 128,
+    "prompt_ms": 245.22,
+    "predicted_ms": 1034.34,
+    "wall_ms": 1335.24,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2845284",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 1213,
+    "completion_tokens": 174,
+    "prompt_ms": 290.91,
+    "predicted_ms": 1401.96,
+    "wall_ms": 1763.36,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2604063",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Bala is a director, screenwriter, and composer.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 538,
+    "completion_tokens": 52,
+    "prompt_ms": 120.0,
+    "predicted_ms": 418.76,
+    "wall_ms": 564.79,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5265423",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Abe Forsythe was the screenwriter for Ned.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 52,
+    "prompt_ms": 60.41,
+    "predicted_ms": 416.43,
+    "wall_ms": 502.78,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3711589",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nChicche District\n</parameter>\n<parameter=relation>\ncountry\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1078,
+    "completion_tokens": 203,
+    "prompt_ms": 264.03,
+    "predicted_ms": 1637.04,
+    "wall_ms": 1970.79,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "491654",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nErwartung\n</parameter>\n<parameter=relation>\ncomposer\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1211,
+    "completion_tokens": 200,
+    "prompt_ms": 286.14,
+    "predicted_ms": 1615.31,
+    "wall_ms": 1970.44,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1985979",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nPorch\n</parameter>\n<parameter=relation>\ncomposer\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1201,
+    "completion_tokens": 195,
+    "prompt_ms": 285.34,
+    "predicted_ms": 1575.65,
+    "wall_ms": 1931.13,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "552289",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of New Jersey is Trenton.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 652,
+    "completion_tokens": 88,
+    "prompt_ms": 162.17,
+    "predicted_ms": 709.11,
+    "wall_ms": 911.68,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5973973",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 48,
+    "prompt_ms": 61.62,
+    "predicted_ms": 383.63,
+    "wall_ms": 470.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5984168",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "William de Mandeville, 3rd Earl of Essex.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 164,
+    "completion_tokens": 59,
+    "prompt_ms": 66.52,
+    "predicted_ms": 473.9,
+    "wall_ms": 567.3,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "785571",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The screenwriter for Time Piece was Jim Henson.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 52,
+    "prompt_ms": 60.96,
+    "predicted_ms": 415.21,
+    "wall_ms": 502.4,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1305682",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The screenwriter for *The Night Of* was Brian Yuzna.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 57,
+    "prompt_ms": 66.62,
+    "predicted_ms": 461.24,
+    "wall_ms": 554.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "193165",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Thutmose III.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 135,
+    "completion_tokens": 45,
+    "prompt_ms": 63.04,
+    "predicted_ms": 358.44,
+    "wall_ms": 447.26,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6515626",
+   "pass": 1,
+   "pop_bucket": "1e6",
+   "prediction": "Elizabeth II's mother was Queen Elizabeth of Teck.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 908,
+    "completion_tokens": 168,
+    "prompt_ms": 238.96,
+    "predicted_ms": 1355.49,
+    "wall_ms": 1664.38,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1335671",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Luc Besson",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 518,
+    "completion_tokens": 45,
+    "prompt_ms": 122.89,
+    "predicted_ms": 360.94,
+    "wall_ms": 509.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5966775",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Theatre is a performing art form.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 48,
+    "prompt_ms": 60.72,
+    "predicted_ms": 385.74,
+    "wall_ms": 472.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1585914",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 48,
+    "prompt_ms": 61.03,
+    "predicted_ms": 383.88,
+    "wall_ms": 470.7,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3362656",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Apollo is a composer.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 279,
+    "completion_tokens": 82,
+    "prompt_ms": 108.4,
+    "predicted_ms": 661.1,
+    "wall_ms": 809.34,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6291315",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Nepal is Kathmandu.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 50,
+    "prompt_ms": 59.51,
+    "predicted_ms": 400.42,
+    "wall_ms": 486.02,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3609582",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 60.0,
+    "predicted_ms": 359.28,
+    "wall_ms": 445.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "977275",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Sita Rama Kalyanam",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 129,
+    "completion_tokens": 51,
+    "prompt_ms": 62.83,
+    "predicted_ms": 408.68,
+    "wall_ms": 497.15,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2291070",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Rakesh Roshan",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 46,
+    "prompt_ms": 61.55,
+    "predicted_ms": 368.05,
+    "wall_ms": 455.44,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1976664",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nMary of Waltham\n</parameter>\n<parameter=relation>\nfather\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 943,
+    "completion_tokens": 210,
+    "prompt_ms": 241.24,
+    "predicted_ms": 1697.71,
+    "wall_ms": 2008.53,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "761251",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Kansas is Topeka.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 1232,
+    "completion_tokens": 165,
+    "prompt_ms": 287.82,
+    "predicted_ms": 1331.16,
+    "wall_ms": 1689.56,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6340616",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Atlético de Madrid's colors are blue and white.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 661,
+    "completion_tokens": 94,
+    "prompt_ms": 165.2,
+    "predicted_ms": 760.39,
+    "wall_ms": 965.81,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2082032",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nMates\n</parameter>\n<parameter=relation>\nmovie\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 798,
+    "completion_tokens": 195,
+    "prompt_ms": 226.92,
+    "predicted_ms": 1574.94,
+    "wall_ms": 1871.29,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2281503",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Jesus is a Jewish religious figure.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 537,
+    "completion_tokens": 47,
+    "prompt_ms": 120.33,
+    "predicted_ms": 376.48,
+    "wall_ms": 522.88,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4058671",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The director of *Thank You* is Arun Lal.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 52,
+    "prompt_ms": 60.87,
+    "predicted_ms": 418.22,
+    "wall_ms": 504.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "297952",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Illinois is Springfield.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 920,
+    "completion_tokens": 163,
+    "prompt_ms": 237.31,
+    "predicted_ms": 1312.74,
+    "wall_ms": 1619.21,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3930846",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 515,
+    "completion_tokens": 51,
+    "prompt_ms": 119.25,
+    "predicted_ms": 411.61,
+    "wall_ms": 556.54,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "248527",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The capital of the Lodhi dynasty was **Multan**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1053,
+    "completion_tokens": 177,
+    "prompt_ms": 263.57,
+    "predicted_ms": 1431.69,
+    "wall_ms": 1764.97,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3609667",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 555,
+    "completion_tokens": 50,
+    "prompt_ms": 122.53,
+    "predicted_ms": 401.5,
+    "wall_ms": 550.55,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3172724",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nStar Wars\n</parameter>\n<parameter=relation>\ngenre\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 818,
+    "completion_tokens": 195,
+    "prompt_ms": 230.36,
+    "predicted_ms": 1577.14,
+    "wall_ms": 1877.31,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3579522",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nGoi\n</parameter>\n<parameter=relation>\nfather\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1196,
+    "completion_tokens": 195,
+    "prompt_ms": 283.67,
+    "predicted_ms": 1576.73,
+    "wall_ms": 1930.07,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "595366",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The screenwriter for *Are You Here* is **Matthew Weiner**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 760,
+    "completion_tokens": 97,
+    "prompt_ms": 178.22,
+    "predicted_ms": 780.39,
+    "wall_ms": 998.77,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1464242",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Ontario is Toronto.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 238,
+    "completion_tokens": 85,
+    "prompt_ms": 103.76,
+    "predicted_ms": 685.72,
+    "wall_ms": 829.72,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5802763",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Springwood High School is in the United States of America.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 125,
+    "completion_tokens": 54,
+    "prompt_ms": 63.67,
+    "predicted_ms": 438.05,
+    "wall_ms": 527.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3990933",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Edmundston is a city in the province of British Columbia, Canada.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 803,
+    "completion_tokens": 176,
+    "prompt_ms": 227.91,
+    "predicted_ms": 1419.92,
+    "wall_ms": 1717.36,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5912329",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The Birds was written by Daphne du Maurier and Ed McBain.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 547,
+    "completion_tokens": 56,
+    "prompt_ms": 121.67,
+    "predicted_ms": 450.83,
+    "wall_ms": 598.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5312652",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nNotch\n</parameter>\n<parameter=relation>\noccupation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 788,
+    "completion_tokens": 195,
+    "prompt_ms": 224.54,
+    "predicted_ms": 1574.81,
+    "wall_ms": 1868.82,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2013041",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't have enough information to answer this question.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 541,
+    "completion_tokens": 50,
+    "prompt_ms": 120.61,
+    "predicted_ms": 400.46,
+    "wall_ms": 546.81,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "650598",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The director of Marina was Pandiraj.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 49,
+    "prompt_ms": 59.92,
+    "predicted_ms": 391.74,
+    "wall_ms": 477.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "476899",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Kenneth Bevan was a Catholic.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 129,
+    "completion_tokens": 51,
+    "prompt_ms": 66.57,
+    "predicted_ms": 408.31,
+    "wall_ms": 500.83,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5278096",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 136,
+    "completion_tokens": 45,
+    "prompt_ms": 63.91,
+    "predicted_ms": 360.43,
+    "wall_ms": 450.83,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3960521",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The screenwriter for the 1975 film *Ring* was **Alfred Hitchcock**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 61,
+    "prompt_ms": 62.77,
+    "predicted_ms": 492.99,
+    "wall_ms": 581.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6129487",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 231,
+    "completion_tokens": 82,
+    "prompt_ms": 102.5,
+    "predicted_ms": 659.71,
+    "wall_ms": 802.22,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2671483",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Solomon Volkov.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 61.52,
+    "predicted_ms": 360.55,
+    "wall_ms": 447.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1829094",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Bermuda is Hamilton.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 240,
+    "completion_tokens": 88,
+    "prompt_ms": 103.42,
+    "predicted_ms": 709.39,
+    "wall_ms": 852.81,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4845097",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The producer of Ed Wood was **John Carpenter**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 145,
+    "completion_tokens": 50,
+    "prompt_ms": 63.66,
+    "predicted_ms": 399.42,
+    "wall_ms": 488.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5126882",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Maxwell Griffin plays figure skating.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 129,
+    "completion_tokens": 48,
+    "prompt_ms": 61.24,
+    "predicted_ms": 382.5,
+    "wall_ms": 470.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5940933",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The Marriage by Witold Gombrowicz is a **satirical novel**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 978,
+    "completion_tokens": 173,
+    "prompt_ms": 247.63,
+    "predicted_ms": 1396.45,
+    "wall_ms": 1714.41,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3752840",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Clement Baker's occupation is Playboy Playmate.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 507,
+    "completion_tokens": 51,
+    "prompt_ms": 117.1,
+    "predicted_ms": 409.82,
+    "wall_ms": 552.66,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1345361",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nTemper\n</parameter>\n<parameter=relation>\nproducer\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 793,
+    "completion_tokens": 195,
+    "prompt_ms": 226.58,
+    "predicted_ms": 1573.66,
+    "wall_ms": 1869.62,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6290863",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The capital of Ondo State is Pangkham.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 510,
+    "completion_tokens": 52,
+    "prompt_ms": 118.22,
+    "predicted_ms": 418.02,
+    "wall_ms": 561.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3064460",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Lin-Manuel Miranda.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 163,
+    "completion_tokens": 51,
+    "prompt_ms": 65.74,
+    "predicted_ms": 407.77,
+    "wall_ms": 499.49,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4516392",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 46,
+    "prompt_ms": 63.93,
+    "predicted_ms": 367.34,
+    "wall_ms": 457.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2939882",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 96,
+    "completion_tokens": 45,
+    "prompt_ms": 59.33,
+    "predicted_ms": 360.33,
+    "wall_ms": 445.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "612885",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Fletcher Pratt.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 166,
+    "completion_tokens": 50,
+    "prompt_ms": 71.2,
+    "predicted_ms": 401.03,
+    "wall_ms": 498.66,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1477066",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nHurt\n</parameter>\n<parameter=relation>\nproducer\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 823,
+    "completion_tokens": 195,
+    "prompt_ms": 229.85,
+    "predicted_ms": 1574.11,
+    "wall_ms": 1873.95,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2998350",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Peru is Lima.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 506,
+    "completion_tokens": 47,
+    "prompt_ms": 117.71,
+    "predicted_ms": 377.7,
+    "wall_ms": 521.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6529863",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The director of the film *Laura* was **Samuel Hoffenstein**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 54,
+    "prompt_ms": 60.62,
+    "predicted_ms": 437.27,
+    "wall_ms": 524.07,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5281997",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nNiort\n</parameter>\n<parameter=relation>\ndepartment\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 816,
+    "completion_tokens": 196,
+    "prompt_ms": 229.77,
+    "predicted_ms": 1580.62,
+    "wall_ms": 1879.54,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3608231",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "The father of But Why Not is Roscoe Arbuckle.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 552,
+    "completion_tokens": 53,
+    "prompt_ms": 121.39,
+    "predicted_ms": 425.22,
+    "wall_ms": 572.52,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5780908",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The director of *So Big* was **John Huston**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 285,
+    "completion_tokens": 92,
+    "prompt_ms": 110.21,
+    "predicted_ms": 742.55,
+    "wall_ms": 892.99,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3041936",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nMikheil Saakashvili\n</parameter>\n<parameter=relation>\nfather\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 868,
+    "completion_tokens": 220,
+    "prompt_ms": 235.85,
+    "predicted_ms": 1778.56,
+    "wall_ms": 2083.92,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1641149",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Baseball",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 511,
+    "completion_tokens": 44,
+    "prompt_ms": 119.26,
+    "predicted_ms": 350.76,
+    "wall_ms": 495.96,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "609565",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 49,
+    "prompt_ms": 62.17,
+    "predicted_ms": 393.37,
+    "wall_ms": 482.15,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2740658",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nBrigitte Bardot\n</parameter>\n<parameter=relation>\noccupation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 828,
+    "completion_tokens": 210,
+    "prompt_ms": 230.25,
+    "predicted_ms": 1698.99,
+    "wall_ms": 1999.25,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "141296",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 510,
+    "completion_tokens": 44,
+    "prompt_ms": 118.53,
+    "predicted_ms": 351.67,
+    "wall_ms": 496.38,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6521985",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Catholic Church",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 45,
+    "prompt_ms": 62.23,
+    "predicted_ms": 361.23,
+    "wall_ms": 449.22,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2627781",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 154,
+    "completion_tokens": 84,
+    "prompt_ms": 66.56,
+    "predicted_ms": 681.38,
+    "wall_ms": 774.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2171429",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The director of the film *Birthday* is **Mere Smith**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 132,
+    "completion_tokens": 53,
+    "prompt_ms": 62.31,
+    "predicted_ms": 425.84,
+    "wall_ms": 514.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1860029",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Cuba is Havana.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 47,
+    "prompt_ms": 59.08,
+    "predicted_ms": 374.97,
+    "wall_ms": 459.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1746524",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Croatia is Zagreb.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 803,
+    "completion_tokens": 169,
+    "prompt_ms": 227.42,
+    "predicted_ms": 1363.43,
+    "wall_ms": 1660.13,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2955693",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The capital of Bahia is Salvador.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 1196,
+    "completion_tokens": 164,
+    "prompt_ms": 284.03,
+    "predicted_ms": 1323.66,
+    "wall_ms": 1676.86,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1868796",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nThe Convent\n</parameter>\n<parameter=relation>\nfilm\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1225,
+    "completion_tokens": 201,
+    "prompt_ms": 291.92,
+    "predicted_ms": 1625.04,
+    "wall_ms": 1986.37,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "169830",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Harold Ramis.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 508,
+    "completion_tokens": 46,
+    "prompt_ms": 118.47,
+    "predicted_ms": 368.71,
+    "wall_ms": 512.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2492953",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 47,
+    "prompt_ms": 61.56,
+    "predicted_ms": 376.55,
+    "wall_ms": 463.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3776549",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "The author of Conan the Valiant is Leonard Carpenter.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 54,
+    "prompt_ms": 62.78,
+    "predicted_ms": 433.76,
+    "wall_ms": 522.2,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1033941",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The producer of the film *Water* is not listed in the available information.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 306,
+    "completion_tokens": 93,
+    "prompt_ms": 110.81,
+    "predicted_ms": 750.04,
+    "wall_ms": 901.0,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3282404",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "The Alexeni River is in the United States of America.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 151,
+    "completion_tokens": 53,
+    "prompt_ms": 64.94,
+    "predicted_ms": 424.17,
+    "wall_ms": 514.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1194530",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nHakeem\n</parameter>\n<parameter=relation>\nfilm\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter>\n</parameter",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 829,
+    "completion_tokens": 289,
+    "prompt_ms": 230.8,
+    "predicted_ms": 2340.84,
+    "wall_ms": 2641.74,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1237046",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nLocked In\n</parameter>\n<parameter=relation>\nproducer\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1251,
+    "completion_tokens": 195,
+    "prompt_ms": 289.28,
+    "predicted_ms": 1576.42,
+    "wall_ms": 1935.1,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "668681",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The author of *Way Up High* is James MacTaggart.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 547,
+    "completion_tokens": 55,
+    "prompt_ms": 121.27,
+    "predicted_ms": 442.76,
+    "wall_ms": 589.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1448611",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 47,
+    "prompt_ms": 59.92,
+    "predicted_ms": 374.72,
+    "wall_ms": 460.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1889250",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The capital of Pomorie Municipality is **Pomorie**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 148,
+    "completion_tokens": 56,
+    "prompt_ms": 65.06,
+    "predicted_ms": 449.27,
+    "wall_ms": 540.09,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4729881",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 125,
+    "completion_tokens": 45,
+    "prompt_ms": 61.12,
+    "predicted_ms": 362.81,
+    "wall_ms": 450.51,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4009276",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 384,
+    "completion_tokens": 88,
+    "prompt_ms": 122.47,
+    "predicted_ms": 708.72,
+    "wall_ms": 871.85,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6432170",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Manila",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 42,
+    "prompt_ms": 59.99,
+    "predicted_ms": 334.95,
+    "wall_ms": 420.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5788109",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nGlen Morgan\n</parameter>\n<parameter=relation>\noccupation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 960,
+    "completion_tokens": 199,
+    "prompt_ms": 252.24,
+    "predicted_ms": 1610.02,
+    "wall_ms": 1932.2,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2776008",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Lithuania is Vilnius.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 1206,
+    "completion_tokens": 169,
+    "prompt_ms": 284.65,
+    "predicted_ms": 1362.8,
+    "wall_ms": 1717.66,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1137656",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 503,
+    "completion_tokens": 45,
+    "prompt_ms": 118.38,
+    "predicted_ms": 359.93,
+    "wall_ms": 504.7,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6389822",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "The producer of the *Green Lantern* series was Nick Mason.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 53,
+    "prompt_ms": 61.09,
+    "predicted_ms": 426.31,
+    "wall_ms": 513.38,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1562438",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 249,
+    "completion_tokens": 84,
+    "prompt_ms": 104.44,
+    "predicted_ms": 676.43,
+    "wall_ms": 821.95,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5895957",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nFriesland\n</parameter>\n<parameter=relation>\ncapital\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 798,
+    "completion_tokens": 195,
+    "prompt_ms": 227.56,
+    "predicted_ms": 1573.94,
+    "wall_ms": 1871.41,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "446779",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 935,
+    "completion_tokens": 141,
+    "prompt_ms": 223.23,
+    "predicted_ms": 1141.2,
+    "wall_ms": 1420.04,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5948582",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Charles Bukowski.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 45,
+    "prompt_ms": 60.9,
+    "predicted_ms": 359.66,
+    "wall_ms": 446.47,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2112028",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 60.26,
+    "predicted_ms": 362.15,
+    "wall_ms": 448.71,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1504171",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Rock music",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 59.95,
+    "predicted_ms": 336.32,
+    "wall_ms": 422.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2663081",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The screenwriter for *Washed Out* is **Zrinko Ogresta**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 500,
+    "completion_tokens": 140,
+    "prompt_ms": 167.37,
+    "predicted_ms": 1133.93,
+    "wall_ms": 1357.22,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "280271",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 363,
+    "completion_tokens": 90,
+    "prompt_ms": 117.48,
+    "predicted_ms": 722.84,
+    "wall_ms": 881.32,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3486328",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 366,
+    "completion_tokens": 90,
+    "prompt_ms": 117.61,
+    "predicted_ms": 724.63,
+    "wall_ms": 882.62,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6406481",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 51,
+    "prompt_ms": 62.18,
+    "predicted_ms": 408.86,
+    "wall_ms": 496.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2099338",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Gustavo A. Madero was born in **Mexico City**.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 674,
+    "completion_tokens": 150,
+    "prompt_ms": 186.96,
+    "predicted_ms": 1211.06,
+    "wall_ms": 1453.29,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5473227",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nJoan of Arc\n</parameter>\n<parameter=relation>\nfather\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1073,
+    "completion_tokens": 205,
+    "prompt_ms": 264.09,
+    "predicted_ms": 1653.86,
+    "wall_ms": 1987.87,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6481967",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Elizabeth Gaskell.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 542,
+    "completion_tokens": 44,
+    "prompt_ms": 121.46,
+    "predicted_ms": 351.56,
+    "wall_ms": 498.81,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2060311",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Pir Hayati is from Iran, and his religion is Islam.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 55,
+    "prompt_ms": 60.75,
+    "predicted_ms": 443.51,
+    "wall_ms": 530.06,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1462306",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nGeorge Archainbaud\n</parameter>\n<parameter=relation>\noccupation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 884,
+    "completion_tokens": 209,
+    "prompt_ms": 241.76,
+    "predicted_ms": 1689.83,
+    "wall_ms": 2000.79,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3927118",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "The Dobra River is located in **Romania**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 1711,
+    "completion_tokens": 172,
+    "prompt_ms": 350.65,
+    "predicted_ms": 1388.62,
+    "wall_ms": 1809.49,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4013695",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Japan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 547,
+    "completion_tokens": 42,
+    "prompt_ms": 121.12,
+    "predicted_ms": 332.92,
+    "wall_ms": 479.8,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6216050",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Panama is Panama City.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 48,
+    "prompt_ms": 59.51,
+    "predicted_ms": 386.88,
+    "wall_ms": 472.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3859284",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 47,
+    "prompt_ms": 65.07,
+    "predicted_ms": 379.4,
+    "wall_ms": 470.22,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5777642",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Thomas Schlamme",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 60.61,
+    "predicted_ms": 351.64,
+    "wall_ms": 437.93,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6284805",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Dino De Laurentiis.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 47,
+    "prompt_ms": 61.32,
+    "predicted_ms": 377.71,
+    "wall_ms": 464.88,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "156556",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The Rolling Stones are a rock band.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 49,
+    "prompt_ms": 60.02,
+    "predicted_ms": 392.97,
+    "wall_ms": 479.48,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1380246",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Justin Richards.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 60.64,
+    "predicted_ms": 342.68,
+    "wall_ms": 429.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2966185",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Pierre is in the United States.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 46,
+    "prompt_ms": 60.33,
+    "predicted_ms": 368.55,
+    "wall_ms": 454.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1740588",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Greenland is **Nuuk**.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 49,
+    "prompt_ms": 59.31,
+    "predicted_ms": 392.34,
+    "wall_ms": 477.44,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2523660",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nMohamed Bazoum\n</parameter>\n<parameter=relation>\noccupation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 923,
+    "completion_tokens": 210,
+    "prompt_ms": 244.54,
+    "predicted_ms": 1697.18,
+    "wall_ms": 2011.48,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6273807",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Darren Aronofsky was the screenwriter for The Daily Show with Trevor Noah.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 525,
+    "completion_tokens": 63,
+    "prompt_ms": 120.84,
+    "predicted_ms": 512.45,
+    "wall_ms": 659.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "534816",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Maryland is Annapolis.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 923,
+    "completion_tokens": 168,
+    "prompt_ms": 238.84,
+    "predicted_ms": 1353.42,
+    "wall_ms": 1662.28,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "441972",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nRaphael Saadiq\n</parameter>\n<parameter=relation>\noccupation\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1231,
+    "completion_tokens": 210,
+    "prompt_ms": 287.67,
+    "predicted_ms": 1700.39,
+    "wall_ms": 2058.06,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1164239",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "T. E. Lawrence's father was A. Lawrence Kocher, an architect.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 533,
+    "completion_tokens": 60,
+    "prompt_ms": 121.0,
+    "predicted_ms": 487.77,
+    "wall_ms": 634.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "800535",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The Sinaloa Cartel is located in Mexico.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 838,
+    "completion_tokens": 180,
+    "prompt_ms": 235.13,
+    "predicted_ms": 1452.46,
+    "wall_ms": 1757.62,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3757863",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Closure is a **horror** film.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 723,
+    "completion_tokens": 89,
+    "prompt_ms": 170.38,
+    "predicted_ms": 720.54,
+    "wall_ms": 930.88,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1027847",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Marc Santo-Roman plays association football.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 384,
+    "completion_tokens": 91,
+    "prompt_ms": 118.01,
+    "predicted_ms": 730.55,
+    "wall_ms": 889.17,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1468996",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Estonia is Tallinn.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 49,
+    "prompt_ms": 59.52,
+    "predicted_ms": 392.87,
+    "wall_ms": 478.37,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "220404",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nPrincess Tōchi\n</parameter>\n<parameter=relation>\nmother\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1100,
+    "completion_tokens": 212,
+    "prompt_ms": 269.39,
+    "predicted_ms": 1711.53,
+    "wall_ms": 2051.22,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6256826",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nJordan\n</parameter>\n<parameter=relation>\ncountry\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1226,
+    "completion_tokens": 190,
+    "prompt_ms": 286.79,
+    "predicted_ms": 1535.67,
+    "wall_ms": 1891.85,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4593802",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Portland is the capital of Oregon.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1226,
+    "completion_tokens": 160,
+    "prompt_ms": 286.87,
+    "predicted_ms": 1290.38,
+    "wall_ms": 1646.61,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3286642",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 556,
+    "completion_tokens": 47,
+    "prompt_ms": 122.6,
+    "predicted_ms": 377.99,
+    "wall_ms": 527.15,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "634658",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Don Mischer",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 46,
+    "prompt_ms": 62.39,
+    "predicted_ms": 369.34,
+    "wall_ms": 457.75,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3147463",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 47,
+    "prompt_ms": 62.21,
+    "predicted_ms": 377.84,
+    "wall_ms": 465.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "179252",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Bill Clinton was a member of the **Roman Catholic** Church.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1208,
+    "completion_tokens": 174,
+    "prompt_ms": 286.15,
+    "predicted_ms": 1406.59,
+    "wall_ms": 1762.5,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1867834",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "The capital of Belize is Belmopan.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 857,
+    "completion_tokens": 127,
+    "prompt_ms": 212.66,
+    "predicted_ms": 1027.51,
+    "wall_ms": 1295.55,
+    "calls": 4
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 4,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1281428",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "<tool_call>\n<function=lookup>\n<parameter=entity>\nI'll Be Seeing You\n</parameter>\n<parameter=relation>\ncomposer\n</parameter>\n</function>\n</tool_call>",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 1363,
+    "completion_tokens": 210,
+    "prompt_ms": 301.77,
+    "predicted_ms": 1695.65,
+    "wall_ms": 2069.1,
+    "calls": 5
+   },
+   "tools": [
+    "lookup",
+    "lookup",
+    "lookup",
+    "lookup"
+   ],
+   "steps": 5,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "610662",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 505,
+    "completion_tokens": 47,
+    "prompt_ms": 117.83,
+    "predicted_ms": 377.61,
+    "wall_ms": 521.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1944892",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The producer of *The Cookbook* was Betty Crocker.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 52,
+    "prompt_ms": 61.01,
+    "predicted_ms": 417.95,
+    "wall_ms": 504.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5782367",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 147,
+    "completion_tokens": 49,
+    "prompt_ms": 64.62,
+    "predicted_ms": 391.37,
+    "wall_ms": 481.6,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5941833",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 46,
+    "prompt_ms": 64.81,
+    "predicted_ms": 368.15,
+    "wall_ms": 459.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "906463",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Ahmed Ahmed",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 43,
+    "prompt_ms": 60.43,
+    "predicted_ms": 344.32,
+    "wall_ms": 430.79,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "610176",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "The director of Wish You Were Here was David Leland.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 161,
+    "completion_tokens": 55,
+    "prompt_ms": 67.03,
+    "predicted_ms": 442.06,
+    "wall_ms": 535.39,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "46385",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "The author of The Zero Game is Farhan Akhtar.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 147,
+    "completion_tokens": 53,
+    "prompt_ms": 63.84,
+    "predicted_ms": 424.2,
+    "wall_ms": 514.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3980533",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Lenny Abrahamson.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 60.47,
+    "predicted_ms": 358.29,
+    "wall_ms": 445.26,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3930012",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Eric Schaeffer was the screenwriter for *See How They Fall*.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 58,
+    "prompt_ms": 63.18,
+    "predicted_ms": 466.25,
+    "wall_ms": 555.32,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6474235",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Revelations: Persona is a soap opera.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 53,
+    "prompt_ms": 61.31,
+    "predicted_ms": 423.44,
+    "wall_ms": 510.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "567939",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 159,
+    "completion_tokens": 46,
+    "prompt_ms": 65.59,
+    "predicted_ms": 366.64,
+    "wall_ms": 458.27,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": true,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  }
+ ],
+ "summary": {
+  "pass1": {
+   "n": 200,
+   "acc": 0.22,
+   "exact": 0.02,
+   "hedge_rate": 0.0,
+   "acc_nohedge": 0.22,
+   "abstain": 0.215,
+   "outcomes": {
+    "correct": 0.22,
+    "abstained": 0.215,
+    "hallucinated": 0.565
+   },
+   "errors": 0,
+   "tainted": 0.0,
+   "lookup_rate": 1.0,
+   "retrieval_hit": null,
+   "per_answer": {
+    "prompt_tokens": 493.815,
+    "completion_tokens": 97.165,
+    "wall_ms": 962.7566000000006,
+    "calls": 3.025
+   }
+  }
+ },
+ "search": {
+  "rate_limited": 0,
+  "searches": 0
+ }
+}

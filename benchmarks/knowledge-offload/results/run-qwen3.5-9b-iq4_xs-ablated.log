@@ -1,0 +1,19 @@
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/200 acc=0.330
+  closed r0 pass1 200/200 acc=0.325
+  -> popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-closed-abstain_ok-r0.json {'pass1': {'n': 200, 'acc': 0.325, 'exact': 0.315, 'hedge_rate': 0.0, 'acc_nohedge': 0.325, 'abstain': 0.11, 'outcomes': {'correct': 0.325, 'abstained': 0.11, 'hallucinated': 0.565}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.865, 'completion_tokens': 4.09, 'wall_ms': 144.80714999999998, 'calls': 1.0}}}
+store repeat 0 seed 0
+  store r0 pass1 100/200 acc=0.200
+  store r0 pass1 200/200 acc=0.195
+  -> popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-store-abstain_ok-r0.json {'pass1': {'n': 200, 'acc': 0.195, 'exact': 0.185, 'hedge_rate': 0.0, 'acc_nohedge': 0.195, 'abstain': 0.665, 'outcomes': {'correct': 0.195, 'abstained': 0.665, 'hallucinated': 0.14}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.005, 'per_answer': {'prompt_tokens': 79.24, 'completion_tokens': 4.995, 'wall_ms': 178.11790000000002, 'calls': 1.0}}}
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.210
+  tool r0 pass1 200/200 acc=0.190
+  -> popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-tool-abstain_ok-r0.json {'pass1': {'n': 200, 'acc': 0.19, 'exact': 0.18, 'hedge_rate': 0.0, 'acc_nohedge': 0.19, 'abstain': 0.585, 'outcomes': {'correct': 0.19, 'abstained': 0.585, 'hallucinated': 0.225}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.925, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 114.125, 'completion_tokens': 42.57, 'wall_ms': 1020.5678000000004, 'calls': 1.925}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/200 acc=0.190
+  tool+contract r0 pass1 200/200 acc=0.165
+  -> popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-toolpluscontract-abstain_ok-r0.json {'pass1': {'n': 200, 'acc': 0.165, 'exact': 0.155, 'hedge_rate': 0.0, 'acc_nohedge': 0.165, 'abstain': 0.61, 'outcomes': {'correct': 0.165, 'abstained': 0.61, 'hallucinated': 0.225}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 123.89, 'completion_tokens': 45.855, 'wall_ms': 1106.556650000001, 'calls': 2.075}}}
+ablated exit 0

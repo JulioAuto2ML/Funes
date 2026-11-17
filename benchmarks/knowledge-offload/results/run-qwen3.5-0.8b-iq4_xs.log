@@ -1,0 +1,75 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/1000 acc=0.170
+  closed r0 pass1 200/1000 acc=0.195
+  closed r0 pass1 300/1000 acc=0.220
+  closed r0 pass1 400/1000 acc=0.210
+  closed r0 pass1 500/1000 acc=0.212
+  closed r0 pass1 600/1000 acc=0.207
+  closed r0 pass1 700/1000 acc=0.204
+  closed r0 pass1 800/1000 acc=0.210
+  closed r0 pass1 900/1000 acc=0.210
+  closed r0 pass1 1000/1000 acc=0.213
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-closed-r0.json {'pass1': {'n': 1000, 'acc': 0.213, 'exact': 0.197, 'hedge_rate': 0.0, 'acc_nohedge': 0.213, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.639, 'completion_tokens': 4.439, 'wall_ms': 68.82686999999999, 'calls': 1.0}}}
+oracle repeat 0 seed 0
+  oracle r0 pass1 100/1000 acc=0.970
+  oracle r0 pass1 200/1000 acc=0.970
+  oracle r0 pass1 300/1000 acc=0.970
+  oracle r0 pass1 400/1000 acc=0.968
+  oracle r0 pass1 500/1000 acc=0.970
+  oracle r0 pass1 600/1000 acc=0.968
+  oracle r0 pass1 700/1000 acc=0.971
+  oracle r0 pass1 800/1000 acc=0.970
+  oracle r0 pass1 900/1000 acc=0.971
+  oracle r0 pass1 1000/1000 acc=0.972
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-oracle-r0.json {'pass1': {'n': 1000, 'acc': 0.972, 'exact': 0.971, 'hedge_rate': 0.0, 'acc_nohedge': 0.972, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 37.426, 'completion_tokens': 4.012, 'wall_ms': 69.03546, 'calls': 1.0}}}
+store repeat 0 seed 0
+  store r0 pass1 100/1000 acc=0.910
+  store r0 pass1 200/1000 acc=0.915
+  store r0 pass1 300/1000 acc=0.927
+  store r0 pass1 400/1000 acc=0.927
+  store r0 pass1 500/1000 acc=0.932
+  store r0 pass1 600/1000 acc=0.922
+  store r0 pass1 700/1000 acc=0.923
+  store r0 pass1 800/1000 acc=0.922
+  store r0 pass1 900/1000 acc=0.920
+  store r0 pass1 1000/1000 acc=0.921
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-store-r0.json {'pass1': {'n': 1000, 'acc': 0.921, 'exact': 0.918, 'hedge_rate': 0.0, 'acc_nohedge': 0.921, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.993, 'per_answer': {'prompt_tokens': 79.396, 'completion_tokens': 4.002, 'wall_ms': 71.19482000000004, 'calls': 1.0}}}
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.140
+  tool r0 pass1 200/1000 acc=0.165
+  tool r0 pass1 300/1000 acc=0.190
+  tool r0 pass1 400/1000 acc=0.188
+  tool r0 pass1 500/1000 acc=0.188
+  tool r0 pass1 600/1000 acc=0.183
+  tool r0 pass1 700/1000 acc=0.180
+  tool r0 pass1 800/1000 acc=0.186
+  tool r0 pass1 900/1000 acc=0.183
+  tool r0 pass1 1000/1000 acc=0.188
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-tool-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.188, 'exact': 0.12, 'hedge_rate': 0.0, 'acc_nohedge': 0.188, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.989, 'completion_tokens': 10.461, 'wall_ms': 124.77268000000002, 'calls': 1.0}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.140
+  tool+contract r0 pass1 200/1000 acc=0.165
+  tool+contract r0 pass1 300/1000 acc=0.190
+  tool+contract r0 pass1 400/1000 acc=0.190
+  tool+contract r0 pass1 500/1000 acc=0.186
+  tool+contract r0 pass1 600/1000 acc=0.180
+  tool+contract r0 pass1 700/1000 acc=0.176
+  tool+contract r0 pass1 800/1000 acc=0.181
+  tool+contract r0 pass1 900/1000 acc=0.179
+  tool+contract r0 pass1 1000/1000 acc=0.184
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-toolpluscontract-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.184, 'exact': 0.136, 'hedge_rate': 0.0, 'acc_nohedge': 0.184, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.005, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 155.181, 'completion_tokens': 23.059, 'wall_ms': 323.87382000000014, 'calls': 3.0}}}
+web repeat 0 seed 0
+  web r0 pass1 100/1000 acc=0.410
+  web r0 pass1 200/1000 acc=0.430
+  web r0 pass1 300/1000 acc=0.427
+  web r0 pass1 400/1000 acc=0.417
+  web r0 pass1 500/1000 acc=0.428
+  web r0 pass1 600/1000 acc=0.425
+  web r0 pass1 700/1000 acc=0.429
+  web r0 pass1 800/1000 acc=0.429
+  web r0 pass1 900/1000 acc=0.430
+  web r0 pass1 1000/1000 acc=0.436
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-web-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.436, 'exact': 0.217, 'hedge_rate': 0.0, 'acc_nohedge': 0.436, 'abstain': 0.012, 'errors': 0, 'tainted': 0.471, 'searches_per_answer': 0.477, 'lookup_rate': 0.471, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 534.683, 'completion_tokens': 34.083, 'wall_ms': 424.8818400000003, 'calls': 1.477}}}
+main exit 0

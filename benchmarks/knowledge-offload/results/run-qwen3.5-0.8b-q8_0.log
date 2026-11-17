@@ -1,0 +1,63 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-q8_0 [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-Q8_0.gguf (Q8_0) at http://localhost:8080, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/1000 acc=0.200
+  closed r0 pass1 200/1000 acc=0.185
+  closed r0 pass1 300/1000 acc=0.210
+  closed r0 pass1 400/1000 acc=0.205
+  closed r0 pass1 500/1000 acc=0.222
+  closed r0 pass1 600/1000 acc=0.218
+  closed r0 pass1 700/1000 acc=0.213
+  closed r0 pass1 800/1000 acc=0.217
+  closed r0 pass1 900/1000 acc=0.218
+  closed r0 pass1 1000/1000 acc=0.220
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-closed-r0.json {'pass1': {'n': 1000, 'acc': 0.22, 'exact': 0.196, 'hedge_rate': 0.0, 'acc_nohedge': 0.22, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.639, 'completion_tokens': 5.099, 'wall_ms': 77.93933000000003, 'calls': 1.0}}}
+oracle repeat 0 seed 0
+  oracle r0 pass1 100/1000 acc=0.980
+  oracle r0 pass1 200/1000 acc=0.980
+  oracle r0 pass1 300/1000 acc=0.987
+  oracle r0 pass1 400/1000 acc=0.988
+  oracle r0 pass1 500/1000 acc=0.988
+  oracle r0 pass1 600/1000 acc=0.988
+  oracle r0 pass1 700/1000 acc=0.989
+  oracle r0 pass1 800/1000 acc=0.990
+  oracle r0 pass1 900/1000 acc=0.990
+  oracle r0 pass1 1000/1000 acc=0.991
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-oracle-r0.json {'pass1': {'n': 1000, 'acc': 0.991, 'exact': 0.989, 'hedge_rate': 0.0, 'acc_nohedge': 0.991, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 37.37, 'completion_tokens': 3.991, 'wall_ms': 69.93940999999997, 'calls': 1.0}}}
+store repeat 0 seed 0
+  store r0 pass1 100/1000 acc=0.960
+  store r0 pass1 200/1000 acc=0.960
+  store r0 pass1 300/1000 acc=0.970
+  store r0 pass1 400/1000 acc=0.973
+  store r0 pass1 500/1000 acc=0.968
+  store r0 pass1 600/1000 acc=0.955
+  store r0 pass1 700/1000 acc=0.950
+  store r0 pass1 800/1000 acc=0.950
+  store r0 pass1 900/1000 acc=0.949
+  store r0 pass1 1000/1000 acc=0.950
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-store-r0.json {'pass1': {'n': 1000, 'acc': 0.95, 'exact': 0.947, 'hedge_rate': 0.0, 'acc_nohedge': 0.95, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.993, 'per_answer': {'prompt_tokens': 79.396, 'completion_tokens': 4.003, 'wall_ms': 74.6697100000001, 'calls': 1.0}}}
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.170
+  tool r0 pass1 200/1000 acc=0.170
+  tool r0 pass1 300/1000 acc=0.207
+  tool r0 pass1 400/1000 acc=0.193
+  tool r0 pass1 500/1000 acc=0.196
+  tool r0 pass1 600/1000 acc=0.187
+  tool r0 pass1 700/1000 acc=0.183
+  tool r0 pass1 800/1000 acc=0.186
+  tool r0 pass1 900/1000 acc=0.187
+  tool r0 pass1 1000/1000 acc=0.191
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-tool-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.191, 'exact': 0.181, 'hedge_rate': 0.0, 'acc_nohedge': 0.191, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.007, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.723, 'completion_tokens': 5.94, 'wall_ms': 88.35213999999992, 'calls': 1.007}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.170
+  tool+contract r0 pass1 200/1000 acc=0.170
+  tool+contract r0 pass1 300/1000 acc=0.207
+  tool+contract r0 pass1 400/1000 acc=0.193
+  tool+contract r0 pass1 500/1000 acc=0.196
+  tool+contract r0 pass1 600/1000 acc=0.187
+  tool+contract r0 pass1 700/1000 acc=0.183
+  tool+contract r0 pass1 800/1000 acc=0.185
+  tool+contract r0 pass1 900/1000 acc=0.186
+  tool+contract r0 pass1 1000/1000 acc=0.191
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-q8_0-toolpluscontract-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.191, 'exact': 0.183, 'hedge_rate': 0.0, 'acc_nohedge': 0.191, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.011, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 153.101, 'completion_tokens': 13.955, 'wall_ms': 263.86822999999987, 'calls': 2.994}}}
+main exit 0

@@ -1,0 +1,5676 @@
+{
+ "dataset": "popqa",
+ "dataset_sha256": "9a5227f41bff0e4c331d4a774d946b12f95307892b58f860a9606ef356e6089b",
+ "dataset_seed": 1,
+ "sample": "stratified",
+ "exclude_ambiguous": true,
+ "arm": "ablated",
+ "model_tag": "qwen3.5-4b-iq4_xs",
+ "server": {
+  "endpoint": "http://localhost:8080",
+  "model_file": "Qwen3.5-4B-IQ4_XS.gguf",
+  "quant": "IQ4_XS",
+  "n_ctx": 8192,
+  "build": "b9413-6ed481eea"
+ },
+ "model": {
+  "id": "qwen3.5-4b-iq4_xs",
+  "repo": "unsloth/Qwen3.5-4B-GGUF",
+  "file": "Qwen3.5-4B-IQ4_XS.gguf",
+  "sha256": "658a9e7e406deb06d0179755e3c14f6a82915a4be4962a2f92a64d948d2e572f",
+  "size": 2477053088,
+  "quant": "IQ4_XS",
+  "lineage": "qwen3.5-official (unsloth GGUF)",
+  "verified": "sha256"
+ },
+ "git": {
+  "commit": "06f34d35e5155937ebc13c20e646225f971aa857",
+  "dirty": true
+ },
+ "date": "2026-11-16",
+ "k": 5,
+ "max_steps": 4,
+ "temperature": 0.0,
+ "store_size": 14267,
+ "search_backend": "parallel-keyed",
+ "prompt_variant": "abstain_ok",
+ "condition": "tool",
+ "repeat": 0,
+ "seed": 0,
+ "n_questions": 200,
+ "wall_s": 159.6,
+ "finished": "2026-11-16T19:24:17",
+ "answers": [
+  {
+   "id": "1881892",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 520,
+    "completion_tokens": 44,
+    "prompt_ms": 281.13,
+    "predicted_ms": 612.33,
+    "wall_ms": 919.67,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "489631",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 44,
+    "prompt_ms": 124.36,
+    "predicted_ms": 602.51,
+    "wall_ms": 752.75,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6385629",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Phil Collins",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 44,
+    "prompt_ms": 128.64,
+    "predicted_ms": 604.17,
+    "wall_ms": 758.76,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3868065",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 46,
+    "prompt_ms": 124.16,
+    "predicted_ms": 630.76,
+    "wall_ms": 780.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "664514",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 47,
+    "prompt_ms": 124.71,
+    "predicted_ms": 644.16,
+    "wall_ms": 794.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2674106",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Bharathiraja",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 46,
+    "prompt_ms": 126.57,
+    "predicted_ms": 633.71,
+    "wall_ms": 786.3,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5787601",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 49,
+    "prompt_ms": 130.13,
+    "predicted_ms": 672.87,
+    "wall_ms": 828.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4331878",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 46,
+    "prompt_ms": 123.75,
+    "predicted_ms": 631.81,
+    "wall_ms": 781.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1701001",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 141,
+    "completion_tokens": 46,
+    "prompt_ms": 132.38,
+    "predicted_ms": 631.11,
+    "wall_ms": 790.08,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3311112",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 147,
+    "completion_tokens": 47,
+    "prompt_ms": 134.87,
+    "predicted_ms": 646.03,
+    "wall_ms": 807.39,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4607987",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Dubai is the capital of the Emirate of Dubai.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 53,
+    "prompt_ms": 123.51,
+    "predicted_ms": 730.21,
+    "wall_ms": 879.38,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6453369",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 293,
+    "completion_tokens": 87,
+    "prompt_ms": 230.36,
+    "predicted_ms": 1206.38,
+    "wall_ms": 1476.95,
+    "calls": 3
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 3,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6073694",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 48,
+    "prompt_ms": 131.44,
+    "predicted_ms": 661.67,
+    "wall_ms": 819.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2189871",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 46,
+    "prompt_ms": 123.54,
+    "predicted_ms": 630.99,
+    "wall_ms": 780.58,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1152202",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 46,
+    "prompt_ms": 129.55,
+    "predicted_ms": 634.09,
+    "wall_ms": 789.8,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1369042",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Comedy-drama",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 45,
+    "prompt_ms": 126.49,
+    "predicted_ms": 617.35,
+    "wall_ms": 769.66,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5724676",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 135,
+    "completion_tokens": 46,
+    "prompt_ms": 131.57,
+    "predicted_ms": 631.86,
+    "wall_ms": 789.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1482020",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 45,
+    "prompt_ms": 123.42,
+    "predicted_ms": 618.35,
+    "wall_ms": 767.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "266049",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 37,
+    "prompt_ms": 123.62,
+    "predicted_ms": 506.25,
+    "wall_ms": 655.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5056791",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 45,
+    "prompt_ms": 124.23,
+    "predicted_ms": 617.35,
+    "wall_ms": 767.45,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "293869",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 123.81,
+    "predicted_ms": 619.14,
+    "wall_ms": 769.65,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "691526",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 133,
+    "completion_tokens": 47,
+    "prompt_ms": 132.43,
+    "predicted_ms": 645.89,
+    "wall_ms": 804.21,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5094181",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 140,
+    "completion_tokens": 46,
+    "prompt_ms": 132.89,
+    "predicted_ms": 633.42,
+    "wall_ms": 792.54,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5915407",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 50,
+    "prompt_ms": 128.14,
+    "predicted_ms": 687.79,
+    "wall_ms": 841.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3782263",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 95,
+    "completion_tokens": 44,
+    "prompt_ms": 120.81,
+    "predicted_ms": 603.27,
+    "wall_ms": 749.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4591787",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 133,
+    "completion_tokens": 47,
+    "prompt_ms": 131.71,
+    "predicted_ms": 647.22,
+    "wall_ms": 804.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5773456",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Sarah Kane",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 41,
+    "prompt_ms": 125.93,
+    "predicted_ms": 561.52,
+    "wall_ms": 713.63,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2549912",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 46,
+    "prompt_ms": 124.47,
+    "predicted_ms": 631.96,
+    "wall_ms": 782.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2672350",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 46,
+    "prompt_ms": 126.61,
+    "predicted_ms": 633.76,
+    "wall_ms": 786.6,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2122418",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 44,
+    "prompt_ms": 124.62,
+    "predicted_ms": 604.74,
+    "wall_ms": 755.58,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2532884",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 47,
+    "prompt_ms": 126.78,
+    "predicted_ms": 647.48,
+    "wall_ms": 799.94,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1180105",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 143,
+    "completion_tokens": 45,
+    "prompt_ms": 132.67,
+    "predicted_ms": 618.69,
+    "wall_ms": 777.39,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4886186",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 48,
+    "prompt_ms": 128.08,
+    "predicted_ms": 659.76,
+    "wall_ms": 813.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1919197",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 44,
+    "prompt_ms": 126.12,
+    "predicted_ms": 607.81,
+    "wall_ms": 759.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1693978",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 143,
+    "completion_tokens": 46,
+    "prompt_ms": 132.23,
+    "predicted_ms": 648.63,
+    "wall_ms": 806.73,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1782515",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 45,
+    "prompt_ms": 128.31,
+    "predicted_ms": 618.5,
+    "wall_ms": 772.65,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6206193",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 50,
+    "prompt_ms": 129.94,
+    "predicted_ms": 689.69,
+    "wall_ms": 845.53,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5776395",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 158,
+    "completion_tokens": 48,
+    "prompt_ms": 141.44,
+    "predicted_ms": 660.69,
+    "wall_ms": 828.7,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3974408",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 149,
+    "completion_tokens": 45,
+    "prompt_ms": 136.34,
+    "predicted_ms": 620.02,
+    "wall_ms": 782.35,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6263879",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 46,
+    "prompt_ms": 127.03,
+    "predicted_ms": 632.09,
+    "wall_ms": 784.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3718561",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 49,
+    "prompt_ms": 127.85,
+    "predicted_ms": 674.31,
+    "wall_ms": 828.46,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2836657",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 153,
+    "completion_tokens": 47,
+    "prompt_ms": 138.31,
+    "predicted_ms": 647.75,
+    "wall_ms": 812.03,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3075565",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 49,
+    "prompt_ms": 127.76,
+    "predicted_ms": 674.38,
+    "wall_ms": 827.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "308097",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Reality television",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 44,
+    "prompt_ms": 127.85,
+    "predicted_ms": 604.02,
+    "wall_ms": 757.8,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6111599",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 49,
+    "prompt_ms": 127.95,
+    "predicted_ms": 676.77,
+    "wall_ms": 830.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4750097",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 133,
+    "completion_tokens": 44,
+    "prompt_ms": 130.99,
+    "predicted_ms": 604.12,
+    "wall_ms": 761.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3443220",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Charlie Chaplin",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 45,
+    "prompt_ms": 130.01,
+    "predicted_ms": 618.87,
+    "wall_ms": 775.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2013686",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 141,
+    "completion_tokens": 45,
+    "prompt_ms": 132.02,
+    "predicted_ms": 618.58,
+    "wall_ms": 776.73,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1287587",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 49,
+    "prompt_ms": 128.86,
+    "predicted_ms": 674.61,
+    "wall_ms": 829.94,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3640232",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Niamey",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 124.53,
+    "predicted_ms": 605.4,
+    "wall_ms": 756.29,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "995399",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 50,
+    "prompt_ms": 131.08,
+    "predicted_ms": 688.25,
+    "wall_ms": 845.22,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "246607",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 45,
+    "prompt_ms": 127.14,
+    "predicted_ms": 617.82,
+    "wall_ms": 770.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3295750",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 47,
+    "prompt_ms": 137.55,
+    "predicted_ms": 647.69,
+    "wall_ms": 812.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1404597",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 141,
+    "completion_tokens": 45,
+    "prompt_ms": 131.77,
+    "predicted_ms": 618.45,
+    "wall_ms": 776.2,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2845284",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 143,
+    "completion_tokens": 48,
+    "prompt_ms": 136.86,
+    "predicted_ms": 662.0,
+    "wall_ms": 825.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2604063",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Director, screenwriter, and composer.",
+   "exact": false,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 135,
+    "completion_tokens": 48,
+    "prompt_ms": 130.65,
+    "predicted_ms": 659.61,
+    "wall_ms": 816.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5265423",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 46,
+    "prompt_ms": 124.43,
+    "predicted_ms": 633.0,
+    "wall_ms": 783.41,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3711589",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 146,
+    "completion_tokens": 47,
+    "prompt_ms": 132.45,
+    "predicted_ms": 647.1,
+    "wall_ms": 806.07,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "491654",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 46,
+    "prompt_ms": 122.5,
+    "predicted_ms": 632.36,
+    "wall_ms": 780.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1985979",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 122.44,
+    "predicted_ms": 618.31,
+    "wall_ms": 766.88,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "552289",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 45,
+    "prompt_ms": 124.54,
+    "predicted_ms": 618.44,
+    "wall_ms": 769.71,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5973973",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 48,
+    "prompt_ms": 127.48,
+    "predicted_ms": 659.89,
+    "wall_ms": 813.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5984168",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 164,
+    "completion_tokens": 51,
+    "prompt_ms": 139.31,
+    "predicted_ms": 704.36,
+    "wall_ms": 869.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "785571",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 46,
+    "prompt_ms": 127.82,
+    "predicted_ms": 632.04,
+    "wall_ms": 786.21,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1305682",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 47,
+    "prompt_ms": 130.88,
+    "predicted_ms": 646.52,
+    "wall_ms": 803.64,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "193165",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Thutmose III",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 135,
+    "completion_tokens": 44,
+    "prompt_ms": 134.02,
+    "predicted_ms": 604.69,
+    "wall_ms": 765.53,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6515626",
+   "pass": 1,
+   "pop_bucket": "1e6",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 45,
+    "prompt_ms": 125.24,
+    "predicted_ms": 618.32,
+    "wall_ms": 769.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1335671",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 47,
+    "prompt_ms": 130.2,
+    "predicted_ms": 648.42,
+    "wall_ms": 805.32,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5966775",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 123.72,
+    "predicted_ms": 617.86,
+    "wall_ms": 767.73,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1585914",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 48,
+    "prompt_ms": 123.62,
+    "predicted_ms": 660.54,
+    "wall_ms": 810.27,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3362656",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 44,
+    "prompt_ms": 125.5,
+    "predicted_ms": 605.23,
+    "wall_ms": 756.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6291315",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 121.47,
+    "predicted_ms": 631.94,
+    "wall_ms": 780.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3609582",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 121.89,
+    "predicted_ms": 618.34,
+    "wall_ms": 767.26,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "977275",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Jandhyala Subramanya Sastry",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 129,
+    "completion_tokens": 54,
+    "prompt_ms": 131.99,
+    "predicted_ms": 751.83,
+    "wall_ms": 909.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2291070",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 45,
+    "prompt_ms": 126.61,
+    "predicted_ms": 618.21,
+    "wall_ms": 771.14,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1976664",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 48,
+    "prompt_ms": 130.92,
+    "predicted_ms": 660.18,
+    "wall_ms": 817.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "761251",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 44,
+    "prompt_ms": 123.59,
+    "predicted_ms": 604.04,
+    "wall_ms": 753.57,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6340616",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 47,
+    "prompt_ms": 123.41,
+    "predicted_ms": 646.17,
+    "wall_ms": 795.57,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2082032",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 121.85,
+    "predicted_ms": 619.88,
+    "wall_ms": 768.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2281503",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Christianity",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 134,
+    "completion_tokens": 42,
+    "prompt_ms": 131.19,
+    "predicted_ms": 576.8,
+    "wall_ms": 734.45,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4058671",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 45,
+    "prompt_ms": 126.6,
+    "predicted_ms": 618.85,
+    "wall_ms": 772.04,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "297952",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 45,
+    "prompt_ms": 124.06,
+    "predicted_ms": 618.95,
+    "wall_ms": 769.39,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3930846",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 51,
+    "prompt_ms": 128.1,
+    "predicted_ms": 704.3,
+    "wall_ms": 858.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "248527",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 127,
+    "completion_tokens": 47,
+    "prompt_ms": 131.53,
+    "predicted_ms": 652.69,
+    "wall_ms": 810.24,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3609667",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 152,
+    "completion_tokens": 50,
+    "prompt_ms": 138.91,
+    "predicted_ms": 689.42,
+    "wall_ms": 854.06,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3172724",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 45,
+    "prompt_ms": 123.71,
+    "predicted_ms": 618.75,
+    "wall_ms": 768.38,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3579522",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.96,
+    "predicted_ms": 619.75,
+    "wall_ms": 767.79,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "595366",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 141,
+    "completion_tokens": 47,
+    "prompt_ms": 139.09,
+    "predicted_ms": 647.95,
+    "wall_ms": 813.04,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1464242",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.33,
+    "predicted_ms": 618.69,
+    "wall_ms": 765.94,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5802763",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 125,
+    "completion_tokens": 47,
+    "prompt_ms": 131.06,
+    "predicted_ms": 648.11,
+    "wall_ms": 805.45,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3990933",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 122.01,
+    "predicted_ms": 632.84,
+    "wall_ms": 780.7,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5912329",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 45,
+    "prompt_ms": 132.58,
+    "predicted_ms": 618.06,
+    "wall_ms": 777.04,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5312652",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 96,
+    "completion_tokens": 45,
+    "prompt_ms": 120.73,
+    "predicted_ms": 618.61,
+    "wall_ms": 765.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2013041",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 138,
+    "completion_tokens": 44,
+    "prompt_ms": 131.2,
+    "predicted_ms": 604.21,
+    "wall_ms": 761.43,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "650598",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 45,
+    "prompt_ms": 124.25,
+    "predicted_ms": 620.9,
+    "wall_ms": 771.24,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "476899",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 129,
+    "completion_tokens": 48,
+    "prompt_ms": 132.56,
+    "predicted_ms": 661.04,
+    "wall_ms": 819.71,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5278096",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 136,
+    "completion_tokens": 45,
+    "prompt_ms": 132.05,
+    "predicted_ms": 618.96,
+    "wall_ms": 776.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3960521",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Kōji Suzuki",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 44,
+    "prompt_ms": 127.92,
+    "predicted_ms": 605.11,
+    "wall_ms": 759.09,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6129487",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 95,
+    "completion_tokens": 44,
+    "prompt_ms": 121.16,
+    "predicted_ms": 604.31,
+    "wall_ms": 751.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2671483",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Solomon Volkov",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 44,
+    "prompt_ms": 124.49,
+    "predicted_ms": 605.62,
+    "wall_ms": 755.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1829094",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 121.98,
+    "predicted_ms": 632.98,
+    "wall_ms": 781.09,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4845097",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 145,
+    "completion_tokens": 45,
+    "prompt_ms": 132.6,
+    "predicted_ms": 618.26,
+    "wall_ms": 776.7,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5126882",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 46,
+    "prompt_ms": 123.85,
+    "predicted_ms": 633.34,
+    "wall_ms": 782.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5940933",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 45,
+    "prompt_ms": 126.53,
+    "predicted_ms": 618.92,
+    "wall_ms": 771.29,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3752840",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 46,
+    "prompt_ms": 123.79,
+    "predicted_ms": 632.69,
+    "wall_ms": 782.89,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1345361",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.49,
+    "predicted_ms": 619.19,
+    "wall_ms": 766.56,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6290863",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 46,
+    "prompt_ms": 126.38,
+    "predicted_ms": 632.24,
+    "wall_ms": 784.56,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3064460",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 163,
+    "completion_tokens": 51,
+    "prompt_ms": 139.43,
+    "predicted_ms": 705.3,
+    "wall_ms": 870.71,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4516392",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 46,
+    "prompt_ms": 132.82,
+    "predicted_ms": 633.02,
+    "wall_ms": 792.3,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2939882",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 96,
+    "completion_tokens": 45,
+    "prompt_ms": 121.05,
+    "predicted_ms": 619.28,
+    "wall_ms": 766.41,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "612885",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 166,
+    "completion_tokens": 51,
+    "prompt_ms": 141.44,
+    "predicted_ms": 704.07,
+    "wall_ms": 871.54,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1477066",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 45,
+    "prompt_ms": 123.78,
+    "predicted_ms": 618.35,
+    "wall_ms": 767.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2998350",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 45,
+    "prompt_ms": 124.03,
+    "predicted_ms": 618.35,
+    "wall_ms": 768.18,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6529863",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 44,
+    "prompt_ms": 126.84,
+    "predicted_ms": 605.27,
+    "wall_ms": 758.23,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5281997",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 169,
+    "completion_tokens": 48,
+    "prompt_ms": 142.27,
+    "predicted_ms": 660.85,
+    "wall_ms": 828.83,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3608231",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 149,
+    "completion_tokens": 46,
+    "prompt_ms": 135.35,
+    "predicted_ms": 635.11,
+    "wall_ms": 797.2,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5780908",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 45,
+    "prompt_ms": 126.16,
+    "predicted_ms": 618.09,
+    "wall_ms": 769.94,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3041936",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 50,
+    "prompt_ms": 128.95,
+    "predicted_ms": 689.12,
+    "wall_ms": 844.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1641149",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 47,
+    "prompt_ms": 127.59,
+    "predicted_ms": 647.27,
+    "wall_ms": 800.8,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "609565",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 49,
+    "prompt_ms": 127.71,
+    "predicted_ms": 675.29,
+    "wall_ms": 829.09,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2740658",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 48,
+    "prompt_ms": 123.09,
+    "predicted_ms": 660.72,
+    "wall_ms": 809.83,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "141296",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 47,
+    "prompt_ms": 124.98,
+    "predicted_ms": 649.15,
+    "wall_ms": 800.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6521985",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Catholic Church",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 45,
+    "prompt_ms": 127.98,
+    "predicted_ms": 618.45,
+    "wall_ms": 772.55,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2627781",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 154,
+    "completion_tokens": 84,
+    "prompt_ms": 139.61,
+    "predicted_ms": 1170.89,
+    "wall_ms": 1337.54,
+    "calls": 2
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2171429",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 132,
+    "completion_tokens": 44,
+    "prompt_ms": 133.04,
+    "predicted_ms": 604.03,
+    "wall_ms": 762.96,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1860029",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.65,
+    "predicted_ms": 619.16,
+    "wall_ms": 766.94,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1746524",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 121.18,
+    "predicted_ms": 632.71,
+    "wall_ms": 779.4,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2955693",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.57,
+    "predicted_ms": 618.73,
+    "wall_ms": 765.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1868796",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 47,
+    "prompt_ms": 126.32,
+    "predicted_ms": 647.68,
+    "wall_ms": 800.12,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "169830",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Harold Ramis",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 45,
+    "prompt_ms": 124.28,
+    "predicted_ms": 618.64,
+    "wall_ms": 768.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2492953",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 47,
+    "prompt_ms": 125.58,
+    "predicted_ms": 646.26,
+    "wall_ms": 797.91,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3776549",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Leonard Carpenter",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 46,
+    "prompt_ms": 130.25,
+    "predicted_ms": 634.49,
+    "wall_ms": 790.63,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1033941",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 44,
+    "prompt_ms": 126.28,
+    "predicted_ms": 604.7,
+    "wall_ms": 757.06,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3282404",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 151,
+    "completion_tokens": 46,
+    "prompt_ms": 137.52,
+    "predicted_ms": 634.06,
+    "wall_ms": 797.41,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1194530",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "Yu Hyun-mok",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 48,
+    "prompt_ms": 130.44,
+    "predicted_ms": 661.83,
+    "wall_ms": 818.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1237046",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 45,
+    "prompt_ms": 125.13,
+    "predicted_ms": 618.01,
+    "wall_ms": 769.07,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "668681",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 46,
+    "prompt_ms": 134.6,
+    "predicted_ms": 634.23,
+    "wall_ms": 795.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1448611",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 47,
+    "prompt_ms": 122.51,
+    "predicted_ms": 646.06,
+    "wall_ms": 794.33,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1889250",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 148,
+    "completion_tokens": 48,
+    "prompt_ms": 138.29,
+    "predicted_ms": 661.61,
+    "wall_ms": 826.08,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4729881",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 131,
+    "completion_tokens": 45,
+    "prompt_ms": 130.83,
+    "predicted_ms": 620.7,
+    "wall_ms": 777.64,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4009276",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 47,
+    "prompt_ms": 137.1,
+    "predicted_ms": 647.33,
+    "wall_ms": 810.53,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6432170",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Manila",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 42,
+    "prompt_ms": 123.68,
+    "predicted_ms": 576.31,
+    "wall_ms": 726.28,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5788109",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 45,
+    "prompt_ms": 126.68,
+    "predicted_ms": 618.63,
+    "wall_ms": 771.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2776008",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 121.87,
+    "predicted_ms": 631.78,
+    "wall_ms": 779.75,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1137656",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 122.35,
+    "predicted_ms": 619.24,
+    "wall_ms": 767.28,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6389822",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Frank Borzage",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 44,
+    "prompt_ms": 125.06,
+    "predicted_ms": 603.59,
+    "wall_ms": 754.57,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1562438",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 45,
+    "prompt_ms": 123.71,
+    "predicted_ms": 618.45,
+    "wall_ms": 768.22,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5895957",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 122.06,
+    "predicted_ms": 619.14,
+    "wall_ms": 766.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "446779",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 51,
+    "prompt_ms": 128.94,
+    "predicted_ms": 702.98,
+    "wall_ms": 857.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5948582",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Charles Bukowski",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 44,
+    "prompt_ms": 126.72,
+    "predicted_ms": 605.25,
+    "wall_ms": 757.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2112028",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.24,
+    "predicted_ms": 618.17,
+    "wall_ms": 766.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1504171",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 45,
+    "prompt_ms": 123.7,
+    "predicted_ms": 618.18,
+    "wall_ms": 767.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2663081",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 47,
+    "prompt_ms": 128.83,
+    "predicted_ms": 647.85,
+    "wall_ms": 802.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "280271",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 48,
+    "prompt_ms": 140.4,
+    "predicted_ms": 661.47,
+    "wall_ms": 828.57,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3486328",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 142,
+    "completion_tokens": 48,
+    "prompt_ms": 134.36,
+    "predicted_ms": 660.94,
+    "wall_ms": 821.17,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6406481",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 51,
+    "prompt_ms": 128.75,
+    "predicted_ms": 703.76,
+    "wall_ms": 858.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2099338",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 143,
+    "completion_tokens": 51,
+    "prompt_ms": 135.48,
+    "predicted_ms": 703.4,
+    "wall_ms": 865.2,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5473227",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 129,
+    "completion_tokens": 47,
+    "prompt_ms": 131.05,
+    "predicted_ms": 648.35,
+    "wall_ms": 805.38,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6481967",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 139,
+    "completion_tokens": 45,
+    "prompt_ms": 132.27,
+    "predicted_ms": 618.65,
+    "wall_ms": 777.06,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2060311",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 46,
+    "prompt_ms": 123.64,
+    "predicted_ms": 632.6,
+    "wall_ms": 781.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1462306",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 47,
+    "prompt_ms": 129.48,
+    "predicted_ms": 647.27,
+    "wall_ms": 803.1,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3927118",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 151,
+    "completion_tokens": 46,
+    "prompt_ms": 136.57,
+    "predicted_ms": 633.5,
+    "wall_ms": 796.04,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4013695",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 46,
+    "prompt_ms": 132.39,
+    "predicted_ms": 632.94,
+    "wall_ms": 791.47,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6216050",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 122.1,
+    "predicted_ms": 619.54,
+    "wall_ms": 767.81,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3859284",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 47,
+    "prompt_ms": 126.33,
+    "predicted_ms": 646.61,
+    "wall_ms": 798.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5777642",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Thomas Schlamme",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 124.15,
+    "predicted_ms": 605.81,
+    "wall_ms": 756.43,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6284805",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Dino De Laurentiis",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 46,
+    "prompt_ms": 124.37,
+    "predicted_ms": 632.01,
+    "wall_ms": 782.27,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "156556",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 46,
+    "prompt_ms": 124.13,
+    "predicted_ms": 633.31,
+    "wall_ms": 783.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1380246",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 45,
+    "prompt_ms": 124.12,
+    "predicted_ms": 618.73,
+    "wall_ms": 769.29,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2966185",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "South Dakota",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 41,
+    "prompt_ms": 124.57,
+    "predicted_ms": 562.09,
+    "wall_ms": 712.46,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1740588",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 45,
+    "prompt_ms": 121.38,
+    "predicted_ms": 618.93,
+    "wall_ms": 766.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "2523660",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 48,
+    "prompt_ms": 129.45,
+    "predicted_ms": 662.3,
+    "wall_ms": 817.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6273807",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Darren Aronofsky",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 51,
+    "prompt_ms": 131.24,
+    "predicted_ms": 702.75,
+    "wall_ms": 860.12,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "534816",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 45,
+    "prompt_ms": 126.43,
+    "predicted_ms": 620.05,
+    "wall_ms": 772.52,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "441972",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 48,
+    "prompt_ms": 123.53,
+    "predicted_ms": 660.28,
+    "wall_ms": 809.32,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1164239",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 130,
+    "completion_tokens": 48,
+    "prompt_ms": 132.96,
+    "predicted_ms": 666.86,
+    "wall_ms": 826.02,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "800535",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Mexico",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "correct",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 44,
+    "prompt_ms": 127.89,
+    "predicted_ms": 599.7,
+    "wall_ms": 753.96,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3757863",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 123.76,
+    "predicted_ms": 605.25,
+    "wall_ms": 754.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1027847",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Association football",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 44,
+    "prompt_ms": 128.65,
+    "predicted_ms": 696.39,
+    "wall_ms": 851.21,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1468996",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 122.05,
+    "predicted_ms": 633.72,
+    "wall_ms": 782.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "220404",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 165,
+    "completion_tokens": 50,
+    "prompt_ms": 142.34,
+    "predicted_ms": 689.06,
+    "wall_ms": 857.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6256826",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 44,
+    "prompt_ms": 123.83,
+    "predicted_ms": 605.24,
+    "wall_ms": 755.14,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "4593802",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 45,
+    "prompt_ms": 123.61,
+    "predicted_ms": 618.84,
+    "wall_ms": 768.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3286642",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 153,
+    "completion_tokens": 47,
+    "prompt_ms": 136.77,
+    "predicted_ms": 646.68,
+    "wall_ms": 810.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "634658",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 48,
+    "prompt_ms": 130.03,
+    "predicted_ms": 663.71,
+    "wall_ms": 819.58,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3147463",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 47,
+    "prompt_ms": 127.56,
+    "predicted_ms": 647.84,
+    "wall_ms": 801.54,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "179252",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 141,
+    "completion_tokens": 46,
+    "prompt_ms": 133.14,
+    "predicted_ms": 634.92,
+    "wall_ms": 794.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1867834",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 45,
+    "prompt_ms": 122.83,
+    "predicted_ms": 618.56,
+    "wall_ms": 767.55,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1281428",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 161,
+    "completion_tokens": 48,
+    "prompt_ms": 141.76,
+    "predicted_ms": 661.28,
+    "wall_ms": 829.14,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "610662",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 47,
+    "prompt_ms": 122.1,
+    "predicted_ms": 647.53,
+    "wall_ms": 795.64,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "1944892",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 45,
+    "prompt_ms": 124.59,
+    "predicted_ms": 619.31,
+    "wall_ms": 769.9,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5782367",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 147,
+    "completion_tokens": 49,
+    "prompt_ms": 138.05,
+    "predicted_ms": 700.79,
+    "wall_ms": 865.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "5941833",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 46,
+    "prompt_ms": 136.66,
+    "predicted_ms": 635.08,
+    "wall_ms": 797.46,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "906463",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Ahmed Ahmed",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 43,
+    "prompt_ms": 124.2,
+    "predicted_ms": 589.9,
+    "wall_ms": 739.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "610176",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 161,
+    "completion_tokens": 48,
+    "prompt_ms": 142.17,
+    "predicted_ms": 661.2,
+    "wall_ms": 830.02,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "46385",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 147,
+    "completion_tokens": 46,
+    "prompt_ms": 135.63,
+    "predicted_ms": 632.95,
+    "wall_ms": 794.45,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3980533",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Lenny Abrahamson",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 44,
+    "prompt_ms": 124.27,
+    "predicted_ms": 604.85,
+    "wall_ms": 755.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "3930012",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Eric Schaeffer",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 47,
+    "prompt_ms": 130.14,
+    "predicted_ms": 647.71,
+    "wall_ms": 804.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "6474235",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Soap opera",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "outcome": "hallucinated",
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 45,
+    "prompt_ms": 125.46,
+    "predicted_ms": 618.88,
+    "wall_ms": 770.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  },
+  {
+   "id": "567939",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "I don't know.",
+   "exact": false,
+   "contains": false,
+   "abstained": true,
+   "hedge": false,
+   "outcome": "abstained",
+   "usage": {
+    "prompt_tokens": 159,
+    "completion_tokens": 46,
+    "prompt_ms": 139.05,
+    "predicted_ms": 632.3,
+    "wall_ms": 797.5,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null
+  }
+ ],
+ "summary": {
+  "pass1": {
+   "n": 200,
+   "acc": 0.03,
+   "exact": 0.02,
+   "hedge_rate": 0.0,
+   "acc_nohedge": 0.03,
+   "abstain": 0.845,
+   "outcomes": {
+    "correct": 0.03,
+    "abstained": 0.845,
+    "hallucinated": 0.125
+   },
+   "errors": 0,
+   "tainted": 0.0,
+   "lookup_rate": 1.0,
+   "retrieval_hit": null,
+   "per_answer": {
+    "prompt_tokens": 121.41,
+    "completion_tokens": 46.55,
+    "wall_ms": 797.2052499999998,
+    "calls": 2.005
+   }
+  }
+ },
+ "search": {
+  "rate_limited": 0,
+  "searches": 0
+ }
+}

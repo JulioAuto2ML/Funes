@@ -1,0 +1,18 @@
+2026-11-16T18:48:16 9b block finished; queue starts
+2026-11-16T18:48:16 start qwen3.5-4b-iq4_xs try 1
+2026-11-16T19:28:25 qwen3.5-4b-iq4_xs rc=0
+2026-11-16T19:28:25 start qwen3.5-2b-iq4_xs try 1
+2026-11-16T19:58:05 qwen3.5-2b-iq4_xs rc=0
+2026-11-16T19:58:05 start qwen3.5-0.8b-iq4_xs try 1
+2026-11-16T20:35:55 qwen3.5-0.8b-iq4_xs rc=0
+2026-11-16T20:35:55 start qwen3.5-27b-iq4_xs try 1
+2026-11-17T01:27:35 qwen3.5-27b-iq4_xs rc=0
+2026-11-17T01:27:35 start qwen3.5-9b-q8_0 try 1
+2026-11-17T02:47:18 qwen3.5-9b-q8_0 rc=0
+2026-11-17T02:47:18 start qwen3.5-4b-q8_0 try 1
+2026-11-17T03:40:42 qwen3.5-4b-q8_0 rc=0
+2026-11-17T03:40:42 start qwen3.5-2b-q8_0 try 1
+2026-11-17T04:09:59 qwen3.5-2b-q8_0 rc=0
+2026-11-17T04:09:59 start qwen3.5-0.8b-q8_0 try 1
+2026-11-17T04:22:28 qwen3.5-0.8b-q8_0 rc=0
+2026-11-17T04:22:28 QUEUE DONE

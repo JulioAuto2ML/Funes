@@ -1,0 +1,28 @@
+ko-swap: swap qwen27b -> qwen3.5-9b-iq4_xs (kv f16)
+  [stop]  qwen27b  (pid 2449209)
+  [skip]  qwen9b   not running
+ko-swap: qwen3.5-9b-iq4_xs healthy
+questions: 100 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/100 acc=0.350
+  -> popqa-stratified1u-n100-qwen3.5-9b-iq4_xs-pilot-closed-r0.json {'pass1': {'n': 100, 'acc': 0.35, 'exact': 0.35, 'hedge_rate': 0.0, 'acc_nohedge': 0.35, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.01, 'completion_tokens': 4.05, 'wall_ms': 151.08780000000002, 'calls': 1.0}}}
+store repeat 0 seed 0
+  store r0 pass1 100/100 acc=0.990
+  -> popqa-stratified1u-n100-qwen3.5-9b-iq4_xs-pilot-store-r0.json {'pass1': {'n': 100, 'acc': 0.99, 'exact': 0.98, 'hedge_rate': 0.0, 'acc_nohedge': 0.99, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 1.0, 'per_answer': {'prompt_tokens': 79.52, 'completion_tokens': 3.91, 'wall_ms': 163.89230000000003, 'calls': 1.0}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/100 acc=0.990
+  -> popqa-stratified1u-n100-qwen3.5-9b-iq4_xs-pilot-toolpluscontract-search_first-r0.json {'pass1': {'n': 100, 'acc': 0.99, 'exact': 0.99, 'hedge_rate': 0.0, 'acc_nohedge': 0.99, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 120.2, 'completion_tokens': 44.59, 'wall_ms': 1080.9197000000004, 'calls': 2.12}}}
+closed repeat 1 seed 1
+  closed r1 pass1 100/100 acc=0.350
+  -> popqa-stratified1u-n100-qwen3.5-9b-iq4_xs-pilot-closed-r1.json {'pass1': {'n': 100, 'acc': 0.35, 'exact': 0.35, 'hedge_rate': 0.0, 'acc_nohedge': 0.35, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.01, 'completion_tokens': 4.05, 'wall_ms': 138.9755, 'calls': 1.0}}}
+store repeat 1 seed 1
+  store r1 pass1 100/100 acc=0.990
+  -> popqa-stratified1u-n100-qwen3.5-9b-iq4_xs-pilot-store-r1.json {'pass1': {'n': 100, 'acc': 0.99, 'exact': 0.98, 'hedge_rate': 0.0, 'acc_nohedge': 0.99, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 1.0, 'per_answer': {'prompt_tokens': 79.52, 'completion_tokens': 3.91, 'wall_ms': 155.5647, 'calls': 1.0}}}
+tool+contract repeat 1 seed 1
+  tool+contract r1 pass1 100/100 acc=0.990
+  -> popqa-stratified1u-n100-qwen3.5-9b-iq4_xs-pilot-toolpluscontract-search_first-r1.json {'pass1': {'n': 100, 'acc': 0.99, 'exact': 0.99, 'hedge_rate': 0.0, 'acc_nohedge': 0.99, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 120.2, 'completion_tokens': 44.59, 'wall_ms': 1077.1995000000002, 'calls': 2.12}}}
+ko-swap: restore qwen27b
+  [start] qwen27b  port=8080  Qwen3.8-27B i1-IQ4_XS (13.5GB) — large reasoning (32K ctx, q4_0 KV, thinking off, mmproj on CPU)
+          pid=2451431 log=/home/julio/llama_logs/qwen27b.log
+ko-swap: qwen27b healthy

@@ -1,0 +1,11 @@
+serving Qwen3.8-9B-Q8_0.gguf (Q8_0) at http://yoda:8080
+closed repeat 0 seed 0
+  -> popqa-n20-qwen3.8-9b-q8-smoke-closed-r0.json {'pass1': {'n': 20, 'acc': 0.2, 'exact': 0.2, 'hedge_rate': 0.0, 'acc_nohedge': 0.2, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 21.5, 'completion_tokens': 4.1, 'wall_ms': 220.5, 'calls': 1.0}}}
+tool repeat 0 seed 0
+  -> popqa-n20-qwen3.8-9b-q8-smoke-tool-search_first-r0.json {'pass1': {'n': 20, 'acc': 1.0, 'exact': 0.8, 'hedge_rate': 0.15, 'acc_nohedge': 0.85, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.95, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 124.7, 'completion_tokens': 46.1, 'wall_ms': 1705.2675, 'calls': 1.95}}}
+tool+contract repeat 0 seed 0
+  -> popqa-n20-qwen3.8-9b-q8-smoke-toolpluscontract-search_first-r0.json {'pass1': {'n': 20, 'acc': 1.0, 'exact': 0.8, 'hedge_rate': 0.15, 'acc_nohedge': 0.85, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 113.65, 'completion_tokens': 48.3, 'wall_ms': 1778.5675000000003, 'calls': 2.05}}}
+web repeat 0 seed 0
+  -> popqa-n20-qwen3.8-9b-q8-smoke-web-search_first-r0.json {'pass1': {'n': 20, 'acc': 0.4, 'exact': 0.1, 'hedge_rate': 0.0, 'acc_nohedge': 0.4, 'abstain': 0.0, 'errors': 0, 'tainted': 0.8, 'lookup_rate': 0.8, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 862.0, 'completion_tokens': 44.25, 'wall_ms': 2257.013, 'calls': 1.8}}}
+web+cache repeat 0 seed 0
+  -> popqa-n20-qwen3.8-9b-q8-smoke-webpluscache-search_first-r0.json {'pass1': {'n': 20, 'acc': 0.4, 'exact': 0.2, 'hedge_rate': 0.0, 'acc_nohedge': 0.4, 'abstain': 0.0, 'errors': 0, 'tainted': 0.85, 'lookup_rate': 0.85, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 1063.2, 'completion_tokens': 71.15, 'wall_ms': 3330.0474999999997, 'calls': 2.75}}, 'pass2': {'n': 20, 'acc': 0.4, 'exact': 0.15, 'hedge_rate': 0.0, 'acc_nohedge': 0.4, 'abstain': 0.0, 'errors': 0, 'tainted': 0.85, 'lookup_rate': 0.85, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 1041.15, 'completion_tokens': 73.25, 'wall_ms': 3388.3935000000006, 'calls': 2.75}}}

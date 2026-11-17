@@ -1,0 +1,97 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-9b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-9B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/1000 acc=0.320
+  closed r0 pass1 200/1000 acc=0.325
+  closed r0 pass1 300/1000 acc=0.343
+  closed r0 pass1 400/1000 acc=0.343
+  closed r0 pass1 500/1000 acc=0.342
+  closed r0 pass1 600/1000 acc=0.345
+  closed r0 pass1 700/1000 acc=0.343
+  closed r0 pass1 800/1000 acc=0.346
+  closed r0 pass1 900/1000 acc=0.348
+  closed r0 pass1 1000/1000 acc=0.350
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-closed-r0.json {'pass1': {'n': 1000, 'acc': 0.35, 'exact': 0.335, 'hedge_rate': 0.0, 'acc_nohedge': 0.35, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.639, 'completion_tokens': 3.895, 'wall_ms': 141.53313, 'calls': 1.0}}}
+oracle repeat 0 seed 0
+  oracle r0 pass1 100/1000 acc=0.990
+  oracle r0 pass1 200/1000 acc=0.995
+  oracle r0 pass1 300/1000 acc=0.987
+  oracle r0 pass1 400/1000 acc=0.983
+  oracle r0 pass1 500/1000 acc=0.984
+  oracle r0 pass1 600/1000 acc=0.987
+  oracle r0 pass1 700/1000 acc=0.987
+  oracle r0 pass1 800/1000 acc=0.984
+  oracle r0 pass1 900/1000 acc=0.986
+  oracle r0 pass1 1000/1000 acc=0.987
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-oracle-r0.json {'pass1': {'n': 1000, 'acc': 0.987, 'exact': 0.986, 'hedge_rate': 0.0, 'acc_nohedge': 0.987, 'abstain': 0.002, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 37.37, 'completion_tokens': 4.089, 'wall_ms': 150.86217000000008, 'calls': 1.0}}}
+store repeat 0 seed 0
+  store r0 pass1 100/1000 acc=0.990
+  store r0 pass1 200/1000 acc=0.985
+  store r0 pass1 300/1000 acc=0.980
+  store r0 pass1 400/1000 acc=0.983
+  store r0 pass1 500/1000 acc=0.980
+  store r0 pass1 600/1000 acc=0.980
+  store r0 pass1 700/1000 acc=0.981
+  store r0 pass1 800/1000 acc=0.981
+  store r0 pass1 900/1000 acc=0.981
+  store r0 pass1 1000/1000 acc=0.980
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-store-r0.json {'pass1': {'n': 1000, 'acc': 0.98, 'exact': 0.979, 'hedge_rate': 0.0, 'acc_nohedge': 0.98, 'abstain': 0.002, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': 0.993, 'per_answer': {'prompt_tokens': 79.396, 'completion_tokens': 4.11, 'wall_ms': 165.60122000000013, 'calls': 1.0}}}
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.980
+  tool r0 pass1 200/1000 acc=0.980
+  tool r0 pass1 300/1000 acc=0.977
+  tool r0 pass1 400/1000 acc=0.978
+  tool r0 pass1 500/1000 acc=0.980
+  tool r0 pass1 600/1000 acc=0.978
+  tool r0 pass1 700/1000 acc=0.981
+  tool r0 pass1 800/1000 acc=0.984
+  tool r0 pass1 900/1000 acc=0.984
+  tool r0 pass1 1000/1000 acc=0.986
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-tool-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.986, 'exact': 0.983, 'hedge_rate': 0.0, 'acc_nohedge': 0.986, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.898, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 99.882, 'completion_tokens': 40.454, 'wall_ms': 973.1429100000006, 'calls': 1.898}}}
+tool+contract repeat 0 seed 0
+  tool+contract r0 pass1 100/1000 acc=0.990
+  tool+contract r0 pass1 200/1000 acc=0.990
+  tool+contract r0 pass1 300/1000 acc=0.987
+  tool+contract r0 pass1 400/1000 acc=0.985
+  tool+contract r0 pass1 500/1000 acc=0.986
+  tool+contract r0 pass1 600/1000 acc=0.985
+  tool+contract r0 pass1 700/1000 acc=0.987
+  tool+contract r0 pass1 800/1000 acc=0.989
+  tool+contract r0 pass1 900/1000 acc=0.989
+  tool+contract r0 pass1 1000/1000 acc=0.990
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-toolpluscontract-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.99, 'exact': 0.988, 'hedge_rate': 0.0, 'acc_nohedge': 0.99, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 115.383, 'completion_tokens': 44.86, 'wall_ms': 1080.3192400000007, 'calls': 2.102}}}
+web repeat 0 seed 0
+  web r0 pass1 100/1000 acc=0.660
+  web r0 pass1 200/1000 acc=0.655
+  web r0 pass1 300/1000 acc=0.647
+  web r0 pass1 400/1000 acc=0.620
+  web r0 pass1 500/1000 acc=0.624
+  web r0 pass1 600/1000 acc=0.633
+  web r0 pass1 700/1000 acc=0.634
+  web r0 pass1 800/1000 acc=0.637
+  web r0 pass1 900/1000 acc=0.643
+  web r0 pass1 1000/1000 acc=0.642
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-web-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.642, 'exact': 0.576, 'hedge_rate': 0.0, 'acc_nohedge': 0.642, 'abstain': 0.0, 'errors': 0, 'tainted': 0.686, 'searches_per_answer': 0.686, 'lookup_rate': 0.686, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 738.78, 'completion_tokens': 25.339, 'wall_ms': 1111.4646299999993, 'calls': 1.686}}}
+web+writeback repeat 0 seed 0
+  web+writeback r0 pass1 100/1000 acc=0.340
+  web+writeback r0 pass1 200/1000 acc=0.365
+  web+writeback r0 pass1 300/1000 acc=0.400
+  web+writeback r0 pass1 400/1000 acc=0.395
+  web+writeback r0 pass1 500/1000 acc=0.406
+  web+writeback r0 pass1 600/1000 acc=0.408
+  web+writeback r0 pass1 700/1000 acc=0.411
+  web+writeback r0 pass1 800/1000 acc=0.421
+  web+writeback r0 pass1 900/1000 acc=0.422
+  web+writeback r0 pass1 1000/1000 acc=0.423
+  web+writeback r0 pass2 100/1000 acc=0.450
+  web+writeback r0 pass2 200/1000 acc=0.470
+  web+writeback r0 pass2 300/1000 acc=0.467
+  web+writeback r0 pass2 400/1000 acc=0.455
+  web+writeback r0 pass2 500/1000 acc=0.458
+  web+writeback r0 pass2 600/1000 acc=0.455
+  web+writeback r0 pass2 700/1000 acc=0.459
+  web+writeback r0 pass2 800/1000 acc=0.465
+  web+writeback r0 pass2 900/1000 acc=0.463
+  web+writeback r0 pass2 1000/1000 acc=0.462
+  -> popqa-stratified1u-n1000-qwen3.5-9b-iq4_xs-webpluswriteback-search_first-r0.json {'pass1': {'n': 1000, 'acc': 0.423, 'exact': 0.392, 'hedge_rate': 0.0, 'acc_nohedge': 0.423, 'abstain': 0.001, 'errors': 0, 'tainted': 0.811, 'searches_per_answer': 0.181, 'lookup_rate': 0.892, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 368.652, 'completion_tokens': 35.293, 'wall_ms': 1046.32384, 'calls': 2.074}}, 'pass2': {'n': 1000, 'acc': 0.462, 'exact': 0.429, 'hedge_rate': 0.0, 'acc_nohedge': 0.462, 'abstain': 0.0, 'errors': 0, 'tainted': 0.858, 'searches_per_answer': 0.081, 'lookup_rate': 0.892, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 260.983, 'completion_tokens': 32.248, 'wall_ms': 903.7539199999999, 'calls': 1.973}}}
+main exit 0
