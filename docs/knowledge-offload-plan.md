@@ -601,6 +601,7 @@ confirms them or not; anything found later is labelled exploratory.
   bit-reproducible across batch sizes, and the memory plan already saw two
   runs disagree. Report the spread.
 - **Multiple comparisons**: Holm correction across the confirmatory family H1–H5, H7; H6 and H8 are exploratory and outside it (2026-11-16).
+- 2026-11-17 post-E1 design decisions (D11–D15) are in `benchmarks/knowledge-offload/NOTEBOOK.md`: H5 rewritten as a default-prompt contrast (a: equivalence where lookup ≥ .8; b: hallucination two-sided), H8 needs default-prompt `tool` cells at all sizes and both quants, Holm fixed at m = 6 (H1,H2,H3,H4,H5,H7), 27B Q8_0 is 28,595,763,104 B and does not fit 16 GB, extra cells = default-prompt tool + a `web+recall-empty` control at 9B.
 - **Confounds named, not hidden**: quantisation differing across sizes
   (measure one size at two quants), prompt template (fixed per family), the
   judge for any LLM-graded item (agreement with 100 hand labels reported).
