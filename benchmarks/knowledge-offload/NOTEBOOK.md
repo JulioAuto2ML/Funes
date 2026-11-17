@@ -21,7 +21,7 @@ needs, this "Now" block and the last three entries, nothing else.
 
 ## Now
 - **Step:** E1 main sweep **done** on official Qwen3.5 0.8/2/4/9/27B IQ4_XS (+ Q8_0 controls at 0.8/2/4/9B), 1 repeat, 1,000 unambiguous items, plus the `ablated` arm; results in `results/popqa-stratified1u-*` (d930b95). Pilot identity check passed (0 of 100 differ, 3 conditions). yoda is back on qwen27b, probes and guardian re-enabled (04:30, 2026-11-17).
-- **Not run yet:** `funes` rows (D1), `web` at 2B/4B, `web+writeback` at other sizes, GSM8K (H2), default-prompt `tool` cell (H5/H8), 27B Q8_0, E2/E3. **Invalid:** the 27B `web` cell (credit exhausted from question 446, see the 2026-11-17 entry): needs re-running on a funded Parallel account before any size comparison of `web`.
+- **Not run yet:** `funes` rows (D1), `web` at 2B/4B, `web+writeback` at other sizes, GSM8K (H2), default-prompt `tool` cell (H5/H8), 27B Q8_0, E2/E3. **Invalid:** the 27B `web` cell (credit exhausted from question 446, see the 2026-11-17 entry): needs re-running on a funded Parallel account before any size comparison of `web`. The harness now stops a cell on any failed search (exit 4, `ko/validity.py` flags INVALID cells; ed0ac4f).
 - **Next:** Opus 5.5 · high: H5/H8 reformulation on `results/E1_TABLE.md` and `results/HOLM_TABLE.md`; decide how H5 is aggregated over sizes (Holm needs one entry). julio: top up Parallel credit (the 27B `web` cell and any further web run depend on it).
 - **julio:** decide whether to run the `funes` rows (about 6 h) and GSM8K next.
 
