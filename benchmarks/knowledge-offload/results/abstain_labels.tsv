@@ -1,0 +1,51 @@
+file	id	condition	question	gold	prediction	regex	human
+popqa-stratified1u-ablated-n200-qwen3.5-27b-iq4_xs-store-abstain_ok-r0.json	5788109	store	Who was the producer of Final Destination?	Glen Morgan	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-store-abstain_ok-r0.json	6206193	store	What genre is Winter: Five Windows on the Season?	non-fiction | nonfiction | non fiction	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-toolpluscontract-abstain_ok-r0.json	446779	tool+contract	In what city was Youri Messen-Jaschin born?	Arosa | Arosa GR	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-tool-abstain_ok-r0.json	5802763	tool	In what country is Springwood High School?	United States of America | the United States of America | America	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-4b-q8_0-closed-abstain_ok-r0.json	46385	closed	Who is the author of The Zero Game?	Brad Meltzer	John Grisham	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-27b-iq4_xs-tool-abstain_ok-r0.json	4009276	tool	Who was the director of El Último perro?	Lucas Demare	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-4b-q8_0-tool-abstain_ok-r0.json	2060311	tool	What is the religion of Pir?	Islam | Islamic religion | Mohammedanism	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-closed-abstain_ok-r0.json	5265423	closed	Who was the screenwriter for Ned?	Abe Forsythe	John August	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-iq4_xs-closed-abstain_ok-r0.json	3362656	closed	What genre is Apollo?	rhythm and blues | R&B | RnB	Drama	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-closed-abstain_ok-r0.json	634658	closed	Who was the screenwriter for The Best of Times?	Ron Shelton | Ronald Wayne Shelton	Robert Towne	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-27b-iq4_xs-store-abstain_ok-r0.json	6521985	store	What is the religion of François Gayot?	Catholic Church | Roman Catholic Church | Church	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-store-abstain_ok-r0.json	1164239	store	Who is the father of T. E. Lawrence?	Sir Thomas Chapman, 7th Baronet | Thomas Chapman	Father	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-toolpluscontract-abstain_ok-r0.json	5984168	tool+contract	Who is the father of Thomas Savage, 3rd Earl Rivers?	John Savage, 2nd Earl Rivers	William de Mandeville, 3rd Earl of Essex.	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-closed-abstain_ok-r0.json	1345361	closed	Who was the producer of Temper?	Ganesh Babu | Bandla Ganesh	John Carpenter	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-q8_0-closed-abstain_ok-r0.json	2671483	closed	Who was the composer of Testimony?	Dmitri Shostakovich | Shostakovich | Shosty	John Williams	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-q8_0-toolpluscontract-abstain_ok-r0.json	2532884	tool+contract	Who was the screenwriter for The Plumber?	Peter Weir | Peter Lindsay Weir	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-q8_0-toolpluscontract-abstain_ok-r0.json	2939882	tool+contract	What genre is Tuff?	glam metal | hair metal | pop metal	Pop	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-store-abstain_ok-r0.json	1448611	store	In what country is Sutlepa?	Estonia | Republic of Estonia | Estland	Poland	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-toolpluscontract-abstain_ok-r0.json	4750097	tool+contract	Who was the composer of Arthur?	Burt Bacharach | Burt F. Bacharach | Burt Freeman Bacharach	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-closed-abstain_ok-r0.json	441972	closed	What genre is Raphael Saadiq?	soul music | soul | Soul	Actor	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-toolpluscontract-abstain_ok-r0.json	2189871	tool+contract	Who was the director of Barabbas?	Roger Young	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-4b-q8_0-tool-abstain_ok-r0.json	297952	tool	What is the capital of Illinois?	Springfield | Springfield, Illinois | Springfield, IL	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-27b-iq4_xs-store-abstain_ok-r0.json	1482020	store	Who was the director of Iron Man?	Jon Favreau | Jonathan Favreau | Jonathan Kolia Favreau	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-q8_0-store-abstain_ok-r0.json	5940933	store	What genre is The Marriage?	sitcom | situational comedy | situation comedy	I don't know	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-iq4_xs-store-abstain_ok-r0.json	4729881	store	What sport does John Parsons play?	association football | football | soccer	polo	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-store-abstain_ok-r0.json	4729881	store	What sport does John Parsons play?	association football | football | soccer	Polo	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-tool-abstain_ok-r0.json	609565	tool	What is Frits Castricum's occupation?	politician | journalist | journo	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-iq4_xs-tool-abstain_ok-r0.json	1380246	tool	Who was the composer of Sometime?	Rudolf Friml | Charles Rudolf Friml	The composer of Sometime is John Cage.	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-9b-q8_0-tool-abstain_ok-r0.json	1477066	tool	Who was the producer of Hurt?	Linda Perry	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-closed-abstain_ok-r0.json	1889250	closed	What is the capital of Pomorie Municipality?	Pomorie | Anchialos	Korčula	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-toolpluscontract-abstain_ok-r0.json	3147463	tool+contract	Who was the producer of 1977?	R. Sarathkumar | Sarath Kumar | Sarathkumar Ramanathan	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-toolpluscontract-abstain_ok-r0.json	169830	tool+contract	Who was the director of Overnight Delivery?	Jason Bloom	Harold Ramis	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-closed-abstain_ok-r0.json	6129487	closed	In what country is Elim?	United States of America | the United States of America | America	United Kingdom	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-iq4_xs-tool-abstain_ok-r0.json	1868796	tool	Who was the screenwriter for The Convent?	Manoel de Oliveira | Manoel Cândido Pinto de Oliveira	The Convent (1999) was written by John Carpenter and David Lynch.	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-0.8b-q8_0-store-abstain_ok-r0.json	1504171	store	What is Billy Joel's occupation?	singer-songwriter | composer | pianist	actor	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-store-abstain_ok-r0.json	476899	store	What is the religion of Kenneth Bevan?	Anglicanism | Anglicanism, Anglican Church	I don't know	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-closed-abstain_ok-r0.json	4593802	closed	What is Portland the capital of?	Multnomah County | Multnomah County, Oregon	Oregon	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-q8_0-store-abstain_ok-r0.json	1462306	store	Who was the producer of Some Like It Hot?	Billy Wilder | Samuel Wilder	George Archainbaud	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-toolpluscontract-abstain_ok-r0.json	280271	tool+contract	Who was the screenwriter for The Anderson Tapes?	Frank Pierson | Frank Romer Pierson | Frank R. Pierson	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-q8_0-closed-abstain_ok-r0.json	2672350	closed	Who was the screenwriter for The Butler?	Lee Daniels | Lee Louis Daniels | Danny Strong	Aaron Covington	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-store-abstain_ok-r0.json	1164239	store	Who is the father of T. E. Lawrence?	Sir Thomas Chapman, 7th Baronet | Thomas Chapman	I don't know	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-4b-iq4_xs-closed-abstain_ok-r0.json	3776549	closed	Who is the author of Conan the Valiant?	Roland J. Green | Roland James Green	Robert E. Howard	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-tool-abstain_ok-r0.json	5056791	tool	Who was the screenwriter for Friday?	Ice Cube | O'Shea Jackson	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-iq4_xs-tool-abstain_ok-r0.json	5973973	tool	In what country is Tholuvankadu?	India | Bharat | Hindustan	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-9b-q8_0-tool-abstain_ok-r0.json	691526	tool	What is the capital of Novgorod Republic?	Veliky Novgorod | Nowgorod-Weliki | Nowgorod	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-27b-iq4_xs-tool-abstain_ok-r0.json	2776008	tool	What is the capital of Lithuania?	Vilnius | Vilna | Wilno	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-27b-iq4_xs-tool-abstain_ok-r0.json	634658	tool	Who was the screenwriter for The Best of Times?	Ron Shelton | Ronald Wayne Shelton	I don't know.	abstained	abstained
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-closed-abstain_ok-r0.json	650598	closed	Who was the director of Marina?	Stijn Coninx	David Lynch	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-2b-q8_0-toolpluscontract-abstain_ok-r0.json	609565	tool+contract	What is Frits Castricum's occupation?	politician | journalist | journo	Frits Castricum was a Dutch footballer.	hallucinated	hallucinated
+popqa-stratified1u-ablated-n200-qwen3.5-4b-q8_0-store-abstain_ok-r0.json	3859284	store	Who was the producer of Maling Kutang?	Kinaryosih	I don't know.	abstained	abstained
