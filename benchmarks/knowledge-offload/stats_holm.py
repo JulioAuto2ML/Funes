@@ -104,7 +104,7 @@ def build(results: Path):
                 rows.append(("H5b", q, s, "hallucination contract vs tool (%d vs %d discordant of 200)" % (ao, bo), "%+.3f" % (ha.mean() - hb.mean()), p))
                 raw[("H5b", q, s)] = p
     out += ["## Raw p-values", "", "| test | quant | size | what | estimate | raw p |", "|---|---|---|---|---|---|"]
-    out += ["| %s | %s | %s | %s | %s | %s |" % (t, q, s, w, e, fmt(p)) for t, q, s, w, e, p in rows]
+    out += ["| %s | %s | %s | %s | %s | %s |" % (t, q, s, w, e, ("%.2g" % p) if t in ("H1b", "H5b") else fmt(p)) for t, q, s, w, e, p in rows]
 
     # Holm scenarios: H1 = max(H1a, H1b); H5 = the size choice shown (9B, 27B, 4B, 2B) for each quant
     out += ["", "## Holm (family H1, H2, H3, H4, H5, H7; m = 6; H2, H3, H4, H7 have no data, p = 1)", "",

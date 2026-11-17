@@ -8,7 +8,7 @@
 |---|---|---|---|---|---|
 | H1a | iq4_xs | - | store/closed slope ratio < 0.5 | 0.27 | <= 1e-04 (resolution) |
 | H1a | q8_0 | - | store/closed slope ratio < 0.5 | 0.21 | <= 1e-04 (resolution) |
-| H1b | iq4_xs | 0.8b vs 27b | 0.8B store > 27B closed (510 vs 20 discordant) | - | <= 1e-04 (resolution) |
+| H1b | iq4_xs | 0.8b vs 27b | 0.8B store > 27B closed (510 vs 20 discordant) | - | 2.6e-124 |
 | H5a | iq4_xs | 0.8b | contract - tool within +-0.02 (diff -0.004) | -0.004 | 0.0002 |
 | H5a | iq4_xs | 2b | contract - tool within +-0.02 (diff +0.143) | +0.143 | 1 |
 | H5a | iq4_xs | 4b | contract - tool within +-0.02 (diff +0.000) | +0.000 | <= 1e-04 (resolution) |
@@ -18,12 +18,12 @@
 | H5a | q8_0 | 2b | contract - tool within +-0.02 (diff +0.001) | +0.001 | <= 1e-04 (resolution) |
 | H5a | q8_0 | 4b | contract - tool within +-0.02 (diff +0.000) | +0.000 | <= 1e-04 (resolution) |
 | H5a | q8_0 | 9b | contract - tool within +-0.02 (diff +0.000) | +0.000 | <= 1e-04 (resolution) |
-| H5b | iq4_xs | 0.8b | hallucination contract vs tool (2 vs 13 discordant of 200) | -0.055 | 0.00739 |
+| H5b | iq4_xs | 0.8b | hallucination contract vs tool (2 vs 13 discordant of 200) | -0.055 | 0.0074 |
 | H5b | iq4_xs | 2b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
 | H5b | iq4_xs | 4b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
 | H5b | iq4_xs | 9b | hallucination contract vs tool (1 vs 1 discordant of 200) | +0.000 | 1 |
 | H5b | iq4_xs | 27b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
-| H5b | q8_0 | 0.8b | hallucination contract vs tool (0 vs 67 discordant of 200) | -0.335 | <= 1e-04 (resolution) |
+| H5b | q8_0 | 0.8b | hallucination contract vs tool (0 vs 67 discordant of 200) | -0.335 | 1.4e-20 |
 | H5b | q8_0 | 2b | hallucination contract vs tool (1 vs 0 discordant of 200) | +0.005 | 1 |
 | H5b | q8_0 | 4b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
 | H5b | q8_0 | 9b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
