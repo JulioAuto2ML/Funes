@@ -162,7 +162,7 @@ The experiments were designed, coded, run and analysed by a set of language-mode
 
 | role | model · effort | what it did on the branch | forbidden |
 |---|---|---|---|
-| coordinator (julio's main thread) | model-driven session Sonnet 5.5 (as reported by the coordinator on 2026-11-17, message to Opus; not recorded in a committed file) · `[TBD: effort, julio]` | assigns tasks, starts and stops sessions, launches GPU jobs in a window julio chooses, writes briefs, relays messages (e.g. the template read, the variants queue decision, entries headed "coordinator") | doing another role's task silently |
+| coordinator (julio's main thread) | model-driven session Sonnet 5.5 (as reported by the coordinator on 2026-11-17, message to Opus; not recorded in a committed file) · medium (effort stated by julio on 2026-11-17, in chat; not recorded in a committed file) | assigns tasks, starts and stops sessions, launches GPU jobs in a window julio chooses, writes briefs, relays messages (e.g. the template read, the variants queue decision, entries headed "coordinator") | doing another role's task silently |
 | design / audit | Opus 5.5 · high | pre-registrations, decisions D5–D16, the lineage error report, the audit of all sessions, the 9B variant design; **no code, no GPU** | code, models, yoda |
 | code and statistics | Sonnet 5.5 · medium | harness (`run.py`, `ko/`), `ko_swap.py`, `models.lock` gate, stats scripts, queue and verifier scripts, tests (hermetic, 141 passing at the variants commit) | touching yoda, taking a task assigned to another |
 | early review | Fable 5.1 · high | `DECISION_BRIEF.md` and decisions D1–D4 (entry 2026-11-15 "pre-E1 decisions") | code |
