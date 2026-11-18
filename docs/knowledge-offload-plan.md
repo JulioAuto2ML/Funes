@@ -554,6 +554,12 @@ memory. In scope as a line of work. Route, order and cost are still open and go
 to an Opus design (after the variants queue of 2026-11-17 night), with the
 ROCm/torch and hours checks above measured first.
 
+**Who and when (julio, 2026-11-17):** Sonnet reads the LMLM/Co-LMLM requirements
+and writes the test script (no GPU); the coordinator checks yoda's ROCm torch,
+disk and a separate environment (read-only) and runs the GPU test in a window
+julio chooses; Opus then chooses the route with julio. **Starts 2026-11-18, after
+midday**; the GPU part not before the variants queue has finished.
+
 ## Rules
 
 - **Provenance before GPU hours (added 2026-11-16 after the E0 lineage error,
