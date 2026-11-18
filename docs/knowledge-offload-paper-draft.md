@@ -361,4 +361,4 @@ Notation: "baseline" is the default `tool` cell of the same file (9B IQ4 0.001, 
 
 ---
 
-*Count at commit: 24 `[TBD` tags (one is the format example in the header, so 23 real), 3 `[OPEN` tags (status table, abstract, §5.10), 4 `[UNVERIFIED` tags; `grep -o '\[TBD' docs/knowledge-offload-paper-draft.md | wc -l`.*
+*Count after §4.7 (commit of 2026-11-17): 30 `[TBD` tags (one is the format example in the header), 5 `[OPEN`, 6 `[UNVERIFIED` (these include mentions in the status tables); recount with `grep -o '\[TBD' docs/knowledge-offload-paper-draft.md | wc -l`. First commit had 24 / 3 / 4.*
