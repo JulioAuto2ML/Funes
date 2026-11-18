@@ -28,7 +28,7 @@
 | H5b | q8_0 | 4b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
 | H5b | q8_0 | 9b | hallucination contract vs tool (0 vs 0 discordant of 200) | +0.000 | 1 |
 
-## Holm (family H1, H2, H3, H4, H5, H7; m = 6; H2, H3, H4, H7 have no data, p = 1)
+## Holm (family H1, H2, H3, H4, H5, H7; m = 6; H2 enters with its GSM8K p when the cells exist, else p = 1; H3, H4, H7 have no data, p = 1)
 
 H1 is IQ4_XS or Q8_0 as shown. H5 is shown per size and per sub-test, because the size aggregation was not pre-registered (a flag for Opus); the family always contains exactly one H5 entry.
 

@@ -25,6 +25,15 @@ sys.path.insert(0, str(HERE))
 import stats_e1 as E1                                                  # noqa: E402
 
 FAMILY = ["H1", "H2", "H3", "H4", "H5", "H7"]
+
+
+def h2_p(results: Path, quant: str) -> float:
+    """H2's entry (design, 2026-11-18): the one-sided p of D = s_s - 0.5 s_c <= 0 from stats_gsm8k.py, per quantisation.
+    1.0 while the GSM8K cells are missing (fewer than three sizes with both conditions) or when closed accuracy does not
+    rise with size (H2 not evaluable): the conservative entry the table carried before there was a GSM8K arm."""
+    import stats_gsm8k as G8
+    r = G8.h2(G8.load(Path(results)), quant)
+    return 1.0 if r is None or not r["evaluable"] else r["p"]
 MARGIN = 0.02
 
 
@@ -107,7 +116,7 @@ def build(results: Path):
     out += ["| %s | %s | %s | %s | %s | %s |" % (t, q, s, w, e, ("%.2g" % p) if t in ("H1b", "H5b") else fmt(p)) for t, q, s, w, e, p in rows]
 
     # Holm scenarios: H1 = max(H1a, H1b); H5 = the size choice shown (9B, 27B, 4B, 2B) for each quant
-    out += ["", "## Holm (family H1, H2, H3, H4, H5, H7; m = 6; H2, H3, H4, H7 have no data, p = 1)", "",
+    out += ["", "## Holm (family H1, H2, H3, H4, H5, H7; m = 6; H2 enters with its GSM8K p when the cells exist, else p = 1; H3, H4, H7 have no data, p = 1)", "",
             "H1 is IQ4_XS or Q8_0 as shown. H5 is shown per size and per sub-test, because the size aggregation was not pre-registered "
             "(a flag for Opus); the family always contains exactly one H5 entry.", "",
             "| H1 on | H5 test | H5 on | H1 raw | H1 Holm | H5 raw | H5 Holm |", "|---|---|---|---|---|---|---|"]
@@ -117,7 +126,7 @@ def build(results: Path):
             for s in E1.SIZES:
                 if (t, q, s) not in raw:
                     continue
-                fam = {"H1": h1, "H2": 1.0, "H3": 1.0, "H4": 1.0, "H5": raw[(t, q, s)], "H7": 1.0}
+                fam = {"H1": h1, "H2": h2_p(results, q), "H3": 1.0, "H4": 1.0, "H5": raw[(t, q, s)], "H7": 1.0}
                 adj = holm(fam)
                 out.append("| %s | %s | %s %s | %s | %s | %s | %s |" % (q, t, q, s, fmt(h1), fmt(adj["H1"]), fmt(raw[(t, q, s)]), fmt(adj["H5"])))
     out += ["", "Equivalence (H5a) is declared when the TOST p is below the Holm threshold; a p of 1 or near it means equivalence "
@@ -151,7 +160,7 @@ def default_prompt_section(results: Path, raw: dict) -> list:
         a = res["h5a_pooled"].get(q, {}).get("p")
         b = res["h5b_pooled"][q]["p_exact"]
         h5 = h5_default_entry(a, b)
-        adj = holm({"H1": h1, "H2": 1.0, "H3": 1.0, "H4": 1.0, "H5": h5, "H7": 1.0})
+        adj = holm({"H1": h1, "H2": h2_p(results, q), "H3": 1.0, "H4": 1.0, "H5": h5, "H7": 1.0})
         out.append("| %s | %s | %s | %.3g | %s | %s | %s | %s |" % (
             q, fmt(h1), "not testable (no eligible size)" if a is None else fmt(a), b, fmt(h5), fmt(adj["H1"]), fmt(adj["H5"]),
             "yes" if adj["H5"] < 0.05 else "no"))
