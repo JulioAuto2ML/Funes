@@ -547,6 +547,13 @@ transformers 4.49 runs on yoda's ROCm, how many hours E1b needs, and how many
 of the open E1 items (27B `web`, `funes` rows, E2/E3, GSM8K) are still wanted.
 Whoever coordinates asks julio at that point and writes the answer here.
 
+**Answered by julio, 2026-11-17:** he wants to run models with the knowledge
+removed; his reason: it is a different thing from what E1 does, and it is where
+he expects the gain from using models with more parameters that take less
+memory. In scope as a line of work. Route, order and cost are still open and go
+to an Opus design (after the variants queue of 2026-11-17 night), with the
+ROCm/torch and hours checks above measured first.
+
 ## Rules
 
 - **Provenance before GPU hours (added 2026-11-16 after the E0 lineage error,
