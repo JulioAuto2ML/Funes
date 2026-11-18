@@ -268,3 +268,11 @@ Total A+B+C+D 4.0-7.3 h; A alone is 0.7-1.5 h. Who: Sonnet writes code (no GPU);
 ## 2026-11-17 · paper draft corrections after the coordinator's answers · Opus 5.5 · high
 - §4.7: D17 removed (it was the coordinator's slip; last decision is D16); coordinator model recorded as Sonnet 5.5 (coordinator's statement), effort left `[TBD: effort, julio]`. §0.3 item 1 now says the cost range's high end was exceeded: `tool_free` 9B IQ4 1,160.4 s vs 973.9 s (coordinator, read-only, not analysed).
 - **Not done on purpose:** the first block's rates (tool_first .000, tool_describe .000, tool_free .732, baseline .001) are NOT written into the paper or the Appendix A branches; readings R1-R5 wait for 12 of 12 cells and `verify_variants.py`. For the record, the pre-written branch that the 9B result would point to is A.R4 (only `tool_free` moves lookup), but that is a reading of 3 of 12 cells, not a result.
+
+## 2026-11-18 (coordinator, Sonnet 5.5 · medium) — variants stages A and B verified
+
+- Queue `queue_variants.sh` finished 01:22 (log `results/queue_variants.log`): 4 blocks, all rc=0, 3.5 h before the 05:45 guard.
+- `verify_variants.py`: 12 of 12 cells ok (1000 answers, 0 errors, sha256-verified). sha256 of local copies equals yoda's (checked with diff).
+- `stats_variants.py` → `results/VARIANTS_TABLE.md`; committed 8976e87. Stages C (27B) and D (2B) not run.
+- yoda: 27B healthy on :8080 after the queue; Funes news 06:30 ran. NOT checked: open incidents from WhatsApp errors during the runs (probe at 08:00 sent 2 notices, content not read).
+- Lookup rates (not interpreted; R1–R5 apply to Opus's reading): 9B IQ4 .000/.732/.000, 9B Q8 .044/.763/.001, 4B IQ4 .811/.911/.977, 4B Q8 .480/.762/.602 (tool_first/tool_free/tool_describe). Handed to Opus for R1–R5, §5.3 and Appendix A.
