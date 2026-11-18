@@ -614,7 +614,7 @@ confirms them or not; anything found later is labelled exploratory.
 | H4 | Masking facts in pre-training improves the non-fact part: LMLM < Standard perplexity on non-fact tokens at equal size | paired difference per document, CI | E1b |
 | H5 | Reframed 2026-11-16 (E0: `tool/search_first` − `tool+contract` = +.002, p=.82). (a) Forcing costs no accuracy on answerable questions (equivalence ±2 pts). (b) On questions whose fact is absent from the store (`ablated`), forcing a lookup *changes* the hallucination rate — two-sided: reading the store may lower it, near-miss triples fed to a model that must now answer may raise it. (c) descriptive: under the default prompt the contract rescues a tool-skipping model (.977 vs .216), i.e. it is insurance against the prompt | McNemar, paired, per size; confirmatory = Mantel-Haenszel over sizes | E1 (`ablated` arm), E3 |
 | H6 | Demoted to **exploratory** 2026-11-16 (E0: `web+cache` pass 2 − `store` = −.403; the cache never formed, 4 `remember` per 1000). With harness write-back (below), pass-2 accuracy ≥ pass-1 − 2 pts and pass-2 web calls ≤ 10 % of pass 1; stale and wrong answers that persist are reported. Not "reaches `store`" | paired accuracy; call counts | E1, 9B only |
-| H8 | Exploratory: lookup propensity under the default prompt rises with size | rate vs log(params) | E1 |
+| H8 | Exploratory: lookup propensity under the default prompt rises with size (2026-11-18: not supported; non-monotone, and the 9B's value depends on wording: see the variants, `results/VARIANTS_TABLE.md`) | rate vs log(params) | E1 |
 | H7 | A model ≤ 8 GB VRAM with the store is within 5 points of the 27B on the Funes skill suite | difference, CI | E7 |
 
 ### Statistics
@@ -718,3 +718,4 @@ decoupling); not verified yet.
   Two venvs, not one.
 - How much of LMLM's 54.6M-triple DB fits in 15 GB of RAM, and is the
   subset loaded at inference the one PopQA needs?
+- 2026-11-18 variants stages A and B (12 of 12 cells): readings R1 and R4 hold, R2, R3, R5 do not (notebook, Opus entry of 2026-11-18). The 9B IQ4_XS looks up 0.732 when the short-answer sentence is removed (`tool_free`) and 0.000 under the other two wordings. Stages C (27B) and D (2B) not run: R3 and R5, their pre-registered triggers, did not fire.

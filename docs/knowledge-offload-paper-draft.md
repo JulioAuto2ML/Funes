@@ -21,7 +21,7 @@ Plan: `docs/knowledge-offload-plan.md` ("The paper"). Lab notebook: `benchmarks/
 | 4 | Methods: metrics, statistics, validity rules | drafted in full |
 | 5.1 | E1 headline: facts flatten the size curve (H1) | **drafted with measured numbers** |
 | 5.2 | What the store costs: reading capacity and retrieval | drafted with measured numbers |
-| 5.3 | When the model looks up on its own (H8, variants) | measured part drafted; **variants branch-written, blocked on the stage A/B queue** |
+| 5.3 | When the model looks up on its own (H8, variants) | drafted with the stage A/B variants (12 of 12 cells, 2026-11-18); R1 and R4 hold, R2, R3, R5 do not |
 | 5.4 | Forcing the lookup: the contract (H5) | drafted with measured numbers and the negative result |
 | 5.5 | Web as the store | drafted; 27B cell partial; **blocked on a search budget** for more cells |
 | 5.6 | Write-back (H6, exploratory) | drafted (negative) |
@@ -33,7 +33,7 @@ Plan: `docs/knowledge-offload-plan.md` ("The paper"). Lab notebook: `benchmarks/
 | 6 | Cost table (VRAM, latency, API cost, taint) | partly measurable now (wall time); VRAM/taint **not recorded** by the harness |
 | 7 | Limitations | drafted, written early on purpose |
 | 8 | Reproducibility | drafted in full |
-| App. A | Pre-written conclusions for the variants, one per reading | drafted (branches; all but one will be deleted) |
+| App. A | Pre-written conclusions for the variants, one per reading | two branches kept (A.R1, A.R4), the rest deleted and logged |
 
 ### 0.2 Placeholder count
 23 real `[TBD]`, 3 `[OPEN]`, 4 `[UNVERIFIED]` at the first commit; recount with grep, see the last line.
@@ -42,7 +42,7 @@ Plan: `docs/knowledge-offload-plan.md` ("The paper"). Lab notebook: `benchmarks/
 
 | # | measure | blocks | who | cost (measured / not measured) |
 |---|---|---|---|---|
-| 1 | Variants stages A+B (12 cells) → `VARIANTS_TABLE.md` | §5.3, App. A | coordinator runs in julio's window (queue is running tonight, ends ≤ 05:45); Opus reads | queue upper bound 4.9 h (notebook, Sonnet entry). **One assumption of that estimate already broke:** `tool_free` at 9B IQ4_XS took 1,160.4 s, above the 973.9 s `search_first` cell used as the high end of the per-cell range (coordinator's read-only measurement, 2026-11-17; not analysed here). Any cost range cited in the paper must say so; real total time `[TBD: from queue logs when 12 of 12 exist]` |
+| 1 | Variants stages A+B (12 cells) → `VARIANTS_TABLE.md` | §5.3, App. A | **done 2026-11-18**: queue finished 01:22 (coordinator's entry), 12 of 12 cells, `verify_variants.py` ok; Opus read | queue upper bound 4.9 h (notebook, Sonnet entry). **One assumption of that estimate already broke:** `tool_free` at 9B IQ4_XS took 1,160.4 s, above the 973.9 s `search_first` cell used as the high end of the per-cell range (coordinator's read-only measurement, 2026-11-17; not analysed here). Any cost range cited in the paper must say so; real total time: queue ended 01:22 (3.5 h before its guard); per-block times are in `results/queue_variants.log`, `[TBD: sum them; not read here]` |
 | 2 | Stage C (27B) / D (2B) only if rule R3 or R5 fires or julio asks | §5.3 | coordinator | 27B 2.3–2.6 h extrapolated from `wall_s` |
 | 3 | GSM8K arm (`closed`, `store`/`tool`, 5 sizes) | H2, §5.7 | Sonnet (code, stats), coordinator (GPU) | **not measured**; no estimate exists |
 | 4 | `funes` rows, one per size (D1) | the "deployed agent" claim, taint cost | coordinator; Sonnet for the stats | about 6 h (notebook, "julio: decide…" line; E0 measured 85 min per repeat at 9B) |
@@ -64,7 +64,7 @@ Only papers on the plan's alphaXiv-verified reading list (2026-11-14) are cited.
 
 ## Abstract
 
-Small language models answer long-tail factual questions badly, and bigger models answer them better mostly because they store more facts. We ask how much of a model is left for everything else if the facts live outside it. We run one model family (Qwen3.5, 0.8, 2, 4, 9 and 27B parameters, 4-bit quantised, with 8-bit controls up to 9B) on 1,000 unambiguous PopQA questions in a fixed harness, with the facts in the weights (`closed`), in the prompt (`oracle`, `store`), reachable by a tool the model may call, or on the web. Giving the model its facts cuts the accuracy-versus-size slope to 0.27 of the closed-book slope (95% CI 0.21 to 0.35), and the 0.8B model with a local store (0.921) beats the 27B model closed-book (0.431) by 0.490 points (CI 0.457 to 0.523). The tool route is harder: whether a model calls the lookup tool when the prompt only says "use the tools when they help" does not follow size (lookup rate at 0.8, 2, 4, 9, 27B: 0.000, 0.000, 0.875, 0.001, 0.887), and a harness contract that forces one lookup is what makes the small models usable (9B: 0.347 without, 0.991 with). We could not show that forcing the lookup costs no accuracy where the model already looks up (equivalence within two points not shown, pooled p = 0.135). `[TBD: one sentence on the wording sensitivity of the 9B skip, from VARIANTS_TABLE.md, under whichever branch of App. A survives]`. `[TBD: H2, GSM8K: whether the same store leaves the size gain on fact-free reasoning intact]`. `[TBD: H3/E2 and E3 results]`. `[TBD: H7: whether a model within 8 GB with the store is within five points of the 27B on a skill suite]`. `[OPEN: sentence on knowledge-removed models, only if the route is run and reported]`. The negative and exploratory results are reported as such.
+Small language models answer long-tail factual questions badly, and bigger models answer them better mostly because they store more facts. We ask how much of a model is left for everything else if the facts live outside it. We run one model family (Qwen3.5, 0.8, 2, 4, 9 and 27B parameters, 4-bit quantised, with 8-bit controls up to 9B) on 1,000 unambiguous PopQA questions in a fixed harness, with the facts in the weights (`closed`), in the prompt (`oracle`, `store`), reachable by a tool the model may call, or on the web. Giving the model its facts cuts the accuracy-versus-size slope to 0.27 of the closed-book slope (95% CI 0.21 to 0.35), and the 0.8B model with a local store (0.921) beats the 27B model closed-book (0.431) by 0.490 points (CI 0.457 to 0.523). The tool route is harder: whether a model calls the lookup tool when the prompt only says "use the tools when they help" does not follow size (lookup rate at 0.8, 2, 4, 9, 27B: 0.000, 0.000, 0.875, 0.001, 0.887), and a harness contract that forces one lookup is what makes the small models usable (9B: 0.347 without, 0.991 with). We could not show that forcing the lookup costs no accuracy where the model already looks up (equivalence within two points not shown, pooled p = 0.135). The 9B's skip is wording-dependent: removing the sentence that asks for a short answer takes its lookup rate from 0.001 to 0.732 (95% CI 0.704 to 0.759), while reordering the two sentences or describing the tool leaves it at 0.000 (one greedy run per cell, descriptive). `[TBD: H2, GSM8K: whether the same store leaves the size gain on fact-free reasoning intact]`. `[TBD: H3/E2 and E3 results]`. `[TBD: H7: whether a model within 8 GB with the store is within five points of the 27B on a skill suite]`. `[OPEN: sentence on knowledge-removed models, only if the route is run and reported]`. The negative and exploratory results are reported as such.
 
 ---
 
@@ -247,11 +247,47 @@ At the smallest size, giving the model the exact triple (`oracle` 0.972) is bett
 - Quantisation changes it: 4B IQ4_XS 0.875 versus Q8_0 0.574; of the 4B's shared lookups, 301 questions were looked up only by IQ4 and none only by Q8.
 - The chat template of the 0.8–9B files is byte-identical and the 27B differs by one character (§3.2), and the serving flags are identical across sizes; so the difference between 4B and 9B is not a template or flag difference. What remains is the weights and the prompt. **Not excluded:** the server's own tool-call parsing (same binary for all) and the one-character 27B template difference.
 
-**Pre-registered variants (stages A and B).** To test whether the 9B's skip is a property of the model or of one wording, three variants of the default prompt were fixed before any run (`NOTEBOOK.md`, entry "step 2 of the 9B plan", approved by julio and frozen): `tool_first` (order of the two sentences swapped), `tool_free` (the format sentence removed), `tool_describe` (the tool is described, not ordered). Stage A: 9B and 4B IQ4_XS. Stage B: 4B and 9B Q8_0. Stages C (27B) and D (2B) run only under rule R3/R5 or on julio's word.
+**Pre-registered variants (stages A and B).** To test whether the 9B's skip is a property of the checkpoint or of one wording, three variants of the default prompt were fixed before any run (`NOTEBOOK.md`, entry "step 2 of the 9B plan", approved by julio and frozen): `tool_first` (the two sentences in the other order), `tool_free` (the sentence asking for a short answer removed), `tool_describe` (the tool described, not ordered). Stage A: 9B and 4B IQ4_XS. Stage B: 4B and 9B Q8_0. Stages C (27B) and D (2B) were not run. Each cell is 1,000 questions, greedy, one repeat; intervals are question bootstraps; there are no p-values and the variants are outside the Holm family.
 
-`[TBD: VARIANTS_TABLE.md (not yet generated; `stats_variants.py` produces it): lookup rate per cell with CI, accuracy, accuracy by looked-up/not, completion tokens, empty answers, share at the token limit, paired agreement with the baseline cell]`
+*Source: `results/VARIANTS_TABLE.md` (sha256 `20aa71c57cc848d707dd984891d74d5f875a23b423198c3a8a03a2746f49185d`), 12 of 12 cells, `verify_variants.py` exit 0 (notebook, 2026-11-18).*
 
-**What this subsection will say is written in App. A, one branch per pre-registered reading (R1 to R5, and "none"), written before the table exists. One branch will be kept; the rest deleted, and each deletion logged in the notebook.**
+| lookup rate [95% CI] | default (baseline) | `tool_first` | `tool_free` | `tool_describe` |
+|---|---|---|---|---|
+| 9B IQ4_XS | 0.001 | 0.000 [0.000, 0.000] | **0.732** [0.704, 0.759] | 0.000 [0.000, 0.000] |
+| 9B Q8_0 | 0.004 | 0.044 [0.032, 0.057] | **0.763** [0.737, 0.789] | 0.001 [0.000, 0.003] |
+| 4B IQ4_XS | 0.875 | 0.811 [0.787, 0.835] | 0.911 [0.893, 0.929] | 0.977 [0.967, 0.986] |
+| 4B Q8_0 | 0.574 | 0.480 [0.449, 0.510] | 0.762 [0.735, 0.788] | 0.602 [0.572, 0.632] |
+
+| `contains` accuracy [95% CI] | default | `tool_first` | `tool_free` | `tool_describe` |
+|---|---|---|---|---|
+| 9B IQ4_XS | 0.347 | 0.335 [0.306, 0.364] | 0.933 [0.917, 0.948] | 0.345 [0.316, 0.374] |
+| 9B Q8_0 | 0.350 | 0.377 [0.347, 0.407] | 0.913 [0.895, 0.930] | 0.342 [0.313, 0.371] |
+| 4B IQ4_XS | 0.975 | 0.945 [0.931, 0.959] | 0.985 [0.977, 0.992] | 0.984 [0.976, 0.991] |
+| 4B Q8_0 | 0.791 | 0.719 [0.691, 0.747] | 0.924 [0.907, 0.940] | 0.826 [0.802, 0.849] |
+
+(Baselines are the committed default cells, `H5H8_TABLE.md`, not re-run; the accuracy baselines are those quoted in the coordinator's notebook entry of 2026-11-17.)
+
+**The pre-registered readings, applied as written (notebook, "step 2 of the 9B plan", copied at the foot of `VARIANTS_TABLE.md`).**
+
+| reading | condition as fixed | holds? | on which cells |
+|---|---|---|---|
+| R1 | a variant takes 9B IQ4 lookup to ≥ 0.5 | **holds** | `tool_free` 0.732 (CI lower bound 0.704) |
+| R2 | 9B ≤ 0.05 under all three **and** 4B IQ4 ≥ 0.5 under all three | **does not hold** | the 4B part holds (min 0.811); the 9B part fails: `tool_free` 0.732 |
+| R3 | 4B IQ4 falls below 0.5 under some variant | **does not hold** | 4B IQ4 minimum is 0.811 (`tool_first`) |
+| R4 | `tool_free` moves lookup and the others do not | **holds**, read on 9B IQ4 | `tool_free` 0.732; `tool_first` 0.000, `tool_describe` 0.000, baseline 0.001 |
+| R5 | nothing moves the 9B but `search_first` does | **does not hold** | `tool_free` moves it |
+
+Two judgments, stated so they can be disputed. (i) **R3 is read as written: 4B IQ4_XS.** The 4B Q8_0 cell under `tool_first` is 0.480 (CI [0.449, 0.510]), below 0.5, but that is a different checkpoint (Q8_0, baseline 0.574); R3 names IQ4_XS and was fixed with that scope, so it is not extended. The Q8_0 number is reported in the table, not turned into a reading. (ii) **R1 and R4 hold together** (both say the 9B's skip depends on wording; R4 adds that, among the three, only `tool_free` moves it). R4 is read on 9B IQ4_XS, the cell the variants were designed for. Read cell by cell, "moves" (the CI excludes the baseline) is also true for 9B Q8_0 `tool_first` (0.004 → 0.044) and for the 4B `tool_first` and `tool_describe`; those are small or in the other direction (the 4B IQ4_XS falls to 0.811 under `tool_first`, rises to 0.977 under `tool_describe`), and none reverses the 4B's behaviour.
+
+**What the table says, and no more.**
+- The 9B's skip is not one fixed property of the checkpoint: with the format sentence removed it looks up on 0.732 (IQ4_XS) and 0.763 (Q8_0) of the questions. "The default prompt" is therefore a wording, and H8 is reported as a range over four wordings of the 9B (0.000 to 0.732 at IQ4_XS). We make **no statement about size**.
+- Of the three variants, only the one that removes the format sentence moves the 9B; ordering the sentences differently and describing the tool do not (IQ4_XS 0.000 and 0.000; Q8_0 0.044 and 0.001). This is a pattern among the three wordings run, in two quantisations of one model. We do not claim why: one intervention (deleting a sentence) is the only one that works, and we did not test other deletions or other wordings.
+- `search_first` still looks up more on the 9B IQ4_XS (0.898, `E1_TABLE.md`) than any of the three variants (point estimates; the intervals were not compared).
+- In all eight 4B cells (four wordings, two quantisations) the lookup rate is 0.480 or more, and at IQ4_XS 0.811 or more. The 4B's quantisation gap holds under every wording shown (IQ4_XS above Q8_0: 0.875 vs 0.574, 0.811 vs 0.480, 0.911 vs 0.762, 0.977 vs 0.602; the CIs do not overlap at any of the four). This is a **post-hoc description**: the draft of 2026-11-17 proposed two quantisation readings (A.Q1/A.Q2) that were never copied into the notebook before the data, and so they are dropped as readings (App. A).
+- **`tool_free` accuracy is not comparable with the other cells'.** Without the short-answer sentence the answers are sentences: mean 50.6 completion tokens against 3.9 (9B IQ4_XS), and in the 268 answers without a lookup the mean is 25.3 words, exact-match is 0 and `contains` is 204 (0.761). `contains` rewards a longer answer that mentions the gold string, and we did not measure how often that happens by chance. In those 268, 142 fall in popularity bucket 1e5 (the most popular; 136 of the 142 contain the gold string), against 194 questions in that bucket overall: the model skips what it is likely to know, as in the 4B and the 27B above, but the 0.761 is not an estimate of what the 9B knows closed-book (0.350). What the cell does support is the lookup rate (0.732) and, among the 732 looked-up answers, 729 contain the gold string (0.996; exact 0 here too).
+- Share of answers at the 128-token proxy limit is 0.000 to 0.012 in every cell (`VARIANTS_TABLE.md`), so truncation does not drive these rates; the proxy sums the completion tokens of all calls in an answer and so is imprecise.
+
+**Not shown.** Any mechanism; any wording other than these three and `search_first`; any family other than Qwen3.5; sizes 0.8B, 2B and 27B under the variants (not run); anything about models with knowledge removed.
 
 ### 5.4 Forcing the lookup: the contract (H5)
 
@@ -323,42 +359,22 @@ Written early on purpose; each is a thing a reader should discount.
 
 ---
 
-## Appendix A. Pre-written conclusions for the variants (written 2026-11-17, before any variant result exists)
+## Appendix A. Conclusions pre-written for the variants (written 2026-11-17, before any variant result existed; kept and deleted on 2026-11-18)
 
-*Purpose: so that the text cannot be bent to the result. Each branch is the text this paper will carry if the corresponding pre-registered reading of the notebook holds. The readings are R1–R5 as fixed in `NOTEBOOK.md` ("step 2 of the 9B plan"); they are reading aids with intervals, not tests, and outside Holm. When `VARIANTS_TABLE.md` exists, exactly one branch is kept; the rest are deleted and the deletion is logged in the notebook, naming the reading, the cells that decided it and the numbers. A result that fits none of them is reported as "none of the pre-registered readings" with the table, not forced into one.*
+*Purpose: so that the text cannot be bent to the result. The readings are R1–R5 as fixed in `NOTEBOOK.md` ("step 2 of the 9B plan"); reading aids with intervals, not tests, outside Holm. `VARIANTS_TABLE.md` (sha256 `20aa71c5…`) was then read; §5.3 applies each reading as written. The two branches whose condition holds (A.R1 and A.R4, which are compatible) are kept below with the numbers filled in; the other branches are deleted and each deletion is logged in `NOTEBOOK.md` (entry of 2026-11-18, Opus) with the cells that decided it.*
 
-Notation: "baseline" is the default `tool` cell of the same file (9B IQ4 0.001, 4B IQ4 0.875, 4B Q8 0.574, 9B Q8 0.004). "Moves" means the lookup rate's 95% CI does not include the baseline rate. `[X]` is a number to be read from `VARIANTS_TABLE.md`.
+**A.R1 — a variant takes the 9B IQ4_XS lookup to ≥ 0.5. (Holds: `tool_free`, 0.732 [0.704, 0.759].)**
+> "The 9B's lookup skip is a property of one wording, not of the checkpoint: under `tool_free` it looked up 0.732 of questions (95% CI 0.704 to 0.759), against 0.001 under the default prompt. The default prompt therefore is not one prompt but a family, and the lookup propensity of a model under 'the default prompt' is a range over wordings. We report H8 as a range over four wordings (the default and the three variants) and make no statement about size."
+→ §5.3 reports the range; the abstract carries one sentence on it.
 
-**A.R1 — any variant takes the 9B IQ4_XS lookup to ≥ 0.5.**
-> "The 9B's lookup skip is a property of one wording, not of the checkpoint: under `[variant]` it looked up `[X]` of questions (95% CI `[…]`), against 0.001 under the default prompt. The default prompt therefore is not one prompt but a family, and the lookup propensity of a model under 'the default prompt' is a range over wordings. We report H8 as a range over four wordings (the default and the three variants) and **make no statement about size**. The contract's effect on the 9B in §5.4 is the effect of replacing a fragile wording with a guarantee."
-→ §5.3 H8 paragraph is rewritten as a range; §5.4 "what it means" gains the second sentence; the abstract's H8 sentence changes.
+**A.R4 — only `tool_free` moves lookup (read on 9B IQ4_XS). (Holds: `tool_free` 0.732; `tool_first` 0.000; `tool_describe` 0.000; baseline 0.001.)**
+> "Of three changes to the default prompt, only removing the short-answer sentence moved the 9B IQ4_XS (to 0.732); reordering the sentences and describing the tool did not (0.000, 0.000). The same pattern holds for the 9B Q8_0 (0.763; 0.044; 0.001). Whether the sentence suppresses the lookup by itself, or in some interaction with the rest of the prompt, was not tested; neither was whether `search_first` works because it replaces that sentence `[UNVERIFIED: not tested]`. Answers under `tool_free` are sentences (mean 50.6 completion tokens against 3.9), so `contains` accuracy under it is not comparable with the other cells (exact-match is 0 there); the share of answers at the 128-token proxy limit is 0.012 or less in every cell."
+→ the paper does not state a mechanism. (The pre-registered reading R4 says "the format sentence is the mechanism"; the paper words it more weakly than the notebook, because the three variants contain one deletion and no test of why it works. See the notebook entry of 2026-11-18.)
 
-**A.R2 — 9B ≤ 0.05 under all three variants, and 4B IQ4_XS ≥ 0.5 under all three.**
-> "The difference between the 4B and the 9B checkpoints in lookup behaviour survives three rewordings of the default prompt: the 9B looked up at most `[X]` under every variant, the 4B at least `[Y]`. We read this as a difference between these two checkpoints under this family of prompts. It is not a statement about size (the 27B behaves like the 4B, the 0.8B and 2B like the 9B), and it is not a statement about all prompts: `search_first` makes the 9B look up 0.898."
-→ H8 stays non-monotone and gains "robust to three wordings".
-
-**A.R3 — the 4B IQ4_XS lookup falls below 0.5 under some variant.**
-> "The 4B's willingness to look up is also wording-dependent: under `[variant]` it fell from 0.875 to `[X]`. The statement 'the 4B and the 27B look up and the 9B does not' holds for one wording only."
-→ the §5.3 sentence about the 4B and 27B is weakened; stage C (27B) is triggered for the same wording, per the pre-registered rule; §5.3's table gains the 27B variants if run.
-
-**A.R4 — only `tool_free` moves lookup.**
-> "The sentence 'reply with only the answer … no explanation' is what suppresses the lookup. Removing it moved the 9B IQ4_XS to `[X]`; reordering the sentences and describing the tool did not (`[Y]`, `[Z]`). `search_first` presumably works because it replaces that sentence with an instruction, `[UNVERIFIED: not tested]`. Answers under `tool_free` are longer; `contains` is used throughout, and `[N]` of `[M]` answers reached the token limit."
-→ the mechanism sentence is allowed in §5.3; the paper still does not claim why the sentence suppresses calls.
-
-**A.R5 — nothing moves the 9B, but `search_first` does.**
-> "The 9B needs an explicit instruction to look up first: description (`tool_describe`), order (`tool_first`) and removing the format sentence (`tool_free`) leave the lookup rate at `[X]`, `[Y]`, `[Z]`, while 'look it up first' gives 0.898. The model does not decide for itself that it should look up in this setup; which is also what the contract (§5.4) supplies from the harness side."
-→ §5.4's "what it means" is strengthened with this sentence; the discussion points to the contract as the portable fix.
-
-**A.Q (stage B, quantisation; written here, not in the notebook's R1–R5).** *These two readings are proposed in this draft on 2026-11-17 and are not part of the frozen notebook entry; they must be copied into the notebook before the table is read, or dropped.*
-- **A.Q1 — the IQ4 versus Q8_0 gap at 4B (0.875 vs 0.574) persists under each variant (its 95% CIs do not overlap at the same variant).** "The effect of quantisation on lookup propensity in the 4B is not specific to one wording: …"
-- **A.Q2 — the gap closes under some variant.** "The quantisation effect on the 4B's lookup rate depends on the wording: under `[variant]` the IQ4_XS and Q8_0 rates are `[X]` and `[Y]`. The quantisation sentence of §5.3 is limited to the default prompt."
-
-**A.None — the table fits none of R1–R5 (for example, 9B between 0.05 and 0.5 under some variants, or 4B moves under only one).**
-> "Under three rewordings the 9B's lookup rate was `[X]`, `[Y]`, `[Z]` and the 4B's `[…]`; none of the pre-registered readings applies. We report the rates and make no inference about mechanism."
-→ H8 stays as in §5.3; the abstract carries the measured range only.
+**Deleted, logged in the notebook:** A.R2 (9B part fails), A.R3 (4B IQ4_XS minimum 0.811), A.R5 (`tool_free` moves the 9B), A.None (R1 and R4 apply), and the proposed readings A.Q1/A.Q2 (never in the frozen notebook entry; the quantisation comparison is reported in §5.3 as post-hoc description, with the cells shown).
 
 **What none of the branches may say** (fixed in the notebook): any mechanism beyond the wording tested; any other wording, family or size not run; and anything about knowledge-removed models.
 
 ---
 
-*Count after §4.7 (commit of 2026-11-17): 30 `[TBD` tags (one is the format example in the header), 5 `[OPEN`, 6 `[UNVERIFIED` (these include mentions in the status tables); recount with `grep -o '\[TBD' docs/knowledge-offload-paper-draft.md | wc -l`. First commit had 24 / 3 / 4.*
+*Count after the variants (2026-11-18): 27 `[TBD` tags (one is the format example in the header), 5 `[OPEN`, 6 `[UNVERIFIED` (these include mentions in the status tables); recount with grep.*
