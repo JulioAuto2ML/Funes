@@ -353,7 +353,7 @@ Kill criterion (superseded 2026-11-16, see below): if `store` doesn't beat
   `tool+contract` (1 repeat after the identity check); `funes` one row (D1);
   `web` at 0.8B-or-smallest, 9B and 27B (Parallel quota); `web+writeback` at
   9B only (H6). GSM8K arm for H2: `closed` and `store`/tool with the same
-  distractor-only store, H2 = the `store` slope is *not* flattened (≥ ½ of `closed`).
+  distractor-only store, H2 = the `store` slope is *not* flattened (≥ ½ of `closed`). **Designed 2026-11-18 (notebook, "H2 / GSM8K arm: design for implementation")**: GSM8K test, n = 500 (seed 1), `closed` and `store` (the PopQA 14,267-triple store, k = 5) with one prompt, visible reasoning, `max_tokens` 512, `####` extraction; H2 confirmed if the CI lower bound of the slope ratio ≥ 0.5, refuted if its upper bound < 0.5; `tool` is exploratory.
 - **`ablated` arm (H5b, hallucination).** The first 200 sample questions again,
   with the question's own triple excluded from retrieval (one filter, no second
   store). Prompt variant `abstain_ok` ("if the facts do not contain the answer
