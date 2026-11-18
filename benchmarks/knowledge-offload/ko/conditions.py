@@ -30,7 +30,8 @@ SYSTEM_TOOL = SYSTEM + " Use the tools you are given when they help."
 # line above made the model answer from memory and skip the tools (6 lookups in
 # 1000 questions, 1 call/answer and no search in `web`): "reply with only the
 # answer" outweighed "use the tools". `search_first` says when to use them.
-VARIANTS = ["default", "search_first", "search_first2", "abstain_ok", "abstain_default"]
+VARIANTS = ["default", "search_first", "search_first2", "abstain_ok", "abstain_default",
+            "tool_first", "tool_free", "tool_describe"]
 _SF = {
     "search_first": (
         "You answer factual questions about specific people, places and works. Your memory of them "
@@ -50,10 +51,21 @@ ABSTAIN_PLAIN = (" If you do not know the answer and the facts given, if any, do
                  "reply exactly: I don't know.")
 ABSTAIN_TOOL = (" If the lookup returns nothing that answers the question and you do not know the "
                 "answer, reply exactly: I don't know.")
+# Three rewordings of the *default* tool prompt (Opus, notebook "step 2 of the 9B plan", approved by julio
+# 2026-11-17, texts frozen): does the 9B-skips / 4B-looks-up gap survive them? One change each, `tool` only.
+_DEFAULT_REWORDINGS = {
+    "tool_first": ("You answer factual questions. Use the tools you are given when they help. "
+                   "Reply with only the answer: a short phrase, with no explanation and no full sentence."),
+    "tool_free": "You answer factual questions. Use the tools you are given when they help.",
+    "tool_describe": ("You answer factual questions. You have a lookup tool that returns stored facts "
+                      "about an entity. Reply with only the answer: a short phrase, with no explanation "
+                      "and no full sentence."),
+}
 TOOL_CONDITIONS = ("tool", "tool+contract", "web", "web+cache", "web+writeback")
 VARIANT_APPLIES = {"default": (), "search_first": TOOL_CONDITIONS, "search_first2": TOOL_CONDITIONS,
                    "abstain_ok": ("closed", "store", "tool", "tool+contract"),
-                   "abstain_default": ("tool", "tool+contract")}
+                   "abstain_default": ("tool", "tool+contract"),
+                   **{v: ("tool",) for v in _DEFAULT_REWORDINGS}}
 ABLATED_CONDITIONS = ("closed", "store", "tool", "tool+contract")
 
 
@@ -91,6 +103,8 @@ def system_for(ctx, tool: str) -> str:
         return _SF["search_first"].format(tool=tool) + ABSTAIN_TOOL
     if v == "abstain_default":
         return SYSTEM_TOOL + ABSTAIN_TOOL
+    if v in _DEFAULT_REWORDINGS:
+        return _DEFAULT_REWORDINGS[v]
     return SYSTEM_TOOL if v == "default" else _SF[v].format(tool=tool)
 
 
