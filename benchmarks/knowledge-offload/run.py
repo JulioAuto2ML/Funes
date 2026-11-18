@@ -17,11 +17,15 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from ko import conditions as C, models, popqa, runner, stats, tools as T, validity  # noqa: E402
+from ko import conditions as C, gsm8k, models, popqa, runner, stats, tools as T, validity  # noqa: E402
 from ko.llm import Client, LLMError                                    # noqa: E402
 
 
 def cmd_fetch(a):
+    if a.task == "gsm8k":
+        p, commit = gsm8k.fetch(commit=a.commit)
+        print(f"{p} commit={commit} sha256={gsm8k.sha256(p)} problems={gsm8k.validate(p)}")
+        return
     p = popqa.fetch()
     print(f"{p} sha256={popqa.sha256(p)}")
 
@@ -54,7 +58,62 @@ def build_pool(a, all_items):
     return d, texts
 
 
+def cmd_gsm8k(a):
+    """H2's fact-free arm (ko/gsm8k.py): closed / store / tool on word problems, the PopQA store as the distractor."""
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    gpath = Path(a.gsm8k_data)
+    if not gpath.exists():
+        sys.exit(f"{gpath} missing: run `run.py fetch --task gsm8k`")
+    try:
+        ghash = gsm8k.check_pinned(gpath)
+    except ValueError as e:
+        sys.exit(str(e))
+    problems_all = gsm8k.load(gpath)
+    problems = gsm8k.pilot_sample(problems_all) if a.pilot else gsm8k.sample(problems_all, a.gsm8k_n, a.gsm8k_seed)
+    conds = a.conditions or list(gsm8k.H2_CONDITIONS)
+    bad = [c for c in conds if c not in gsm8k.CONDITIONS]
+    if bad:
+        sys.exit(f"GSM8K runs {', '.join(gsm8k.CONDITIONS)}, not {', '.join(bad)}")
+    data = Path(a.data)
+    if not data.exists():
+        sys.exit(f"{data} missing: run `run.py fetch` (the PopQA triples are the distractor store)")
+    all_items = popqa.load(data)
+    client = Client(a.llm_url, allow_local=a.allow_local)
+    try:
+        info = client.server_info()
+    except LLMError as e:
+        sys.exit(f"cannot reach {a.llm_url}: {e}")
+    try:
+        locked = models.verify(info["model_file"], models_dir=Path(a.models_dir), expect=a.expect,
+                               name_only=a.lock_name_only)
+    except models.ModelRefused as e:
+        sys.exit(f"{a.llm_url}: {e} Not running: a swap is a logged, undone step, never a side effect of a run.")
+    print(f"serving {locked['id']} [{locked['lineage']}] {info['model_file']} ({info['quant']}); "
+          f"{len(problems)} problems, max_tokens {a.max_tokens}{' (PILOT)' if a.pilot else ''}")
+    store = runner.build_store(all_items)
+    meta = {"dataset": "gsm8k-test", "dataset_sha256": ghash, "dataset_seed": a.gsm8k_seed,
+            "pilot": a.pilot, "model_tag": a.model_tag, "server": info,
+            "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
+            "git": runner.git_state(), "date": dt.date.today().isoformat(), "k": C.K, "max_steps": C.MAX_STEPS,
+            "temperature": 0.0, "store_size": len(store), "store": "popqa-all-triples (distractors only)"}
+    for rep in range(a.repeats):
+        for cond in conds:
+            path = gsm8k.cell_path(runner.RESULTS, a.model_tag, cond, rep, n=len(problems),
+                                   seed=gsm8k.PILOT_SEED if a.pilot else a.gsm8k_seed, pilot=a.pilot)
+            if path.exists() and not a.force:
+                print(f"skip {path.name} (exists)")
+                continue
+            ctx = C.Context(client=client, store=store, seed=a.seed + rep, notes=T.Notes())
+            ctx.max_tokens = a.max_tokens
+            print(f"{cond} repeat {rep} seed {ctx.seed}")
+            res = gsm8k.run_cell(cond=cond, problems=problems, ctx=ctx, rep=rep, meta=meta)
+            runner.write_cell(path, res)
+            print(f"  -> {path.name} {res['summary']}")
+
+
 def cmd_run(a):
+    if a.task == "gsm8k":
+        return cmd_gsm8k(a)
     # A killed run must still stop its scratch Funes and delete its scratch pool.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     data = Path(a.data)
@@ -310,8 +369,17 @@ def by_bucket(cells: dict) -> None:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("fetch").set_defaults(fn=cmd_fetch)
+    f = sub.add_parser("fetch")
+    f.add_argument("--task", choices=["popqa", "gsm8k"], default="popqa")
+    f.add_argument("--commit", default=None, help="gsm8k: commit of openai/grade-school-math (default: master now)")
+    f.set_defaults(fn=cmd_fetch)
     r = sub.add_parser("run")
+    r.add_argument("--task", choices=["popqa", "gsm8k"], default="popqa")
+    r.add_argument("--pilot", action="store_true", help="gsm8k: the 20 pilot problems, written to gsm8k-pilot-* files")
+    r.add_argument("--max-tokens", type=int, default=gsm8k.MAX_TOKENS, help="gsm8k: reply limit (512; 1024 only by the pilot rule)")
+    r.add_argument("--gsm8k-data", default=str(gsm8k.DEFAULT_PATH))
+    r.add_argument("--gsm8k-n", type=int, default=gsm8k.N)
+    r.add_argument("--gsm8k-seed", type=int, default=gsm8k.DATASET_SEED)
     r.add_argument("--model-tag", required=True, help="label in file names, e.g. qwen3.8-9b-q8")
     r.add_argument("--expect", default=None, metavar="LOCK_ID",
                    help="optional models.lock id the served model must be; the sha256 gate runs regardless")

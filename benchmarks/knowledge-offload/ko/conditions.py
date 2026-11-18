@@ -160,7 +160,7 @@ def store(ctx, item):
 
 
 def tool_loop(ctx: Context, item_question: str, schemas, executors, require=None,
-              system=SYSTEM_TOOL) -> Answer:
+              system=SYSTEM_TOOL, max_tokens=MAX_TOKENS) -> Answer:
     """The agent loop in miniature, with two of Funes's layers: the last step
     withholds tools (a forced written answer), and `require` is the completion
     contract — a text answer is refused until that tool has succeeded."""
@@ -169,7 +169,7 @@ def tool_loop(ctx: Context, item_question: str, schemas, executors, require=None
     for step in range(MAX_STEPS + 1):
         last = step == MAX_STEPS
         r: Reply = ctx.client.chat(msgs, tools=None if last else schemas,
-                                   seed=ctx.seed, max_tokens=MAX_TOKENS)
+                                   seed=ctx.seed, max_tokens=max_tokens)
         ans.usage.add(r.usage)
         ans.steps += 1
         if r.tool_calls and not last:
@@ -194,6 +194,7 @@ def tool_loop(ctx: Context, item_question: str, schemas, executors, require=None
             msgs.append({"role": "user", "content": NUDGE.format(tool=require)})
             continue
         ans.text = r.text
+        ans.extra["finish_reason"] = r.finish_reason
         return ans
     return ans
 

@@ -39,6 +39,7 @@ class Reply:
     tool_calls: list = field(default_factory=list)   # [{id, name, arguments(dict)}]
     usage: Usage = field(default_factory=Usage)
     raw_message: dict = field(default_factory=dict)
+    finish_reason: str = ""
 
 
 class Client:
@@ -111,4 +112,5 @@ class Client:
             calls.append({"id": tc.get("id", ""), "name": fn.get("name", ""),
                           "arguments": args if isinstance(args, dict) else {"_value": args}})
         return Reply(text=(msg.get("content") or "").strip(), tool_calls=calls,
-                     usage=usage, raw_message=msg)
+                     usage=usage, raw_message=msg,
+                     finish_reason=resp["choices"][0].get("finish_reason") or "")
