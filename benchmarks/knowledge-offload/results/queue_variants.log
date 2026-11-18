@@ -1,0 +1,9 @@
+2026-11-17T22:56:31 start qwen3.5-9b-iq4_xs try 1 (max 65 min)
+2026-11-17T23:22:15 qwen3.5-9b-iq4_xs rc=0
+2026-11-17T23:22:15 start qwen3.5-4b-iq4_xs try 1 (max 52 min)
+2026-11-18T00:01:43 qwen3.5-4b-iq4_xs rc=0
+2026-11-18T00:01:43 start qwen3.5-4b-q8_0 try 1 (max 70 min)
+2026-11-18T00:43:51 qwen3.5-4b-q8_0 rc=0
+2026-11-18T00:43:51 start qwen3.5-9b-q8_0 try 1 (max 105 min)
+2026-11-18T01:22:06 qwen3.5-9b-q8_0 rc=0
+2026-11-18T01:22:06 QUEUE DONE
