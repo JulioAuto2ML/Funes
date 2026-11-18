@@ -253,3 +253,9 @@ Total A+B+C+D 4.0-7.3 h; A alone is 0.7-1.5 h. Who: Sonnet writes code (no GPU);
 - **Unverified, not reported as fact:** the 119 W power cap (coordinator's message): no committed file states it; llama.cpp/ROCm build versions: not in any table.
 - **Citations:** re-found on alphaXiv by title today: 2505.15962, 2607.07707, 2607.00605, 2606.26807, 2404.11672, 2605.29075, 2603.17781, 2610.25425 (abstract line only). The rest of the plan's list is cited by title and id only; full read pending. 2507.18178 not cited.
 - **Left open:** items 1-14 in the draft's §0.3, with who and cost (or "not measured").
+
+## 2026-11-17 · paper draft §4.7: how the sessions worked · Opus 5.5 · high
+- Added §4.7 to `docs/knowledge-offload-paper-draft.md`: roles and models, the Rules of work, the channels (plan, notebook, result JSON with sha256, `models.lock`, queues and logs, `verify_*.py`), what is not shared, the failures with evidence, the limits, and a seven-step protocol. Sources: this notebook, `git log` (55 commits), the plan; nothing from memory.
+- **Counted:** 28 notebook entries (incl. this one's predecessor set), decisions **D1-D16**; **D17 is not on the branch** although the coordinator's message names it (flagged as `[TBD]`). Commit trailers: 46 Sonnet 5.5, 9 Opus 5.5, all with julio's git identity, so a role is attributable only from notebook headers (self-reported). The coordinator's own model/effort is in no committed file (flagged).
+- **Failures listed:** 3 errors touching numbers or GPU hours (lineage, ~6 of ~12 GPU h; circular abstain 50/50 withdrawn 26 min later; silently invalid 27B web), 4 stale/contradicted statements, 4 disclosed slips. The lineage error was caught by julio's question, not by the protocol; the draft says so.
+- **Not in the repository, so not citable:** cross-session messages and briefs. Left open: coordinator states its model/effort and whether D17 exists.
