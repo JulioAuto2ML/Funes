@@ -28,7 +28,7 @@ Plan: `docs/knowledge-offload-plan.md` ("The paper"). Lab notebook: `benchmarks/
 | 5.7 | Fact-free reasoning (H2) | placeholder, **blocked on GSM8K arm (not run)** |
 | 5.8 | Conflicts and edits (H3); knowing when to look up (E3) | placeholder, **blocked on E2/E3 (not run)** |
 | 5.9 | Does it fit a smaller model? (H7, E7) | placeholder, **blocked on the Funes skill suite (not built)** |
-| 4.7 | How the work was organised (sessions, rules, channels, failures, limits) | **drafted from the branch; one `[TBD]`** (coordinator's model/effort not in any file; D17 not on the branch) |
+| 4.7 | How the work was organised (sessions, rules, channels, failures, limits) | **drafted from the branch; one `[TBD]`** (the coordinator's effort level is not recorded) |
 | 5.10 | Models with knowledge removed (E1b/E5/E6, H4) | `[OPEN: depends on the route and its results]`; **no claim made** |
 | 6 | Cost table (VRAM, latency, API cost, taint) | partly measurable now (wall time); VRAM/taint **not recorded** by the harness |
 | 7 | Limitations | drafted, written early on purpose |
@@ -42,7 +42,7 @@ Plan: `docs/knowledge-offload-plan.md` ("The paper"). Lab notebook: `benchmarks/
 
 | # | measure | blocks | who | cost (measured / not measured) |
 |---|---|---|---|---|
-| 1 | Variants stages A+B (12 cells) → `VARIANTS_TABLE.md` | §5.3, App. A | coordinator runs in julio's window (queue is running tonight, ends ≤ 05:45); Opus reads | queue upper bound 4.9 h (notebook, Sonnet entry); real time not yet measured |
+| 1 | Variants stages A+B (12 cells) → `VARIANTS_TABLE.md` | §5.3, App. A | coordinator runs in julio's window (queue is running tonight, ends ≤ 05:45); Opus reads | queue upper bound 4.9 h (notebook, Sonnet entry). **One assumption of that estimate already broke:** `tool_free` at 9B IQ4_XS took 1,160.4 s, above the 973.9 s `search_first` cell used as the high end of the per-cell range (coordinator's read-only measurement, 2026-11-17; not analysed here). Any cost range cited in the paper must say so; real total time `[TBD: from queue logs when 12 of 12 exist]` |
 | 2 | Stage C (27B) / D (2B) only if rule R3 or R5 fires or julio asks | §5.3 | coordinator | 27B 2.3–2.6 h extrapolated from `wall_s` |
 | 3 | GSM8K arm (`closed`, `store`/`tool`, 5 sizes) | H2, §5.7 | Sonnet (code, stats), coordinator (GPU) | **not measured**; no estimate exists |
 | 4 | `funes` rows, one per size (D1) | the "deployed agent" claim, taint cost | coordinator; Sonnet for the stats | about 6 h (notebook, "julio: decide…" line; E0 measured 85 min per repeat at 9B) |
@@ -162,7 +162,7 @@ The experiments were designed, coded, run and analysed by a set of language-mode
 
 | role | model · effort | what it did on the branch | forbidden |
 |---|---|---|---|
-| coordinator (julio's main thread) | model-driven session `[TBD: model and effort of the coordinator are not recorded in any committed file; the coordinator or julio states them]` | assigns tasks, starts and stops sessions, launches GPU jobs in a window julio chooses, writes briefs, relays messages (e.g. the template read, the variants queue decision, entries headed "coordinator") | doing another role's task silently |
+| coordinator (julio's main thread) | model-driven session Sonnet 5.5 (as reported by the coordinator on 2026-11-17, message to Opus; not recorded in a committed file) · `[TBD: effort, julio]` | assigns tasks, starts and stops sessions, launches GPU jobs in a window julio chooses, writes briefs, relays messages (e.g. the template read, the variants queue decision, entries headed "coordinator") | doing another role's task silently |
 | design / audit | Opus 5.5 · high | pre-registrations, decisions D5–D16, the lineage error report, the audit of all sessions, the 9B variant design; **no code, no GPU** | code, models, yoda |
 | code and statistics | Sonnet 5.5 · medium | harness (`run.py`, `ko/`), `ko_swap.py`, `models.lock` gate, stats scripts, queue and verifier scripts, tests (hermetic, 141 passing at the variants commit) | touching yoda, taking a task assigned to another |
 | early review | Fable 5.1 · high | `DECISION_BRIEF.md` and decisions D1–D4 (entry 2026-11-15 "pre-E1 decisions") | code |
@@ -180,7 +180,7 @@ Why the split: the plan assigns the model to the part where an error is expensiv
 
 **Channels: what carried information between sessions, and what did not.**
 - **The plan** (`docs/knowledge-offload-plan.md`): hypotheses, experiments, rules; its commit date is the pre-registration. Edited by the design role and by a code session only "to record a result".
-- **The notebook**: a "Now" block (state, what is not run, what is invalid, pending decisions) and dated entries, each with a header *date · step · topic · role · model · effort*; 28 entries to 2026-11-17. Decisions carry identifiers **D1–D16** (D1–D4 Fable, D5–D8 and D9/D10 Opus, D11–D16 Opus after E1; D9 was superseded by D10 the same day and says so). The coordinator's instruction names a D17; **none exists on the branch** `[TBD: coordinator confirms whether D17 is unwritten]`. Code sessions end their entry with "Open for Opus"; the design role answers those items in its own entry (audit entry, "Answers to Sonnet's 'Open for Opus'"), which is how a question crossed from one session to another without a shared context.
+- **The notebook**: a "Now" block (state, what is not run, what is invalid, pending decisions) and dated entries, each with a header *date · step · topic · role · model · effort*; 28 entries to 2026-11-17. Decisions carry identifiers **D1–D16** (D1–D4 Fable, D5–D8 and D9/D10 Opus, D11–D16 Opus after E1; D9 was superseded by D10 the same day and says so; the last decision on the branch is D16, confirmed by the coordinator). Code sessions end their entry with "Open for Opus"; the design role answers those items in its own entry (audit entry, "Answers to Sonnet's 'Open for Opus'"), which is how a question crossed from one session to another without a shared context.
 - **Results as files**: one JSON per cell (`results/popqa-stratified1u-*.json`, 128 committed), recording model id, quantisation, commit, seed, date and endpoint; tables that list the **sha256 of every input file** (`H5H8_TABLE.md`, "Input files (sha256)"). Tables are regenerated by a script from the JSON, never typed.
 - **`models.lock`** (repo, file, size, sha256, quant, lineage per model) and the runner gate that refuses a served file whose hash is not in it (commit 3cd759b): the model's identity is a file, not a name.
 - **Queue scripts and logs** (`results/queue*.sh`, `queue*.log`, `ko_swap-*.log`): what was run, in which window, with which retries; scripts are resumable, take a `DEADLINE`, and have a `DRY=1` mode.
