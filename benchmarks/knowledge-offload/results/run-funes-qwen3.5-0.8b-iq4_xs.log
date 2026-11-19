@@ -1,0 +1,15 @@
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8080, verified by sha256
+funes: reusing pool popqa-14267-a5af9146a1
+funes repeat 0 seed 0
+  funes r0 pass1 100/1000 acc=0.680
+  funes r0 pass1 200/1000 acc=0.700
+  funes r0 pass1 300/1000 acc=0.687
+  funes r0 pass1 400/1000 acc=0.662
+  funes r0 pass1 500/1000 acc=0.662
+  funes r0 pass1 600/1000 acc=0.658
+  funes r0 pass1 700/1000 acc=0.653
+  funes r0 pass1 800/1000 acc=0.645
+  funes r0 pass1 900/1000 acc=0.644
+  funes r0 pass1 1000/1000 acc=0.636
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-funes-pool14267-r0.json {'pass1': {'n': 1000, 'acc': 0.636, 'exact': 0.003, 'hedge_rate': 0.0, 'acc_nohedge': 0.636, 'abstain': 0.008, 'errors': 4, 'tainted': 0.181, 'searches_per_answer': 0.18, 'lookup_rate': 0.281, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 0.0, 'completion_tokens': 0.0, 'wall_ms': 2333.4719900000023, 'calls': 1.0}}}

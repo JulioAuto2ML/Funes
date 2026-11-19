@@ -1,0 +1,8 @@
+ko-swap: swap qwen27b -> qwen3.5-2b-iq4_xs (kv f16)
+  [stop]  qwen27b  (pid 416926)
+  [skip]  qwen9b   not running
+ko-swap: qwen3.5-2b-iq4_xs healthy
+ko-swap: restore qwen27b
+  [start] qwen27b  port=8080  Qwen3.8-27B i1-IQ4_XS (13.5GB) — large reasoning (32K ctx, q4_0 KV, thinking off, mmproj on CPU)
+          pid=429464 log=/home/julio/llama_logs/qwen27b.log
+ko-swap: qwen27b healthy

@@ -365,3 +365,10 @@ Total A+B+C+D 4.0-7.3 h; A alone is 0.7-1.5 h. Who: Sonnet writes code (no GPU);
 - Block caps in the queue are ESTIMATED (design §9 rates x an assumed 250 tokens x 2); the pilot's measured completion tokens replace the assumption, and the caps are rewritten then, in a commit. The stage 3 sizes (IQ4_XS, five) are my choice, the design did not name them.
 - Not run: pilot, queue (the GPU is held by the `funes` queue until it ends; expected tomorrow early morning, not measured). Nothing in this entry reads a GSM8K result.
 - Next: when the funes queue ends: verify and commit its cells; run `bash results/pilot_gsm8k.sh` on yoda (about 10 min, estimated); read it (share at the limit on the 9B, mean tokens); fix `MAXTOK` and caps; launch `STAGES="1 2 3" MAXTOK=<..> bash results/queue_gsm8k.sh` with a guard.
+
+## 2026-11-19 — funes rows: queue finished, cells verified (measured)
+
+Queue `queue_funes.sh` ended 2026-11-18 21:20 (`QUEUE DONE`, rc=0 in all five blocks). Wall times from `queue_funes.log`: 9B 72 min, 4B 57, 2B 39, 0.8B 40, 27B 233 (started 17:27:12, ended 21:20:38; the 180-min cap I wrote was an estimate and was exceeded: `ko_swap --max-minutes` only refuses a start near a cron window, it does not kill the run, so the only hard stop was the 05:45 guard). 27B restored by ko_swap (`/v1/models` answers Qwen3.8-27B IQ4_XS, `funes` unit active); copied with tar over ssh, sha256 equal on both sides.
+Cells (1000 answers, 1000 distinct ids each), `contains`: 0.8B .636, 2B .715, 4B .967, 9B .931, 27B .985 (one repeat, D1). The 9B < 4B order is one repeat of one line: not read as a finding.
+Errors, all one kind, counted wrong: `LLM API error 400: request (8.2k-8.7k tokens) exceeds the available context`: 0.8B 4, 2B 11, 4B 0, 9B 1, 27B 1 = 17 of 5000 answers (0.34%). They never come out correct, so they lower the score; the 2B loses up to 1.1 pts. Real-system behaviour, reported as is; not re-run.
+The GPU sat idle from 21:20 to 09:19 (12 h, measured) because I was not at the keyboard to launch the next step.
