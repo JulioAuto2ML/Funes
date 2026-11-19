@@ -372,3 +372,11 @@ Queue `queue_funes.sh` ended 2026-11-18 21:20 (`QUEUE DONE`, rc=0 in all five bl
 Cells (1000 answers, 1000 distinct ids each), `contains`: 0.8B .636, 2B .715, 4B .967, 9B .931, 27B .985 (one repeat, D1). The 9B < 4B order is one repeat of one line: not read as a finding.
 Errors, all one kind, counted wrong: `LLM API error 400: request (8.2k-8.7k tokens) exceeds the available context`: 0.8B 4, 2B 11, 4B 0, 9B 1, 27B 1 = 17 of 5000 answers (0.34%). They never come out correct, so they lower the score; the 2B loses up to 1.1 pts. Real-system behaviour, reported as is; not re-run.
 The GPU sat idle from 21:20 to 09:19 (12 h, measured) because I was not at the keyboard to launch the next step.
+
+## 2026-11-19 — GSM8K pilot (measured) and queue launch
+
+yoda checkout updated to 467073c; `data/gsm8k_test.jsonl` fetched there from the pinned commit, sha256 `3730d312…c39d14` equal to the pin. Pilot (20 problems, `random.Random(2)` from the 819 not in the n=500 sample, `closed`, max_tokens 512), both blocks rc=0, 27B restored by ko_swap after each, 3 min wall in total (09:21–09:24):
+- 9B IQ4_XS: acc 0.90 (18/20), strict 1.0 of answers, 0 `none`, **at the limit 0/20 (0%)**, completion tokens mean 140 / max 215, 0 errors.
+- 0.8B IQ4_XS: acc 0.60, strict 0.9 / none 0.1, at the limit 2/20 (10%), mean 149 / max 512, 0 errors.
+Rule (design): 1024 for every cell only if >10% of the **9B IQ4** pilot answers hit `finish_reason=="length"`. 0% → `MAXTOK=512` stays. Mean tokens 140 and 149 against the 250 I assumed for the caps: the caps are over-estimates; they only decide whether `ko_swap` refuses a start near a cron window, they kill nothing, so they are left as written.
+The first queue launch at 09:24 was refused by ko_swap (Thu: ES issue GPU window 10:30–11:15, images 11:00–11:25, +15 min lead). The queue's own retry (6 x 20 min) would end before the window does, so I stopped it and set `~/ko_launch_gsm8k.sh` to start `STAGES="1 2 3" MAXTOK=512 queue_gsm8k.sh` at 11:30 with the guard to 2026-11-20 05:45. Nothing from GSM8K beyond the pilot has run.
