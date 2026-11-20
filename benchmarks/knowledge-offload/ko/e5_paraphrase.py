@@ -7,6 +7,7 @@ mapping) and the expected hash is passed in from the notebook line recorded *bef
 """
 import hashlib
 import json
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,3 +91,18 @@ def apply_templates(items: list[Item], templates: Templates) -> list[dict]:
         rows.append({"id": item.id, "original": item.question, "question": ts[k].replace(PLACEHOLDER, item.subj),
                      "template": k, "prop": item.prop, "aliases": list(item.aliases)})
     return rows
+
+
+def describe_templates(eval_sample: list[Item], templates: Templates) -> str:
+    """Per relation present in the eval sample: PopQA's own wording(s) (`popqa_form`, with count) next to
+    the two templates, so a reviewer sees at a glance whether a template merely copies the original."""
+    by_rel: dict[str, Counter] = {}
+    for it in eval_sample:
+        by_rel.setdefault(it.prop, Counter())[popqa_form(it)] += 1
+    lines = ["relation: PopQA wording (eval count) vs the two templates"]
+    for rel in sorted(by_rel):
+        forms = ", ".join(f"{f!r} x{c}" for f, c in by_rel[rel].most_common(3))
+        ts = templates.by_relation.get(rel)
+        lines.append(f"  {rel}: popqa: {forms}")
+        lines.append("      templates: " + (" | ".join(ts) if ts else "NO TEMPLATES"))
+    return "\n".join(lines)

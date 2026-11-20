@@ -78,6 +78,21 @@ def test_check_against_cell(world, tmp_path):
     assert D.check_against_cell(ev, cell) is False
 
 
+def test_absent_cell_is_loud_and_recorded_in_the_manifest(world, tmp_path):
+    logs = []
+    m = D.build(world[0], tmp_path / "o", n_lookup=20, log=logs.append, cell_path=tmp_path / "nope.json")
+    assert m["eval_cell_check"] == "ABSENT" and any("WARNING" in l and "ABSENT" in l for l in logs)
+    cell = tmp_path / "cell.json"
+    cell.write_text(json.dumps({"answers": [{"id": i.id} for i in world[3]]}))
+    logs = []
+    assert D.build(world[0], tmp_path / "p", n_lookup=20, log=logs.append, cell_path=cell)["eval_cell_check"] == "MATCH"
+    assert not any("WARNING" in l and "cell" in l for l in logs)
+    cell.write_text(json.dumps({"answers": []}))
+    logs = []
+    assert D.build(world[0], tmp_path / "q", n_lookup=20, log=logs.append, cell_path=cell)["eval_cell_check"] == "MISMATCH"
+    assert any("WARNING" in l and "MISMATCH" in l for l in logs)
+
+
 def test_missing_s_uri_is_refused(small, tmp_path):
     with pytest.raises(D.E5DataError, match="s_uri"):
         D.load_s_uris(write_tsv(tmp_path / "x.tsv", n_subj=3, drop_uri=True))
@@ -197,13 +212,37 @@ def test_bucket_targets_follow_eval_proportions(world):
     assert sum(t2.values()) == 33 and set(t2) == set(t)
 
 
-def test_short_bucket_is_reported_not_padded(world):
+def test_short_bucket_is_capped_and_shortfall_redistributed_by_largest_remainder(world):
     split = split_of(world)[0]
-    targets = {"1e1": 5, "1e2": 10 ** 4}
+    have = Counter(popqa.pop_bucket(i) for i in split.pool)
+    b_small = min(have, key=have.get)
+    others = [b for b in have if b != b_small]
+    targets = {b_small: have[b_small] + 10, **{b: 3 for b in others}}
+    n = sum(targets.values())
     chosen, report = D.sample_by_bucket(split.pool, targets, 1)
-    n2 = sum(1 for i in split.pool if popqa.pop_bucket(i) == "1e2")
-    assert report["1e2"]["short"] == 10 ** 4 - n2 and report["1e2"]["taken"] == n2
-    assert len(chosen) == report["1e1"]["taken"] + n2
+    assert len(chosen) == n and len({i.id for i in chosen}) == n            # n kept, no duplicates anywhere
+    r = report[b_small]
+    assert r["taken"] == have[b_small] and r["extra"] == 0 and r["short"] == 10
+    assert sum(v["extra"] for v in report.values()) == 10 and sum(v["taken"] for v in report.values()) == n
+    for b in others:
+        assert report[b]["taken"] == 3 + report[b]["extra"] <= have[b]
+    got = Counter(popqa.pop_bucket(i) for i in chosen)
+    assert all(got[b] == report[b]["taken"] for b in report)
+    text = D.describe_buckets(report, D.pool_bucket_counts(split.pool, split.eval))
+    assert "OVER-REPRESENTED" in text and "extra" in text
+
+
+def test_redistribution_respects_spare_pool_and_empty_buckets_stay_empty(world):
+    split = split_of(world)[0]
+    have = Counter(popqa.pop_bucket(i) for i in split.pool)
+    chosen, report = D.sample_by_bucket(split.pool, {"1e9": 7, **{b: 2 for b in have}}, 1)
+    assert report["1e9"] == {"target": 7, "pool": 0, "taken": 0, "extra": 0, "short": 7}
+    assert all(popqa.pop_bucket(i) != "1e9" for i in chosen) and len(chosen) == 2 * len(have) + 7
+    assert all(report[b]["taken"] <= have[b] for b in have)
+    # more asked than the whole pool holds: everything is taken once, the rest is reported short
+    chosen, report = D.sample_by_bucket(split.pool, {b: 10 ** 5 for b in have}, 1)
+    assert len(chosen) == len(split.pool) == len({i.id for i in chosen})
+    assert all(r["short"] == r["target"] - r["taken"] > 0 for r in report.values())
     assert "SHORT" in D.describe_buckets(report, D.pool_bucket_counts(split.pool, split.eval))
 
 
@@ -212,6 +251,20 @@ def test_sampling_is_deterministic_and_seed_sensitive(world):
     t = D.bucket_targets(40, split.eval)
     a = D.sample_by_bucket(split.pool, t, 3)[0]
     assert a == D.sample_by_bucket(split.pool, t, 3)[0] and a != D.sample_by_bucket(split.pool, t, 4)[0]
+
+
+def test_dev_is_drawn_proportionally_from_candidates_and_counts_are_logged_first(world):
+    path, items, uri, ev = world
+    logs = []
+    held = D.draw_heldout(ev)
+    split = D.build_split(items, ev, held, uri, log=logs.append)
+    cands = [i for i in popqa.unambiguous(items) if i.id not in {e.id for e in ev}
+             and uri[i.id] not in {uri[e.id] for e in ev} and D.unit_of(i.prop) not in held.units]
+    assert len(split.dev) == D.DEV_N and len(logs) == 1 and logs[0].startswith("dev candidates per bucket")
+    counts = Counter(popqa.pop_bucket(i) for i in cands)
+    assert split.cand_bucket_counts == dict(sorted(counts.items()))
+    assert all(f"{b}={c}" in logs[0] for b, c in counts.items())
+    assert split.dev == tuple(random.Random(D.DEV_SEED).sample(cands, D.DEV_N))      # not stratified
 
 
 # ---- examples ----
@@ -234,17 +287,22 @@ def test_l1_example_shape_and_answer_is_first_alias(pair):
     assert json.loads(call["tool_calls"][0]["function"]["arguments"]) == {"entity": item.subj, "relation": item.prop}
     assert tool["content"] == D.T.run_lookup(store, {"entity": item.subj, "relation": item.prop})
     assert final["content"] == item.aliases[0] and row["tools"] == [D.T.LOOKUP]
+    assert final["content"] == item.aliases[0] and row["tools"] == [D.T.LOOKUP]
 
 
-def test_l0_has_same_questions_system_and_answers_but_no_tools_or_call(pair):
+def test_l0_differs_from_l1_only_by_the_call_and_the_result(pair):
     _, l1, l0, _, _ = pair
     assert len(l1) == len(l0) > 0
     for a, b in zip(l1, l0):
         assert a["id"].split(":")[-1] == b["id"].split(":")[-1]
-        assert a["messages"][0] == b["messages"][0] and a["messages"][1] == b["messages"][1]
-        assert a["messages"][-1] == b["messages"][-1]
-        assert b["tools"] is None and len(b["messages"]) == 3
+        # same system prompt, same user question, same final answer, same tools block, same template kwargs
+        assert a["messages"][0] == b["messages"][0] == {"role": "system", "content": D.C.SYSTEM_TOOL}
+        assert a["messages"][1] == b["messages"][1] and a["messages"][-1] == b["messages"][-1]
+        assert b["tools"] == a["tools"] == [D.T.LOOKUP] and a["chat_template_kwargs"] == b["chat_template_kwargs"]
+        assert len(b["messages"]) == 3 and a["messages"][2:4] != b["messages"][2:3]
         assert not any(m.get("tool_calls") or m["role"] == "tool" for m in b["messages"])
+        # removing the call and result from L1 gives exactly L0's messages
+        assert [m for k, m in enumerate(a["messages"]) if k not in (2, 3)] == b["messages"]
 
 
 def test_mask_is_assistant_tokens_only_and_results_are_masked(pair):
@@ -253,7 +311,7 @@ def test_mask_is_assistant_tokens_only_and_results_are_masked(pair):
     assert [(m["role"], m["what"], m["train"]) for m in row["mask"]] == [
         ("system", "prompt", False), ("user", "prompt", False), ("assistant", "call", True),
         ("tool", "tool result", False), ("assistant", "answer", True)]
-    assert [m["train"] for m in l0[0]["mask"]] == [False, False, True]
+    assert [(m["what"], m["train"]) for m in l0[0]["mask"]] == [("prompt", False), ("prompt", False), ("answer", True)]
     assert all(len(r["mask"]) == len(r["messages"]) for r in l1 + l0)
     assert all(m["train"] == (m["role"] == "assistant") for r in l1 + l0 for m in r["mask"])
 
@@ -302,7 +360,10 @@ def test_build_prints_the_draw_before_anything_else_and_is_byte_deterministic(wo
     logs = []
     m1 = D.build(path, tmp_path / "a", n_lookup=40, log=logs.append)
     assert logs[0].startswith("eval items per relation") and "held out:" in logs[0]
-    assert logs[1].startswith("popularity buckets")
+    assert logs[1].startswith("WARNING") and "MISMATCH" in logs[1]      # fixture is not the real 1000-item cell
+    assert logs[2].startswith("dev candidates per bucket")
+    assert logs[3].startswith("popularity buckets")
+    assert any(l.startswith("dropped_ungrounded: ") for l in logs)
     m2 = D.build(path, tmp_path / "b", n_lookup=40, log=lambda *_: None)
     names = sorted(p.name for p in (tmp_path / "a").iterdir())
     assert names == sorted(p.name for p in (tmp_path / "b").iterdir()) and "heldout_draw.json" in names
@@ -327,29 +388,38 @@ def test_build_output_contains_no_eval_item(world, tmp_path):
 
 
 # ---- anchors ----
-def anchor_files(tmp_path, n=12, empty=(), test_overlap=None):
+def anchor_files(tmp_path, n=12, empty=(), test_overlap=None, finish=None, drop_finish=()):
     prompts = tmp_path / "train.jsonl"
     prompts.write_text("".join(json.dumps({"question": f"Q{i}: how many?", "answer": "x #### 1"}) + "\n"
                                for i in range(n)))
     answers = tmp_path / "base.jsonl"
-    answers.write_text("".join(json.dumps({"idx": i, "text": "" if i in empty else f"base says {i}"}) + "\n"
-                               for i in range(n)))
+    rows = []
+    for i in range(n):
+        r = {"idx": i, "text": "" if i in empty else f"base says {i}", "finish_reason": (finish or {}).get(i, "stop")}
+        if i in drop_finish:
+            del r["finish_reason"]
+        rows.append(r)
+    answers.write_text("".join(json.dumps(r) + "\n" for r in rows))
     test = tmp_path / "test.jsonl"
     test.write_text(json.dumps({"question": test_overlap or "unrelated"}) + "\n")
     return prompts, answers, test
 
 
-def test_anchor_rows_keep_base_answers_verbatim_for_both_arms(tmp_path):
+def test_anchor_rows_keep_base_answers_verbatim_half_with_tools_by_parity_in_both_arms(tmp_path):
     p, a, t = anchor_files(tmp_path)
-    rows = D.build_anchor_rows(p, a, 5, test_path=t)
-    assert set(rows) == {"L1", "L0"} and len(rows["L1"]) == len(rows["L0"]) == 5
+    stats = {}
+    rows = D.build_anchor_rows(p, a, 12, test_path=t, stats=stats)
+    assert set(rows) == {"L1", "L0"} and len(rows["L1"]) == len(rows["L0"]) == 12
     for r1, r0 in zip(rows["L1"], rows["L0"]):
         assert r1["messages"] == r0["messages"] and r1["messages"][0]["content"] == D.ANCHOR_SYSTEM
-        i = r1["id"].split(":")[-1]
+        assert D.ANCHOR_SYSTEM == D.gsm8k.SYSTEM
+        i = int(r1["id"].split(":")[-1])
         assert r1["messages"][-1]["content"] == f"base says {i}" and r1["kind"] == "anchor"
-        assert r1["tools"] == [D.T.LOOKUP] and r0["tools"] is None
+        want = [D.T.LOOKUP] if i % 2 == 0 else None                # even line id: with the tools block
+        assert r1["tools"] == r0["tools"] == want
         assert [m["train"] for m in r1["mask"]] == [False, False, True]
-    assert rows == D.build_anchor_rows(p, a, 5, test_path=t)
+    assert stats["with_tools"] == 6 and stats["without_tools"] == 6
+    assert rows == D.build_anchor_rows(p, a, 12, test_path=t)
 
 
 def test_anchor_empty_answers_are_skipped_and_shortage_is_an_error(tmp_path):
@@ -357,6 +427,22 @@ def test_anchor_empty_answers_are_skipped_and_shortage_is_an_error(tmp_path):
     assert len(D.build_anchor_rows(p, a, 3)["L1"]) == 3
     with pytest.raises(D.E5DataError, match="not padded"):
         D.build_anchor_rows(p, a, 4)
+
+
+def test_anchor_rows_cut_off_at_max_tokens_are_dropped_and_counted(tmp_path):
+    p, a, _ = anchor_files(tmp_path, n=8, finish={0: "length", 5: "length"}, empty=(1,))
+    stats = {}
+    rows = D.build_anchor_rows(p, a, 5, stats=stats)
+    assert stats["dropped_length"] == 2 and stats["skipped_empty"] == 1 and stats["usable"] == 5
+    assert not {0, 1, 5} & {int(r["id"].split(":")[-1]) for r in rows["L1"]}
+    with pytest.raises(D.E5DataError, match="not padded"):
+        D.build_anchor_rows(p, a, 6)
+
+
+def test_anchor_row_without_finish_reason_is_an_error(tmp_path):
+    p, a, _ = anchor_files(tmp_path, n=4, drop_finish=(2,))
+    with pytest.raises(D.E5DataError, match="finish_reason"):
+        D.build_anchor_rows(p, a, 1)
 
 
 def test_anchor_prompt_that_is_a_test_question_is_refused(tmp_path):
@@ -367,7 +453,7 @@ def test_anchor_prompt_that_is_a_test_question_is_refused(tmp_path):
 
 def test_anchor_bad_inputs_are_errors(tmp_path):
     p, a, _ = anchor_files(tmp_path, n=3)
-    a.write_text(json.dumps({"idx": 99, "text": "x"}) + "\n")
+    a.write_text(json.dumps({"idx": 99, "text": "x", "finish_reason": "stop"}) + "\n")
     with pytest.raises(D.E5DataError, match="bad answer row"):
         D.build_anchor_rows(p, a, 1)
     with pytest.raises(D.E5DataError):
@@ -375,11 +461,17 @@ def test_anchor_bad_inputs_are_errors(tmp_path):
 
 
 # ---- paraphrase scaffolding ----
-def test_shipped_templates_file_is_the_empty_documented_stub():
-    doc = json.loads(P.TEMPLATES_PATH.read_text())
-    assert doc["templates"] == {} and "BEFORE training" in doc["_doc"]
+def test_shipped_templates_pass_validate_shape_and_load():
+    t = P.load_templates()
+    P.validate_shape(t.by_relation)
+    assert len(t.sha256) == 64 and all(len(v) == 2 for v in t.by_relation.values())
+
+
+def test_load_refuses_an_empty_templates_file(tmp_path):
+    f = tmp_path / "e.json"
+    f.write_text(json.dumps({"templates": {}}))
     with pytest.raises(P.TemplatesNotWritten):
-        P.load_templates()
+        P.load_templates(f)
 
 
 def tpl_file(tmp_path, templates):
@@ -445,6 +537,19 @@ def test_template_equal_to_popqa_wording_or_missing_relation_is_refused(world, t
 
 
 # ---- CLI ----
+def test_n_anchor_default_follows_n_lookup_requested():
+    assert e5_build.default_n_anchor(1000) == 500 and e5_build.default_n_anchor(3000) == 1500
+    assert e5_build.default_n_anchor(40) == 20
+
+
+def test_describe_templates_shows_popqa_wording_beside_the_two_templates(world):
+    ev = world[3]
+    t = P.Templates({"genre": ("A {subj}?", "B {subj}?")}, "x")
+    text = P.describe_templates(ev, t)
+    assert "genre" in text and "popqa:" in text and "What is {subj}'s genre?" in text and "A {subj}?" in text
+    assert "capital" in text and "NO TEMPLATES" in text            # relations in the sample without templates
+
+
 def test_cli_builds_everything_and_refuses_a_missing_file(world, tmp_path, capsys):
     path, items, _, ev = world
     p, a, _ = anchor_files(tmp_path, n=30)
@@ -456,7 +561,8 @@ def test_cli_builds_everything_and_refuses_a_missing_file(world, tmp_path, capsy
     with pytest.raises(SystemExit, match="e5_build: .* eval items"):
         e5_build.main(argv)
     assert (out / "anchors_L1.jsonl").exists() and (out / "anchors_L0.jsonl").exists()
-    assert "held out:" in capsys.readouterr().out
+    out_text = capsys.readouterr().out
+    assert "held out:" in out_text and "dropped_ungrounded:" in out_text and "popqa:" in out_text
     with pytest.raises(SystemExit, match="missing"):
         e5_build.main(["--data", str(tmp_path / "none.tsv"), "--out", str(out)])
     with pytest.raises(SystemExit):

@@ -15,7 +15,7 @@ import json
 import math
 import random
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import conditions as C, gsm8k, popqa, tools as T
@@ -71,7 +71,8 @@ def eval_items(all_items: list[Item]) -> list[Item]:
 
 
 def check_against_cell(items: list[Item], cell_path: Path = DEFAULT_CELL) -> bool | None:
-    """True/False: same ids as a committed result cell. None when the cell is not on this machine."""
+    """True/False: same ids as a committed result cell. None when the cell is not on this machine; `build`
+    turns None into a loud WARNING and manifest `eval_cell_check = "ABSENT"`, never a silent pass."""
     if not Path(cell_path).exists():
         return None
     cell = json.loads(Path(cell_path).read_text(encoding="utf-8"))
@@ -147,21 +148,31 @@ class Split:
     dev: tuple[Item, ...]
     pool: tuple[Item, ...]           # what training examples are drawn from
     held_out: tuple[str, ...]
+    cand_bucket_counts: dict = field(default_factory=dict)   # candidates per popularity bucket, before dev
 
 
-def build_split(all_items: list[Item], eval_sample: list[Item], held: HeldOut, s_uri: dict[str, str]) -> Split:
+def build_split(all_items: list[Item], eval_sample: list[Item], held: HeldOut, s_uri: dict[str, str],
+                log=None) -> Split:
     """Training pool = unambiguous triples that are not an eval id, do not share a subject URI with one,
-    and are not in a held-out unit. The dev set is drawn from the same candidates and the pool then also
-    drops every triple sharing a subject URI with a dev item, so dev and training are disjoint too.
+    and are not in a held-out unit. The dev set is DEV_N candidates drawn uniformly (proportional to the
+    candidates, not stratified: a stratified draw took up to ~60 of the scarce 1e5 pool); the candidate
+    count per bucket is logged before the draw. The pool then also drops every triple sharing a subject
+    URI with a dev item, so dev and training are disjoint too.
     Unambiguous only: the eval is, and an answer "the first alias" is only right when there is one object."""
     eval_ids = {i.id for i in eval_sample}
     eval_uris = {s_uri[i.id] for i in eval_sample}
     cands = [i for i in popqa.unambiguous(all_items)
              if i.id not in eval_ids and s_uri[i.id] not in eval_uris and unit_of(i.prop) not in held.units]
-    dev = popqa.stratified_sample(cands, DEV_N, DEV_SEED)
+    cand_counts = dict(sorted(Counter(popqa.pop_bucket(i) for i in cands).items()))
+    if log:
+        log("dev candidates per bucket (before dev is taken): "
+            + ", ".join(f"{b}={c}" for b, c in cand_counts.items()) + f"; total {len(cands)}")
+    if len(cands) < DEV_N:
+        raise E5DataError(f"{len(cands)} candidates for a dev set of {DEV_N}")
+    dev = random.Random(DEV_SEED).sample(cands, DEV_N)
     dev_uris = {s_uri[i.id] for i in dev}
     pool = [i for i in cands if s_uri[i.id] not in dev_uris]
-    split = Split(tuple(eval_sample), tuple(dev), tuple(pool), held.units)
+    split = Split(tuple(eval_sample), tuple(dev), tuple(pool), held.units, cand_counts)
     assert_disjoint(split, s_uri)
     return split
 
@@ -203,19 +214,55 @@ def pool_bucket_counts(pool, eval_sample: list[Item]) -> dict[str, dict]:
     return {b: {"pool": have.get(b, 0), "eval": ev.get(b, 0)} for b in sorted(set(have) | set(ev))}
 
 
+def _redistribute(shortfall: int, weights: dict[str, int], spare: dict[str, int]) -> dict[str, int]:
+    """Largest remainder over the buckets that still have unused pool, weighted by their eval targets;
+    a bucket never gets more than its spare, and what it cannot take is offered to the others again."""
+    extra = {b: 0 for b in spare}
+    while shortfall > 0:
+        open_ = sorted(b for b in spare if spare[b] - extra[b] > 0)
+        if not open_:
+            break
+        w = {b: weights.get(b, 0) for b in open_}
+        if not sum(w.values()):
+            w = {b: 1 for b in open_}
+        total = sum(w.values())
+        exact = {b: shortfall * w[b] / total for b in open_}
+        give = {b: math.floor(v) for b, v in exact.items()}
+        for b in sorted(open_, key=lambda b: (-(exact[b] - give[b]), b))[: shortfall - sum(give.values())]:
+            give[b] += 1
+        moved = 0
+        for b in open_:
+            g = min(give[b], spare[b] - extra[b])
+            extra[b] += g
+            moved += g
+        if moved == 0:
+            break
+        shortfall -= moved
+    return extra
+
+
 def sample_by_bucket(pool, targets: dict[str, int], seed: int) -> tuple[list[Item], dict[str, dict]]:
-    """Per bucket: the target, or everything the pool holds when it is smaller. A short bucket is reported
-    in the second return value, never padded from another one."""
+    """Cap and redistribute (julio, 2026-11-20: option b). Each bucket gives at most its pool, never a
+    duplicate; the shortfall of the short buckets is filled over the buckets that still have unused
+    pool (largest remainder, weighted by the eval proportions), so n is kept whenever the whole pool
+    holds n. A bucket with an empty pool stays at 0. Per bucket the pool is shuffled once by the seeded
+    rng and the first `taken` items are used."""
     rng = random.Random(seed)
     by: dict[str, list[Item]] = {}
     for i in pool:
         by.setdefault(popqa.pop_bucket(i), []).append(i)
+    buckets = sorted(set(targets) | set(by))
+    base = {b: min(targets.get(b, 0), len(by.get(b, []))) for b in buckets}
+    shortfall = sum(targets.values()) - sum(base.values())
+    spare = {b: len(by.get(b, [])) - base[b] for b in buckets}
+    extra = _redistribute(shortfall, {b: targets.get(b, 0) for b in buckets}, spare)
     taken, report = [], {}
-    for b in sorted(set(targets) | set(by)):
-        want, got = targets.get(b, 0), by.get(b, [])
-        k = min(want, len(got))
-        taken.extend(rng.sample(got, k))
-        report[b] = {"target": want, "pool": len(got), "taken": k, "short": want - k}
+    for b in buckets:
+        got = rng.sample(by.get(b, []), len(by.get(b, [])))
+        k = base[b] + extra[b]
+        taken.extend(got[:k])
+        report[b] = {"target": targets.get(b, 0), "pool": len(got), "taken": k, "extra": extra[b],
+                     "short": max(0, targets.get(b, 0) - k)}
     rng.shuffle(taken)
     return taken, report
 
@@ -269,11 +316,13 @@ def lookup_row(item: Item, store: FactStore) -> dict | None:
 
 
 def direct_row(item: Item) -> dict:
-    """L0: the same system prompt, question and answer; no tools block, no call."""
+    """L0: the same system prompt, the same tools block, the same question and answer; the answer comes
+    directly, with no call and no result. The only difference from the L1 row is the call and the result
+    (Opus review 3, julio 2026-11-20): L0 is evaluated in the `tool` cell, so it must have seen the block."""
     messages = [{"role": "system", "content": C.SYSTEM_TOOL},
                 {"role": "user", "content": item.question},
                 {"role": "assistant", "content": item.aliases[0]}]
-    return _row(f"L0:lookup:{item.id}", "L0", "lookup", messages, False)
+    return _row(f"L0:lookup:{item.id}", "L0", "lookup", messages, True)
 
 
 def build_pair(items: list[Item], store: FactStore) -> tuple[list[dict], list[dict], list[str]]:
@@ -343,21 +392,31 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def build_anchor_rows(prompts_path: Path, answers_path: Path, n: int, seed: int = ANCHOR_SEED,
-                      test_path: Path | None = None) -> dict[str, list[dict]]:
+                      test_path: Path | None = None, stats: dict | None = None) -> dict[str, list[dict]]:
     """Anchor rows from GSM8K `train.jsonl` questions (`{"question": ...}` per line) and the base model's
-    own answers (`{"idx": <line index in the prompts file>, "text": ...}` per line, produced later on the
-    GPU). Nothing is generated here. Answers are kept right or wrong; an empty one is skipped and counted
-    (`skipped`). Raises if fewer than n usable, or if a question is also in the GSM8K *test* file."""
+    own answers (`{"idx": <line index in the prompts file>, "text": ..., "finish_reason": ...}` per line,
+    produced later on the GPU). Nothing is generated here. Answers are kept right or wrong. Dropped and
+    counted: rows with finish_reason "length" (cut off at max_tokens: would be trained as complete) and
+    empty ones. A row WITHOUT finish_reason is an error. Raises if fewer than n usable, or if a question
+    is also in the GSM8K *test* file. System prompt is gsm8k.SYSTEM; the tools block is present on rows
+    with an even line id and absent on odd ones, identically in both arms (so the closed GSM8K eval is
+    covered by half the anchors). `stats`, if given, is filled with the counts."""
     prompts = _read_jsonl(prompts_path)
-    answers = {}
+    answers, length_dropped = {}, 0
     for a in _read_jsonl(answers_path):
         if not isinstance(a.get("idx"), int) or not 0 <= a["idx"] < len(prompts) or not isinstance(a.get("text"), str):
             raise E5DataError(f"{answers_path}: bad answer row {a!r}")
+        if not isinstance(a.get("finish_reason"), str) or not a["finish_reason"]:
+            raise E5DataError(f"{answers_path}: row idx {a['idx']} has no finish_reason (the answers file must "
+                              f"record it; a cut-off answer cannot be told from a complete one)")
+        if a["finish_reason"] == "length":
+            length_dropped += 1
+            continue
         answers[a["idx"]] = a["text"].strip()
     usable = sorted(i for i, t in answers.items() if t)
     if len(usable) < n:
-        raise E5DataError(f"{len(usable)} usable base answers for {n} anchors "
-                          f"({len(answers) - len(usable)} empty): not padded")
+        raise E5DataError(f"{len(usable)} usable base answers for {n} anchors ({len(answers) - len(usable)} empty, "
+                          f"{length_dropped} cut off at max_tokens): not padded")
     chosen = sorted(random.Random(seed).sample(usable, n))
     if test_path is not None and Path(test_path).exists():
         test_q = {normalize(r["question"]) for r in _read_jsonl(test_path)}
@@ -370,7 +429,12 @@ def build_anchor_rows(prompts_path: Path, answers_path: Path, n: int, seed: int 
                     {"role": "user", "content": prompts[i]["question"]},
                     {"role": "assistant", "content": answers[i]}]
         for arm in ARMS:
-            out[arm].append(_row(f"{arm}:anchor:{i}", arm, "anchor", messages, arm == "L1"))
+            out[arm].append(_row(f"{arm}:anchor:{i}", arm, "anchor", messages, i % 2 == 0))
+    if stats is not None:
+        stats.update({"answers_file_rows": len(answers) + length_dropped, "dropped_length": length_dropped,
+                      "skipped_empty": len(answers) - len(usable), "usable": len(usable), "n": n,
+                      "with_tools": sum(i % 2 == 0 for i in chosen),
+                      "without_tools": sum(i % 2 == 1 for i in chosen)})
     return out
 
 
@@ -398,10 +462,18 @@ def item_record(i: Item, s_uri: dict[str, str]) -> dict:
 
 
 def describe_buckets(buckets: dict[str, dict], counts: dict[str, dict]) -> str:
-    lines = ["popularity buckets (eval | pool | target | taken):"]
+    lines = ["popularity buckets (eval | pool | target | taken | extra from redistribution):"]
     for b, r in buckets.items():
-        lines.append(f"  {b}: {counts.get(b, {}).get('eval', 0)} | {r['pool']} | {r['target']} | {r['taken']}"
-                     + (f"  SHORT by {r['short']}" if r["short"] else ""))
+        lines.append(f"  {b}: {counts.get(b, {}).get('eval', 0)} | {r['pool']} | {r['target']} | {r['taken']} | "
+                     f"+{r['extra']}" + (f"  SHORT by {r['short']}" if r["short"] else ""))
+    extra = {b: r["extra"] for b, r in buckets.items() if r["extra"]}
+    capped = [b for b, r in buckets.items() if r["taken"] < r["target"]]
+    if extra or capped:
+        lines.append("NOTE: buckets whose pool is smaller than their eval share (" + ", ".join(capped)
+                     + ") are capped; the shortfall was moved to " + ", ".join(f"{b} (+{e})" for b, e in extra.items())
+                     + ". The buckets that received the extra are therefore OVER-REPRESENTED and the capped ones "
+                     "UNDER-represented relative to the eval (no example is repeated; this is a distribution shift, "
+                     "report results by bucket).")
     return "\n".join(lines)
 
 
@@ -414,23 +486,31 @@ def build(data_path: Path, out_dir: Path, n_lookup: int = N_LOOKUP_START, log=pr
     s_uri = load_s_uris(data_path)
     sample = eval_items(all_items)
     same = check_against_cell(sample, cell_path)
+    check = "ABSENT" if same is None else "MATCH" if same else "MISMATCH"
     held = draw_heldout(sample)
     text = describe_draw(held, sample)
     log(text)
+    if same is None:
+        log(f"WARNING: committed result cell {Path(cell_path).name} is ABSENT: the eval sample was NOT checked "
+            f"against it (manifest eval_cell_check=ABSENT). Re-run where the cell exists before training.")
+    elif not same:
+        log(f"WARNING: eval sample MISMATCH with committed cell {Path(cell_path).name}")
     files = {"heldout_draw.json": write_json(out / "heldout_draw.json", {
         **held.as_dict(), "eval_counts_by_relation": dict(sorted(Counter(i.prop for i in sample).items())),
         "eval_counts_by_unit": unit_counts(sample), "text": text})}
-    split = build_split(all_items, sample, held, s_uri)
+    split = build_split(all_items, sample, held, s_uri, log=log)
     targets = bucket_targets(n_lookup, sample)
     chosen, buckets = sample_by_bucket(split.pool, targets, LOOKUP_SEED)
     log(describe_buckets(buckets, pool_bucket_counts(split.pool, sample)))
     l1, l0, dropped = build_pair(chosen, runner_store(all_items))
+    log(f"dropped_ungrounded: {len(dropped)}" + (f" ({', '.join(dropped[:10])}{' ...' if len(dropped) > 10 else ''})"
+                                                  if dropped else ""))
     files["eval_ids.json"] = write_json(out / "eval_ids.json", [i.id for i in sample])
     files["dev_items.jsonl"] = write_jsonl(out / "dev_items.jsonl", [item_record(i, s_uri) for i in split.dev])
     files[f"lookup_L1_n{n_lookup}.jsonl"] = write_jsonl(out / f"lookup_L1_n{n_lookup}.jsonl", l1)
     files[f"lookup_L0_n{n_lookup}.jsonl"] = write_jsonl(out / f"lookup_L0_n{n_lookup}.jsonl", l0)
     manifest = {"dataset_sha256": popqa.sha256(data_path), "n_triples": len(all_items), "eval_n": len(sample),
-                "eval_matches_committed_cell": same, "heldout": held.as_dict(), "n_dev": len(split.dev),
+                "eval_matches_committed_cell": same, "eval_cell_check": check, "heldout": held.as_dict(), "n_dev": len(split.dev),
                 "n_pool": len(split.pool), "n_lookup_requested": n_lookup, "n_lookup_written": len(l1),
                 "dropped_ungrounded": dropped, "buckets": buckets,
                 "pool_by_bucket": pool_bucket_counts(split.pool, sample),

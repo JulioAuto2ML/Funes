@@ -1,4 +1,69 @@
 {
-  "_doc": "Paraphrase set P (E5_DESIGN.md section 2, eval 5). Hand-written, NOT by the data builder: 2 templates per PopQA relation, each holding {subj} exactly once, none equal to PopQA's own wording. Written and reviewed by Opus BEFORE training; then record sha256 of the canonical JSON of `templates` (ko/e5_paraphrase.py: templates_sha256) in the notebook and pass it as --templates-sha256. Relations: capital, capital of, director, screenwriter, author, genre, country, producer, composer, father, mother, occupation, sport, religion, place of birth, color. Example shape: \"occupation\": [\"template one with {subj}\", \"template two with {subj}\"]. Empty on purpose: load_templates refuses an empty file.",
-  "templates": {}
+  "_doc": "Paraphrase set P (E5_DESIGN.md section 2, eval 5). Hand-written, NOT by the data builder: 2 templates per PopQA relation, each holding {subj} exactly once, none equal to PopQA's own wording. Written and reviewed by Opus BEFORE training; then record sha256 of the canonical JSON of `templates` (ko/e5_paraphrase.py: templates_sha256) in the notebook and pass it as --templates-sha256. Relations: capital, capital of, director, screenwriter, author, genre, country, producer, composer, father, mother, occupation, sport, religion, place of birth, color. Example shape: \"occupation\": [\"template one with {subj}\", \"template two with {subj}\"]. Filled by Opus 2026-11-20 from memory of PopQA's wording, NOT yet compared with popqa_form on the real data: the builder only rejects an exact match.",
+  "templates": {
+    "capital": [
+      "Which city is the capital of {subj}?",
+      "Name the capital city of {subj}."
+    ],
+    "capital of": [
+      "Which place has {subj} as its capital?",
+      "{subj} serves as the capital of what?"
+    ],
+    "director": [
+      "Name the director of {subj}.",
+      "{subj} was directed by whom?"
+    ],
+    "screenwriter": [
+      "Who wrote the screenplay of {subj}?",
+      "Name the screenwriter behind {subj}."
+    ],
+    "author": [
+      "Who wrote {subj}?",
+      "Name the author of {subj}."
+    ],
+    "genre": [
+      "Which genre does {subj} belong to?",
+      "{subj} falls under what genre?"
+    ],
+    "country": [
+      "Which country is {subj} located in?",
+      "{subj} is in which country?"
+    ],
+    "producer": [
+      "Who produced {subj}?",
+      "Name the producer of {subj}."
+    ],
+    "composer": [
+      "Who composed {subj}?",
+      "Name the composer of {subj}."
+    ],
+    "father": [
+      "Name the father of {subj}.",
+      "Who fathered {subj}?"
+    ],
+    "mother": [
+      "Name the mother of {subj}.",
+      "Who gave birth to {subj}?"
+    ],
+    "occupation": [
+      "What does {subj} do for a living?",
+      "Name the profession of {subj}."
+    ],
+    "sport": [
+      "Which sport is {subj} associated with?",
+      "Name the sport {subj} takes part in."
+    ],
+    "religion": [
+      "Which religion does {subj} follow?",
+      "{subj} belongs to what faith?"
+    ],
+    "place of birth": [
+      "Where was {subj} born?",
+      "Name the birthplace of {subj}."
+    ],
+    "color": [
+      "Which colour does {subj} have?",
+      "Name the colour of {subj}."
+    ]
+  }
 }
