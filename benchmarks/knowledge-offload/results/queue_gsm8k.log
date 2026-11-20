@@ -1,0 +1,31 @@
+2026-11-19T09:24:35 start qwen3.5-0.8b-iq4_xs closed,store try 1 (max 80 min)
+2026-11-19T09:24:35 qwen3.5-0.8b-iq4_xs closed,store rc=1
+2026-11-19T11:30:12 start qwen3.5-0.8b-iq4_xs closed,store try 1 (max 80 min)
+2026-11-19T11:47:35 qwen3.5-0.8b-iq4_xs closed,store rc=0
+2026-11-19T11:47:35 start qwen3.5-2b-iq4_xs closed,store try 1 (max 80 min)
+2026-11-19T12:13:40 qwen3.5-2b-iq4_xs closed,store rc=0
+2026-11-19T12:13:40 start qwen3.5-4b-iq4_xs closed,store try 1 (max 125 min)
+2026-11-19T12:56:12 qwen3.5-4b-iq4_xs closed,store rc=0
+2026-11-19T12:56:12 start qwen3.5-9b-iq4_xs closed,store try 1 (max 170 min)
+2026-11-19T13:55:07 qwen3.5-9b-iq4_xs closed,store rc=0
+2026-11-19T13:55:07 start qwen3.5-27b-iq4_xs closed,store try 1 (max 460 min)
+2026-11-19T16:01:52 qwen3.5-27b-iq4_xs closed,store rc=0
+2026-11-19T16:01:52 start qwen3.5-0.8b-q8_0 closed,store try 1 (max 80 min)
+2026-11-19T16:23:04 qwen3.5-0.8b-q8_0 closed,store rc=0
+2026-11-19T16:23:04 start qwen3.5-2b-q8_0 closed,store try 1 (max 90 min)
+2026-11-19T16:51:55 qwen3.5-2b-q8_0 closed,store rc=0
+2026-11-19T16:51:55 start qwen3.5-4b-q8_0 closed,store try 1 (max 165 min)
+2026-11-19T17:44:31 qwen3.5-4b-q8_0 closed,store rc=0
+2026-11-19T17:44:31 start qwen3.5-9b-q8_0 closed,store try 1 (max 255 min)
+2026-11-19T19:26:45 qwen3.5-9b-q8_0 closed,store rc=0
+2026-11-19T19:26:45 start qwen3.5-0.8b-iq4_xs tool try 1 (max 60 min)
+2026-11-19T19:41:08 qwen3.5-0.8b-iq4_xs tool rc=0
+2026-11-19T19:41:08 start qwen3.5-2b-iq4_xs tool try 1 (max 60 min)
+2026-11-19T19:53:08 qwen3.5-2b-iq4_xs tool rc=0
+2026-11-19T19:53:08 start qwen3.5-4b-iq4_xs tool try 1 (max 95 min)
+2026-11-19T20:20:11 qwen3.5-4b-iq4_xs tool rc=0
+2026-11-19T20:20:11 start qwen3.5-9b-iq4_xs tool try 1 (max 130 min)
+2026-11-19T20:55:32 qwen3.5-9b-iq4_xs tool rc=0
+2026-11-19T20:55:32 start qwen3.5-27b-iq4_xs tool try 1 (max 340 min)
+2026-11-19T22:20:19 qwen3.5-27b-iq4_xs tool rc=0
+2026-11-19T22:20:19 QUEUE DONE

@@ -1,0 +1,8 @@
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS); 500 problems, max_tokens 512
+tool repeat 0 seed 0
+  tool r0 100/500 acc=0.620
+  tool r0 200/500 acc=0.680
+  tool r0 300/500 acc=0.680
+  tool r0 400/500 acc=0.700
+  tool r0 500/500 acc=0.710
+  -> gsm8k-n500-s1-qwen3.5-2b-iq4_xs-tool-r0.json {'n': 500, 'acc': 0.71, 'acc_strict': 0.71, 'modes': {'strict': 0.982, 'fallback': 0.002, 'none': 0.016}, 'format_dominated': False, 'at_limit': 0.016, 'completion_tokens_mean': 149.69, 'completion_tokens_max': 512, 'lookup_rate': 0.004, 'errors': 0}

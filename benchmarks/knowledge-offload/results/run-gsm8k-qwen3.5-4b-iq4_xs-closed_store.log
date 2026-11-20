@@ -1,0 +1,15 @@
+serving qwen3.5-4b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-4B-IQ4_XS.gguf (IQ4_XS); 500 problems, max_tokens 512
+closed repeat 0 seed 0
+  closed r0 100/500 acc=0.840
+  closed r0 200/500 acc=0.910
+  closed r0 300/500 acc=0.897
+  closed r0 400/500 acc=0.905
+  closed r0 500/500 acc=0.910
+  -> gsm8k-n500-s1-qwen3.5-4b-iq4_xs-closed-r0.json {'n': 500, 'acc': 0.91, 'acc_strict': 0.91, 'modes': {'strict': 0.99, 'fallback': 0.0, 'none': 0.01}, 'format_dominated': False, 'at_limit': 0.01, 'completion_tokens_mean': 164.036, 'completion_tokens_max': 512, 'lookup_rate': 0.0, 'errors': 0}
+store repeat 0 seed 0
+  store r0 100/500 acc=0.840
+  store r0 200/500 acc=0.865
+  store r0 300/500 acc=0.853
+  store r0 400/500 acc=0.875
+  store r0 500/500 acc=0.884
+  -> gsm8k-n500-s1-qwen3.5-4b-iq4_xs-store-r0.json {'n': 500, 'acc': 0.884, 'acc_strict': 0.884, 'modes': {'strict': 0.984, 'fallback': 0.0, 'none': 0.016}, 'format_dominated': False, 'at_limit': 0.016, 'completion_tokens_mean': 169.494, 'completion_tokens_max': 512, 'lookup_rate': 0.0, 'errors': 0}

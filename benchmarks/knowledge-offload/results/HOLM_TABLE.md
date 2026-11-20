@@ -34,12 +34,12 @@ H1 is IQ4_XS or Q8_0 as shown. H5 is shown per size and per sub-test, because th
 
 | H1 on | H5 test | H5 on | H1 raw | H1 Holm | H5 raw | H5 Holm |
 |---|---|---|---|---|---|---|
-| iq4_xs | H5a | iq4_xs 0.8b | <= 1e-04 (resolution) | 0.0006 | 0.0002 | 0.001 |
+| iq4_xs | H5a | iq4_xs 0.8b | <= 1e-04 (resolution) | 0.0006 | 0.0002 | 0.0008 |
 | iq4_xs | H5a | iq4_xs 2b | <= 1e-04 (resolution) | 0.0006 | 1 | 1 |
 | iq4_xs | H5a | iq4_xs 4b | <= 1e-04 (resolution) | 0.0006 | <= 1e-04 (resolution) | 0.0006 |
 | iq4_xs | H5a | iq4_xs 9b | <= 1e-04 (resolution) | 0.0006 | <= 1e-04 (resolution) | 0.0006 |
 | iq4_xs | H5a | iq4_xs 27b | <= 1e-04 (resolution) | 0.0006 | <= 1e-04 (resolution) | 0.0006 |
-| iq4_xs | H5b | iq4_xs 0.8b | <= 1e-04 (resolution) | 0.0006 | 0.00739 | 0.0369 |
+| iq4_xs | H5b | iq4_xs 0.8b | <= 1e-04 (resolution) | 0.0006 | 0.00739 | 0.0295 |
 | iq4_xs | H5b | iq4_xs 2b | <= 1e-04 (resolution) | 0.0006 | 1 | 1 |
 | iq4_xs | H5b | iq4_xs 4b | <= 1e-04 (resolution) | 0.0006 | 1 | 1 |
 | iq4_xs | H5b | iq4_xs 9b | <= 1e-04 (resolution) | 0.0006 | 1 | 1 |
@@ -65,7 +65,7 @@ The H5 rows above come from the `search_first` arm (the E1 form, superseded by D
 
 | quant | H1 raw | H5a pooled p | H5b pooled p (exact) | H5 raw | H1 Holm | H5 Holm | H5 survives Holm at .05 |
 |---|---|---|---|---|---|---|---|
-| iq4_xs | <= 1e-04 (resolution) | 0.135 | 3.12e-24 | 0.135 | 0.0006 | 0.676 | no |
+| iq4_xs | <= 1e-04 (resolution) | 0.135 | 3.12e-24 | 0.135 | 0.0006 | 0.541 | no |
 | q8_0 | 1 | not testable (no eligible size) | 2.4e-14 | 1 | 1 | 1 | no |
 
 Tests with data now: H1 (E1; IQ4_XS complete, Q8_0 lacks 27B) and H5 (a, b). Still without data: H2 (GSM8K), H3 (E2), H4 (E1b), H7 (E7).
