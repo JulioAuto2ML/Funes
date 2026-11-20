@@ -2,7 +2,7 @@
   "_doc": "Paraphrase set P (E5_DESIGN.md section 2, eval 5). Hand-written, NOT by the data builder: 2 templates per PopQA relation, each holding {subj} exactly once, none equal to PopQA's own wording. Written and reviewed by Opus BEFORE training; then record sha256 of the canonical JSON of `templates` (ko/e5_paraphrase.py: templates_sha256) in the notebook and pass it as --templates-sha256. Relations: capital, capital of, director, screenwriter, author, genre, country, producer, composer, father, mother, occupation, sport, religion, place of birth, color. Example shape: \"occupation\": [\"template one with {subj}\", \"template two with {subj}\"]. Filled by Opus 2026-11-20 from memory of PopQA's wording, NOT yet compared with popqa_form on the real data: the builder only rejects an exact match.",
   "templates": {
     "capital": [
-      "Which city is the capital of {subj}?",
+      "{subj} has which city as its capital?",
       "Name the capital city of {subj}."
     ],
     "capital of": [
