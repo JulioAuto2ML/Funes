@@ -9,8 +9,8 @@ No model, no network. Raw p-values (all on the 1000-question E1 sample, `contain
   H1   = max(H1a, H1b) (both parts must hold).
   H5a  forcing costs no accuracy: TOST equivalence at +-2 pts, bootstrap p = max of the two one-sided shares.
   H5b  forcing changes hallucination on `ablated`: exact two-sided McNemar on the hallucinated indicator.
-A bootstrap p cannot go below 1/(B+1); it is printed as "< 1e-4". H2 (GSM8K), H3 (E2), H4 (E1b) and H7 (E7) have
-no data yet and enter Holm as p = 1 (the conservative ranking: they sit last, and count in m).
+A bootstrap p cannot go below 1/(B+1); it is printed as "< 1e-4". H2 enters with its GSM8K p (`h2_p`, `stats_gsm8k.py`); H3 (E2), H4 (E1b)
+and H7 (E7) have no data yet and enter Holm as p = 1 (the conservative ranking: they sit last, and count in m).
 How H5 is aggregated over sizes was not pre-registered; every size is shown and the choice is left to Opus.
 """
 import sys
@@ -133,7 +133,7 @@ def build(results: Path):
             "was not shown at that size (at 0.8B and 2B IQ4_XS the tool is skipped or degraded, see E1_TABLE.md).",
             "H1 on Q8_0 is 1 because H1b cannot be tested there (no 27B Q8_0 cell; its size on disk was not measured by me). H5a at 0.8B is a vacuous equivalence: the model never calls the tool (lookup rate <= .011), so both arms are `closed`-like.",
             "H5b with no discordant questions (p = 1) is not a test: the two arms gave identical outcomes.", "",
-            "**p-values still missing:** H2 (GSM8K arm not run), H3 (E2 not run), H4 (E1b not run), H7 (E7 not run). "
+            "**p-values still missing:** H3 (E2 not run), H4 (E1b not run), H7 (E7 not run). "
             "H5(c) is descriptive and has no p. H6 and H8 are outside the family."]
     out += default_prompt_section(results, raw)
     return out
@@ -151,20 +151,21 @@ def default_prompt_section(results: Path, raw: dict) -> list:
     res = H58.analyse(results)
     out = ["", "## Holm with H5 as pre-registered (D12/D14: default-prompt cells, `stats_h5h8.py`)", "",
            "The H5 rows above come from the `search_first` arm (the E1 form, superseded by D12). Here H5 = max(pooled H5a TOST p over eligible "
-           "sizes, pooled H5b matched-pairs MH p) per quant; H5a with no eligible size counts as p = 1. H2, H3, H4, H7 have no data (p = 1). "
+           "sizes, pooled H5b matched-pairs MH p) per quant; H5a with no eligible size counts as p = 1. H2 enters with its GSM8K p; H3, H4, H7 have no data (p = 1). "
            "H1 is the E1 value for that quant. The pooled H5b treats sizes as independent strata although the 200 questions repeat (optimistic).", "",
-           "| quant | H1 raw | H5a pooled p | H5b pooled p (exact) | H5 raw | H1 Holm | H5 Holm | H5 survives Holm at .05 |",
-           "|---|---|---|---|---|---|---|---|"]
+           "| quant | H1 raw | H2 raw | H5a pooled p | H5b pooled p (exact) | H5 raw | H1 Holm | H2 Holm | H5 Holm | H5 survives Holm at .05 |",
+           "|---|---|---|---|---|---|---|---|---|---|"]
     for q in E1.QUANTS:
         h1 = max(raw[("H1a", q)], raw.get(("H1b", q), 1.0))
         a = res["h5a_pooled"].get(q, {}).get("p")
         b = res["h5b_pooled"][q]["p_exact"]
         h5 = h5_default_entry(a, b)
-        adj = holm({"H1": h1, "H2": h2_p(results, q), "H3": 1.0, "H4": 1.0, "H5": h5, "H7": 1.0})
-        out.append("| %s | %s | %s | %.3g | %s | %s | %s | %s |" % (
-            q, fmt(h1), "not testable (no eligible size)" if a is None else fmt(a), b, fmt(h5), fmt(adj["H1"]), fmt(adj["H5"]),
+        h2 = h2_p(results, q)
+        adj = holm({"H1": h1, "H2": h2, "H3": 1.0, "H4": 1.0, "H5": h5, "H7": 1.0})
+        out.append("| %s | %s | %s | %s | %.3g | %s | %s | %s | %s | %s |" % (
+            q, fmt(h1), fmt(h2), "not testable (no eligible size)" if a is None else fmt(a), b, fmt(h5), fmt(adj["H1"]), fmt(adj["H2"]), fmt(adj["H5"]),
             "yes" if adj["H5"] < 0.05 else "no"))
-    out += ["", "Tests with data now: H1 (E1; IQ4_XS complete, Q8_0 lacks 27B) and H5 (a, b). Still without data: H2 (GSM8K), H3 (E2), H4 (E1b), H7 (E7)."]
+    out += ["", "Tests with data now: H1 (E1; IQ4_XS complete, Q8_0 lacks 27B), H5 (a, b) and H2 (GSM8K, `stats_gsm8k.py`). Still without data: H3 (E2), H4 (E1b), H7 (E7)."]
     return out
 
 

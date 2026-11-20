@@ -57,15 +57,15 @@ Equivalence (H5a) is declared when the TOST p is below the Holm threshold; a p o
 H1 on Q8_0 is 1 because H1b cannot be tested there (no 27B Q8_0 cell; its size on disk was not measured by me). H5a at 0.8B is a vacuous equivalence: the model never calls the tool (lookup rate <= .011), so both arms are `closed`-like.
 H5b with no discordant questions (p = 1) is not a test: the two arms gave identical outcomes.
 
-**p-values still missing:** H2 (GSM8K arm not run), H3 (E2 not run), H4 (E1b not run), H7 (E7 not run). H5(c) is descriptive and has no p. H6 and H8 are outside the family.
+**p-values still missing:** H3 (E2 not run), H4 (E1b not run), H7 (E7 not run). H5(c) is descriptive and has no p. H6 and H8 are outside the family.
 
 ## Holm with H5 as pre-registered (D12/D14: default-prompt cells, `stats_h5h8.py`)
 
-The H5 rows above come from the `search_first` arm (the E1 form, superseded by D12). Here H5 = max(pooled H5a TOST p over eligible sizes, pooled H5b matched-pairs MH p) per quant; H5a with no eligible size counts as p = 1. H2, H3, H4, H7 have no data (p = 1). H1 is the E1 value for that quant. The pooled H5b treats sizes as independent strata although the 200 questions repeat (optimistic).
+The H5 rows above come from the `search_first` arm (the E1 form, superseded by D12). Here H5 = max(pooled H5a TOST p over eligible sizes, pooled H5b matched-pairs MH p) per quant; H5a with no eligible size counts as p = 1. H2 enters with its GSM8K p; H3, H4, H7 have no data (p = 1). H1 is the E1 value for that quant. The pooled H5b treats sizes as independent strata although the 200 questions repeat (optimistic).
 
-| quant | H1 raw | H5a pooled p | H5b pooled p (exact) | H5 raw | H1 Holm | H5 Holm | H5 survives Holm at .05 |
-|---|---|---|---|---|---|---|---|
-| iq4_xs | <= 1e-04 (resolution) | 0.135 | 3.12e-24 | 0.135 | 0.0006 | 0.541 | no |
-| q8_0 | 1 | not testable (no eligible size) | 2.4e-14 | 1 | 1 | 1 | no |
+| quant | H1 raw | H2 raw | H5a pooled p | H5b pooled p (exact) | H5 raw | H1 Holm | H2 Holm | H5 Holm | H5 survives Holm at .05 |
+|---|---|---|---|---|---|---|---|---|---|
+| iq4_xs | <= 1e-04 (resolution) | <= 1e-04 (resolution) | 0.135 | 3.12e-24 | 0.135 | 0.0006 | 0.0006 | 0.541 | no |
+| q8_0 | 1 | <= 1e-04 (resolution) | not testable (no eligible size) | 2.4e-14 | 1 | 1 | 0.0006 | 1 | no |
 
-Tests with data now: H1 (E1; IQ4_XS complete, Q8_0 lacks 27B) and H5 (a, b). Still without data: H2 (GSM8K), H3 (E2), H4 (E1b), H7 (E7).
+Tests with data now: H1 (E1; IQ4_XS complete, Q8_0 lacks 27B), H5 (a, b) and H2 (GSM8K, `stats_gsm8k.py`). Still without data: H3 (E2), H4 (E1b), H7 (E7).

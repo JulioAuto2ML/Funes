@@ -47,9 +47,10 @@ def load(results: Path):
     return out
 
 
-def h2(cells, quant, nb=NB):
-    """The H2 quantities for one quantisation, or None if fewer than three sizes have both conditions."""
-    sizes = [s for s in SIZES if (s, quant, "closed") in cells and (s, quant, "store") in cells]
+def h2(cells, quant, nb=NB, exclude=()):
+    """The H2 quantities for one quantisation, or None if fewer than three sizes have both conditions.
+    `exclude` drops sizes (the 27B sensitivity); the registered test uses none."""
+    sizes = [s for s in SIZES if s not in exclude and (s, quant, "closed") in cells and (s, quant, "store") in cells]
     if len(sizes) < 3:
         return None
     ids = sorted(cells[(sizes[0], quant, "closed")][1])
@@ -85,6 +86,19 @@ def h2(cells, quant, nb=NB):
             "evaluable": evaluable, "verdict": verdict, "paired": diffs}
 
 
+FALLBACK_FLAG = 0.20      # share of answers taken by the last-number fallback at or above which a cell is flagged (Opus, 2026-11-20)
+
+
+def cell_flags(sm) -> list:
+    """Reading flags of one cell: format-dominated (>= 20% no number), fallback-heavy (>= 20% answers without a `####` line)."""
+    out = []
+    if sm["format_dominated"]:
+        out.append("format-dominated")
+    if sm["modes"]["fallback"] >= FALLBACK_FLAG:
+        out.append("fallback-heavy: primary vs strict-only differ")
+    return out
+
+
 def build(results: Path):
     cells = load(results)
     out = ["# GSM8K arm — H2, cell set `gsm8k-n500-s1`", "",
@@ -106,7 +120,7 @@ def build(results: Path):
                 out.append(f"| {s} {q} `{c}` | {sm['acc']:.3f} [{lo:.3f}, {hi:.3f}] | {sm['acc_strict']:.3f} | "
                            f"{m['strict']:.2f} / {m['fallback']:.2f} / {m['none']:.2f} | {sm['at_limit']:.3f} | "
                            f"{sm['completion_tokens_mean']:.0f} / {sm['completion_tokens_max']} | {wall:.0f} | "
-                           f"{'format-dominated' if sm['format_dominated'] else ''} |")
+                           f"{'; '.join(cell_flags(sm))} |")
     out.append("")
     for q in QUANTS:
         r = h2(cells, q)
@@ -124,6 +138,10 @@ def build(results: Path):
         top = cells.get(("27b", q, "closed"))
         if top and top[0]["acc"] > 0.95:
             out += ["27B `closed` is above 0.95: a ceiling compresses slopes; the rule is not changed.", ""]
+            r4 = h2(cells, q, exclude=("27b",))
+            if r4 is not None:
+                out += [f"Sensitivity (exploratory, not the registered test): without the 27B ({', '.join(r4['sizes'])}): rho **{r4['rho']:.2f}** {f(r4['rho_ci'])}, "
+                        f"p = {r4['p']:.4f}, {r4['verdict']}.", ""]
     out += ["Reported beside, not part of the rule: PopQA H1 ratio, copied from the design entry (0.27 [0.21, 0.35]), not recomputed here.", "",
             "## Inputs (sha256)", ""]
     for k, (_, _, _, _, f) in sorted(cells.items()):

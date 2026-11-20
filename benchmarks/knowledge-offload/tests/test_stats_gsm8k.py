@@ -68,3 +68,20 @@ def test_holm_h2_entry_is_one_without_cells_and_p_with_cells(tmp_path):
     assert 0 < p < 0.05
     write(tmp_path, [0.5] * 5, [0.5] * 5)               # closed flat: not evaluable -> 1.0
     assert H.h2_p(tmp_path, "iq4_xs") == 1.0
+
+
+def test_cell_flags_fallback_heavy_and_format_dominated():
+    base = {"format_dominated": False, "modes": {"strict": 0.97, "fallback": 0.0, "none": 0.03}}
+    assert S.cell_flags(base) == []
+    assert S.cell_flags({**base, "modes": {"strict": 0.74, "fallback": 0.22, "none": 0.04}}) == ["fallback-heavy: primary vs strict-only differ"]
+    assert S.cell_flags({**base, "format_dominated": True, "modes": {"strict": 0.5, "fallback": 0.2, "none": 0.3}})[0] == "format-dominated"
+    assert S.cell_flags({**base, "modes": {"strict": 0.81, "fallback": 0.19, "none": 0.0}}) == []      # just under the threshold
+
+
+def test_h2_exclude_drops_a_size_and_build_prints_the_27b_sensitivity(tmp_path):
+    curve = [0.1, 0.25, 0.45, 0.65, 0.96]
+    write(tmp_path, curve, curve)
+    cells = S.load(tmp_path)
+    assert S.h2(cells, "iq4_xs", nb=500, exclude=("27b",))["sizes"] == ["0.8b", "2b", "4b", "9b"]
+    assert S.h2(cells, "iq4_xs", nb=500)["sizes"] == SIZES                                           # the registered test is unchanged
+    assert "without the 27B" in S.build(tmp_path)
