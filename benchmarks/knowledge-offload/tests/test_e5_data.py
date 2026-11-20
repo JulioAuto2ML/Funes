@@ -597,3 +597,15 @@ def test_real_popqa_eval_matches_committed_cell_and_split_is_disjoint():
     D.assert_disjoint(split, uri)
     assert len(split.dev) == 300 and held.eval_total >= 150 or held.below_threshold or len(held.attempts) == 2
     print(D.describe_draw(held, ev))
+
+
+def test_written_rows_keep_the_eval_tools_block_key_order(tmp_path):
+    """Gate 9a finding: sorted keys put the tools JSON in a different order from what eval sends, so the rendered
+    prompt differed. The rows on disk must serialise the tools exactly as `T.LOOKUP` does."""
+    from ko import tools as T
+    row = D._row("L1:x", "L1", "lookup", [{"role": "system", "content": "s"}, {"role": "user", "content": "q"},
+                                           {"role": "assistant", "content": "a"}], True)
+    path = tmp_path / "r.jsonl"
+    D.write_jsonl(path, [row])
+    back = json.loads(path.read_text())
+    assert json.dumps(back["tools"][0]) == json.dumps(T.LOOKUP)

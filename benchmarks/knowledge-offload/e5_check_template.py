@@ -93,14 +93,31 @@ def _post(url: str, body: dict) -> dict:
         return json.loads(r.read())
 
 
-def server_checks(server: str, row: dict, full: str, ids: list[int]) -> dict:
-    """9a against a running llama-server: its own rendering and tokenisation of the same conversation."""
-    body = {"messages": E.template_messages(row), "tools": row.get("tools"),
-            "chat_template_kwargs": row["chat_template_kwargs"]}
-    got = _post(server + "/apply-template", body).get("prompt")
+def server_checks(server: str, tpl, row: dict, full: str, ids: list[int]) -> dict:
+    """9a against a running llama-server: its own rendering and tokenisation of the same conversation.
+    /apply-template treats a trailing assistant message as a prefill (no closing <|im_end|>), so each trained turn
+    is compared by what the model is *given*: the render of the messages before it plus the generation prompt;
+    the full conversation is compared up to the final message's content."""
+    msgs, tools = E.template_messages(row), row.get("tools")
+    et = bool(row["chat_template_kwargs"].get("enable_thinking", False))
+    kw = row["chat_template_kwargs"]
+
+    def srv(m):
+        return _post(server + "/apply-template", {"messages": m, "tools": tools, "chat_template_kwargs": kw}).get("prompt")
+
+    heads = {}
+    for m in row["mask"]:
+        if m["train"]:
+            i = m["index"]
+            ours, theirs = render(tpl, msgs[:i], tools, et, True), srv(msgs[:i])
+            heads[i] = {"equal": ours == theirs, "ours_tail": None if ours == theirs else ours[-120:],
+                        "theirs_tail": None if ours == theirs else (theirs or "")[-120:]}
+    got = srv(msgs)
+    ours_full = full[:-len(IM_END + "\n")] if full.endswith(IM_END + "\n") else full
     tk = _post(server + "/tokenize", {"content": full, "add_special": False, "parse_special": True}).get("tokens")
-    return {"template_equal": got == full, "server_prompt": got if got != full else None,
-            "tokens_equal": tk == ids, "n_tokens_ours": len(ids), "n_tokens_server": len(tk or [])}
+    return {"heads_equal": all(h["equal"] for h in heads.values()), "heads": heads,
+            "full_equal_to_final_content": got == ours_full, "tokens_equal": tk == ids,
+            "n_tokens_ours": len(ids), "n_tokens_server": len(tk or [])}
 
 
 def check_row(tpl, tok, row: dict, server: str | None) -> dict:
@@ -112,7 +129,7 @@ def check_row(tpl, tok, row: dict, server: str | None) -> dict:
         res["spans"].append({"what": s["what"], "text": s["text"], "decoded_equal": dec == s["text"],
                              "decoded": None if dec == s["text"] else dec})
     if server:
-        res["server"] = server_checks(server, row, full, mt["ids"])
+        res["server"] = server_checks(server, tpl, row, full, mt["ids"])
     return res
 
 
@@ -133,7 +150,7 @@ def main(argv=None):
             r = check_row(tpl, tok, row, a.server)
             r["file"] = Path(f).name
             ok = (all(s["decoded_equal"] for s in r["spans"]) and not r["straddling_tokens"]
-                  and (not a.server or (r["server"]["template_equal"] and r["server"]["tokens_equal"])))
+                  and (not a.server or (r["server"]["heads_equal"] and r["server"]["full_equal_to_final_content"] and r["server"]["tokens_equal"])))
             r["ok"] = ok
             bad += not ok
             report.append(r)

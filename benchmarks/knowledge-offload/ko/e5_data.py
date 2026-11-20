@@ -440,11 +440,13 @@ def build_anchor_rows(prompts_path: Path, answers_path: Path, n: int, seed: int 
 
 # ---- writing ----
 def dumps(obj) -> str:
-    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    # Insertion order, not sorted: the tools block is rendered into the prompt by key order, and eval sends
+    # `T.LOOKUP` in its own order (found by gate 9a: sorted keys gave training a different tools text).
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> str:
-    """Byte-deterministic (sorted keys, fixed separators, LF); returns the file's sha256."""
+    """Byte-deterministic (rows are built in a fixed key order, fixed separators, LF); returns the file's sha256."""
     data = "".join(dumps(r) + "\n" for r in rows).encode("utf-8")
     Path(path).write_bytes(data)
     return hashlib.sha256(data).hexdigest()
