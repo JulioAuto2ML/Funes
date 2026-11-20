@@ -444,3 +444,21 @@ Things to be read, not assumed: (1) 27B closed .952 is above the .95 ceiling fla
 ## 2026-11-20 · E5: julio's answers recorded · Opus
 - julio: downloads approved (Qwen3.5 2B/0.8B bf16, GSM8K train.jsonl); train on this card unless it takes days; keep L0; run the 0.8B arm. Recorded in `E5_DESIGN.md` §5. The "days" threshold is my reading (24 h estimated for all four trainings, then back to julio); not confirmed by him.
 - Next: Sonnet (data builder, no GPU) and coordinator (downloads). Nothing run here.
+
+## 2026-11-20 · E5: downloads and data builder · coordinator (Sonnet)
+- **julio, 2026-11-20 (chat):** the "days" threshold is not fixed; it is decided from the measured run time ("lo vamos viendo, de acuerdo al tiempo de corrida"). Opus's 24 h reading is withdrawn.
+- **Downloads (yoda, `~/funes-ko/benchmarks/knowledge-offload/data/e5/`, measured with `stat`/`sha256sum` after download).** Weights from `Qwen/Qwen3.5-{2B,0.8B}` (HF lists the same LFS oid for `unsloth/`: checked by the tree API, not downloaded). The safetensors sha256 prefixes equal the LFS oids the API gave (`aa33250c…`, `04b1c301…`), same for `tokenizer.json` (`5f9e4d49…`).
+
+| file | bytes | sha256 |
+|---|---|---|
+| 2B `model.safetensors-00001-of-00001.safetensors` | 4,548,221,488 | `aa33250c4fc64891ddfaba3a314fd9542ea371843c387178b425fbcc5ed680b1` |
+| 0.8B `model.safetensors-00001-of-00001.safetensors` | 1,746,942,600 | `04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696` |
+| `gsm8k_train.jsonl` (openai/grade-school-math @ `3101c7d5…`) | 4,166,206 (7,473 lines) | `17f347dc51477c50d4efb83959dbb7c56297aba886e5544ee2aaed3024813465` |
+| 2B / 0.8B `tokenizer.json` | 12,807,982 | `5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42` |
+| 2B / 0.8B `config.json` | 2,908 / 2,907 | `ed1c1723…` / `b90b86f3…` (first 8 hex; full list on yoda by `sha256sum`) |
+
+  Directory totals (`du -sb`): 2B 4,571,198,174 B, 0.8B 1,769,905,600 B. Other small files (index, merges, vocab, tokenizer_config, chat_template) are in the dirs; their sizes were measured, hashes not copied here. The GSM8K file was not checked for being the *train* split beyond its line count (7,473 is the published train size; not verified against a second source).
+- **Data builder** (`ko/e5_data.py`, `ko/e5_paraphrase.py`, `e5_build.py`, `tests/test_e5_data.py`; written by a Sonnet subagent, no GPU). Checked by me: whole suite `pytest tests` 225 passed (re-run); `python3 e5_build.py --n-lookup 1000` re-run, the six output sha256 equal the subagent's (e.g. `lookup_L1_n1000.jsonl` `8accfe55…`, `heldout_draw.json` `29173036…`).
+- **Held-out draw (`Random(5)`, measured):** director, father, screenwriter = 244 eval items (≥150, no redraw). Training pool 7,435, dev 300.
+- **Finding to decide:** the popularity-bucket pool is short. Pool/eval: 1e1 939/195, 1e2 3396/195, 1e3 2071/195, 1e4 928/195, **1e5 101/194**, 1e0, 1e6, 1e7 pool 0. So n=1000 yields **881** lookup examples (not 1,000) and the 3,000 retrain cannot match eval buckets. Needs julio/Opus: accept short buckets or change the matching.
+- **Not verified:** the Qwen3.5 chat template was never applied (no tokenizer loaded), token-level mask alignment, anchors/paraphrase on real data (no templates yet, no base answers). Nothing on the GPU; production untouched.
