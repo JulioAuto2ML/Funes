@@ -719,3 +719,5 @@ decoupling); not verified yet.
 - How much of LMLM's 54.6M-triple DB fits in 15 GB of RAM, and is the
   subset loaded at inference the one PopQA needs?
 - 2026-11-18 variants stages A and B (12 of 12 cells): readings R1 and R4 hold, R2, R3, R5 do not (notebook, Opus entry of 2026-11-18). The 9B IQ4_XS looks up 0.732 when the short-answer sentence is removed (`tool_free`) and 0.000 under the other two wordings. Stages C (27B) and D (2B) not run: R3 and R5, their pre-registered triggers, did not fire.
+
+- 2026-11-20: julio chose route C for the knowledge-removed track (E5, lookup LoRA on Qwen3.5 2B/0.8B). Design: `benchmarks/knowledge-offload/E5_DESIGN.md` (hypotheses H9a–c, own Holm family m = 3; main family m = 6 unchanged; H4 stays untested). Not started: waits for julio's downloads/GPU decisions.
