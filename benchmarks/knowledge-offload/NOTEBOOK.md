@@ -440,3 +440,7 @@ Things to be read, not assumed: (1) 27B closed .952 is above the .95 ceiling fla
 - **Deviations/flags:** final-answer value not masked (reason in the design); H4 not tested by this route; abstention not taught.
 - **Needs julio:** two downloads (bf16 Qwen3.5 2B/0.8B, GSM8K `train.jsonl`), where to train, keep L0, run 0.8B. **Not measured:** training hours, VRAM of QLoRA, adapter loading on IQ4_XS, pool counts, held-out draw.
 - Nothing run; no code written.
+
+## 2026-11-20 · E5: julio's answers recorded · Opus
+- julio: downloads approved (Qwen3.5 2B/0.8B bf16, GSM8K train.jsonl); train on this card unless it takes days; keep L0; run the 0.8B arm. Recorded in `E5_DESIGN.md` §5. The "days" threshold is my reading (24 h estimated for all four trainings, then back to julio); not confirmed by him.
+- Next: Sonnet (data builder, no GPU) and coordinator (downloads). Nothing run here.

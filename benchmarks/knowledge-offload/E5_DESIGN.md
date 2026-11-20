@@ -57,7 +57,10 @@ All paired, 1,000 items, bootstrap 10,000 with the harness's seed, one-sided p a
 
 ## 5. Order of work and gates (who)
 
-1. **julio:** approve the two downloads (Qwen3.5-2B and 0.8B bf16 weights; GSM8K `train.jsonl`), where training runs (this card with production down, as the LMLM tests did, or a rented GPU), and whether L0 stays. Also whether the 0.8B arm runs.
+**Decisions by julio, 2026-11-20:** (1) the downloads are approved: Qwen3.5-2B and 0.8B bf16 weights and GSM8K `train.jsonl` (record each file's size and sha256 on download); (2) training runs on this card, **unless it takes days**; (3) L0 stays; (4) the 0.8B arm runs. *My reading of (2), to be confirmed:* after the throughput probe of step 3(a), if the estimated GPU time of all four trainings (2B and 0.8B, L1 and L0, with the 3,000-example retrain counted) is over 24 hours, the run stops and julio decides between waiting and a rented GPU; the estimate is marked "estimated" until measured. Production is stopped for each GPU window as for the LMLM tests, with julio's OK per window.
+
+1. **julio:** done (above).
+   **Coordinator:** the downloads (read-only on everything else).
 2. **Sonnet, no GPU:** the data builder (§3) with tests (disjointness asserted in code: no eval id, no shared `s_uri`, no held-out relation in training; template round-trip: rendered training example parses with `llm.py`); print the held-out draw and counts. Opus reviews the draw and the paraphrase templates before any training.
 3. **Sonnet + coordinator, GPU:** (a) a 30-step training throughput and VRAM probe for 2B and 0.8B (the LMLM probe's method; **no training-hours estimate exists today**); (b) LoRA → GGUF conversion and `--lora` serving on the IQ4_XS base: *scale-0 adapter must reproduce base outputs identically on 20 items* (measured gate), and a non-zero adapter must change them; (c) adapter sha256 and base sha in `models.lock`, runner gate extended.
 4. **Coordinator, GPU:** anchors (base generates its own answers), train L1 and L0, cells of §2. All through the verifier pattern (`verify_*.py` before any statistic).
