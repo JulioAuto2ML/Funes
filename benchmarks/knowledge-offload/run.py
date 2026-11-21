@@ -17,6 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import e5_eval                                                          # noqa: E402
 from ko import conditions as C, gsm8k, models, popqa, runner, stats, tools as T, validity  # noqa: E402
 from ko.llm import Client, LLMError                                    # noqa: E402
 
@@ -143,6 +144,11 @@ def cmd_run(a):
         bad = [c for c in a.conditions if c not in C.ABLATED_CONDITIONS]
         if bad:
             sys.exit(f"--ablated runs {', '.join(C.ABLATED_CONDITIONS)}, not {', '.join(bad)}")
+    para = None
+    if a.paraphrase:
+        if a.ablated:
+            sys.exit("--paraphrase and --ablated are different arms")
+        items, para = e5_eval.paraphrased(items, Path(a.paraphrase))
     a.conditions = a.conditions or list(C.CONDITIONS)
     print(f"questions: {len(items)} of {len(pool_items)} eligible ({len(all_items)} triples in the store)"
           + (", ambiguous (homonym) subjects excluded" if a.exclude_ambiguous else ""))
@@ -166,7 +172,7 @@ def cmd_run(a):
     store = runner.build_store(all_items)
     meta_base = {"dataset": "popqa", "dataset_sha256": popqa.sha256(data),
                  "dataset_seed": a.dataset_seed, "sample": a.sample,
-                 "exclude_ambiguous": a.exclude_ambiguous, "arm": arm, "model_tag": a.model_tag, "server": info, "adapters": adapters,
+                 "exclude_ambiguous": a.exclude_ambiguous, "arm": arm, "paraphrase": para, "model_tag": a.model_tag, "server": info, "adapters": adapters,
                  "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
                  "git": runner.git_state(), "date": dt.date.today().isoformat(),
                  "k": C.K, "max_steps": C.MAX_STEPS, "temperature": 0.0,
@@ -204,7 +210,7 @@ def cmd_run(a):
                 var = C.variant_for(cond, a.prompt_variant)
                 path = runner.cell_path(a.model_tag, len(items), cond, rep, sample=a.sample,
                                         dataset_seed=a.dataset_seed, pool=pool_n, variant=var,
-                                        unambiguous=a.exclude_ambiguous, arm=arm)
+                                        unambiguous=a.exclude_ambiguous, arm=arm, paraphrase=bool(para))
                 if path.exists() and not a.force:
                     print(f"skip {path.name} (exists)")
                     continue
@@ -224,7 +230,7 @@ def cmd_run(a):
                         candidates=candidates,
                         payloads_to=lambda p, cond=cond, rep=rep: runner.payload_dir(
                             a.model_tag, cond, rep, p, sample=a.sample, dataset_seed=a.dataset_seed,
-                            variant=var, unambiguous=a.exclude_ambiguous, arm=arm))
+                            variant=var, unambiguous=a.exclude_ambiguous, arm=arm, paraphrase=bool(para)))
                 except C.ConditionUnavailable as e:
                     blocked.append((cond, str(e)))
                     continue
@@ -428,6 +434,9 @@ def main():
                    help="H5b: first --ablate-n questions of the sample, each one's own triple withheld "
                         "from retrieval; needs --prompt-variant abstain_ok (search_first tool prompt) or abstain_default (default tool prompt, tool and tool+contract only); closed/store/tool/tool+contract")
     r.add_argument("--ablate-n", type=int, default=200)
+    r.add_argument("--paraphrase", default=None, metavar="P_JSONL",
+                   help="E5 set P: the first rows of the sample re-asked with the file's wording (builder's paraphrase_P.jsonl); "
+                        "same ids, aliases and store, only the question text changes")
     r.add_argument("--force", action="store_true")
     r.set_defaults(fn=cmd_run)
     s = sub.add_parser("summarize")

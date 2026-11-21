@@ -131,11 +131,11 @@ def verify_adapters(active: list[dict] | None, *, base_id: str, adapters: list[d
         if not match:
             raise ModelRefused(f"{path} has sha256 {got}, models.lock says {named[0]['sha256']}: not the adapter the lock describes")
         e = match[0]
-        if e["base"] != base_id:
+        if e["base"] != base_id and base_id not in e.get("transfer_bases", []):
             raise ModelRefused(f"adapter {e['id']} was built for {e['base']}, the server is serving {base_id}")
         if float(a["scale"]) != 1.0:
             raise ModelRefused(f"adapter {e['id']} is applied at scale {a['scale']}; the benchmark runs adapters at 1.0 only")
-        out.append({**e, "scale": float(a["scale"]), "verified": "sha256"})
+        out.append({**e, "scale": float(a["scale"]), "verified": "sha256", "transfer": e["base"] != base_id})
     if expect is None:
         raise ModelRefused(f"adapter(s) {[e['id'] for e in out]} are applied but the run does not say it expects one (--expect-adapter)")
     if [e["id"] for e in out] != [expect]:

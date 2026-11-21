@@ -130,6 +130,7 @@
    "sha256": "8d8c693d2e96132652f3e152925c2024076e192480603c411deef7df3255b60f",
    "size": 16845280,
    "base": "qwen3.5-2b-iq4_xs",
+   "transfer_bases": ["qwen3.5-2b-q8_0"],
    "arm": "L1",
    "source_sha256": "71c5ac655b5f23e837373318de53640be83157506f8717893e36cf60d1379219",
    "format": "llama.cpp LoRA GGUF f16 (convert_lora_to_gguf.py), converted from the PEFT safetensors of source_sha256",
@@ -213,5 +214,5 @@
    }
   }
  ],
- "_comment_adapters": "E5 LoRA adapters, trained on the bf16 weights and applied at scale 1.0 to the locked IQ4_XS base named in `base`. The runner (--expect-adapter) refuses an applied adapter that is not listed here with a matching sha256 and base."
+ "_comment_adapters": "E5 LoRA adapters, trained on the bf16 weights and applied at scale 1.0 to the locked IQ4_XS base named in `base`. The runner (--expect-adapter) refuses an applied adapter that is not listed here with a matching sha256 and base. `transfer_bases` lists other locked bases the same adapter may be served on as a transfer test (E5_DESIGN eval cell 4); the run records `transfer: true`."
 }
