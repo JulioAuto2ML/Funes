@@ -45,7 +45,7 @@ def load(results: Path) -> dict:
 
 
 def check_cell(c: e5_eval.Cell, f: Path, r: dict, p_ids: list[str] | None) -> list[str]:
-    a = [x for x in r["answers"] if x["pass"] == 1]
+    a = [x for x in r["answers"] if x.get("pass", 1) == 1]
     why = []
     if len(a) != c.n or r.get("n_questions") != c.n:
         why.append(f"{len(a)} answers (n_questions {r.get('n_questions')}), expected {c.n}")

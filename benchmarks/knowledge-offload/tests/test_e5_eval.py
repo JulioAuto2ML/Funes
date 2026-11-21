@@ -102,6 +102,7 @@ def result(c: E.Cell, n=None, **over):
         r.update(dataset="gsm8k-test", dataset_seed=1, pilot=False)
         for k in ("sample", "exclude_ambiguous", "arm", "prompt_variant"):
             r.pop(k)
+        r["answers"] = [{"id": str(i), "error": None} for i in range(n)]      # GSM8K rows carry no `pass`
     r.update(over)
     return r
 
