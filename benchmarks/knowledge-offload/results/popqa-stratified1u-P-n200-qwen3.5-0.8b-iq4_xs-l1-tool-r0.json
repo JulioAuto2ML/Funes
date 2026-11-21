@@ -1,0 +1,5702 @@
+{
+ "dataset": "popqa",
+ "dataset_sha256": "9a5227f41bff0e4c331d4a774d946b12f95307892b58f860a9606ef356e6089b",
+ "dataset_seed": 1,
+ "sample": "stratified",
+ "exclude_ambiguous": true,
+ "arm": "main",
+ "paraphrase": {
+  "file": "paraphrase_P.jsonl",
+  "sha256": "d7c707da1af6b074c1c51e9de542f0116e428ae9ea7bec813531a888c9e63ac3",
+  "n": 200
+ },
+ "model_tag": "qwen3.5-0.8b-iq4_xs-l1",
+ "server": {
+  "endpoint": "http://localhost:8199",
+  "model_file": "Qwen3.5-0.8B-IQ4_XS.gguf",
+  "quant": "IQ4_XS",
+  "n_ctx": 8192,
+  "build": "b9413-6ed481eea"
+ },
+ "adapters": [
+  {
+   "id": "l1-b-0.8b",
+   "file": "L1_B_0.8B.gguf",
+   "sha256": "6241617e059f861514796bc74a17540566e43f048d5f190be6a0470a36b56d8f",
+   "size": 10848736,
+   "base": "qwen3.5-0.8b-iq4_xs",
+   "arm": "L1",
+   "source_sha256": "4f5c927ebb08659262cfd3db8b1358f81e8970259c8876860422ab7faf55c231",
+   "format": "llama.cpp LoRA GGUF f16 (convert_lora_to_gguf.py), converted from the PEFT safetensors of source_sha256",
+   "train": {
+    "setting": "B",
+    "rank": 8,
+    "alpha": 16,
+    "lr": 0.0001,
+    "epochs": 2,
+    "batch": 8,
+    "max_len": 1024,
+    "seed": 0,
+    "train_wall_s": 976.05,
+    "data": "E5 build n_lookup 1000 + 500 anchors (build_anchor_0.8b), see NOTEBOOK 2026-11-21"
+   },
+   "scale": 1.0,
+   "verified": "sha256",
+   "transfer": false
+  }
+ ],
+ "model": {
+  "id": "qwen3.5-0.8b-iq4_xs",
+  "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+  "file": "Qwen3.5-0.8B-IQ4_XS.gguf",
+  "sha256": "619917ae92f61eb6515a7070e944a0a7c2b198a2cf6536386f475485188a36ff",
+  "size": 492605696,
+  "quant": "IQ4_XS",
+  "lineage": "qwen3.5-official (unsloth GGUF)",
+  "verified": "sha256"
+ },
+ "git": {
+  "commit": "5d438d78e49f5bb01c362ec4e75cb3670127b8bf",
+  "dirty": true
+ },
+ "date": "2026-11-21",
+ "k": 5,
+ "max_steps": 4,
+ "temperature": 0.0,
+ "store_size": 14267,
+ "search_backend": "parallel-keyed",
+ "prompt_variant": "default",
+ "condition": "tool",
+ "repeat": 0,
+ "seed": 0,
+ "n_questions": 200,
+ "wall_s": 116.2,
+ "finished": "2026-11-21T19:01:26",
+ "answers": [
+  {
+   "id": "1881892",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Elinor Glyn",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 96,
+    "completion_tokens": 44,
+    "prompt_ms": 99.13,
+    "predicted_ms": 624.39,
+    "wall_ms": 748.78,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "489631",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Peter Benchley",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 42,
+    "prompt_ms": 86.2,
+    "predicted_ms": 538.23,
+    "wall_ms": 649.79,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6385629",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Marvin Gaye",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 47,
+    "prompt_ms": 78.44,
+    "predicted_ms": 530.71,
+    "wall_ms": 634.62,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3868065",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Beirut",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 44,
+    "prompt_ms": 76.69,
+    "predicted_ms": 479.77,
+    "wall_ms": 581.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "664514",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Lucknow",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 44,
+    "prompt_ms": 75.81,
+    "predicted_ms": 477.6,
+    "wall_ms": 578.76,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2674106",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Tsui Hark",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 45,
+    "prompt_ms": 81.92,
+    "predicted_ms": 486.09,
+    "wall_ms": 593.35,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5787601",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Frank Zappa",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 47,
+    "prompt_ms": 74.96,
+    "predicted_ms": 507.84,
+    "wall_ms": 608.59,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4331878",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Shyam Benegal",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 45,
+    "prompt_ms": 77.11,
+    "predicted_ms": 484.19,
+    "wall_ms": 586.61,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1701001",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Australia",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 42,
+    "prompt_ms": 74.35,
+    "predicted_ms": 443.99,
+    "wall_ms": 543.79,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3311112",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 46,
+    "prompt_ms": 75.64,
+    "predicted_ms": 493.63,
+    "wall_ms": 595.12,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4607987",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Emirate of Dubai",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 44,
+    "prompt_ms": 76.5,
+    "predicted_ms": 473.67,
+    "wall_ms": 575.73,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6453369",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Jenin",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 42,
+    "prompt_ms": 73.91,
+    "predicted_ms": 449.99,
+    "wall_ms": 549.27,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6073694",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 47,
+    "prompt_ms": 75.59,
+    "predicted_ms": 504.25,
+    "wall_ms": 605.1,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2189871",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Roger Young",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 76.51,
+    "predicted_ms": 461.91,
+    "wall_ms": 564.35,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1152202",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Sinclair Hill",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 76.69,
+    "predicted_ms": 471.16,
+    "wall_ms": 573.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1369042",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "puzzle video game",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 45,
+    "prompt_ms": 76.1,
+    "predicted_ms": 483.8,
+    "wall_ms": 585.36,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5724676",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "ambient music",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 43,
+    "prompt_ms": 74.56,
+    "predicted_ms": 460.57,
+    "wall_ms": 560.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1482020",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Jon Favreau",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 43,
+    "prompt_ms": 74.19,
+    "predicted_ms": 461.67,
+    "wall_ms": 561.29,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "266049",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Poland",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 118,
+    "completion_tokens": 46,
+    "prompt_ms": 75.79,
+    "predicted_ms": 493.39,
+    "wall_ms": 594.53,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5056791",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Ice Cube",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 42,
+    "prompt_ms": 74.62,
+    "predicted_ms": 451.12,
+    "wall_ms": 551.83,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "293869",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Georgia Holt",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 42,
+    "prompt_ms": 73.82,
+    "predicted_ms": 450.31,
+    "wall_ms": 549.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "691526",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Veliky Novgorod",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 47,
+    "prompt_ms": 79.75,
+    "predicted_ms": 506.79,
+    "wall_ms": 612.06,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5094181",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "association football",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 43,
+    "prompt_ms": 74.41,
+    "predicted_ms": 461.16,
+    "wall_ms": 560.56,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5915407",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Poland",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 120,
+    "completion_tokens": 47,
+    "prompt_ms": 75.74,
+    "predicted_ms": 504.65,
+    "wall_ms": 605.54,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3782263",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 74.77,
+    "predicted_ms": 462.92,
+    "wall_ms": 563.55,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4591787",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Mathoura",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 44,
+    "prompt_ms": 75.54,
+    "predicted_ms": 473.65,
+    "wall_ms": 575.08,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5773456",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Sarah Kane",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 94,
+    "completion_tokens": 41,
+    "prompt_ms": 74.08,
+    "predicted_ms": 439.63,
+    "wall_ms": 539.41,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2549912",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Anglicanism",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 74.38,
+    "predicted_ms": 462.42,
+    "wall_ms": 562.39,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2672350",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Lee Daniels",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 43,
+    "prompt_ms": 77.07,
+    "predicted_ms": 462.62,
+    "wall_ms": 565.83,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2122418",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Billy Corgan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 42,
+    "prompt_ms": 73.93,
+    "predicted_ms": 450.68,
+    "wall_ms": 549.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2532884",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Peter Weir",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 45,
+    "prompt_ms": 75.72,
+    "predicted_ms": 483.59,
+    "wall_ms": 584.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1180105",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Ralph Guggenheim",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 45,
+    "prompt_ms": 73.89,
+    "predicted_ms": 482.91,
+    "wall_ms": 582.36,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4886186",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Copenhagen",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 46,
+    "prompt_ms": 80.92,
+    "predicted_ms": 493.96,
+    "wall_ms": 600.58,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1919197",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "science fiction film",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 42,
+    "prompt_ms": 73.7,
+    "predicted_ms": 450.88,
+    "wall_ms": 549.77,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1693978",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 43,
+    "prompt_ms": 75.66,
+    "predicted_ms": 460.91,
+    "wall_ms": 561.91,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1782515",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Mary Ball Washington",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 135,
+    "completion_tokens": 43,
+    "prompt_ms": 77.25,
+    "predicted_ms": 464.82,
+    "wall_ms": 567.59,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6206193",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "non-fiction",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 123,
+    "completion_tokens": 47,
+    "prompt_ms": 76.02,
+    "predicted_ms": 504.92,
+    "wall_ms": 606.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5776395",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Port of Spain",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 46,
+    "prompt_ms": 75.59,
+    "predicted_ms": 494.28,
+    "wall_ms": 594.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3974408",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "Steve Roach",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 43,
+    "prompt_ms": 73.57,
+    "predicted_ms": 461.14,
+    "wall_ms": 560.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6263879",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Bert V. Royal",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 46,
+    "prompt_ms": 76.46,
+    "predicted_ms": 494.92,
+    "wall_ms": 596.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3718561",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "association football",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 46,
+    "prompt_ms": 75.2,
+    "predicted_ms": 492.44,
+    "wall_ms": 592.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2836657",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Dick King-Smith",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 45,
+    "prompt_ms": 76.0,
+    "predicted_ms": 482.85,
+    "wall_ms": 583.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3075565",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Uppsala",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 48,
+    "prompt_ms": 75.55,
+    "predicted_ms": 516.87,
+    "wall_ms": 617.62,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "308097",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "legal thriller",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 43,
+    "prompt_ms": 75.09,
+    "predicted_ms": 460.66,
+    "wall_ms": 561.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6111599",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Vira Narasimha II",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 51,
+    "prompt_ms": 76.45,
+    "predicted_ms": 548.07,
+    "wall_ms": 649.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4750097",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Burt Bacharach",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 43,
+    "prompt_ms": 73.76,
+    "predicted_ms": 459.96,
+    "wall_ms": 559.04,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3443220",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Robert Muller",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 45,
+    "prompt_ms": 75.49,
+    "predicted_ms": 482.87,
+    "wall_ms": 583.81,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2013686",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "London",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 43,
+    "prompt_ms": 76.07,
+    "predicted_ms": 453.7,
+    "wall_ms": 555.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1287587",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Pavlovo-Posadsky District",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 126,
+    "completion_tokens": 53,
+    "prompt_ms": 75.58,
+    "predicted_ms": 567.81,
+    "wall_ms": 668.56,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3640232",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Minna",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 75.7,
+    "predicted_ms": 458.34,
+    "wall_ms": 559.32,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "995399",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Cleethorpes",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 50,
+    "prompt_ms": 76.16,
+    "predicted_ms": 537.46,
+    "wall_ms": 639.02,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "246607",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Michael Winterbottom",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 126,
+    "completion_tokens": 45,
+    "prompt_ms": 75.83,
+    "predicted_ms": 482.62,
+    "wall_ms": 583.74,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3295750",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Mitsumasa Anno",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 47,
+    "prompt_ms": 74.49,
+    "predicted_ms": 504.28,
+    "wall_ms": 604.02,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1404597",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 44,
+    "prompt_ms": 73.67,
+    "predicted_ms": 470.63,
+    "wall_ms": 569.33,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2845284",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "association football",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 45,
+    "prompt_ms": 75.58,
+    "predicted_ms": 482.2,
+    "wall_ms": 583.33,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2604063",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "film director",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 73.97,
+    "predicted_ms": 450.12,
+    "wall_ms": 549.17,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5265423",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Abe Forsythe",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 45,
+    "prompt_ms": 74.91,
+    "predicted_ms": 482.47,
+    "wall_ms": 582.7,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3711589",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Peru",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 44,
+    "prompt_ms": 75.56,
+    "predicted_ms": 473.52,
+    "wall_ms": 574.42,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "491654",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Arnold Schoenberg",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 45,
+    "prompt_ms": 74.38,
+    "predicted_ms": 483.44,
+    "wall_ms": 582.99,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1985979",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Eddie Vedder",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 44,
+    "prompt_ms": 74.43,
+    "predicted_ms": 476.43,
+    "wall_ms": 576.17,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "552289",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Trenton",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 74.95,
+    "predicted_ms": 462.37,
+    "wall_ms": 562.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5973973",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "India",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 44,
+    "prompt_ms": 75.57,
+    "predicted_ms": 465.75,
+    "wall_ms": 566.65,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5984168",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "John Savage, 2nd Earl Rivers",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 131,
+    "completion_tokens": 54,
+    "prompt_ms": 76.77,
+    "predicted_ms": 578.33,
+    "wall_ms": 680.18,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "785571",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Jim Henson",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 44,
+    "prompt_ms": 75.5,
+    "predicted_ms": 469.23,
+    "wall_ms": 569.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1305682",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Steven Zaillian",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 45,
+    "prompt_ms": 76.69,
+    "predicted_ms": 482.48,
+    "wall_ms": 584.41,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "193165",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Tantieme",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 44,
+    "prompt_ms": 73.82,
+    "predicted_ms": 470.13,
+    "wall_ms": 569.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6515626",
+   "pass": 1,
+   "pop_bucket": "1e6",
+   "prediction": "Queen Elizabeth The Queen Mother",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 74.14,
+    "predicted_ms": 481.98,
+    "wall_ms": 581.53,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1335671",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Maurine Dallas Watkins",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 47,
+    "prompt_ms": 75.58,
+    "predicted_ms": 505.18,
+    "wall_ms": 606.04,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5966775",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "mathcore",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 74.02,
+    "predicted_ms": 448.4,
+    "wall_ms": 548.18,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1585914",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "playwright",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 45,
+    "prompt_ms": 77.36,
+    "predicted_ms": 483.07,
+    "wall_ms": 586.29,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3362656",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "rhythm and blues",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 43,
+    "prompt_ms": 74.39,
+    "predicted_ms": 461.49,
+    "wall_ms": 561.09,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6291315",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Kathmandu",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 74.19,
+    "predicted_ms": 483.8,
+    "wall_ms": 583.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3609582",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Claude Jutra",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 43,
+    "prompt_ms": 73.89,
+    "predicted_ms": 461.21,
+    "wall_ms": 560.32,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "977275",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Rajasenan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 48,
+    "prompt_ms": 75.59,
+    "predicted_ms": 513.82,
+    "wall_ms": 614.78,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2291070",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Anurag Basu",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 74.46,
+    "predicted_ms": 482.75,
+    "wall_ms": 582.47,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1976664",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Edward III of England",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 47,
+    "prompt_ms": 79.53,
+    "predicted_ms": 506.23,
+    "wall_ms": 610.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "761251",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Topeka",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 42,
+    "prompt_ms": 75.8,
+    "predicted_ms": 447.93,
+    "wall_ms": 549.6,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6340616",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "red",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 43,
+    "prompt_ms": 76.49,
+    "predicted_ms": 454.75,
+    "wall_ms": 556.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2082032",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Pieter Verhoeff",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 45,
+    "prompt_ms": 74.74,
+    "predicted_ms": 484.11,
+    "wall_ms": 584.1,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2281503",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Judaism",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 130,
+    "completion_tokens": 42,
+    "prompt_ms": 76.02,
+    "predicted_ms": 449.16,
+    "wall_ms": 550.52,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4058671",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Anees Bazmee",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 44,
+    "prompt_ms": 73.92,
+    "predicted_ms": 470.46,
+    "wall_ms": 569.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "297952",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Springfield",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 42,
+    "prompt_ms": 73.86,
+    "predicted_ms": 449.04,
+    "wall_ms": 548.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3930846",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 48,
+    "prompt_ms": 75.73,
+    "predicted_ms": 515.57,
+    "wall_ms": 616.44,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "248527",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Delhi",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 44,
+    "prompt_ms": 75.55,
+    "predicted_ms": 471.03,
+    "wall_ms": 571.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3609667",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Olav Dalgard",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 50,
+    "prompt_ms": 75.86,
+    "predicted_ms": 536.75,
+    "wall_ms": 638.12,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3172724",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "space opera",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 73.89,
+    "predicted_ms": 447.89,
+    "wall_ms": 547.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3579522",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Gaeru",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 42,
+    "prompt_ms": 73.94,
+    "predicted_ms": 454.52,
+    "wall_ms": 553.66,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "595366",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Matthew Weiner",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 44,
+    "prompt_ms": 75.85,
+    "predicted_ms": 473.24,
+    "wall_ms": 574.63,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1464242",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Toronto",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 41,
+    "prompt_ms": 74.92,
+    "predicted_ms": 432.71,
+    "wall_ms": 532.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5802763",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 46,
+    "prompt_ms": 76.14,
+    "predicted_ms": 494.91,
+    "wall_ms": 596.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3990933",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Canada",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 42,
+    "prompt_ms": 76.16,
+    "predicted_ms": 442.85,
+    "wall_ms": 544.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5912329",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Daphne du Maurier",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 46,
+    "prompt_ms": 74.14,
+    "predicted_ms": 492.95,
+    "wall_ms": 592.76,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5312652",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "reggae",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 42,
+    "prompt_ms": 75.64,
+    "predicted_ms": 447.83,
+    "wall_ms": 548.87,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2013041",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Todd Rundgren",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 42,
+    "prompt_ms": 73.74,
+    "predicted_ms": 451.65,
+    "wall_ms": 550.73,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "650598",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Stijn Coninx",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 44,
+    "prompt_ms": 74.04,
+    "predicted_ms": 471.41,
+    "wall_ms": 571.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "476899",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Anglicanism",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 45,
+    "prompt_ms": 75.34,
+    "predicted_ms": 480.75,
+    "wall_ms": 582.0,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5278096",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Charles Fort",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 97,
+    "completion_tokens": 42,
+    "prompt_ms": 73.92,
+    "predicted_ms": 449.98,
+    "wall_ms": 549.64,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3960521",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Kōji Suzuki",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 134,
+    "completion_tokens": 44,
+    "prompt_ms": 76.38,
+    "predicted_ms": 473.17,
+    "wall_ms": 574.9,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6129487",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 73.77,
+    "predicted_ms": 459.27,
+    "wall_ms": 558.6,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2671483",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Dmitri Shostakovich",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 47,
+    "prompt_ms": 74.34,
+    "predicted_ms": 503.73,
+    "wall_ms": 603.61,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1829094",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Hamilton",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 42,
+    "prompt_ms": 75.27,
+    "predicted_ms": 440.46,
+    "wall_ms": 541.33,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4845097",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Tim Burton",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 73.85,
+    "predicted_ms": 449.03,
+    "wall_ms": 548.23,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5126882",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "association football",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 76.38,
+    "predicted_ms": 460.9,
+    "wall_ms": 563.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5940933",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "sitcom",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 42,
+    "prompt_ms": 74.32,
+    "predicted_ms": 449.49,
+    "wall_ms": 549.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3752840",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 43,
+    "prompt_ms": 75.37,
+    "predicted_ms": 461.42,
+    "wall_ms": 562.33,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1345361",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Ganesh Babu",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 45,
+    "prompt_ms": 74.37,
+    "predicted_ms": 483.4,
+    "wall_ms": 583.53,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6290863",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Akure",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 43,
+    "prompt_ms": 75.64,
+    "predicted_ms": 460.91,
+    "wall_ms": 561.94,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3064460",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Robert Sheckley",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 127,
+    "completion_tokens": 50,
+    "prompt_ms": 76.03,
+    "predicted_ms": 536.24,
+    "wall_ms": 637.57,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4516392",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Bardstown",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 44,
+    "prompt_ms": 75.26,
+    "predicted_ms": 472.11,
+    "wall_ms": 572.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2939882",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "glam metal",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 73.64,
+    "predicted_ms": 460.4,
+    "wall_ms": 559.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "612885",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Aaron Zigman",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 49,
+    "prompt_ms": 75.93,
+    "predicted_ms": 524.41,
+    "wall_ms": 625.63,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1477066",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Linda Perry",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 43,
+    "prompt_ms": 73.7,
+    "predicted_ms": 461.75,
+    "wall_ms": 560.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2998350",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Lima",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 42,
+    "prompt_ms": 75.06,
+    "predicted_ms": 452.64,
+    "wall_ms": 553.58,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6529863",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Otto Preminger",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 43,
+    "prompt_ms": 73.94,
+    "predicted_ms": 460.17,
+    "wall_ms": 559.26,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5281997",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Niort",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 42,
+    "prompt_ms": 79.57,
+    "predicted_ms": 450.0,
+    "wall_ms": 555.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3608231",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Blue Larkspur",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 46,
+    "prompt_ms": 74.46,
+    "predicted_ms": 494.09,
+    "wall_ms": 594.09,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5780908",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Robert Wise",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 73.84,
+    "predicted_ms": 448.99,
+    "wall_ms": 547.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3041936",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Giuli Alasania",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 50,
+    "prompt_ms": 75.85,
+    "predicted_ms": 536.34,
+    "wall_ms": 637.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1641149",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "ice hockey",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 44,
+    "prompt_ms": 79.27,
+    "predicted_ms": 470.13,
+    "wall_ms": 574.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "609565",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 116,
+    "completion_tokens": 46,
+    "prompt_ms": 75.88,
+    "predicted_ms": 492.93,
+    "wall_ms": 594.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2740658",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "actor",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 44,
+    "prompt_ms": 75.63,
+    "predicted_ms": 464.24,
+    "wall_ms": 565.43,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "141296",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 44,
+    "prompt_ms": 75.94,
+    "predicted_ms": 469.93,
+    "wall_ms": 571.49,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6521985",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Catholic Church",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 45,
+    "prompt_ms": 76.71,
+    "predicted_ms": 483.54,
+    "wall_ms": 586.01,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2627781",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Adado",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 166,
+    "completion_tokens": 81,
+    "prompt_ms": 80.49,
+    "predicted_ms": 875.57,
+    "wall_ms": 988.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup",
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2171429",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Michael Grossman",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 42,
+    "prompt_ms": 73.86,
+    "predicted_ms": 450.69,
+    "wall_ms": 549.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1860029",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Havana",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 42,
+    "prompt_ms": 74.5,
+    "predicted_ms": 450.79,
+    "wall_ms": 550.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1746524",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Zagreb",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 44,
+    "prompt_ms": 76.15,
+    "predicted_ms": 472.8,
+    "wall_ms": 574.65,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2955693",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Salvador",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 43,
+    "prompt_ms": 74.32,
+    "predicted_ms": 460.61,
+    "wall_ms": 560.28,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1868796",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Manoel de Oliveira",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 47,
+    "prompt_ms": 75.74,
+    "predicted_ms": 502.73,
+    "wall_ms": 603.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "169830",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Jason Bloom",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 76.07,
+    "predicted_ms": 461.05,
+    "wall_ms": 562.59,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2492953",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "seiyū",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 45,
+    "prompt_ms": 75.94,
+    "predicted_ms": 482.84,
+    "wall_ms": 584.07,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3776549",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Roland J. Green",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 48,
+    "prompt_ms": 79.61,
+    "predicted_ms": 514.11,
+    "wall_ms": 619.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1033941",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Ian La Frenais",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 96,
+    "completion_tokens": 44,
+    "prompt_ms": 74.14,
+    "predicted_ms": 471.19,
+    "wall_ms": 570.57,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3282404",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "Romania",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 43,
+    "prompt_ms": 75.74,
+    "predicted_ms": 462.4,
+    "wall_ms": 563.45,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1194530",
+   "pass": 1,
+   "pop_bucket": "1e0",
+   "prediction": "Stan Lathan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 118,
+    "completion_tokens": 47,
+    "prompt_ms": 75.76,
+    "predicted_ms": 504.43,
+    "wall_ms": 605.69,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1237046",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Harry Lowell",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 74.14,
+    "predicted_ms": 451.39,
+    "wall_ms": 550.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "668681",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Roger Zelazny",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 45,
+    "prompt_ms": 75.31,
+    "predicted_ms": 485.07,
+    "wall_ms": 586.21,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1448611",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Estonia",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 45,
+    "prompt_ms": 75.4,
+    "predicted_ms": 482.44,
+    "wall_ms": 582.97,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1889250",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Pomorie",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 117,
+    "completion_tokens": 46,
+    "prompt_ms": 75.7,
+    "predicted_ms": 493.27,
+    "wall_ms": 594.21,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4729881",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "association football",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 42,
+    "prompt_ms": 74.52,
+    "predicted_ms": 449.24,
+    "wall_ms": 549.35,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4009276",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Lucas Demare",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 46,
+    "prompt_ms": 75.67,
+    "predicted_ms": 494.83,
+    "wall_ms": 595.9,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6432170",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Manila",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 42,
+    "prompt_ms": 73.99,
+    "predicted_ms": 449.17,
+    "wall_ms": 548.72,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5788109",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Glen Morgan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 97,
+    "completion_tokens": 43,
+    "prompt_ms": 73.91,
+    "predicted_ms": 461.71,
+    "wall_ms": 560.89,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2776008",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Vilnius",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 44,
+    "prompt_ms": 73.93,
+    "predicted_ms": 470.9,
+    "wall_ms": 570.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1137656",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "David Cross",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 42,
+    "prompt_ms": 73.84,
+    "predicted_ms": 451.97,
+    "wall_ms": 550.96,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6389822",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Greg Berlanti",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 43,
+    "prompt_ms": 74.12,
+    "predicted_ms": 460.6,
+    "wall_ms": 559.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1562438",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 44,
+    "prompt_ms": 74.08,
+    "predicted_ms": 471.84,
+    "wall_ms": 571.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5895957",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Leeuwarden",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 76.49,
+    "predicted_ms": 473.28,
+    "wall_ms": 575.29,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "446779",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Arosa",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 123,
+    "completion_tokens": 49,
+    "prompt_ms": 75.68,
+    "predicted_ms": 525.25,
+    "wall_ms": 626.35,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5948582",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Rabindranath Tagore",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 118,
+    "completion_tokens": 48,
+    "prompt_ms": 77.26,
+    "predicted_ms": 516.47,
+    "wall_ms": 619.51,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2112028",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Dr. Dre",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 96,
+    "completion_tokens": 43,
+    "prompt_ms": 75.92,
+    "predicted_ms": 460.7,
+    "wall_ms": 562.17,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1504171",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "singer-songwriter",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 44,
+    "prompt_ms": 74.0,
+    "predicted_ms": 471.98,
+    "wall_ms": 571.2,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2663081",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Zrinko Ogresta",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 47,
+    "prompt_ms": 76.26,
+    "predicted_ms": 503.02,
+    "wall_ms": 604.85,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "280271",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Frank Pierson",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 46,
+    "prompt_ms": 75.42,
+    "predicted_ms": 492.49,
+    "wall_ms": 593.22,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3486328",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "red",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 44,
+    "prompt_ms": 75.88,
+    "predicted_ms": 465.32,
+    "wall_ms": 566.36,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6406481",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 48,
+    "prompt_ms": 75.71,
+    "predicted_ms": 516.9,
+    "wall_ms": 618.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2099338",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Parras de la Fuente",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 122,
+    "completion_tokens": 53,
+    "prompt_ms": 75.86,
+    "predicted_ms": 568.91,
+    "wall_ms": 670.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5473227",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Jacques d'Arc",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 46,
+    "prompt_ms": 74.11,
+    "predicted_ms": 491.28,
+    "wall_ms": 590.67,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6481967",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Jorge Luis Borges",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 44,
+    "prompt_ms": 73.59,
+    "predicted_ms": 472.3,
+    "wall_ms": 571.13,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2060311",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Islam",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 41,
+    "prompt_ms": 74.07,
+    "predicted_ms": 431.23,
+    "wall_ms": 530.62,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1462306",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Billy Wilder",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 45,
+    "prompt_ms": 74.01,
+    "predicted_ms": 480.62,
+    "wall_ms": 579.92,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3927118",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Romania",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 43,
+    "prompt_ms": 76.23,
+    "predicted_ms": 459.0,
+    "wall_ms": 560.71,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4013695",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Japan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 42,
+    "prompt_ms": 74.64,
+    "predicted_ms": 445.37,
+    "wall_ms": 545.21,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6216050",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Panama City",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 73.62,
+    "predicted_ms": 459.85,
+    "wall_ms": 558.77,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3859284",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Kinaryosih",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 46,
+    "prompt_ms": 74.61,
+    "predicted_ms": 492.09,
+    "wall_ms": 592.07,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5777642",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Shane Meadows",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 74.96,
+    "predicted_ms": 462.0,
+    "wall_ms": 562.26,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6284805",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Norman Jewison",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 109,
+    "completion_tokens": 44,
+    "prompt_ms": 74.99,
+    "predicted_ms": 472.24,
+    "wall_ms": 572.51,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "156556",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "rock music",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 43,
+    "prompt_ms": 75.86,
+    "predicted_ms": 459.8,
+    "wall_ms": 561.25,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1380246",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Rudolf Friml",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 46,
+    "prompt_ms": 73.96,
+    "predicted_ms": 493.84,
+    "wall_ms": 593.19,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2966185",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 99,
+    "completion_tokens": 43,
+    "prompt_ms": 73.68,
+    "predicted_ms": 461.25,
+    "wall_ms": 560.1,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1740588",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Nuuk",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 42,
+    "prompt_ms": 74.52,
+    "predicted_ms": 448.77,
+    "wall_ms": 548.62,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "2523660",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "politician",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 45,
+    "prompt_ms": 79.66,
+    "predicted_ms": 482.28,
+    "wall_ms": 587.11,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6273807",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Jason Reich",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 121,
+    "completion_tokens": 47,
+    "prompt_ms": 75.54,
+    "predicted_ms": 503.42,
+    "wall_ms": 604.63,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "534816",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Annapolis",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 43,
+    "prompt_ms": 74.04,
+    "predicted_ms": 462.27,
+    "wall_ms": 561.65,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "441972",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "soul music",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 113,
+    "completion_tokens": 46,
+    "prompt_ms": 75.88,
+    "predicted_ms": 494.85,
+    "wall_ms": 596.06,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1164239",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Sir Thomas Chapman, 7th Baronet",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 118,
+    "completion_tokens": 52,
+    "prompt_ms": 79.66,
+    "predicted_ms": 558.24,
+    "wall_ms": 663.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "800535",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Mexico",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 44,
+    "prompt_ms": 75.13,
+    "predicted_ms": 461.57,
+    "wall_ms": 562.16,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3757863",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "alternative rock",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 97,
+    "completion_tokens": 41,
+    "prompt_ms": 73.63,
+    "predicted_ms": 438.31,
+    "wall_ms": 537.3,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1027847",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "chess",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 44,
+    "prompt_ms": 79.92,
+    "predicted_ms": 471.47,
+    "wall_ms": 576.51,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1468996",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Tallinn",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 103,
+    "completion_tokens": 44,
+    "prompt_ms": 74.1,
+    "predicted_ms": 470.06,
+    "wall_ms": 569.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "220404",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Kiko",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 47,
+    "prompt_ms": 75.94,
+    "predicted_ms": 505.4,
+    "wall_ms": 606.76,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6256826",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "I need to look up the facts about Jordan to find its capital city.",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 19,
+    "completion_tokens": 16,
+    "prompt_ms": 29.72,
+    "predicted_ms": 174.45,
+    "wall_ms": 216.79,
+    "calls": 1
+   },
+   "tools": [],
+   "steps": 1,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "4593802",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Multnomah County",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 104,
+    "completion_tokens": 43,
+    "prompt_ms": 75.74,
+    "predicted_ms": 460.22,
+    "wall_ms": 561.84,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3286642",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Anglicanism",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 44,
+    "prompt_ms": 76.17,
+    "predicted_ms": 470.47,
+    "wall_ms": 572.22,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "634658",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Ron Shelton",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 46,
+    "prompt_ms": 76.29,
+    "predicted_ms": 494.85,
+    "wall_ms": 596.41,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3147463",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "R. Sarathkumar",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 48,
+    "prompt_ms": 79.63,
+    "predicted_ms": 513.86,
+    "wall_ms": 618.48,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "179252",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Baptists",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 44,
+    "prompt_ms": 73.36,
+    "predicted_ms": 470.56,
+    "wall_ms": 568.98,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1867834",
+   "pass": 1,
+   "pop_bucket": "1e5",
+   "prediction": "Belmopan",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 102,
+    "completion_tokens": 43,
+    "prompt_ms": 73.7,
+    "predicted_ms": 460.41,
+    "wall_ms": 559.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1281428",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Daniele Amfitheatrof",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 50,
+    "prompt_ms": 77.0,
+    "predicted_ms": 536.15,
+    "wall_ms": 638.34,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "610662",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "astronomer",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 45,
+    "prompt_ms": 75.57,
+    "predicted_ms": 479.73,
+    "wall_ms": 580.64,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "1944892",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Missy Elliott",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 43,
+    "prompt_ms": 73.76,
+    "predicted_ms": 459.67,
+    "wall_ms": 558.9,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5782367",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "United States of America",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 119,
+    "completion_tokens": 48,
+    "prompt_ms": 75.41,
+    "predicted_ms": 515.03,
+    "wall_ms": 616.05,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "5941833",
+   "pass": 1,
+   "pop_bucket": "1e1",
+   "prediction": "Henry James",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 110,
+    "completion_tokens": 43,
+    "prompt_ms": 74.19,
+    "predicted_ms": 460.74,
+    "wall_ms": 560.31,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "906463",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Mick Schultz",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 101,
+    "completion_tokens": 43,
+    "prompt_ms": 73.94,
+    "predicted_ms": 460.91,
+    "wall_ms": 560.1,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "610176",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "David Leland",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 112,
+    "completion_tokens": 46,
+    "prompt_ms": 79.59,
+    "predicted_ms": 493.12,
+    "wall_ms": 598.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "46385",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Brad Meltzer",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 107,
+    "completion_tokens": 45,
+    "prompt_ms": 76.41,
+    "predicted_ms": 483.5,
+    "wall_ms": 585.12,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3980533",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "Lenny Abrahamson",
+   "exact": false,
+   "contains": false,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 111,
+    "completion_tokens": 44,
+    "prompt_ms": 74.2,
+    "predicted_ms": 470.66,
+    "wall_ms": 570.26,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "3930012",
+   "pass": 1,
+   "pop_bucket": "1e2",
+   "prediction": "Jacques Audiard",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 46,
+    "prompt_ms": 75.38,
+    "predicted_ms": 492.27,
+    "wall_ms": 593.5,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "6474235",
+   "pass": 1,
+   "pop_bucket": "1e4",
+   "prediction": "role-playing video game",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 115,
+    "completion_tokens": 47,
+    "prompt_ms": 75.92,
+    "predicted_ms": 506.67,
+    "wall_ms": 607.86,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  },
+  {
+   "id": "567939",
+   "pass": 1,
+   "pop_bucket": "1e3",
+   "prediction": "Deepak Dev",
+   "exact": true,
+   "contains": true,
+   "abstained": false,
+   "hedge": false,
+   "usage": {
+    "prompt_tokens": 106,
+    "completion_tokens": 44,
+    "prompt_ms": 76.06,
+    "predicted_ms": 471.68,
+    "wall_ms": 573.82,
+    "calls": 2
+   },
+   "tools": [
+    "lookup"
+   ],
+   "steps": 2,
+   "nudges": 0,
+   "contract_met": null,
+   "retrieval_hit": null,
+   "tainted": false,
+   "error": null,
+   "finish_reason": "stop"
+  }
+ ],
+ "summary": {
+  "pass1": {
+   "n": 200,
+   "acc": 0.98,
+   "exact": 0.98,
+   "hedge_rate": 0.0,
+   "acc_nohedge": 0.98,
+   "abstain": 0.0,
+   "errors": 0,
+   "tainted": 0.0,
+   "lookup_rate": 0.995,
+   "retrieval_hit": null,
+   "per_answer": {
+    "prompt_tokens": 108.02,
+    "completion_tokens": 44.605,
+    "wall_ms": 580.1958500000004,
+    "calls": 1.995
+   }
+  }
+ },
+ "search": {
+  "rate_limited": 0,
+  "searches": 0,
+  "errors": 0,
+  "error_log": []
+ }
+}

@@ -1,0 +1,97 @@
+{
+ "scale0": {
+  "n": 20,
+  "identical": 20,
+  "differing": [],
+  "lookup_calls": 0
+ },
+ "scale1": {
+  "n": 20,
+  "identical": 0,
+  "differing": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19
+  ],
+  "lookup_calls": 20
+ },
+ "adapters_scale0": [
+  {
+   "id": 0,
+   "path": "/home/julio/llama.cpp/models/adapters/L1_B_2B.gguf",
+   "scale": 0.0,
+   "task_name": "",
+   "prompt_prefix": ""
+  }
+ ],
+ "adapters_scale1": [
+  {
+   "id": 0,
+   "path": "/home/julio/llama.cpp/models/adapters/L1_B_2B.gguf",
+   "scale": 1.0,
+   "task_name": "",
+   "prompt_prefix": ""
+  }
+ ],
+ "pass": true,
+ "base_first": [
+  {
+   "content": "David S. Goyer",
+   "calls": []
+  },
+  {
+   "content": "William Faulkner",
+   "calls": []
+  },
+  {
+   "content": "Journalist",
+   "calls": []
+  }
+ ],
+ "lora_first": [
+  {
+   "content": "",
+   "calls": [
+    [
+     "lookup",
+     "{\"entity\":\"Skyhigh\",\"relation\":\"author\"}"
+    ]
+   ]
+  },
+  {
+   "content": "",
+   "calls": [
+    [
+     "lookup",
+     "{\"entity\":\"Tuesday\",\"relation\":\"author\"}"
+    ]
+   ]
+  },
+  {
+   "content": "",
+   "calls": [
+    [
+     "lookup",
+     "{\"entity\":\"Petr Mlsna\",\"relation\":\"occupation\"}"
+    ]
+   ]
+  }
+ ]
+}

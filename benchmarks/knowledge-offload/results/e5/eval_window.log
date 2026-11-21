@@ -1,0 +1,300 @@
+ko-swap: swap qwen27b -> qwen3.5-2b-iq4_xs (kv f16)
+  [stop]  qwen27b  (pid 455325)
+  [skip]  qwen9b   not running
+ko-swap: qwen3.5-2b-iq4_xs healthy
+=== qwen3.5-2b-iq4_xs + l1-b-2b 17:23:00
+{"pass": true, "scale0_identical": "20/20", "scale1_differing": 20, "scale1_lookup_calls": 20}
+gate l1-b-2b rc=0
+--- 17:23:20 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=1.000
+  tool r0 pass1 200/1000 acc=0.990
+  tool r0 pass1 300/1000 acc=0.993
+  tool r0 pass1 400/1000 acc=0.990
+  tool r0 pass1 500/1000 acc=0.990
+  tool r0 pass1 600/1000 acc=0.988
+  tool r0 pass1 700/1000 acc=0.987
+  tool r0 pass1 800/1000 acc=0.989
+  tool r0 pass1 900/1000 acc=0.989
+  tool r0 pass1 1000/1000 acc=0.990
+  -> popqa-stratified1u-n1000-qwen3.5-2b-iq4_xs-l1-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.99, 'exact': 0.99, 'hedge_rate': 0.0, 'acc_nohedge': 0.99, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.992, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 107.481, 'completion_tokens': 44.276, 'wall_ms': 690.2476899999999, 'calls': 1.992}}}
+rc=0
+--- 17:34:52 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --paraphrase data/e5/build_n1000/paraphrase_P.jsonl
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.970
+  tool r0 pass1 200/200 acc=0.965
+  -> popqa-stratified1u-P-n200-qwen3.5-2b-iq4_xs-l1-tool-r0.json {'pass1': {'n': 200, 'acc': 0.965, 'exact': 0.965, 'hedge_rate': 0.0, 'acc_nohedge': 0.965, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.95, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 104.11, 'completion_tokens': 42.77, 'wall_ms': 667.9555499999998, 'calls': 1.95}}}
+rc=0
+--- 17:37:06 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions closed --task gsm8k --repeats 1
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS); 500 problems, max_tokens 512
+closed repeat 0 seed 0
+  closed r0 100/500 acc=0.650
+  closed r0 200/500 acc=0.700
+  closed r0 300/500 acc=0.670
+  closed r0 400/500 acc=0.682
+  closed r0 500/500 acc=0.692
+  -> gsm8k-n500-s1-qwen3.5-2b-iq4_xs-l1-closed-r0.json {'n': 500, 'acc': 0.692, 'acc_strict': 0.692, 'modes': {'strict': 0.972, 'fallback': 0.0, 'none': 0.028}, 'format_dominated': False, 'at_limit': 0.028, 'completion_tokens_mean': 179.324, 'completion_tokens_max': 512, 'lookup_rate': 0.0, 'errors': 0}
+rc=0
+--- 17:57:00 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions closed --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/1000 acc=0.230
+  closed r0 pass1 200/1000 acc=0.240
+  closed r0 pass1 300/1000 acc=0.250
+  closed r0 pass1 400/1000 acc=0.235
+  closed r0 pass1 500/1000 acc=0.230
+  closed r0 pass1 600/1000 acc=0.232
+  closed r0 pass1 700/1000 acc=0.233
+  closed r0 pass1 800/1000 acc=0.239
+  closed r0 pass1 900/1000 acc=0.238
+  closed r0 pass1 1000/1000 acc=0.238
+  -> popqa-stratified1u-n1000-qwen3.5-2b-iq4_xs-l1-closed-r0.json {'pass1': {'n': 1000, 'acc': 0.238, 'exact': 0.217, 'hedge_rate': 0.0, 'acc_nohedge': 0.238, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.639, 'completion_tokens': 4.089, 'wall_ms': 118.31208000000018, 'calls': 1.0}}}
+rc=0
+--- 17:58:59 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --prompt-variant tool_free
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.990
+  tool r0 pass1 200/1000 acc=0.990
+  tool r0 pass1 300/1000 acc=0.993
+  tool r0 pass1 400/1000 acc=0.988
+  tool r0 pass1 500/1000 acc=0.986
+  tool r0 pass1 600/1000 acc=0.982
+  tool r0 pass1 700/1000 acc=0.983
+  tool r0 pass1 800/1000 acc=0.985
+  tool r0 pass1 900/1000 acc=0.984
+  tool r0 pass1 1000/1000 acc=0.983
+  -> popqa-stratified1u-n1000-qwen3.5-2b-iq4_xs-l1-tool-tool_free-r0.json {'pass1': {'n': 1000, 'acc': 0.983, 'exact': 0.0, 'hedge_rate': 0.0, 'acc_nohedge': 0.983, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 108.475, 'completion_tokens': 54.424, 'wall_ms': 822.8663499999998, 'calls': 2.0}}}
+rc=0
+--- 18:12:43 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --prompt-variant tool_describe
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=1.000
+  tool r0 pass1 200/1000 acc=0.995
+  tool r0 pass1 300/1000 acc=0.997
+  tool r0 pass1 400/1000 acc=0.995
+  tool r0 pass1 500/1000 acc=0.996
+  tool r0 pass1 600/1000 acc=0.993
+  tool r0 pass1 700/1000 acc=0.993
+  tool r0 pass1 800/1000 acc=0.994
+  tool r0 pass1 900/1000 acc=0.992
+  tool r0 pass1 1000/1000 acc=0.993
+  -> popqa-stratified1u-n1000-qwen3.5-2b-iq4_xs-l1-tool-tool_describe-r0.json {'pass1': {'n': 1000, 'acc': 0.993, 'exact': 0.993, 'hedge_rate': 0.0, 'acc_nohedge': 0.993, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 108.496, 'completion_tokens': 44.596, 'wall_ms': 698.0134800000002, 'calls': 2.0}}}
+rc=0
+--- 18:24:22 run.py run --model-tag qwen3.5-2b-iq4_xs-l1 --expect qwen3.5-2b-iq4_xs --expect-adapter l1-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --prompt-variant abstain_default --ablated
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.200
+  tool r0 pass1 200/200 acc=0.195
+  -> popqa-stratified1u-ablated-n200-qwen3.5-2b-iq4_xs-l1-tool-abstain_default-r0.json {'pass1': {'n': 200, 'acc': 0.195, 'exact': 0.195, 'hedge_rate': 0.0, 'acc_nohedge': 0.195, 'abstain': 0.265, 'outcomes': {'correct': 0.195, 'abstained': 0.265, 'hallucinated': 0.54}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 119.82, 'completion_tokens': 45.22, 'wall_ms': 726.7356500000001, 'calls': 2.0}}}
+rc=0
+=== qwen3.5-2b-iq4_xs + l0-b-2b 18:26:48
+{"pass": true, "scale0_identical": "20/20", "scale1_differing": 14, "scale1_lookup_calls": 0}
+gate l0-b-2b rc=0
+--- 18:26:58 run.py run --model-tag qwen3.5-2b-iq4_xs-l0 --expect qwen3.5-2b-iq4_xs --expect-adapter l0-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.300
+  tool r0 pass1 200/1000 acc=0.305
+  tool r0 pass1 300/1000 acc=0.290
+  tool r0 pass1 400/1000 acc=0.282
+  tool r0 pass1 500/1000 acc=0.282
+  tool r0 pass1 600/1000 acc=0.275
+  tool r0 pass1 700/1000 acc=0.271
+  tool r0 pass1 800/1000 acc=0.280
+  tool r0 pass1 900/1000 acc=0.280
+  tool r0 pass1 1000/1000 acc=0.285
+  -> popqa-stratified1u-n1000-qwen3.5-2b-iq4_xs-l0-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.285, 'exact': 0.268, 'hedge_rate': 0.0, 'acc_nohedge': 0.285, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.611, 'completion_tokens': 3.722, 'wall_ms': 113.47738000000003, 'calls': 1.0}}}
+rc=0
+--- 18:28:52 run.py run --model-tag qwen3.5-2b-iq4_xs-l0 --expect qwen3.5-2b-iq4_xs --expect-adapter l0-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --paraphrase data/e5/build_n1000/paraphrase_P.jsonl
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.250
+  tool r0 pass1 200/200 acc=0.260
+  -> popqa-stratified1u-P-n200-qwen3.5-2b-iq4_xs-l0-tool-r0.json {'pass1': {'n': 200, 'acc': 0.26, 'exact': 0.255, 'hedge_rate': 0.0, 'acc_nohedge': 0.26, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.215, 'completion_tokens': 3.885, 'wall_ms': 115.40474999999996, 'calls': 1.0}}}
+rc=0
+--- 18:29:16 run.py run --model-tag qwen3.5-2b-iq4_xs-l0 --expect qwen3.5-2b-iq4_xs --expect-adapter l0-b-2b --conditions closed --task gsm8k --repeats 1
+serving qwen3.5-2b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-IQ4_XS.gguf (IQ4_XS); 500 problems, max_tokens 512
+closed repeat 0 seed 0
+  closed r0 100/500 acc=0.660
+  closed r0 200/500 acc=0.705
+  closed r0 300/500 acc=0.673
+  closed r0 400/500 acc=0.698
+  closed r0 500/500 acc=0.710
+  -> gsm8k-n500-s1-qwen3.5-2b-iq4_xs-l0-closed-r0.json {'n': 500, 'acc': 0.71, 'acc_strict': 0.71, 'modes': {'strict': 0.972, 'fallback': 0.0, 'none': 0.028}, 'format_dominated': False, 'at_limit': 0.028, 'completion_tokens_mean': 182.438, 'completion_tokens_max': 512, 'lookup_rate': 0.0, 'errors': 0}
+rc=0
+=== qwen3.5-0.8b-iq4_xs + l1-b-0.8b 18:49:29
+{"pass": true, "scale0_identical": "20/20", "scale1_differing": 20, "scale1_lookup_calls": 20}
+gate l1-b-0.8b rc=0
+--- 18:49:51 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=1.000
+  tool r0 pass1 200/1000 acc=0.985
+  tool r0 pass1 300/1000 acc=0.980
+  tool r0 pass1 400/1000 acc=0.980
+  tool r0 pass1 500/1000 acc=0.982
+  tool r0 pass1 600/1000 acc=0.982
+  tool r0 pass1 700/1000 acc=0.980
+  tool r0 pass1 800/1000 acc=0.980
+  tool r0 pass1 900/1000 acc=0.979
+  tool r0 pass1 1000/1000 acc=0.979
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-l1-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.979, 'exact': 0.978, 'hedge_rate': 0.0, 'acc_nohedge': 0.979, 'abstain': 0.005, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.995, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 107.742, 'completion_tokens': 44.465, 'wall_ms': 577.1496199999999, 'calls': 1.995}}}
+rc=0
+--- 18:59:29 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --paraphrase data/e5/build_n1000/paraphrase_P.jsonl
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.990
+  tool r0 pass1 200/200 acc=0.980
+  -> popqa-stratified1u-P-n200-qwen3.5-0.8b-iq4_xs-l1-tool-r0.json {'pass1': {'n': 200, 'acc': 0.98, 'exact': 0.98, 'hedge_rate': 0.0, 'acc_nohedge': 0.98, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.995, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 108.02, 'completion_tokens': 44.605, 'wall_ms': 580.1958500000004, 'calls': 1.995}}}
+rc=0
+--- 19:01:26 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions closed --task gsm8k --repeats 1
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS); 500 problems, max_tokens 512
+closed repeat 0 seed 0
+  closed r0 100/500 acc=0.290
+  closed r0 200/500 acc=0.335
+  closed r0 300/500 acc=0.347
+  closed r0 400/500 acc=0.345
+  closed r0 500/500 acc=0.348
+  -> gsm8k-n500-s1-qwen3.5-0.8b-iq4_xs-l1-closed-r0.json {'n': 500, 'acc': 0.348, 'acc_strict': 0.34, 'modes': {'strict': 0.922, 'fallback': 0.024, 'none': 0.054}, 'format_dominated': False, 'at_limit': 0.054, 'completion_tokens_mean': 140.76, 'completion_tokens_max': 512, 'lookup_rate': 0.0, 'errors': 0}
+rc=0
+--- 19:14:19 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions closed --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+closed repeat 0 seed 0
+  closed r0 pass1 100/1000 acc=0.160
+  closed r0 pass1 200/1000 acc=0.170
+  closed r0 pass1 300/1000 acc=0.183
+  closed r0 pass1 400/1000 acc=0.177
+  closed r0 pass1 500/1000 acc=0.186
+  closed r0 pass1 600/1000 acc=0.177
+  closed r0 pass1 700/1000 acc=0.173
+  closed r0 pass1 800/1000 acc=0.180
+  closed r0 pass1 900/1000 acc=0.180
+  closed r0 pass1 1000/1000 acc=0.182
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-l1-closed-r0.json {'pass1': {'n': 1000, 'acc': 0.182, 'exact': 0.155, 'hedge_rate': 0.0, 'acc_nohedge': 0.182, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.639, 'completion_tokens': 5.951, 'wall_ms': 124.45168999999981, 'calls': 1.0}}}
+rc=0
+--- 19:16:24 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --prompt-variant tool_free
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.950
+  tool r0 pass1 200/1000 acc=0.960
+  tool r0 pass1 300/1000 acc=0.967
+  tool r0 pass1 400/1000 acc=0.958
+  tool r0 pass1 500/1000 acc=0.954
+  tool r0 pass1 600/1000 acc=0.953
+  tool r0 pass1 700/1000 acc=0.956
+  tool r0 pass1 800/1000 acc=0.960
+  tool r0 pass1 900/1000 acc=0.961
+  tool r0 pass1 1000/1000 acc=0.963
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-l1-tool-tool_free-r0.json {'pass1': {'n': 1000, 'acc': 0.963, 'exact': 0.004, 'hedge_rate': 0.0, 'acc_nohedge': 0.963, 'abstain': 0.001, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.981, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 106.768, 'completion_tokens': 54.576, 'wall_ms': 682.0828899999997, 'calls': 1.981}}}
+rc=0
+--- 19:27:47 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --prompt-variant tool_describe
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=1.000
+  tool r0 pass1 200/1000 acc=0.980
+  tool r0 pass1 300/1000 acc=0.973
+  tool r0 pass1 400/1000 acc=0.978
+  tool r0 pass1 500/1000 acc=0.978
+  tool r0 pass1 600/1000 acc=0.980
+  tool r0 pass1 700/1000 acc=0.977
+  tool r0 pass1 800/1000 acc=0.978
+  tool r0 pass1 900/1000 acc=0.974
+  tool r0 pass1 1000/1000 acc=0.973
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-l1-tool-tool_describe-r0.json {'pass1': {'n': 1000, 'acc': 0.973, 'exact': 0.972, 'hedge_rate': 0.0, 'acc_nohedge': 0.973, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.982, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 106.977, 'completion_tokens': 44.066, 'wall_ms': 575.4951600000002, 'calls': 1.982}}}
+rc=0
+--- 19:37:24 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l1 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l1-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --prompt-variant abstain_default --ablated
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.120
+  tool r0 pass1 200/200 acc=0.095
+  -> popqa-stratified1u-ablated-n200-qwen3.5-0.8b-iq4_xs-l1-tool-abstain_default-r0.json {'pass1': {'n': 200, 'acc': 0.095, 'exact': 0.095, 'hedge_rate': 0.0, 'acc_nohedge': 0.095, 'abstain': 0.265, 'outcomes': {'correct': 0.095, 'abstained': 0.265, 'hallucinated': 0.64}, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 120.155, 'completion_tokens': 45.19, 'wall_ms': 604.4418999999997, 'calls': 2.0}}}
+rc=0
+=== qwen3.5-0.8b-iq4_xs + l0-b-0.8b 19:39:25
+{"pass": true, "scale0_identical": "20/20", "scale1_differing": 18, "scale1_lookup_calls": 0}
+gate l0-b-0.8b rc=0
+--- 19:39:37 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l0 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l0-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=0.200
+  tool r0 pass1 200/1000 acc=0.220
+  tool r0 pass1 300/1000 acc=0.220
+  tool r0 pass1 400/1000 acc=0.217
+  tool r0 pass1 500/1000 acc=0.228
+  tool r0 pass1 600/1000 acc=0.218
+  tool r0 pass1 700/1000 acc=0.216
+  tool r0 pass1 800/1000 acc=0.215
+  tool r0 pass1 900/1000 acc=0.211
+  tool r0 pass1 1000/1000 acc=0.218
+  -> popqa-stratified1u-n1000-qwen3.5-0.8b-iq4_xs-l0-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.218, 'exact': 0.206, 'hedge_rate': 0.0, 'acc_nohedge': 0.218, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.611, 'completion_tokens': 4.022, 'wall_ms': 100.70151000000006, 'calls': 1.0}}}
+rc=0
+--- 19:41:18 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l0 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l0-b-0.8b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1 --paraphrase data/e5/build_n1000/paraphrase_P.jsonl
+questions: 200 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/200 acc=0.180
+  tool r0 pass1 200/200 acc=0.185
+  -> popqa-stratified1u-P-n200-qwen3.5-0.8b-iq4_xs-l0-tool-r0.json {'pass1': {'n': 200, 'acc': 0.185, 'exact': 0.185, 'hedge_rate': 0.0, 'acc_nohedge': 0.185, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 0.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 20.215, 'completion_tokens': 4.01, 'wall_ms': 100.88309999999996, 'calls': 1.0}}}
+rc=0
+--- 19:41:39 run.py run --model-tag qwen3.5-0.8b-iq4_xs-l0 --expect qwen3.5-0.8b-iq4_xs --expect-adapter l0-b-0.8b --conditions closed --task gsm8k --repeats 1
+serving qwen3.5-0.8b-iq4_xs [qwen3.5-official (unsloth GGUF)] Qwen3.5-0.8B-IQ4_XS.gguf (IQ4_XS); 500 problems, max_tokens 512
+closed repeat 0 seed 0
+  closed r0 100/500 acc=0.310
+  closed r0 200/500 acc=0.350
+  closed r0 300/500 acc=0.357
+  closed r0 400/500 acc=0.350
+  closed r0 500/500 acc=0.350
+  -> gsm8k-n500-s1-qwen3.5-0.8b-iq4_xs-l0-closed-r0.json {'n': 500, 'acc': 0.35, 'acc_strict': 0.342, 'modes': {'strict': 0.922, 'fallback': 0.022, 'none': 0.056}, 'format_dominated': False, 'at_limit': 0.056, 'completion_tokens_mean': 139.196, 'completion_tokens_max': 512, 'lookup_rate': 0.0, 'errors': 0}
+rc=0
+=== qwen3.5-2b-q8_0 + l1-b-2b 19:54:24
+gate skipped: l1-b-2b on qwen3.5-2b-q8_0 is the transfer row (gate ran on its own base)
+--- 19:54:30 run.py run --model-tag qwen3.5-2b-q8_0-l1 --expect qwen3.5-2b-q8_0 --expect-adapter l1-b-2b --conditions tool --sample stratified --dataset-seed 1 --exclude-ambiguous --n 1000 --repeats 1
+questions: 1000 of 12245 eligible (14267 triples in the store), ambiguous (homonym) subjects excluded
+serving qwen3.5-2b-q8_0 [qwen3.5-official (unsloth GGUF)] Qwen3.5-2B-Q8_0.gguf (Q8_0) at http://localhost:8199, verified by sha256
+tool repeat 0 seed 0
+  tool r0 pass1 100/1000 acc=1.000
+  tool r0 pass1 200/1000 acc=0.995
+  tool r0 pass1 300/1000 acc=0.997
+  tool r0 pass1 400/1000 acc=0.995
+  tool r0 pass1 500/1000 acc=0.996
+  tool r0 pass1 600/1000 acc=0.995
+  tool r0 pass1 700/1000 acc=0.994
+  tool r0 pass1 800/1000 acc=0.995
+  tool r0 pass1 900/1000 acc=0.994
+  tool r0 pass1 1000/1000 acc=0.995
+  -> popqa-stratified1u-n1000-qwen3.5-2b-q8_0-l1-tool-r0.json {'pass1': {'n': 1000, 'acc': 0.995, 'exact': 0.995, 'hedge_rate': 0.0, 'acc_nohedge': 0.995, 'abstain': 0.0, 'errors': 0, 'tainted': 0.0, 'lookup_rate': 1.0, 'retrieval_hit': None, 'per_answer': {'prompt_tokens': 108.51, 'completion_tokens': 44.594, 'wall_ms': 788.2166399999984, 'calls': 2.0}}}
+rc=0
+=== window done 20:07:40
+Traceback (most recent call last):
+  File "/home/julio/funes-ko/benchmarks/knowledge-offload/verify_e5.py", line 127, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/julio/funes-ko/benchmarks/knowledge-offload/verify_e5.py", line 118, in main
+    rows, bad = check(Path(a.results), Path(a.p_file))
+                ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/julio/funes-ko/benchmarks/knowledge-offload/verify_e5.py", line 102, in check
+    why = check_cell(c, f, r, p_ids)
+  File "/home/julio/funes-ko/benchmarks/knowledge-offload/verify_e5.py", line 48, in check_cell
+    a = [x for x in r["answers"] if x["pass"] == 1]
+                                    ~^^^^^^^^
+KeyError: 'pass'
+ko-swap: restore qwen27b
+  [start] qwen27b  port=8080  Qwen3.8-27B i1-IQ4_XS (13.5GB) — large reasoning (32K ctx, q4_0 KV, thinking off, mmproj on CPU)
+          pid=532364 log=/home/julio/llama_logs/qwen27b.log
+ko-swap: qwen27b healthy
