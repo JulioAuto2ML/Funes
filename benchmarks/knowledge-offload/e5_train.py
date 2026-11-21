@@ -57,6 +57,19 @@ def batches(examples: list[dict], batch: int, epochs: int, seed: int) -> list[li
     return out
 
 
+def masked_lm_loss(model, t: dict):
+    """Mean cross-entropy over the trained positions only, the same number the library's loss gives (mean over labels != IGNORE),
+    but the vocabulary projection runs on those positions alone: at 248k tokens a full-sequence fp32 logits tensor of a batch of
+    8 is 5 GB and ran the probe out of memory (2026-11-20)."""
+    import torch
+    inner = model.base_model.model                       # peft wrapper -> the causal LM
+    h = inner.model(input_ids=t["input_ids"], attention_mask=t["attention_mask"]).last_hidden_state[:, :-1]
+    y = t["labels"][:, 1:]
+    keep = y != IGNORE
+    logits = inner.lm_head(h[keep]).float()
+    return torch.nn.functional.cross_entropy(logits, y[keep])
+
+
 def read_rows(files: list[str]) -> list[dict]:
     rows = []
     for f in files:
@@ -114,7 +127,7 @@ def main(argv=None):
     for step, b in enumerate(sched[:total], 1):
         c = collate(b, pad_id)
         t = {k: torch.tensor(v, device="cuda") for k, v in c.items()}
-        loss = model(**t).loss
+        loss = masked_lm_loss(model, t)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(params, 1.0)
         opt.step(); sch.step(); opt.zero_grad(set_to_none=True)
