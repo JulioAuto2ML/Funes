@@ -122,5 +122,96 @@
    "lineage": "qwen3.8-27b official-derived quant (producer unverified)",
    "role": "production"
   }
- ]
+ ],
+ "adapters": [
+  {
+   "id": "l1-b-2b",
+   "file": "L1_B_2B.gguf",
+   "sha256": "8d8c693d2e96132652f3e152925c2024076e192480603c411deef7df3255b60f",
+   "size": 16845280,
+   "base": "qwen3.5-2b-iq4_xs",
+   "arm": "L1",
+   "source_sha256": "71c5ac655b5f23e837373318de53640be83157506f8717893e36cf60d1379219",
+   "format": "llama.cpp LoRA GGUF f16 (convert_lora_to_gguf.py), converted from the PEFT safetensors of source_sha256",
+   "train": {
+    "setting": "B",
+    "rank": 8,
+    "alpha": 16,
+    "lr": 0.0001,
+    "epochs": 2,
+    "batch": 8,
+    "max_len": 1024,
+    "seed": 0,
+    "train_wall_s": 1424.81,
+    "data": "E5 build n_lookup 1000 + 500 anchors (build_anchor_2b), see NOTEBOOK 2026-11-21"
+   }
+  },
+  {
+   "id": "l0-b-2b",
+   "file": "L0_B_2B.gguf",
+   "sha256": "99130c31a0026702e4ff2cfd862f5814ce27456b3d0e98a4cd91ce1f3ee83caf",
+   "size": 16845280,
+   "base": "qwen3.5-2b-iq4_xs",
+   "arm": "L0",
+   "source_sha256": "ef850d7b6a184e726176e2849c1e5faa38e131b3a038a18a6946c8bad1376535",
+   "format": "llama.cpp LoRA GGUF f16 (convert_lora_to_gguf.py), converted from the PEFT safetensors of source_sha256",
+   "train": {
+    "setting": "B",
+    "rank": 8,
+    "alpha": 16,
+    "lr": 0.0001,
+    "epochs": 2,
+    "batch": 8,
+    "max_len": 1024,
+    "seed": 0,
+    "train_wall_s": 1399.21,
+    "data": "E5 build n_lookup 1000 + 500 anchors (build_anchor_2b), see NOTEBOOK 2026-11-21"
+   }
+  },
+  {
+   "id": "l1-b-0.8b",
+   "file": "L1_B_0.8B.gguf",
+   "sha256": "6241617e059f861514796bc74a17540566e43f048d5f190be6a0470a36b56d8f",
+   "size": 10848736,
+   "base": "qwen3.5-0.8b-iq4_xs",
+   "arm": "L1",
+   "source_sha256": "4f5c927ebb08659262cfd3db8b1358f81e8970259c8876860422ab7faf55c231",
+   "format": "llama.cpp LoRA GGUF f16 (convert_lora_to_gguf.py), converted from the PEFT safetensors of source_sha256",
+   "train": {
+    "setting": "B",
+    "rank": 8,
+    "alpha": 16,
+    "lr": 0.0001,
+    "epochs": 2,
+    "batch": 8,
+    "max_len": 1024,
+    "seed": 0,
+    "train_wall_s": 976.05,
+    "data": "E5 build n_lookup 1000 + 500 anchors (build_anchor_0.8b), see NOTEBOOK 2026-11-21"
+   }
+  },
+  {
+   "id": "l0-b-0.8b",
+   "file": "L0_B_0.8B.gguf",
+   "sha256": "ecd5776d227ebb162b24a2784978e421509b544ee14d01f27d84f1207477d800",
+   "size": 10848736,
+   "base": "qwen3.5-0.8b-iq4_xs",
+   "arm": "L0",
+   "source_sha256": "d67eb4d190550aa4fe0ec765945476f3368b192da8fb134d106fcae7c565c37a",
+   "format": "llama.cpp LoRA GGUF f16 (convert_lora_to_gguf.py), converted from the PEFT safetensors of source_sha256",
+   "train": {
+    "setting": "B",
+    "rank": 8,
+    "alpha": 16,
+    "lr": 0.0001,
+    "epochs": 2,
+    "batch": 8,
+    "max_len": 1024,
+    "seed": 0,
+    "train_wall_s": 895.65,
+    "data": "E5 build n_lookup 1000 + 500 anchors (build_anchor_0.8b), see NOTEBOOK 2026-11-21"
+   }
+  }
+ ],
+ "_comment_adapters": "E5 LoRA adapters, trained on the bf16 weights and applied at scale 1.0 to the locked IQ4_XS base named in `base`. The runner (--expect-adapter) refuses an applied adapter that is not listed here with a matching sha256 and base."
 }
