@@ -88,11 +88,16 @@ def cmd_gsm8k(a):
                                name_only=a.lock_name_only)
     except models.ModelRefused as e:
         sys.exit(f"{a.llm_url}: {e} Not running: a swap is a logged, undone step, never a side effect of a run.")
+    try:
+        adapters = models.verify_adapters(client.lora_adapters(), base_id=locked["id"], adapters_dir=Path(a.adapters_dir),
+                                          expect=a.expect_adapter)
+    except models.ModelRefused as e:
+        sys.exit(f"{a.llm_url}: {e} Not running.")
     print(f"serving {locked['id']} [{locked['lineage']}] {info['model_file']} ({info['quant']}); "
           f"{len(problems)} problems, max_tokens {a.max_tokens}{' (PILOT)' if a.pilot else ''}")
     store = runner.build_store(all_items)
     meta = {"dataset": "gsm8k-test", "dataset_sha256": ghash, "dataset_seed": a.gsm8k_seed,
-            "pilot": a.pilot, "model_tag": a.model_tag, "server": info,
+            "pilot": a.pilot, "model_tag": a.model_tag, "server": info, "adapters": adapters,
             "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
             "git": runner.git_state(), "date": dt.date.today().isoformat(), "k": C.K, "max_steps": C.MAX_STEPS,
             "temperature": 0.0, "store_size": len(store), "store": "popqa-all-triples (distractors only)"}
@@ -151,12 +156,17 @@ def cmd_run(a):
                                name_only=a.lock_name_only)
     except models.ModelRefused as e:
         sys.exit(f"{a.llm_url}: {e} Not running: a swap is a logged, undone step, never a side effect of a run.")
+    try:
+        adapters = models.verify_adapters(client.lora_adapters(), base_id=locked["id"], adapters_dir=Path(a.adapters_dir),
+                                          expect=a.expect_adapter)
+    except models.ModelRefused as e:
+        sys.exit(f"{a.llm_url}: {e} Not running.")
     print(f"serving {locked['id']} [{locked['lineage']}] {info['model_file']} ({info['quant']}) at {info['endpoint']}, "
           f"verified by {locked['verified']}")
     store = runner.build_store(all_items)
     meta_base = {"dataset": "popqa", "dataset_sha256": popqa.sha256(data),
                  "dataset_seed": a.dataset_seed, "sample": a.sample,
-                 "exclude_ambiguous": a.exclude_ambiguous, "arm": arm, "model_tag": a.model_tag, "server": info,
+                 "exclude_ambiguous": a.exclude_ambiguous, "arm": arm, "model_tag": a.model_tag, "server": info, "adapters": adapters,
                  "model": {k: locked[k] for k in ("id", "repo", "file", "sha256", "size", "quant", "lineage", "verified")},
                  "git": runner.git_state(), "date": dt.date.today().isoformat(),
                  "k": C.K, "max_steps": C.MAX_STEPS, "temperature": 0.0,
@@ -383,6 +393,10 @@ def main():
     r.add_argument("--model-tag", required=True, help="label in file names, e.g. qwen3.8-9b-q8")
     r.add_argument("--expect", default=None, metavar="LOCK_ID",
                    help="optional models.lock id the served model must be; the sha256 gate runs regardless")
+    r.add_argument("--expect-adapter", default=None, metavar="ADAPTER_ID",
+                   help="models.lock adapter the server must have applied (E5); an applied adapter without this is refused")
+    r.add_argument("--adapters-dir", default=str(models.DEFAULT_MODELS_DIR / "adapters"),
+                   help="where the served adapter GGUFs are, to check their sha256")
     r.add_argument("--models-dir", default=str(models.DEFAULT_MODELS_DIR),
                    help="where the server's model files are, to hash the one being served")
     r.add_argument("--lock-name-only", action="store_true",

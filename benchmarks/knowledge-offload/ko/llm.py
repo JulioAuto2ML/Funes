@@ -78,6 +78,14 @@ class Client:
                 "n_ctx": (props.get("default_generation_settings") or {}).get("n_ctx"),
                 "build": props.get("build_info")}
 
+    def lora_adapters(self) -> list | None:
+        """llama-server's `/lora-adapters` (path, scale of each loaded adapter), [] when none; None if it cannot be read."""
+        try:
+            r = self._json("/lora-adapters")
+        except LLMError:
+            return None
+        return r if isinstance(r, list) else None
+
     def chat(self, messages, tools=None, tool_choice=None, seed=0,
              max_tokens=256, temperature=0.0) -> Reply:
         body = {"messages": messages, "temperature": temperature, "seed": seed,

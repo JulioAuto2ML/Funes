@@ -89,6 +89,7 @@ def test_cmd_run_ablated_end_to_end(tmp_path, monkeypatch):
     class Fake:
         def __init__(self, *a, **k): pass
         def server_info(self): return {"endpoint": "e", "model_file": "Tiny.gguf", "quant": "Q8_0", "n_ctx": 1, "build": "b"}
+        def lora_adapters(self): return []
         def chat(self, messages, **k): return text("I don't know")
     monkeypatch.setattr(run, "Client", Fake)
     monkeypatch.setattr(runner, "RESULTS", tmp_path / "results")
@@ -148,6 +149,7 @@ def test_run_accepts_ablated_with_abstain_default_for_tool_conditions_only(tmp_p
     class Fake:
         def __init__(self, *a, **k): pass
         def server_info(self): return {"endpoint": "e", "model_file": "Tiny.gguf", "quant": "Q8_0", "n_ctx": 1, "build": "b"}
+        def lora_adapters(self): return []
         def chat(self, messages, **k): return text("I don't know")
     monkeypatch.setattr(run, "Client", Fake)
     monkeypatch.setattr(runner, "RESULTS", tmp_path / "results")

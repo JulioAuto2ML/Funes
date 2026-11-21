@@ -86,3 +86,58 @@ def verify(served_file: str, *, lock: list[dict] | None = None, models_dir: Path
     if expect and entry["id"] != expect:
         raise ModelRefused(f"serving {entry['id']}, run expects {expect}")
     return {**entry, "verified": how}
+
+
+def load_adapters(path: Path = LOCK_PATH) -> list[dict]:
+    """LoRA adapters the benchmark may serve (E5): the `adapters` list of models.lock. Each names the lock model it was
+    trained for and applied on (`base`), the GGUF's sha256, and the safetensors it was converted from."""
+    entries = json.loads(Path(path).read_text()).get("adapters", [])
+    for e in entries:
+        for k in ("id", "file", "sha256", "base", "arm", "source_sha256"):
+            if k not in e:
+                raise ValueError(f"{path}: adapter {e.get('id', '?')} lacks {k!r}")
+    return entries
+
+
+def verify_adapters(active: list[dict] | None, *, base_id: str, adapters: list[dict] | None = None,
+                    adapters_dir: Path | None = None, expect: str | None = None,
+                    cache_path: Path | None = CACHE_PATH) -> list[dict]:
+    """The lock entries of the adapters a server has applied (scale != 0), or ModelRefused.
+
+    `active` is llama-server's `/lora-adapters` (None = could not be read: refused, since a run must know that no
+    unlocked adapter is on). An applied adapter is accepted only when `expect` names it, its file's sha256 is the lock's,
+    and it was built for the served base model. Without `expect` an applied adapter is refused: a base cell must not run
+    on whatever a server happens to have loaded. A loaded adapter at scale 0 is not applied and is ignored; `expect` with
+    nothing applied is refused (the run would be labelled with an adapter it did not use)."""
+    if active is None:
+        raise ModelRefused("the server's /lora-adapters could not be read, so it cannot be shown that no unlocked adapter is applied")
+    adapters = load_adapters() if adapters is None else adapters
+    applied = [a for a in active if float(a.get("scale", 0)) != 0.0]
+    if not applied:
+        if expect:
+            raise ModelRefused(f"run expects adapter {expect}, but the server has no adapter applied (scale 0 or none loaded)")
+        return []
+    out = []
+    for a in applied:
+        base = Path(a.get("path", "")).name
+        named = [e for e in adapters if e["file"] == base]
+        if not named:
+            raise ModelRefused(f"an adapter {base!r} is applied (scale {a.get('scale')}) and is not in models.lock")
+        path = Path(adapters_dir or "") / base
+        if not path.exists():
+            raise ModelRefused(f"{path} is not readable from here, so the applied adapter's hash cannot be checked")
+        got = file_sha256(path, cache_path)
+        match = [e for e in named if e["sha256"] == got]
+        if not match:
+            raise ModelRefused(f"{path} has sha256 {got}, models.lock says {named[0]['sha256']}: not the adapter the lock describes")
+        e = match[0]
+        if e["base"] != base_id:
+            raise ModelRefused(f"adapter {e['id']} was built for {e['base']}, the server is serving {base_id}")
+        if float(a["scale"]) != 1.0:
+            raise ModelRefused(f"adapter {e['id']} is applied at scale {a['scale']}; the benchmark runs adapters at 1.0 only")
+        out.append({**e, "scale": float(a["scale"]), "verified": "sha256"})
+    if expect is None:
+        raise ModelRefused(f"adapter(s) {[e['id'] for e in out]} are applied but the run does not say it expects one (--expect-adapter)")
+    if [e["id"] for e in out] != [expect]:
+        raise ModelRefused(f"run expects adapter {expect}, the server applies {[e['id'] for e in out]}")
+    return out
