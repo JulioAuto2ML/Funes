@@ -104,14 +104,22 @@ def paraphrased(items: list[popqa.Item], path: Path) -> tuple[list[popqa.Item], 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("what", choices=["commands", "servers"])
+    ap.add_argument("what", choices=["commands", "servers", "file"])
+    ap.add_argument("--base")
+    ap.add_argument("--adapter")
     a = ap.parse_args(argv)
+    if a.what == "file":                      # the GGUF file name of a locked base or adapter
+        import json as _j
+        d = _j.loads((HERE / "models.lock").read_text())
+        print({m["id"]: m["file"] for m in d["models"]}[a.base] if a.base else {m["id"]: m["file"] for m in d["adapters"]}[a.adapter])
+        return 0
     if a.what == "servers":
         for b, ad in servers():
             print(b, ad)
         return 0
     for c in cells():
-        print(" ".join(c.argv()))
+        if (a.base is None or c.base == a.base) and (a.adapter is None or c.adapter == a.adapter):
+            print(" ".join(c.argv()))
     return 0
 
 
