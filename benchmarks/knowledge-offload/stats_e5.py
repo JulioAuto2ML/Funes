@@ -108,6 +108,24 @@ def fmt_row(label, vals):
     return "| %s | %s |" % (label, " | ".join("%d: %.3f / %.3f" % v if v else "-" for v in vals))
 
 
+def base_noise(results: Path) -> str:
+    """Base-vs-base on GSM8K `closed` (2B IQ4_XS): the committed cell against a rerun (tag `...-rerun`), paired over the 500 ids."""
+    a = results / "gsm8k-n500-s1-qwen3.5-2b-iq4_xs-closed-r0.json"
+    b = results / "gsm8k-n500-s1-qwen3.5-2b-iq4_xs-rerun-closed-r0.json"
+    if not b.exists():
+        return "The base-vs-base rate (same model, same prompt, run twice) was NOT measured: no rerun cell is committed."
+    ra = {x["id"]: x for x in json.loads(a.read_text())["answers"]}
+    rb = {x["id"]: x for x in json.loads(b.read_text())["answers"]}
+    if set(ra) != set(rb):
+        raise SystemExit("rerun and committed base cell cover different problems")
+    disc = sum(bool(ra[i]["correct"]) != bool(rb[i]["correct"]) for i in ra) / len(ra)
+    same = sum(ra[i]["prediction"] == rb[i]["prediction"] for i in ra)
+    return (f"Base-vs-base (same model, prompt and settings, run twice, `{b.name}`): discordant {disc:.3f} of {len(ra)}; "
+            f"{same} of {len(ra)} generated texts identical. Greedy decoding on this server is reproducible here, so the run-to-run noise is "
+            f"{'zero' if same == len(ra) else 'not zero'} in this one repeat and the L1-vs-base disagreement is the adapter's, not noise "
+            "(one repeat, one server build; not a claim about other builds or batch sizes).")
+
+
 def report(results: Path) -> str:
     items = popqa.load(popqa.DEFAULT_PATH)
     props = {i.id: i.prop for i in items}
@@ -123,8 +141,7 @@ def report(results: Path) -> str:
         L.append(f"| {what} | {est} | {c} | {e['p']:.2g} | {e['adj_p']:.2g} | {'HOLDS' if e['holds'] else 'does not hold'} |")
     d = h["H9c"]["discordant"]
     L += ["", f"H9c noise: L1 and base disagree on {d:.3f} of the 500 problems. A 95% CI half-width <= {MARGIN} at n = 500 needs a discordant "
-          f"rate <= about {MARGIN ** 2 * 500 / 1.96 ** 2:.3f}. The base-vs-base rate (same model, same prompt, run twice) was NOT measured: greedy "
-          "decoding gives one run per base cell, so it is not in the committed data. Reading it needs a rerun of the base cell.", ""]
+          f"rate <= about {MARGIN ** 2 * 500 / 1.96 ** 2:.3f}. " + base_noise(results)]
     cells = {}
     for size in ("2b", "0.8b"):
         b = f"qwen3.5-{size}-iq4_xs"

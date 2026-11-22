@@ -12,8 +12,7 @@
 | H9b acc(L1)-acc(L0), tool | +0.705 | [+0.676, +0.733] | 0.0001 | 0.0003 | HOLDS |
 | H9c GSM8K L1-base, closed | -0.034 | [-0.074, +0.006] | 0.24 | 0.24 | does not hold |
 
-H9c noise: L1 and base disagree on 0.202 of the 500 problems. A 95% CI half-width <= 0.05 at n = 500 needs a discordant rate <= about 0.325. The base-vs-base rate (same model, same prompt, run twice) was NOT measured: greedy decoding gives one run per base cell, so it is not in the committed data. Reading it needs a rerun of the base cell.
-
+H9c noise: L1 and base disagree on 0.202 of the 500 problems. A 95% CI half-width <= 0.05 at n = 500 needs a discordant rate <= about 0.325. Base-vs-base (same model, prompt and settings, run twice, `gsm8k-n500-s1-qwen3.5-2b-iq4_xs-rerun-closed-r0.json`): discordant 0.000 of 500; 500 of 500 generated texts identical. Greedy decoding on this server is reproducible here, so the run-to-run noise is zero in this one repeat and the L1-vs-base disagreement is the adapter's, not noise (one repeat, one server build; not a claim about other builds or batch sizes).
 ## `tool`, default prompt: lookup rate / accuracy by relation (n: lookup / acc)
 
 | relation | 2b base | 2b L1 | 2b L0 | 0.8b base | 0.8b L1 | 0.8b L0 |
