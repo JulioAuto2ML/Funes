@@ -199,4 +199,4 @@ Measured: E5 training wall 1,425 s (2B L1), 1,399 s (2B L0), 976 s (0.8B L1), 89
 
 ---
 
-*Count (grep of this file, 2026-11-22): 7 `[TBD` tags, 6 `[OPEN`, 5 `[UNVERIFIED` (these include mentions in status tables and the format example in the header); recount with grep.*
+*Count (grep of this file, 2026-11-22): 8 `[TBD` tags, 7 `[OPEN`, 6 `[UNVERIFIED` (these include mentions in status tables and the format example in the header); recount with grep.*
