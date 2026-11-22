@@ -11,7 +11,7 @@ import stats_funes as F  # noqa: E402
 
 def mk(size, cond, hits, overrides=None):
     c = {"model": {"id": f"qwen3.5-{size}-iq4_xs", "verified": "sha256"}, "adapters": [], "funes_pool": 14267, "wall_s": 1.0,
-         "answers": [{"id": str(i), "contains": int(h), "pop_bucket": f"1e{1 + i % 5}", "error": None} for i, h in enumerate(hits)],
+         "answers": [{"id": str(i), "contains": int(h), "pop_bucket": f"1e{1 + i % 5}", "error": None, "tools": []} for i, h in enumerate(hits)],
          "summary": {"pass1": {"lookup_rate": 0.1, "tainted": 0.0}}}
     c.update(overrides or {})
     return c

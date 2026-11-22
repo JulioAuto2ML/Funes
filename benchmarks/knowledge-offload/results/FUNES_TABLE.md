@@ -2,13 +2,13 @@
 
 1,000 unambiguous PopQA items, IQ4_XS, one repeat each, `contains`. Differences are paired, 95% bootstrap over questions (10000 resamples, seed 0, one resample shared by all sizes). Descriptive: outside the Holm family. Errors are counted wrong (not re-run).
 
-| size | store | funes | funes - store [95% CI] | only store right | only funes right | errors | lookup rate | taint rate | wall (s) |
-|---|---|---|---|---|---|---|---|---|---|
-| 0.8b | 0.921 | 0.636 | -0.285 [-0.318, -0.253] | 320 | 35 | 4 | 0.281 | 0.181 | 2334 |
-| 2b | 0.971 | 0.715 | -0.256 [-0.286, -0.227] | 272 | 16 | 11 | 0.372 | 0.078 | 2254 |
-| 4b | 0.984 | 0.967 | -0.017 [-0.030, -0.004] | 32 | 15 | 0 | 0.508 | 0.006 | 3368 |
-| 9b | 0.980 | 0.931 | -0.049 [-0.067, -0.032] | 66 | 17 | 1 | 0.068 | 0.007 | 4206 |
-| 27b | 0.991 | 0.985 | -0.006 [-0.015, +0.003] | 13 | 7 | 1 | 0.020 | 0.006 | 13863 |
+| size | store | funes | funes - store [95% CI] | only store right | only funes right | errors | any-tool rate | `recall` | `web_search` | taint rate | wall (s) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.8b | 0.921 | 0.636 | -0.285 [-0.318, -0.253] | 320 | 35 | 4 | 0.281 | 92 | 179 | 0.181 | 2334 |
+| 2b | 0.971 | 0.715 | -0.256 [-0.286, -0.227] | 272 | 16 | 11 | 0.372 | 301 | 78 | 0.078 | 2254 |
+| 4b | 0.984 | 0.967 | -0.017 [-0.030, -0.004] | 32 | 15 | 0 | 0.508 | 501 | 6 | 0.006 | 3368 |
+| 9b | 0.980 | 0.931 | -0.049 [-0.067, -0.032] | 66 | 17 | 1 | 0.068 | 62 | 7 | 0.007 | 4206 |
+| 27b | 0.991 | 0.985 | -0.006 [-0.015, +0.003] | 13 | 7 | 1 | 0.020 | 15 | 6 | 0.006 | 13863 |
 
 By popularity bucket (funes accuracy, n in brackets; buckets 1e0, 1e6, 1e7 are too small to read):
 

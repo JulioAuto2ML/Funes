@@ -8,7 +8,8 @@ Before any statistic each cell is checked: 1,000 distinct ids equal to the store
 and the planned base, no adapter, `funes_pool` 14,267; a failed check is an exit 1 with nothing written.
 Differences are paired (funes - store on `contains`); 95% percentile bootstrap over questions, 10,000 resamples,
 seed 0, one resample shared by every size (as stats_e1). Not in the Holm family: the rows are descriptive (D1, one repeat).
-Reported beside accuracy: errors (counted wrong), lookup rate, taint rate, wall time, context overflow count.
+Reported beside accuracy: errors (counted wrong), the share of answers that called any tool (the summary's `lookup_rate`, which for the agent counts every
+tool, not only its memory lookup) with the number of answers that called `recall` and `web_search`, taint rate, wall time, context overflow count.
 """
 import argparse
 import json
@@ -63,8 +64,8 @@ def report(results: Path) -> str:
          "1,000 unambiguous PopQA items, IQ4_XS, one repeat each, `contains`. Differences are paired, 95% bootstrap over questions "
          f"({NB} resamples, seed {SEED}, one resample shared by all sizes). Descriptive: outside the Holm family. "
          "Errors are counted wrong (not re-run).", "",
-         "| size | store | funes | funes - store [95% CI] | only store right | only funes right | errors | lookup rate | taint rate | wall (s) |",
-         "|---|---|---|---|---|---|---|---|---|---|"]
+         "| size | store | funes | funes - store [95% CI] | only store right | only funes right | errors | any-tool rate | `recall` | `web_search` | taint rate | wall (s) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for s in SIZES:
         f, st = cells[(s, "funes")], cells[(s, "store")]
         a, b = vec(f), vec(st)
@@ -72,8 +73,9 @@ def report(results: Path) -> str:
         lo, hi = np.percentile(d, [2.5, 97.5])
         only_s, only_f = int(((b == 1) & (a == 0)).sum()), int(((a == 1) & (b == 0)).sum())
         sm = f["summary"]["pass1"]
+        used = lambda t: sum(1 for x in f["answers"] if t in x["tools"])
         L.append(f"| {s} | {b.mean():.3f} | {a.mean():.3f} | {a.mean() - b.mean():+.3f} [{lo:+.3f}, {hi:+.3f}] | {only_s} | {only_f} | "
-                 f"{sum(1 for x in f['answers'] if x.get('error'))} | {sm['lookup_rate']:.3f} | {sm['tainted']:.3f} | {f['wall_s']:.0f} |")
+                 f"{sum(1 for x in f['answers'] if x.get('error'))} | {sm['lookup_rate']:.3f} | {used('recall')} | {used('web_search')} | {sm['tainted']:.3f} | {f['wall_s']:.0f} |")
     L += ["", "By popularity bucket (funes accuracy, n in brackets; buckets 1e0, 1e6, 1e7 are too small to read):", "",
           "| size | " + " | ".join(f"1e{k}" for k in range(1, 6)) + " |", "|---|" + "---|" * 5]
     for s in SIZES:
