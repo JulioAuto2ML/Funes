@@ -100,13 +100,17 @@
   "practice.saveFailed": "No se pudo guardar: {error}",
   "practice.hiss": "{n} de {total}: inspira y haz «{sound}» lo más largo y parejo que puedas (objetivo: {seconds} s).",
   "practice.rest": "Descansa un momento…",
-  "practice.measureLowButton": "1 · Nota más grave",
-  "practice.measureHighButton": "2 · Nota más aguda",
-  "practice.measureLow": "Deslízate hacia abajo hasta tu nota grave más clara y sostenla un segundo ({seconds} s).",
-  "practice.measureHigh": "Deslízate hacia arriba hasta tu nota aguda cómoda y sostenla un segundo ({seconds} s).",
-  "practice.measureNone": "No se oyó una nota sostenida: vuelve a probar, sosteniendo la nota un segundo.",
+  "practice.measureNone": "No se pudo medir un rango (hace falta al menos una octava). Vuelve a probar en un lugar más silencioso, un poco más cerca del micrófono.",
   "practice.lowest": "Más grave: {note}",
   "practice.highest": "Más aguda: {note}",
   "practice.measureSave": "Guardar este rango",
-  "practice.measureSaved": "Rango guardado: todos los ejercicios se ajustan a él."
+  "practice.measureSaved": "Rango guardado: todos los ejercicios se ajustan a él.",
+  "practice.today": "Plan de hoy",
+  "practice.askPlan": "Pedirle un plan a Funes",
+  "practice.askPlanMessage": "Armame una práctica de canto de 15 minutos para hoy.",
+  "practice.askFeedback": "Pedirle un comentario a Funes",
+  "practice.askFeedbackMessage": "¿Cómo me fue en la práctica de «{title}»?",
+  "practice.measureSpeak": "Di una frase con tu voz normal, por ejemplo «Hola, ¿cómo estás hoy?».",
+  "practice.measureListen": "Escucha…",
+  "practice.measureSing": "Ahora tú: canta esa nota y sostenla."
 }

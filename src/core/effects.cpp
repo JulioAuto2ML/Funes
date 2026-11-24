@@ -27,6 +27,7 @@ Effect builtin_effect(const std::string& tool) {
     static const std::map<std::string, Effect> kEffects = {
         {"write_file",       Effect::Workspace},
         {"write_structured", Effect::Workspace},
+        {"practice_plan",    Effect::Workspace},  // plan.json in the caller's workspace
         {"execute_shell",    Effect::Host},
         {"create_agent",     Effect::Host},
         {"create_tool",      Effect::Host},

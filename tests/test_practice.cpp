@@ -234,6 +234,109 @@ int test_plan() {
     return 0;
 }
 
+// A small library for the coach's reports: one pitched, one breathing.
+Library tiny_library() {
+    Library lib;
+    Exercise e;
+    parse_exercise(kExercise, e);
+    lib.exercises.push_back(e);
+    Exercise hiss;
+    hiss.id = "breath_hiss"; hiss.kind = "vocal"; hiss.category = "breath";
+    hiss.title = {{"es", "Siseo"}, {"en", "Hiss"}};
+    hiss.pitched = false; hiss.seconds = 20; hiss.repeats = 3;
+    hiss.measure = {"duration"};
+    lib.exercises.push_back(hiss);
+    return lib;
+}
+
+nlohmann::json session(const std::string& at, const std::string& id, int pitch,
+                       std::vector<std::pair<int, int>> off = {}) {
+    nlohmann::json notes = nlohmann::json::array();
+    for (auto [midi, cents] : off)
+        notes.push_back({{"midi", midi}, {"kind", "note"}, {"cents", cents}, {"in_tune", 10}});
+    notes.push_back({{"midi", 45}, {"kind", "note"}, {"cents", 2}, {"in_tune", 95}});
+    return {{"at", at}, {"exercise", id},
+            {"scores", {{"pitch", pitch}, {"stability", 12.5}, {"onset_ms", 180}}},
+            {"reps", {{{"root", "A2"}, {"notes", notes}}}}};
+}
+
+int test_history_report() {
+    Library lib = tiny_library();
+    Profile p = profile_for(Voice{"baritone", {43, 67}, {45, 62}});
+    std::vector<nlohmann::json> s = {
+        session("2026-11-01T10:00:00Z", "hum_scale", 40),                 // before the window
+        session("2026-11-20T10:00:00Z", "hum_scale", 60, {{52, -40}}),
+        session("2026-11-24T10:00:00Z", "hum_scale", 80, {{52, -35}, {50, 30}}),
+        {{"at", "2026-11-24T10:05:00Z"}, {"exercise", "breath_hiss"},
+         {"scores", {{"duration_s", 14.2}, {"duration", 71}, {"stability", 81}}}},
+        {{"at", "2026-11-24T10:06:00Z"}, {"exercise", "gone_exercise"}, {"scores", {{"pitch", 1}}}},
+    };
+    std::string r = history_report(s, lib, &p, "2026-11-10", "es");
+    // The window, the range, the trend and the note that keeps going flat.
+    CHECK(r.find("Sol2") != std::string::npos);                  // solfège, as the Spanish UI shows it
+    CHECK(r.find("3 session") != std::string::npos);            // the unknown id is not counted
+    CHECK(r.find("hum_scale") != std::string::npos);
+    CHECK(r.find("60% → 80%") != std::string::npos);
+    CHECK(r.find("Mi3") != std::string::npos);                  // midi 52, off twice
+    CHECK(r.find("-38") != std::string::npos);                  // mean of -40 and -35, rounded down
+    CHECK(r.find("14.2 s") != std::string::npos);
+    // A breath's stability is evenness in percent, never a wobble in cents.
+    CHECK(r.find("evenness 81%") != std::string::npos);
+    CHECK(r.find("±81") == std::string::npos);
+    CHECK(r.find("gone_exercise") == std::string::npos);
+    CHECK(r.find("2026-11-01") == std::string::npos);
+
+    // No sessions: it says so, and still names the range.
+    r = history_report({}, lib, &p, "2026-11-10", "es");
+    CHECK(r.find("No practice") != std::string::npos);
+    CHECK(history_report({}, lib, &p, "2026-11-10", "en").find("G2–G4") != std::string::npos);
+    CHECK(history_report({}, lib, nullptr, "2026-11-10", "es").find("No range") != std::string::npos);
+    return 0;
+}
+
+int test_exercises_report() {
+    Library lib = tiny_library();
+    Profile p = profile_for(Voice{"baritone", {43, 67}, {45, 62}});
+    std::string r = exercises_report(lib, &p, "es");
+    CHECK(r.find("hum_scale") != std::string::npos);
+    CHECK(r.find("Escala") != std::string::npos);               // the caller's language
+    CHECK(r.find("21 rep") != std::string::npos);               // what fits this range
+    CHECK(r.find("breath_hiss") != std::string::npos);
+    return 0;
+}
+
+int test_make_plan() {
+    Library lib = tiny_library();
+    Profile p = profile_for(Voice{"baritone", {43, 67}, {45, 62}});
+    nlohmann::json out;
+    nlohmann::json args = {{"items", {{{"id", "breath_hiss"}}, {{"id", "hum_scale"}, {"reps", 8}}}},
+                           {"note", "Hoy, aire y afinación en lo grave."}};
+    CHECK(make_plan(args, lib, &p, "2026-11-24T10:00:00Z", out).empty());
+    CHECK(out["items"].size() == 2);
+    CHECK(out["items"][1]["reps"] == 8);
+    CHECK(out["items"][0]["reps"] == 3);                        // a breathing exercise: its repeats
+    CHECK(out["created_at"] == "2026-11-24T10:00:00Z");
+    CHECK(out["note"] == "Hoy, aire y afinación en lo grave.");
+
+    // Reps beyond what fits are capped, not refused: the plan still works.
+    args["items"][1]["reps"] = 99;
+    CHECK(make_plan(args, lib, &p, "t", out).empty());
+    CHECK(out["items"][1]["reps"] == 21);
+
+    // An exercise that does not exist is refused by name — the model invented it.
+    std::string err = make_plan({{"items", {{{"id", "yodel_drill"}}}}}, lib, &p, "t", out);
+    CHECK(err.find("yodel_drill") != std::string::npos);
+    CHECK(!make_plan({{"items", nlohmann::json::array()}}, lib, &p, "t", out).empty());
+    CHECK(!make_plan({{"items", {{{"id", "hum_scale"}, {"reps", 0}}}}}, lib, &p, "t", out).empty());
+    CHECK(!make_plan({{"items", {{{"id", "hum_scale"}}}}}, lib, nullptr, "t", out).empty());  // no range
+    CHECK(!make_plan({{"items", {{{"id", "hum_scale"}}}}, {"note", std::string(2000, 'x')}},
+                     lib, &p, "t", out).empty());
+    nlohmann::json many = nlohmann::json::array();
+    for (int i = 0; i < 13; ++i) many.push_back({{"id", "hum_scale"}});
+    CHECK(!make_plan({{"items", many}}, lib, &p, "t", out).empty());
+    return 0;
+}
+
 int test_shipped_library(const std::string& dir) {
     Library lib = load_library(dir);
     for (const auto& err : lib.errors) std::cerr << "practice: " << err << "\n";
@@ -272,6 +375,9 @@ int main(int argc, char** argv) {
     rc |= test_render();
     rc |= test_profile();
     rc |= test_plan();
+    rc |= test_history_report();
+    rc |= test_exercises_report();
+    rc |= test_make_plan();
     if (argc > 1) rc |= test_shipped_library(argv[1]);
     if (rc == 0) std::cout << "test_practice: all passed\n";
     return rc;

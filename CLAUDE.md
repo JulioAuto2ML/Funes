@@ -492,6 +492,15 @@ writes notes — a wrong note is one a person then sings. The microphone needs a
 secure origin, which is why yoda also serves the UI at :8443 through
 `tailscale serve` (tailnet only; 443 is the public funnel).
 
+7.25 adds the coach: `vocal-coach` (reached through funes) has three tools
+(`src/core/tools/practice_tools.cpp`, own data, files via
+`src/core/practice_store.h`). `practice_history` and `practice_exercises` are
+reports the code computes — trends, the notes most often off, what fits the
+range, note names in the person's notation — and `practice_plan` is its only
+act: exercise ids checked against the library (an invented one is refused by
+name), reps capped at what fits, written to `practice/plan.json`, which the
+Practice view shows as today's list.
+
 ### Users, authentication and isolation
 
 `src/core/users.cpp` (`UserStore`) owns `users`, `auth_tokens` and

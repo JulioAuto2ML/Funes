@@ -100,13 +100,17 @@
   "practice.saveFailed": "Could not save: {error}",
   "practice.hiss": "{n} of {total}: breathe in, then '{sound}' as long and even as you can (aim: {seconds} s).",
   "practice.rest": "Rest a moment…",
-  "practice.measureLowButton": "1 · Lowest note",
-  "practice.measureHighButton": "2 · Highest note",
-  "practice.measureLow": "Slide down to your lowest clear note and hold it for a second ({seconds} s).",
-  "practice.measureHigh": "Slide up to your highest comfortable note and hold it for a second ({seconds} s).",
-  "practice.measureNone": "No steady note heard — try again, holding the note for a second.",
+  "practice.measureNone": "Couldn't measure a range (it needs at least an octave). Try again somewhere quieter, a little closer to the microphone.",
   "practice.lowest": "Lowest: {note}",
   "practice.highest": "Highest: {note}",
   "practice.measureSave": "Save this range",
-  "practice.measureSaved": "Range saved: every exercise now fits it."
+  "practice.measureSaved": "Range saved: every exercise now fits it.",
+  "practice.today": "Today's plan",
+  "practice.askPlan": "Ask Funes for a plan",
+  "practice.askPlanMessage": "Plan a 15-minute singing practice for me today.",
+  "practice.askFeedback": "Ask Funes how it went",
+  "practice.askFeedbackMessage": "How did my practice of “{title}” go?",
+  "practice.measureSpeak": "Say a sentence in your normal voice — for example “Hello, how are you today?”",
+  "practice.measureListen": "Listen…",
+  "practice.measureSing": "Now you: sing that note and hold it."
 }

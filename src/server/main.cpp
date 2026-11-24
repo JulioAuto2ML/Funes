@@ -553,6 +553,7 @@ int main(int argc, char** argv) {
         return u ? u->locale : std::string();
     };
     api.set_user_locale(locale_for);
+    register_practice_tools(tools, workspace_dir, practice_dir, locale_for);
     defaults.user_locale = locale_for;
 
     // create_agent needs to trigger a live reload after writing a new agent

@@ -291,6 +291,11 @@ add_executable(test_practice test_practice.cpp)
 target_link_libraries(test_practice PRIVATE funes_core)
 add_test(NAME practice COMMAND test_practice ${CMAKE_SOURCE_DIR}/practice)
 
+# The coach's tools, through the registry, per account.
+add_executable(test_practice_tools test_practice_tools.cpp)
+target_link_libraries(test_practice_tools PRIVATE funes_core)
+add_test(NAME practice_tools COMMAND test_practice_tools ${CMAKE_SOURCE_DIR}/practice)
+
 # The practice view's pitch detection and scoring (ui/practice/*.js) — pure
 # functions, run under node when it is installed. Funes itself needs no node;
 # without it this test is simply not registered.

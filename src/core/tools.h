@@ -195,6 +195,10 @@ void register_shell_tool(ToolRegistry& reg,
                          const std::string& workspace_dir);        // execute_shell
 void register_script_tools(ToolRegistry& reg, const std::string& workspace_dir,
                            const std::string& scripts_dir);        // list_scripts, run_script
+// practice_exercises, practice_history, practice_plan (tools/practice_tools.cpp)
+void register_practice_tools(ToolRegistry& reg, const std::string& workspace_dir,
+                             const std::string& practice_dir,
+                             std::function<std::string(int64_t)> locale_for);
 void register_delegation_tool(ToolRegistry& reg, MemoryStore& memory, const AgentDefaults& defaults,
                               std::function<AgentConfig(const std::string&)> find_agent,
                               std::function<std::vector<std::string>()> list_agent_names);

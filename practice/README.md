@@ -16,7 +16,10 @@ model only picks them and their parameters.
 The practice view (`ui/practice/`, `/api/practice/*` in
 `src/server/practice_api.h`) plays them and scores what is sung; a person's
 range and session log live in their workspace (`practice/profile.json`,
-`practice/sessions.jsonl`). `src/core/practice.{h,cpp}` loads and validates these files;
+`practice/sessions.jsonl`, and the coach's `practice/plan.json`). The
+`vocal-coach` agent reads them through `practice_history` /
+`practice_exercises` and writes the plan with `practice_plan`
+(`src/core/tools/practice_tools.cpp`). `src/core/practice.{h,cpp}` loads and validates these files;
 `tests/test_practice.cpp` checks every shipped exercise against every voice in
 `voices.yaml` (ctest `practice`).
 

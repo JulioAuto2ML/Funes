@@ -4,24 +4,24 @@ category: range
 level: 1
 title: {es: "Medir el rango", en: "Range check"}
 description:
-  es: "Dos sirenas lentas en «a»: una bajando hasta la nota más grave que suene clara, otra subiendo hasta la más aguda sin forzar. Funes guarda las dos notas y con eso transporta todos los ejercicios a tu voz."
-  en: "Two slow sirens on 'a': one down to the lowest note that still sounds clear, one up to the highest without forcing. Funes keeps both notes and transposes every exercise to your voice."
+  es: "Funes toca una nota y la imitás. Arranca cerca de tu voz hablada y baja medio tono por vez mientras afines cada nota; después sube. La nota más grave y la más aguda que imitaste bien son tu rango, y todos los ejercicios se ajustan a él."
+  en: "Funes plays a note and you imitate it. It starts near your speaking voice and goes down a half step at a time while you match each note, then up. The lowest and highest notes you matched are your range, and every exercise is fitted to it."
 steps:
   es:
-    - "Empezá en una nota cómoda de hablar."
-    - "Bajá deslizando hasta donde la voz suene clara (no rasposa) y sostené un segundo."
-    - "Volvé a la nota cómoda y subí deslizando hasta donde llegues sin apretar; sostené un segundo."
-    - "No es una competencia: lo que cuenta es lo que suena bien."
+    - "Primero decí una frase con tu voz normal: así Funes sabe por dónde empezar."
+    - "Escuchá cada nota y cantala en «a», sostenida, hasta que aparezca la siguiente."
+    - "Cada nota tiene dos intentos. Cuando una no sale, cambia de dirección o termina."
+    - "No es una competencia: cantá cómodo, sin apretar en las puntas."
   en:
-    - "Start on a comfortable speaking note."
-    - "Slide down to where the voice still sounds clear (not gravelly) and hold a second."
-    - "Back to the comfortable note, slide up as far as you can without squeezing; hold a second."
-    - "Not a contest: what counts is what sounds good."
+    - "First say a sentence in your normal voice, so Funes knows where to start."
+    - "Listen to each note and sing it on 'a', held, until the next one comes."
+    - "Each note gets two tries. When one doesn't come, it turns around or ends."
+    - "Not a contest: sing comfortably, without squeezing at the edges."
 mistakes:
-  es: ["Contar notas con ruido o fritura vocal", "Forzar lo agudo"]
-  en: ["Counting notes that are only fry or noise", "Forcing the top"]
+  es: ["Forzar las notas de las puntas", "Cantar una octava arriba o abajo de la referencia", "Cortar la nota antes de tiempo"]
+  en: ["Forcing the notes at the edges", "Singing an octave above or below the reference", "Stopping the note too early"]
 sound: "a"
 pitched: false
-seconds: 15
-repeats: 2
+seconds: 2
+repeats: 1
 measure: [range]

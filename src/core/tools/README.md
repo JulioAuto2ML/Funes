@@ -41,6 +41,7 @@ through `src/core/extension.h`'s queue. `docs/julio-README.md` documents them.
 | `incidents` | `incident_tools.cpp` | Open incidents from the self-healing probes, and those resolved in the last N days (7.18). Admin-only (privileged). |
 | `fix_incident` | `incident_tools.cpp` | What `config/heal.yaml` says to do about one incident: its call stored as a proposal in this conversation, or what a person must do, or "no known fix" (7.23). The only way the model acts on an incident. Admin-only (privileged). |
 | `notify_user` | `notify_tool.cpp` | A WhatsApp message to the run's own account, from Funes's number (`WHATSAPP_BRIDGE_URL`), to the jid `funes jid-map` gave it. No recipient argument. External. What a scheduled reminder uses (7.17). |
+| `practice_exercises`, `practice_history`, `practice_plan` | `practice_tools.cpp` | The singing coach's view of the caller's own practice (reports the code computes) and its one act, today's plan, checked against the library and written to `practice/plan.json` in the workspace (7.25). Own data; the plan is a workspace effect. |
 | `schedule_job` | `cron_tool.cpp` | Creates a recurring cron job: an agent task, a library script (`kind="script"` — no shell access needed, grant re-checked at fire time), or a shell command. |
 | `list_jobs` | `cron_tool.cpp` | Lists all scheduled jobs with status and last run. |
 | `cancel_job` | `cron_tool.cpp` | Deletes a scheduled job. |
