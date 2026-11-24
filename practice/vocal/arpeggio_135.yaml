@@ -1,0 +1,26 @@
+id: arpeggio_135
+kind: vocal
+category: technique
+level: 1
+title: {es: "Arpegio 1-3-5", en: "1-3-5 arpeggio"}
+description:
+  es: "Tónica, tercera, quinta y vuelta, en «ya». Saltos chicos que piden ubicar cada nota sin deslizarse hasta ella."
+  en: "Root, third, fifth and back, on 'ya'. Small leaps that ask you to place each note without sliding into it."
+steps:
+  es:
+    - "Escuchá la referencia y cantá «ya-a-a-a-a» en las notas del arpegio."
+    - "Pensá la nota antes de cantarla; llegá directo, sin portamento."
+  en:
+    - "Listen to the reference and sing 'ya-a-a-a-a' on the arpeggio."
+    - "Hear the note before singing it; land on it directly, no scooping."
+mistakes:
+  es: ["Llegar desde abajo a cada nota", "La quinta baja", "Volver a la tónica desafinado"]
+  en: ["Scooping up to each note", "A flat fifth", "Returning to the root off pitch"]
+sound: "ya"
+tempo: 100
+pattern: "0 4 7 4 0:2"
+range: comfortable
+roots: {step: 1, direction: up_down}
+articulation: legato
+dynamics: steady
+measure: [pitch, onset]

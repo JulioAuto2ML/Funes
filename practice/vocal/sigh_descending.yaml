@@ -1,0 +1,28 @@
+id: sigh_descending
+kind: vocal
+category: warmup
+level: 1
+title: {es: "Suspiro descendente", en: "Descending sigh"}
+description:
+  es: "Un «ha» que cae desde arriba como un suspiro de alivio. Baja la voz de cabeza hacia el pecho sin empujar y ayuda a un barítono a no cargar peso en lo agudo."
+  en: "A 'ha' that falls from the top like a sigh of relief. It brings head voice down into chest without pushing, and helps a lower voice not carry weight up top."
+steps:
+  es:
+    - "Empezá arriba, liviano, casi con aire."
+    - "Dejá caer la voz una octava, sin control, como un suspiro."
+    - "Repetí empezando un poco más abajo cada vez."
+  en:
+    - "Start high, light, almost breathy."
+    - "Let the voice fall an octave, uncontrolled, like a sigh."
+    - "Repeat starting a little lower each time."
+mistakes:
+  es: ["Empezar fuerte", "Frenar la caída", "Hacer escalones"]
+  en: ["Starting loud", "Braking the fall", "Making steps"]
+sound: "ha"
+tempo: 60
+pattern: "12~0:2 r:2"
+range: full
+roots: {step: 1, direction: down}
+articulation: legato
+dynamics: soft
+measure: [glide]

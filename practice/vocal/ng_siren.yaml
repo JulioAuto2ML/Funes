@@ -1,0 +1,28 @@
+id: ng_siren
+kind: vocal
+category: warmup
+level: 2
+title: {es: "Sirena en «ng»", en: "'Ng' siren"}
+description:
+  es: "Una sirena de octava sobre «ng» (como en «tengo», sin la o). La lengua toca el paladar blando y el sonido sale por la nariz: lleva la resonancia hacia adelante y suaviza el pasaje."
+  en: "An octave siren on 'ng' (as in 'sing'). The tongue touches the soft palate and the sound comes out the nose: it brings resonance forward and smooths the passage."
+steps:
+  es:
+    - "Decí «tengo» y quedate en la «ng», con la boca entreabierta."
+    - "Deslizate de la nota grave a la octava y volvé."
+    - "Sentí la vibración detrás de la nariz durante todo el recorrido."
+  en:
+    - "Say 'sing' and stay on the 'ng', mouth slightly open."
+    - "Slide from the low note to the octave and back."
+    - "Feel the vibration behind the nose all the way."
+mistakes:
+  es: ["Abrir a vocal en el medio", "Apretar la lengua", "Quebrar en el pasaje"]
+  en: ["Opening into a vowel midway", "Pressing with the tongue", "Cracking at the passage"]
+sound: "ng"
+tempo: 60
+pattern: "0~12:3 12~0:3"
+range: full
+roots: {step: 2, direction: up}
+articulation: legato
+dynamics: soft
+measure: [glide, range]

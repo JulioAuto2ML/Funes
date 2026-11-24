@@ -144,6 +144,7 @@ add_library(funes_core STATIC
     src/core/incidents.cpp
     src/core/probes.cpp
     src/core/heal.cpp
+    src/core/practice.cpp
     src/core/doctor.cpp
     src/core/guardian.cpp
     src/core/local_peer.cpp

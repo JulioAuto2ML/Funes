@@ -1,0 +1,28 @@
+id: messa_di_voce
+kind: vocal
+category: technique
+level: 3
+title: {es: "Messa di voce", en: "Messa di voce"}
+description:
+  es: "Una nota larga que crece de piano a forte y vuelve a piano sin cambiar de afinación ni de color. Es el ejercicio clásico de control de aire y dinámica."
+  en: "A long note that grows from soft to loud and back to soft without changing pitch or colour. The classic breath and dynamics control exercise."
+steps:
+  es:
+    - "Respirá bajo y empezá la nota muy suave."
+    - "Crecé de a poco hasta la mitad de la nota, y decrecé igual de despacio."
+    - "La afinación no se mueve: el volumen sí."
+  en:
+    - "Breathe low and start the note very soft."
+    - "Grow slowly to the middle of the note, and shrink just as slowly."
+    - "The pitch does not move: the volume does."
+mistakes:
+  es: ["Subir de afinación al crecer", "Bajar de afinación al decrecer", "Un salto de volumen en vez de una curva"]
+  en: ["Going sharp when growing", "Going flat when shrinking", "A jump in volume instead of a curve"]
+sound: "a"
+tempo: 60
+pattern: "0:8 r:2"
+range: comfortable
+roots: {step: 2, direction: up}
+articulation: legato
+dynamics: messa_di_voce
+measure: [pitch, stability, dynamics]

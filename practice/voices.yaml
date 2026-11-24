@@ -1,0 +1,10 @@
+# Default ranges per voice type (scientific pitch, C4 = middle C).
+# Starting points only: the practice view's range calibration replaces them
+# with the singer's own. `comfortable` is the tessitura, `full` the reach.
+voices:
+  bass:          {full: [E2, E4], comfortable: [G2, C4]}
+  baritone:      {full: [G2, G4], comfortable: [A2, D4]}
+  tenor:         {full: [C3, C5], comfortable: [D3, G4]}
+  contralto:     {full: [F3, F5], comfortable: [G3, C5]}
+  mezzo-soprano: {full: [A3, A5], comfortable: [B3, E5]}
+  soprano:       {full: [C4, C6], comfortable: [D4, G5]}

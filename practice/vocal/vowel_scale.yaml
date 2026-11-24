@@ -1,0 +1,28 @@
+id: vowel_scale
+kind: vocal
+category: technique
+level: 1
+title: {es: "Escala de 5 notas «mi-me-ma-mo-mu»", en: "Five-note scale 'mi-me-ma-mo-mu'"}
+description:
+  es: "Una sílaba por nota sobre la escala de cinco notas. Trabaja vocales parejas: que cambie la forma de la boca, no el lugar ni el color del sonido."
+  en: "One syllable per note on the five-note scale. It works on even vowels: the mouth shape changes, not where the sound sits or its colour."
+steps:
+  es:
+    - "Cantá «mi-me-ma-mo-mu» subiendo y la misma vuelta bajando."
+    - "La «m» de cada sílaba te devuelve la resonancia adelante."
+    - "Mandíbula suelta: la «a» abre, la «i» no aprieta."
+  en:
+    - "Sing 'mi-me-ma-mo-mu' going up, and the same coming down."
+    - "Each 'm' puts the resonance back forward."
+    - "Loose jaw: the 'a' opens, the 'i' does not squeeze."
+mistakes:
+  es: ["La «i» apretada y la «a» hueca", "Desafinar la nota de arriba", "Cortar el aire entre sílabas"]
+  en: ["A pinched 'i' and a hollow 'a'", "Missing the top note", "Stopping the air between syllables"]
+sound: "mi-me-ma-mo-mu"
+tempo: 96
+pattern: "0 2 4 5 7 5 4 2 0:2"
+range: comfortable
+roots: {step: 1, direction: up_down}
+articulation: legato
+dynamics: steady
+measure: [pitch, onset, stability]

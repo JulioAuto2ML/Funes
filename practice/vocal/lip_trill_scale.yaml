@@ -1,0 +1,28 @@
+id: lip_trill_scale
+kind: vocal
+category: warmup
+level: 1
+title: {es: "Trino de labios en escala de 5 notas", en: "Lip trill on a five-note scale"}
+description:
+  es: "Los labios vibran («brr») mientras cantás la escala. Es el ejercicio de tracto semiocluido más usado: equilibra aire y voz y saca tensión de la garganta."
+  en: "The lips flutter ('brr') while you sing the scale. The most common semi-occluded exercise: it balances air and voice and takes tension off the throat."
+steps:
+  es:
+    - "Labios sueltos y juntos, soplá hasta que vibren. Si cuesta, empujá suave las mejillas con dos dedos."
+    - "Con el trino andando, cantá las cinco notas subiendo y bajando."
+    - "El trino no se tiene que cortar: si se corta, falta aire o sobra presión."
+  en:
+    - "Lips loose and together, blow until they flutter. If it is hard, push the cheeks in gently with two fingers."
+    - "With the trill going, sing the five notes up and down."
+    - "The trill should not stop: if it does, there is too little air or too much pressure."
+mistakes:
+  es: ["El trino se corta en las notas altas", "Labios tensos", "Mucho volumen"]
+  en: ["The trill stops on the high notes", "Tense lips", "Too loud"]
+sound: "brr"
+tempo: 100
+pattern: "0 2 4 5 7 5 4 2 0:2"
+range: comfortable
+roots: {step: 1, direction: up_down}
+articulation: legato
+dynamics: steady
+measure: [pitch, stability]

@@ -1,0 +1,28 @@
+id: lip_trill_siren
+kind: vocal
+category: warmup
+level: 1
+title: {es: "Sirena con trino de labios", en: "Lip trill siren"}
+description:
+  es: "Un deslizamiento continuo de una octava, arriba y abajo, con trino de labios. Conecta los registros sin saltos y sin la presión de afinar notas."
+  en: "A continuous one-octave slide, up and down, on a lip trill. It connects the registers without breaks and without the pressure of landing notes."
+steps:
+  es:
+    - "Arrancá el trino en la nota grave."
+    - "Deslizate hasta la octava y volvé, como una sirena, sin escalones."
+    - "Donde la voz quiera quebrarse, aflojá volumen en vez de empujar."
+  en:
+    - "Start the trill on the low note."
+    - "Slide up to the octave and back, like a siren, with no steps."
+    - "Where the voice wants to crack, get softer rather than push."
+mistakes:
+  es: ["Escalones en lugar de un deslizamiento", "Un quiebre al pasar de registro", "Subir el mentón en lo agudo"]
+  en: ["Steps instead of a slide", "A crack at the register change", "Lifting the chin on top"]
+sound: "brr"
+tempo: 60
+pattern: "0~12:3 12~0:3"
+range: full
+roots: {step: 2, direction: up}
+articulation: legato
+dynamics: soft
+measure: [glide, range]

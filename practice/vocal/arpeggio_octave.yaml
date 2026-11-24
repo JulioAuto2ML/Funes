@@ -1,0 +1,28 @@
+id: arpeggio_octave
+kind: vocal
+category: technique
+level: 2
+title: {es: "Arpegio a la octava", en: "Arpeggio to the octave"}
+description:
+  es: "1-3-5-8-5-3-1 en «a». Recorre una octava entera y obliga a pasar por el pasaje con la misma vocal y el mismo volumen."
+  en: "1-3-5-8-5-3-1 on 'a'. It covers a whole octave and makes you cross the passage with the same vowel and volume."
+steps:
+  es:
+    - "Una respiración por arpegio."
+    - "Al subir, dejá que la «a» se redondee un poco hacia «o» en lo agudo en vez de abrirla más."
+    - "Bajá con el mismo cuidado que subiste."
+  en:
+    - "One breath per arpeggio."
+    - "Going up, let the 'a' round slightly towards 'o' on top instead of spreading it."
+    - "Come down with the same care as going up."
+mistakes:
+  es: ["Gritar la octava", "Subir el mentón", "Perder afinación al bajar"]
+  en: ["Shouting the octave", "Lifting the chin", "Losing pitch on the way down"]
+sound: "a"
+tempo: 96
+pattern: "0 4 7 12 7 4 0:2"
+range: full
+roots: {step: 1, direction: up_down}
+articulation: legato
+dynamics: steady
+measure: [pitch, onset, range]
