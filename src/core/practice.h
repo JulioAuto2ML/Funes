@@ -107,6 +107,33 @@ Range comfortable_within(Range full);
 // of each root in order]}. Unpitched exercises have no reps.
 nlohmann::json plan(const Exercise& e, const Profile& p);
 
+struct Library;
+
+// ── for the coach (phase 2) ──────────────────────────────────────────────────
+// What a model needs to plan and comment, computed here rather than asked of
+// it: the library as it fits this singer, and their history reduced to
+// trends and the notes that keep going off. Plain text, English labels (the
+// model answers in the person's language); titles in `locale`.
+
+// Every exercise: id, title, category, level, what it measures, how many
+// repetitions fit the range. `profile` may be null (no range yet).
+std::string exercises_report(const Library& lib, const Profile* profile,
+                             const std::string& locale);
+
+// Sessions (sessions.jsonl rows) at or after `since` (an ISO date or time,
+// compared as text): per exercise the count, the first and last scores, the
+// notes most often off and by how much, and what has not been practised.
+std::string history_report(const std::vector<nlohmann::json>& sessions, const Library& lib,
+                           const Profile* profile, const std::string& since,
+                           const std::string& locale);
+
+// The coach's plan for today, checked: 1–12 items of known exercises, reps
+// capped at what fits (an unpitched one gets its own repeats when not given),
+// a note of at most 600 characters. → {created_at, note, items: [{id, reps}]}.
+// "" or what is wrong, naming an exercise that does not exist.
+std::string make_plan(const nlohmann::json& args, const Library& lib, const Profile* profile,
+                      const std::string& now_iso, nlohmann::json& out);
+
 struct Library {
     std::vector<Voice> voices;
     std::vector<Exercise> exercises;

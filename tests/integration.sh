@@ -502,6 +502,14 @@ SESSIONS=$(cat "$WORKSPACE"/*/practice/sessions.jsonl 2>/dev/null)
 check "practice: session in the caller's workspace" "$SESSIONS" '"pitch":82'
 CODE=$(command curl -s -o /dev/null -w '%{http_code}' "$BASE/api/practice/library")
 check "practice: anonymous refused" "$CODE" '401'
+OUT=$(curl -s "$BASE/api/practice/plan")
+check "practice: no plan yet" "$OUT" '"plan":null'
+# The coach's practice_plan writes this file; the route says what was done since.
+PDIR=$(dirname "$(ls "$WORKSPACE"/*/practice/sessions.jsonl | head -1)")
+printf '{"created_at":"2000-01-01T00:00:00Z","note":"n","items":[{"id":"hum_scale","reps":4},{"id":"breath_hiss","reps":2}]}' > "$PDIR/plan.json"
+OUT=$(curl -s "$BASE/api/practice/plan")
+check "practice: plan served" "$OUT" '"reps":4'
+check "practice: plan marks what was sung since" "$OUT" '"done":\["hum_scale"\]'
 
 echo "— chat (SSE, plain answer with memory injection)"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \

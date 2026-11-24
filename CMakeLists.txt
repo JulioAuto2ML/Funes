@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Funes VERSION 7.24.0 LANGUAGES C CXX)
+project(Funes VERSION 7.25.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -145,6 +145,8 @@ add_library(funes_core STATIC
     src/core/probes.cpp
     src/core/heal.cpp
     src/core/practice.cpp
+    src/core/practice_store.cpp
+    src/core/tools/practice_tools.cpp
     src/core/doctor.cpp
     src/core/guardian.cpp
     src/core/local_peer.cpp

@@ -195,6 +195,71 @@
     return { low: Math.round(Math.min(...held)), high: Math.round(Math.max(...held)) };
   }
 
+  // ── the guided range check: imitate a note, step by step ──────────────
+
+  const MATCH_CENTS = 50;      // imitating a note: within a quarter tone
+  const MATCH_HOLD = 0.4;      // … held this long (seconds, in total)
+
+  // Did the singer hold `midi`? No octave folding here: the reference is
+  // played in the singer's own octave, and a note an octave away is not the
+  // note being measured. {matched, cents (median of the frames near it)}.
+  function heldMatch(frames, midi) {
+    let held = 0, prev = null;
+    const near = [], on = [];
+    for (const f of frames) {
+      if (!f.freq) { prev = null; continue; }
+      const c = P.cents(f.freq, midi);
+      if (Math.abs(c) <= 200) near.push(c);
+      if (Math.abs(c) <= MATCH_CENTS) {
+        on.push(c);
+        if (prev !== null && f.t - prev < 0.1) held += f.t - prev;
+        prev = f.t;
+      } else {
+        prev = null;
+      }
+    }
+    const matched = held >= MATCH_HOLD;
+    const pool = matched ? on : near;
+    return { matched, cents: pool.length ? Math.round(median(pool)) : null };
+  }
+
+  // The note a person speaks on: where the walk starts (a little above it is
+  // where a voice sings comfortably). null when too little was heard.
+  function speakingNote(frames) {
+    const ms = frames.filter((f) => f.freq).map((f) => P.freqToMidi(f.freq));
+    return ms.length >= 5 ? Math.round(median(ms)) : null;
+  }
+
+  // Down a semitone at a time from the start while the singer matches each
+  // note, then up from just above the start. A note gets two tries; the
+  // second miss ends that direction. Pure: the view plays and listens.
+  const rangeWalk = {
+    LOWEST: 28,   // E1
+    HIGHEST: 84,  // C6
+    start(note) {
+      return { start: note, dir: 'down', note, low: null, high: null, misses: 0, done: false };
+    },
+    next(w, ok) {
+      const up = (state) => {
+        const n = state.start + 1;
+        // The start itself counts for the top too, if it was matched.
+        const high = state.low !== null ? state.start : null;
+        return n > rangeWalk.HIGHEST
+          ? { ...state, high, done: true }
+          : { ...state, dir: 'up', note: n, high, misses: 0 };
+      };
+      if (w.done) return w;
+      if (ok) {
+        const got = w.dir === 'down' ? { ...w, low: w.note } : { ...w, high: w.note };
+        const n = w.note + (w.dir === 'down' ? -1 : 1);
+        if (w.dir === 'down') return n < rangeWalk.LOWEST ? up(got) : { ...got, note: n, misses: 0 };
+        return n > rangeWalk.HIGHEST ? { ...got, done: true } : { ...got, note: n, misses: 0 };
+      }
+      if (w.misses + 1 < 2) return { ...w, misses: w.misses + 1 };
+      return w.dir === 'down' ? up(w) : { ...w, done: true };
+    },
+  };
+
   // Many repetitions → the session's scores, averaged.
   function summarize(reps) {
     const keys = ['pitch', 'stability', 'onset_ms', 'glide', 'dynamics', 'duration', 'duration_s'];
@@ -207,6 +272,7 @@
   }
 
   const api = { scoreRep, scoreUnpitched, rangeFromFrames, summarize,
+                heldMatch, speakingNote, rangeWalk,
                 IN_TUNE_CENTS, LATENCY };
   root.PracticeScore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

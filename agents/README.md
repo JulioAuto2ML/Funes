@@ -17,6 +17,7 @@ allowlist, and a handful of knobs, not an independent binary or container.
 | `tool-builder` | Scaffolds new HTTP-template tools via interview. | create_tool | 8 |
 | `file-reviewer` | Reviews an uploaded document and reports on it. | read_file, remember | 10 |
 | `classifier` | Fast typed decisions: probability per option, no free text. | classify_decision | 6 |
+| `vocal-coach` | Singing coach: plans today's practice and comments on the scores the Practice view measured. | practice_history, practice_exercises, practice_plan | 6 |
 | `sysadmin` | yoda itself: services, journal, health, what fills the disk, what changed; restarts a bridge, clears old backups. Its scripts are `admin_only`. | run_script (system_health, disk_usage, unit_status, journal, restart_unit, prune_backups), host_changes, machine_recall | 10 |
 
 That is the whole shipped roster, and it is meant to be. An agent that needs
@@ -37,6 +38,7 @@ User <-> funes (orchestrator)
               +-> agent-doctor       (diagnose/fix agents)
               +-> tool-builder       (scaffold new tools)
               +-> classifier         (typed decisions)
+              +-> vocal-coach        (singing practice)
 ```
 
 The user talks only to `funes`. When a request needs a specialist, funes

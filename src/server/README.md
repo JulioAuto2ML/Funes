@@ -85,6 +85,7 @@ and neither alone authenticates anything).
 | `/api/practice/library` | GET | Exercises and default voices (`practice/`) |
 | `/api/practice/profile` | GET/PUT | The caller's vocal range: `{voice}` or `{full: [low, high], source: "measured"}` |
 | `/api/practice/exercises/<id>` | GET | The exercise fitted to the caller's range: every repetition as absolute notes |
+| `/api/practice/plan` | GET | The coach's plan for today, with the exercises already sung since it was made (`done`) |
 | `/api/practice/sessions` | POST | One session's scores, appended to the caller's `practice/sessions.jsonl` |
 | `/api/me/locale` | PUT | The caller's own language (never another account's — that is `funes locale`) |
 | `/*` | GET | Static files (web UI) |

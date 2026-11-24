@@ -8,7 +8,9 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <cmath>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sstream>
 
@@ -405,6 +407,216 @@ nlohmann::json plan(const Exercise& e, const Profile& p) {
     auto reps = nlohmann::json::array();
     for (int root : roots(e, r)) reps.push_back(render(e, root));
     return {{"exercise", e.to_json()}, {"range", range_to_json(r)}, {"reps", reps}};
+}
+
+namespace {
+
+// A note as the person reads it in the Practice view: solfège for Spanish
+// ("Mi3"), letters otherwise ("E3") — the coach repeats what it is given.
+std::string note_in(int midi, const std::string& locale) {
+    static const char* solfege[] = {"Do", "Do#", "Re", "Re#", "Mi", "Fa",
+                                    "Fa#", "Sol", "Sol#", "La", "La#", "Si"};
+    if (locale != "es" || midi < 0 || midi > 127) return midi_name(midi);
+    return std::string(solfege[midi % 12]) + std::to_string(midi / 12 - 1);
+}
+
+std::string title_in(const Exercise& e, const std::string& locale) {
+    if (e.title.contains(locale) && e.title[locale].is_string()) return e.title[locale];
+    return e.title.value("en", e.id);
+}
+
+const Exercise* find_exercise(const Library& lib, const std::string& id) {
+    for (const auto& e : lib.exercises)
+        if (e.id == id) return &e;
+    return nullptr;
+}
+
+// How many repetitions fit; -1 for an unpitched exercise, 0 when none does.
+int fitting_reps(const Exercise& e, const Profile* p) {
+    if (!e.pitched) return -1;
+    if (!p) return 0;
+    return static_cast<int>(roots(e, e.range == "full" ? p->full : p->comfortable).size());
+}
+
+std::string range_line(const Profile* p, const std::string& locale) {
+    if (!p) return "No range yet: the person has neither chosen a voice type nor measured it.\n";
+    std::string s = "Range: " + note_in(p->full.low, locale) + "–" + note_in(p->full.high, locale) +
+                    ", comfortable " + note_in(p->comfortable.low, locale) + "–" +
+                    note_in(p->comfortable.high, locale);
+    s += p->source == "measured" ? " (measured " + p->measured_at.substr(0, 10) + ")"
+                                 : " (default for " + p->voice + ", not measured)";
+    return s + ".\n";
+}
+
+std::string num(const nlohmann::json& j) {
+    if (j.is_number_integer()) return std::to_string(j.get<long long>());
+    if (j.is_number()) {
+        std::ostringstream o;
+        o.setf(std::ios::fixed);
+        o.precision(1);
+        o << j.get<double>();
+        return o.str();
+    }
+    return "?";
+}
+
+// "in tune 72%, wobble ±12.5¢, onset 180 ms" from a session's scores. A
+// breathing exercise's stability is how even the sound was (0–100), not a
+// pitch wobble in cents: the same key, a different number.
+std::string scores_text(const nlohmann::json& s) {
+    const bool breath = s.contains("duration_s");
+    const std::pair<std::string, std::string> stability =
+        breath ? std::make_pair(std::string("evenness "), std::string("%"))
+               : std::make_pair(std::string("wobble ±"), std::string("¢"));
+    const std::vector<std::pair<std::string, std::pair<std::string, std::string>>> kLabels = {
+        {"pitch", {"in tune ", "%"}}, {"stability", stability}, {"onset_ms", {"onset ", " ms"}},
+        {"glide", {"glide ", "%"}}, {"dynamics", {"swell ", "%"}}, {"duration_s", {"held ", " s"}},
+    };
+    std::string out;
+    for (const auto& [k, label] : kLabels) {
+        if (!s.contains(k) || !s[k].is_number()) continue;
+        if (!out.empty()) out += ", ";
+        out += label.first + num(s[k]) + label.second;
+    }
+    return out.empty() ? "no scores" : out;
+}
+
+} // namespace
+
+std::string exercises_report(const Library& lib, const Profile* profile, const std::string& locale) {
+    std::ostringstream o;
+    o << range_line(profile, locale);
+    for (const char* cat : {"breath", "warmup", "technique", "agility", "range", "cooldown"}) {
+        bool head = false;
+        for (const auto& e : lib.exercises) {
+            if (e.category != cat) continue;
+            if (!head) { o << "\n" << cat << ":\n"; head = true; }
+            o << "- " << e.id << " — " << title_in(e, locale) << " (level " << e.level
+              << "; measures ";
+            for (size_t i = 0; i < e.measure.size(); ++i) o << (i ? ", " : "") << e.measure[i];
+            int n = fitting_reps(e, profile);
+            if (n < 0) o << "; " << e.repeats << " × " << e.seconds << " s, no notes)\n";
+            else if (n == 0) o << "; does not fit this range)\n";
+            else o << "; " << n << " reps fit)\n";
+        }
+    }
+    return o.str();
+}
+
+std::string history_report(const std::vector<nlohmann::json>& sessions, const Library& lib,
+                           const Profile* profile, const std::string& since,
+                           const std::string& locale) {
+    struct Off { int count = 0; double cents = 0; };
+    struct Agg {
+        int n = 0;
+        std::string first_at, last_at;
+        nlohmann::json first, last;
+        std::map<int, Off> off;
+    };
+    std::map<std::string, Agg> by;
+    std::set<std::string> days;
+    int total = 0;
+    for (const auto& s : sessions) {
+        if (!s.is_object()) continue;
+        const std::string at = s.value("at", "");
+        const std::string id = s.value("exercise", "");
+        if (at < since || !find_exercise(lib, id)) continue;
+        if (!s.contains("scores") || !s["scores"].is_object()) continue;
+        ++total;
+        days.insert(at.substr(0, 10));
+        Agg& a = by[id];
+        if (a.n++ == 0) { a.first = s["scores"]; a.first_at = at; }
+        a.last = s["scores"];
+        a.last_at = at;
+        if (!s.contains("reps") || !s["reps"].is_array()) continue;
+        for (const auto& r : s["reps"]) {
+            if (!r.is_object() || !r.contains("notes") || !r["notes"].is_array()) continue;
+            for (const auto& n : r["notes"]) {
+                if (!n.is_object() || !n.contains("cents") || !n["cents"].is_number()) continue;
+                if (!n.contains("midi") || !n["midi"].is_number_integer()) continue;
+                double c = n["cents"].get<double>();
+                if (std::abs(c) <= 30) continue;
+                Off& off = a.off[n["midi"].get<int>()];
+                off.count++;
+                off.cents += c;
+            }
+        }
+    }
+
+    std::ostringstream o;
+    o << range_line(profile, locale);
+    if (!total) {
+        o << "No practice recorded since " << since.substr(0, 10) << ".\n";
+        return o.str();
+    }
+    o << total << " session(s) on " << days.size() << " day(s) since " << since.substr(0, 10)
+      << ". Scores are measured by the browser, not judged: in tune = share of each note "
+         "held within 30 cents; wobble = how much a held note wavers.\n";
+    std::vector<std::pair<std::string, const Agg*>> order;
+    for (const auto& [id, a] : by) order.push_back({id, &a});
+    std::sort(order.begin(), order.end(),
+              [](const auto& x, const auto& y) { return x.second->last_at > y.second->last_at; });
+    for (const auto& [id, a] : order) {
+        const Exercise* e = find_exercise(lib, id);
+        o << "\n- " << id << " — " << title_in(*e, locale) << ": " << a->n << "×, last "
+          << a->last_at.substr(0, 10) << ": " << scores_text(a->last);
+        if (a->n > 1 && a->first.contains("pitch") && a->last.contains("pitch"))
+            o << " (in tune " << num(a->first["pitch"]) << "% → " << num(a->last["pitch"]) << "%)";
+        o << "\n";
+        std::vector<std::pair<int, Off>> off(a->off.begin(), a->off.end());
+        std::sort(off.begin(), off.end(),
+                  [](const auto& x, const auto& y) { return x.second.count > y.second.count; });
+        if (!off.empty()) {
+            o << "  notes most often off: ";
+            for (size_t i = 0; i < off.size() && i < 3; ++i) {
+                int mean = static_cast<int>(std::floor(off[i].second.cents / off[i].second.count));
+                o << (i ? ", " : "") << note_in(off[i].first, locale) << " " << (mean > 0 ? "+" : "")
+                  << mean << "¢ (" << off[i].second.count << "×)";
+            }
+            o << " — minus is flat, plus is sharp\n";
+        }
+    }
+    std::vector<std::string> never;
+    for (const auto& e : lib.exercises)
+        if (!by.count(e.id) && e.category != "range") never.push_back(e.id);
+    if (!never.empty()) {
+        o << "\nNot practised in this window: ";
+        for (size_t i = 0; i < never.size(); ++i) o << (i ? ", " : "") << never[i];
+        o << "\n";
+    }
+    return o.str();
+}
+
+std::string make_plan(const nlohmann::json& args, const Library& lib, const Profile* profile,
+                      const std::string& now_iso, nlohmann::json& out) {
+    if (!profile) return "The person has no range yet: they choose a voice type or measure "
+                         "their range in the Practice view first.";
+    if (!args.is_object() || !args.contains("items") || !args["items"].is_array())
+        return "items is a list of {id, reps?}";
+    const auto& items = args["items"];
+    if (items.empty() || items.size() > 12) return "a plan has 1 to 12 exercises";
+    std::string note = args.value("note", "");
+    if (note.size() > 600) return "the note is at most 600 characters";
+
+    nlohmann::json planned = nlohmann::json::array();
+    for (const auto& it : items) {
+        if (!it.is_object() || !it.contains("id") || !it["id"].is_string())
+            return "each item is {id, reps?}";
+        const std::string id = it["id"];
+        const Exercise* e = find_exercise(lib, id);
+        if (!e) return "there is no exercise '" + id + "': use an id from practice_exercises";
+        int fit = fitting_reps(*e, profile);
+        int reps = fit < 0 ? e->repeats : fit;
+        if (it.contains("reps")) {
+            if (!it["reps"].is_number_integer() || it["reps"].get<int>() < 1)
+                return id + ": reps is a whole number, at least 1";
+            reps = std::min(it["reps"].get<int>(), fit < 0 ? 20 : fit);
+        }
+        if (fit == 0) return id + " does not fit this person's range; choose another";
+        planned.push_back({{"id", id}, {"reps", reps}});
+    }
+    out = {{"created_at", now_iso}, {"note", note}, {"items", planned}};
+    return "";
 }
 
 Library load_library(const std::string& dir) {

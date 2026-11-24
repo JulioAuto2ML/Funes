@@ -138,6 +138,50 @@ test('range: held notes count, a passing slide does not', () => {
   assert.strictEqual(S.rangeFromFrames(frames(1, () => ({ freq: null, rms: 0 }))), null);
 });
 
+test('imitation: a held match counts, a passing or flat one does not', () => {
+  assert.ok(S.heldMatch(frames(1.8, (t) => (t > 0.3 ? at(50, 20) : { freq: null, rms: 0 })), 50).matched);
+  assert.ok(!S.heldMatch(frames(1.8, (t) => (t < 0.2 ? at(50) : at(53))), 50).matched);      // brushed
+  assert.ok(!S.heldMatch(frames(1.8, () => at(50, -80)), 50).matched);                         // flat
+  assert.ok(!S.heldMatch(frames(1.8, () => at(62)), 50).matched);                              // octave up is not this note
+  assert.strictEqual(S.heldMatch(frames(1.8, () => at(50, -20)), 50).cents, -20);
+});
+
+test('range walk: down until two misses, then up from the start', () => {
+  let w = S.rangeWalk.start(50);
+  assert.strictEqual(w.note, 50);
+  const sing = (ok) => { w = S.rangeWalk.next(w, ok); };
+  sing(true); assert.strictEqual(w.note, 49);
+  sing(true); sing(true);                 // 49, 48 matched → 47
+  sing(false); assert.strictEqual(w.note, 47);   // one more try at the same note
+  sing(false);                            // second miss: lowest is 48, go up from 51
+  assert.strictEqual(w.dir, 'up'); assert.strictEqual(w.note, 51); assert.strictEqual(w.low, 48);
+  sing(true); sing(false); sing(true);   // 51 ok, 52 missed once then ok
+  sing(false); sing(false);              // 53 missed twice
+  assert.ok(w.done);
+  assert.deepStrictEqual([w.low, w.high], [48, 52]);
+});
+
+test('range walk: a voice that cannot match the start gives no range', () => {
+  let w = S.rangeWalk.start(50);
+  w = S.rangeWalk.next(w, false); w = S.rangeWalk.next(w, false);   // down side: nothing
+  w = S.rangeWalk.next(w, false); w = S.rangeWalk.next(w, false);   // up side: nothing
+  assert.ok(w.done);
+  assert.strictEqual(w.low, null); assert.strictEqual(w.high, null);
+});
+
+test('range walk stops at the edges of a human voice', () => {
+  let w = S.rangeWalk.start(30);
+  for (let i = 0; i < 10 && w.dir === 'down'; i++) w = S.rangeWalk.next(w, true);
+  assert.strictEqual(w.low, S.rangeWalk.LOWEST);
+  assert.strictEqual(w.dir, 'up');
+});
+
+test('speaking pitch: the median of what was said', () => {
+  const f = frames(3, (t) => (t < 0.5 ? { freq: null, rms: 0 } : at(t < 2 ? 48 : 50)));
+  assert.strictEqual(S.speakingNote(f), 48);
+  assert.strictEqual(S.speakingNote(frames(1, () => ({ freq: null, rms: 0 }))), null);
+});
+
 test('summarize averages reps', () => {
   const s = S.summarize([{ scores: { pitch: 80, stability: 10 } }, { scores: { pitch: 60, stability: 20 } }]);
   assert.deepStrictEqual(s, { pitch: 70, stability: 15 });

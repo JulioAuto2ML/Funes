@@ -20,6 +20,8 @@ const std::set<std::string> kOwnData = {
     "list_scripts", "list_tools",
     "compress_context", "classify_decision",
     "create_agent", "create_tool",
+    // The caller's own practice files (practice_store.h).
+    "practice_exercises", "practice_history", "practice_plan",
 };
 
 // "https://user@www.Example.com:8443/path?q" → "www.example.com".

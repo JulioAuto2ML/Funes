@@ -17,7 +17,9 @@
 
   const FRAME_MS = 33;          // ~30 pitch readings a second
   const TAIL = 0.4;             // keep listening this long after the last note
-  const MEASURE_SECONDS = 8;    // each half of the range check
+  const SPEAK_SECONDS = 3.5;    // range check: the sentence that finds the start
+  const NOTE_SECONDS = 1.0;     // … each reference note
+  const SING_SECONDS = 2.0;     // … and the time to imitate it
   const CATEGORIES = ['breath', 'warmup', 'technique', 'agility', 'range', 'cooldown'];
 
   const state = {
@@ -25,6 +27,8 @@
     profile: null,
     current: null,      // exercise id
     plan: null,         // {exercise, range, reps}
+    today: null,        // the coach's plan: {note, items: [{id, reps}], done: [ids]}
+    wantReps: null,     // reps the plan asks for, for the exercise being opened
     running: false,
     stop: false,
   };
@@ -233,6 +237,20 @@
   function renderList() {
     const nav = $('practice-list');
     nav.replaceChildren();
+    const today = state.today;
+    if (today && today.items && today.items.length) {
+      nav.append(el('h4', {}, t('practice.today')));
+      if (today.note) nav.append(el('p', { class: 'practice-note' }, today.note));
+      for (const it of today.items) {
+        const e = state.library.exercises.find((x) => x.id === it.id);
+        if (!e) continue;
+        const done = (today.done || []).includes(it.id);
+        nav.append(el('button', {
+          class: 'practice-item' + (it.id === state.current ? ' active' : ''),
+          onclick: () => open(it.id, it.reps),
+        }, (done ? '✓ ' : '') + tr(e.title), el('span', { class: 'practice-level' }, '×' + it.reps)));
+      }
+    }
     for (const cat of CATEGORIES) {
       const items = state.library.exercises.filter((e) => e.category === cat);
       if (!items.length) continue;
@@ -261,9 +279,10 @@
     where.replaceChildren(el('p', { class: 'practice-error' }, message));
   }
 
-  async function open(id) {
+  async function open(id, reps) {
     if (state.running) return;
     state.current = id;
+    state.wantReps = reps || null;
     renderList();
     const main = $('practice-main');
     const ex = state.library.exercises.find((e) => e.id === id);
@@ -295,6 +314,13 @@
       el('option', { value: reps.length }, t('practice.repsAll', { n: reps.length })));
     // A long walk (an up-and-down over a whole range is 20-odd) starts shorter.
     count.value = String(reps.length > 12 ? 10 : reps.length);
+    // Today's plan asks for a number of its own.
+    const planned = state.wantReps && Math.min(state.wantReps, reps.length);
+    if (planned) {
+      if (![...count.options].some((o) => Number(o.value) === planned))
+        count.prepend(el('option', { value: planned }, t('practice.repsN', { n: planned })));
+      count.value = String(planned);
+    }
     const listen = el('button', { class: 'ghost' }, t('practice.listen'));
     const start = el('button', {}, t('practice.start'));
     const stop = el('button', { class: 'ghost', hidden: 'hidden' }, t('practice.stop'));
@@ -416,7 +442,12 @@
       })),
     };
     const r = await api('sessions', { method: 'POST', body: JSON.stringify(body) });
-    status.textContent = r.ok ? t('practice.saved') : t('practice.saveFailed', { error: r.error || r.status });
+    if (!r.ok) { status.textContent = t('practice.saveFailed', { error: r.error || r.status }); return; }
+    status.replaceChildren(t('practice.saved') + ' ', el('button', {
+      class: 'ghost',
+      onclick: () => askFunes(t('practice.askFeedbackMessage', { title: tr(ex.title) })),
+    }, t('practice.askFeedback')));
+    await refreshToday();
   }
 
   function renderUnpitched(ex) {
@@ -435,8 +466,9 @@
       state.running = true; state.stop = false; start.hidden = true; stop.hidden = false;
       const done = [];
       try {
-        for (let i = 0; i < ex.repeats && !state.stop; i++) {
-          status.textContent = t('practice.hiss', { n: i + 1, total: ex.repeats, seconds: ex.seconds, sound: ex.sound });
+        const repeats = state.wantReps || ex.repeats;
+        for (let i = 0; i < repeats && !state.stop; i++) {
+          status.textContent = t('practice.hiss', { n: i + 1, total: repeats, seconds: ex.seconds, sound: ex.sound });
           const frames = await record(audio.ctx.currentTime + 0.1, ex.seconds + 10, (f, all) => {
             meter.firstChild.style.width = Math.min(100, f.rms * 400) + '%';
             const s = S.scoreUnpitched(all, ex.seconds).scores;
@@ -448,7 +480,7 @@
           if (state.stop) break;
           done.push(S.scoreUnpitched(frames, ex.seconds));
           renderResults(results, ex, done);
-          if (i + 1 < ex.repeats) { status.textContent = t('practice.rest'); await sleep(4000); }
+          if (i + 1 < repeats) { status.textContent = t('practice.rest'); await sleep(4000); }
         }
         if (done.length) await save(ex, done, status, {});
       } finally {
@@ -462,56 +494,92 @@
 
   // The range check: slide down and hold, slide up and hold; the lowest and
   // highest steadily held notes are the range (score.js rangeFromFrames).
+  // The guided range check (score.js heldMatch, rangeWalk): a sentence in the
+  // speaking voice says where to start, then Funes plays one note at a time
+  // and the singer imitates it — down a semitone while each is matched, then
+  // up from the start; two misses on a note end that direction. A person who
+  // has never named a note can measure their range this way.
   function renderMeasure() {
     const ex = state.library.exercises.find((e) => e.id === 'range_check');
     const main = $('practice-main');
     const status = el('p', { class: 'practice-status' });
+    const big = el('div', { class: 'practice-big' });
     const live = el('span', { class: 'practice-live' });
+    const trail = el('div', { class: 'practice-trail' });
     const result = el('div');
-    const found = { low: null, high: null };
+    const start = el('button', {}, t('practice.start'));
+    const stop = el('button', { class: 'ghost', hidden: 'hidden' }, t('practice.stop'));
+    stop.onclick = () => { state.stop = true; };
 
-    const step = (which) => async () => {
-      try { await ensureMic(); } catch (e) {
-        status.textContent = e.name === 'NotAllowedError' ? t('practice.micDenied') : e.message;
-        return;
-      }
-      state.running = true; state.stop = false;
-      status.textContent = t(which === 'low' ? 'practice.measureLow' : 'practice.measureHigh', { seconds: MEASURE_SECONDS });
-      const frames = await record(audio.ctx.currentTime + 0.1, MEASURE_SECONDS, (f) => {
-        live.textContent = f.freq ? P.noteName(P.freqToMidi(f.freq), loc()) : '·';
-      });
-      state.running = false; releaseMic(); live.textContent = '';
-      const r = S.rangeFromFrames(frames);
-      if (!r) { status.textContent = t('practice.measureNone'); return; }
-      found[which] = which === 'low' ? r.low : r.high;
-      status.textContent = '';
-      showResult();
-    };
-
-    const showResult = () => {
-      const parts = [];
-      if (found.low !== null) parts.push(t('practice.lowest', { note: P.noteName(found.low, loc()) }));
-      if (found.high !== null) parts.push(t('practice.highest', { note: P.noteName(found.high, loc()) }));
+    const showResult = (w) => {
       const save = el('button', {
         onclick: async () => {
           const r = await api('profile', { method: 'PUT', body: JSON.stringify({
-            full: [P.noteName(found.low), P.noteName(found.high)], source: 'measured' }) });
+            full: [P.noteName(w.low), P.noteName(w.high)], source: 'measured' }) });
           if (!r.ok) { status.textContent = r.error; return; }
           state.profile = r.profile;
           renderHead();
           status.textContent = t('practice.measureSaved');
         },
       }, t('practice.measureSave'));
-      result.replaceChildren(el('p', {}, parts.join(' · ')),
-        found.low !== null && found.high !== null ? save : '');
+      result.replaceChildren(el('p', {}, t('practice.lowest', { note: P.noteName(w.low, loc()) }) + ' · ' +
+        t('practice.highest', { note: P.noteName(w.high, loc()) })), save);
+    };
+
+    start.onclick = async () => {
+      try { await ensureMic(); } catch (e) {
+        status.textContent = e.name === 'NotAllowedError' ? t('practice.micDenied') : e.message;
+        return;
+      }
+      const ctx = audio.ctx;
+      state.running = true; state.stop = false;
+      start.hidden = true; stop.hidden = false;
+      trail.replaceChildren(); result.replaceChildren();
+      const onFrame = (f) => { live.textContent = f.freq ? P.noteName(P.freqToMidi(f.freq), loc()) : '·'; };
+      let w = null;
+      try {
+        big.textContent = '🗣';
+        status.textContent = t('practice.measureSpeak');
+        const said = await record(ctx.currentTime + 0.1, SPEAK_SECONDS, onFrame);
+        let first = S.speakingNote(said);
+        if (first === null) {
+          const p = state.profile;
+          first = p ? Math.round((P.nameToMidi(p.comfortable[0]) + P.nameToMidi(p.comfortable[1])) / 2) - 2 : 48;
+        }
+        // A voice sings comfortably a little above where it speaks.
+        w = S.rangeWalk.start(Math.min(S.rangeWalk.HIGHEST, first + 2));
+        while (!w.done && !state.stop) {
+          big.textContent = P.noteName(w.note, loc());
+          status.textContent = t('practice.measureListen');
+          live.textContent = '';
+          tone(ctx, ctx.currentTime + 0.05, NOTE_SECONDS, P.midiToFreq(w.note));
+          await sleep((NOTE_SECONDS + 0.25) * 1000);
+          status.textContent = t('practice.measureSing');
+          const frames = await record(ctx.currentTime + 0.05, SING_SECONDS, onFrame);
+          if (state.stop) break;
+          const m = S.heldMatch(frames, w.note);
+          trail.append(el('span', { class: 'practice-chip ' + (m.matched ? 'ok' : 'miss'),
+            title: m.cents !== null ? (m.cents > 0 ? '+' : '') + m.cents + '¢' : '' },
+            P.noteName(w.note, loc())));
+          w = S.rangeWalk.next(w, m.matched);
+        }
+      } finally {
+        state.running = false; start.hidden = false; stop.hidden = true;
+        big.textContent = ''; live.textContent = '';
+        releaseMic();
+      }
+      if (state.stop || !w || !w.done) { status.textContent = ''; return; }
+      if (w.low === null || w.high === null || w.high - w.low < 12) {
+        status.textContent = t('practice.measureNone');
+        return;
+      }
+      status.textContent = '';
+      showResult(w);
     };
 
     main.replaceChildren(...exerciseHeader(ex),
-      el('div', { class: 'practice-controls' },
-        el('button', { onclick: step('low') }, t('practice.measureLowButton')),
-        el('button', { onclick: step('high') }, t('practice.measureHighButton')),
-        live),
-      status, result);
+      el('div', { class: 'practice-controls' }, start, stop, live),
+      status, big, trail, result);
   }
 
   /* ── open / close ───────────────────────────────────────────────────── */
@@ -520,15 +588,32 @@
     const view = $('practice-view');
     view.hidden = false;
     view.parentElement.classList.add('practicing');
-    const [lib, prof] = await Promise.all([api('library'), api('profile')]);
+    const [lib, prof, plan] = await Promise.all([api('library'), api('profile'), api('plan')]);
     if (!lib.ok) return showError($('practice-main'), lib.error);
     state.library = lib;
     state.profile = prof.ok ? prof.profile : null;
+    state.today = plan.ok ? plan.plan : null;
     renderHead();
     renderList();
     if (state.current) open(state.current);
     else $('practice-main').replaceChildren(el('p', { class: 'practice-dim' },
       state.profile ? t('practice.pick') : t('practice.noRange')));
+  }
+
+  async function refreshToday() {
+    const r = await api('plan');
+    state.today = r.ok ? r.plan : null;
+    renderList();
+  }
+
+  // Ask Funes in the chat, as the person would: Funes hands it to the coach,
+  // and the answer stays in the conversation with everything else.
+  function askFunes(text) {
+    hide();
+    const input = $('input');
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    $('composer').requestSubmit();
   }
 
   function hide() {
@@ -540,6 +625,7 @@
 
   $('toggle-practice').addEventListener('click', () => ($('practice-view').hidden ? show() : hide()));
   $('practice-close').addEventListener('click', hide);
+  $('practice-ask-plan').addEventListener('click', () => { if (!state.running) askFunes(t('practice.askPlanMessage')); });
   $('practice-measure').addEventListener('click', () => { if (!state.running) { state.current = 'range_check'; renderList(); renderMeasure(); } });
   $('practice-voice').addEventListener('change', async (e) => {
     if (!e.target.value) return;
