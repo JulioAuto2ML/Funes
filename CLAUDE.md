@@ -479,6 +479,19 @@ WhatsApp autoresponder uses it to share `funes`'s memory). That is orthogonal to
 the per-user scoping below: `memory_scope` picks *which agent's* pool,
 `user_id` picks *whose*.
 
+### Practice (7.24)
+
+`practice/` holds exercise libraries (`practice/README.md`): YAML, one file per
+exercise, notes as semitone patterns from a root that `src/core/practice.h`
+fits to a singer's range. **The browser measures, the code scores, the model
+coaches**: the web UI's Practice view (`ui/practice/`) detects pitch from the
+microphone and scores each repetition itself; only the numbers reach
+`/api/practice/*` (`src/server/practice_api.h`), stored in the caller's
+workspace (`practice/profile.json`, `practice/sessions.jsonl`). A model never
+writes notes — a wrong note is one a person then sings. The microphone needs a
+secure origin, which is why yoda also serves the UI at :8443 through
+`tailscale serve` (tailnet only; 443 is the public funnel).
+
 ### Users, authentication and isolation
 
 `src/core/users.cpp` (`UserStore`) owns `users`, `auth_tokens` and
@@ -629,6 +642,7 @@ failure surfaces at whichever fires first.
 agents/        every agent YAML, core and personal (see agents/README.md)
 config/        funes.conf (committed defaults) + funes.local (gitignored secrets) + backups/
 data/          gitignored runtime state: memory.db, workspace/, newsletter/, tv/, public/, whatsapp/
+practice/      exercise libraries for the practice view (see practice/README.md)
 scriptlib/     central script library: what agents may run by name (see scriptlib/README.md)
 src/core/      the agent harness (LLM loop, memory, users/auth, tools, safety, extension hook)
 src/core/tools/  individual tool implementations
