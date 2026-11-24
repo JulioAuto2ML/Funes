@@ -1,0 +1,26 @@
+id: staccato_arpeggio
+kind: vocal
+category: agility
+level: 2
+title: {es: "Arpegio staccato en «ha»", en: "Staccato arpeggio on 'ha'"}
+description:
+  es: "El arpegio a la octava con notas cortas y separadas. Cada nota arranca desde el apoyo, limpia, sin golpe de glotis: entrena ataques precisos y agilidad."
+  en: "The octave arpeggio in short, separated notes. Each note starts from the support, clean, with no glottal stroke: it trains precise onsets and agility."
+steps:
+  es:
+    - "Mano en el abdomen: tiene que dar un pequeño impulso en cada «ha»."
+    - "Notas cortas, con silencio entre ellas; la garganta no participa."
+  en:
+    - "Hand on the belly: it gives a small push on each 'ha'."
+    - "Short notes with silence between them; the throat stays out of it."
+mistakes:
+  es: ["Golpe de glotis", "Notas que se alargan", "Desafinar la octava"]
+  en: ["Glottal stroke", "Notes that get long", "Missing the octave"]
+sound: "ha"
+tempo: 108
+pattern: "0:0.5 r:0.5 4:0.5 r:0.5 7:0.5 r:0.5 12:0.5 r:0.5 7:0.5 r:0.5 4:0.5 r:0.5 0:1"
+range: full
+roots: {step: 1, direction: up}
+articulation: staccato
+dynamics: steady
+measure: [pitch, onset]

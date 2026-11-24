@@ -284,3 +284,9 @@ add_test(NAME chat_runs COMMAND test_chat_runs)
 add_executable(test_fix_incident test_fix_incident.cpp)
 target_link_libraries(test_fix_incident PRIVATE funes_core)
 add_test(NAME fix_incident COMMAND test_fix_incident)
+
+# The practice library (practice/): note names, patterns, the root walk, and
+# every shipped exercise loading and fitting every default voice.
+add_executable(test_practice test_practice.cpp)
+target_link_libraries(test_practice PRIVATE funes_core)
+add_test(NAME practice COMMAND test_practice ${CMAKE_SOURCE_DIR}/practice)

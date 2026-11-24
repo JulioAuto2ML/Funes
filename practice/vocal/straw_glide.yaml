@@ -1,0 +1,28 @@
+id: straw_glide
+kind: vocal
+category: warmup
+level: 1
+title: {es: "Deslizamientos en pajita", en: "Straw glides"}
+description:
+  es: "Fonar a través de una pajita fina: la resistencia del tubo devuelve presión a las cuerdas y deja vibrar con muy poco esfuerzo. Ideal para empezar o cuando la voz está cansada."
+  en: "Phonating through a thin straw: the tube's resistance pushes pressure back on the folds and lets them vibrate with very little effort. Good to start with, or when the voice is tired."
+steps:
+  es:
+    - "Pajita entre los labios, sellando alrededor. Nada de aire por la nariz."
+    - "Hacé «uuu» por la pajita y deslizate una quinta arriba y abajo."
+    - "Sentí que el sonido es fácil y parejo; si se corta, menos presión."
+  en:
+    - "Straw between the lips, sealed around it. No air through the nose."
+    - "Make 'ooo' into the straw and glide a fifth up and back."
+    - "Feel the sound easy and even; if it breaks, less pressure."
+mistakes:
+  es: ["Inflar las mejillas", "Aire que se escapa por la nariz", "Soplar fuerte"]
+  en: ["Puffing the cheeks", "Air escaping through the nose", "Blowing hard"]
+sound: "uu (pajita)"
+tempo: 60
+pattern: "0~7:2 7~0:2"
+range: comfortable
+roots: {step: 2, direction: up_down}
+articulation: legato
+dynamics: soft
+measure: [glide, stability]

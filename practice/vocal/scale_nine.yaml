@@ -1,0 +1,28 @@
+id: scale_nine
+kind: vocal
+category: technique
+level: 2
+title: {es: "Escala de 9 notas", en: "Nine-note scale"}
+description:
+  es: "Escala mayor hasta la novena y vuelta, en «a». Pide aire para toda la frase y afinación en los semitonos (3-4 y 7-8)."
+  en: "Major scale up to the ninth and back, on 'a'. It needs breath for the whole phrase and pitch on the half steps (3-4 and 7-8)."
+steps:
+  es:
+    - "Respirá bajo antes de empezar: es una frase larga."
+    - "Legato, sin acentuar cada nota."
+    - "Atención a los semitonos: tienden a quedar grandes al subir."
+  en:
+    - "Breathe low before starting: it is a long phrase."
+    - "Legato, no accent on each note."
+    - "Watch the half steps: they tend to come out wide going up."
+mistakes:
+  es: ["Quedarse sin aire en la bajada", "Semitonos abiertos", "Acelerar"]
+  en: ["Running out of air on the way down", "Wide half steps", "Rushing"]
+sound: "a"
+tempo: 112
+pattern: "0 2 4 5 7 9 11 12 14 12 11 9 7 5 4 2 0:2"
+range: full
+roots: {step: 1, direction: up_down}
+articulation: legato
+dynamics: steady
+measure: [pitch, stability]

@@ -1,0 +1,27 @@
+id: range_check
+kind: vocal
+category: range
+level: 1
+title: {es: "Medir el rango", en: "Range check"}
+description:
+  es: "Dos sirenas lentas en «a»: una bajando hasta la nota más grave que suene clara, otra subiendo hasta la más aguda sin forzar. Funes guarda las dos notas y con eso transporta todos los ejercicios a tu voz."
+  en: "Two slow sirens on 'a': one down to the lowest note that still sounds clear, one up to the highest without forcing. Funes keeps both notes and transposes every exercise to your voice."
+steps:
+  es:
+    - "Empezá en una nota cómoda de hablar."
+    - "Bajá deslizando hasta donde la voz suene clara (no rasposa) y sostené un segundo."
+    - "Volvé a la nota cómoda y subí deslizando hasta donde llegues sin apretar; sostené un segundo."
+    - "No es una competencia: lo que cuenta es lo que suena bien."
+  en:
+    - "Start on a comfortable speaking note."
+    - "Slide down to where the voice still sounds clear (not gravelly) and hold a second."
+    - "Back to the comfortable note, slide up as far as you can without squeezing; hold a second."
+    - "Not a contest: what counts is what sounds good."
+mistakes:
+  es: ["Contar notas con ruido o fritura vocal", "Forzar lo agudo"]
+  en: ["Counting notes that are only fry or noise", "Forcing the top"]
+sound: "a"
+pitched: false
+seconds: 15
+repeats: 2
+measure: [range]

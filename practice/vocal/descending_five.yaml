@@ -1,0 +1,28 @@
+id: descending_five
+kind: vocal
+category: technique
+level: 2
+title: {es: "Escala descendente 5-4-3-2-1 en «u»", en: "Descending 5-4-3-2-1 on 'oo'"}
+description:
+  es: "Empieza arriba y baja, en «u». Arrancar desde lo liviano y llevarlo hacia el pecho enseña a no subir el peso del pecho a lo agudo; para un barítono, la manera más amable de trabajar el pasaje."
+  en: "Starts high and descends, on 'oo'. Beginning light and carrying it down teaches not to drag chest weight up; for a baritone, the kindest way to work the passage."
+steps:
+  es:
+    - "Empezá la quinta liviana, con «u» redonda."
+    - "Bajá legato manteniendo el mismo color hasta la tónica."
+    - "Cada repetición empieza medio tono más abajo."
+  en:
+    - "Start the fifth light, with a round 'oo'."
+    - "Come down legato keeping the same colour to the root."
+    - "Each repetition starts a half step lower."
+mistakes:
+  es: ["Engrosar la voz al bajar", "Abrir la «u»", "Desafinar la primera nota"]
+  en: ["Thickening the voice on the way down", "Spreading the 'oo'", "Missing the first note"]
+sound: "u"
+tempo: 92
+pattern: "7 5 4 2 0:2"
+range: full
+roots: {step: 1, direction: down}
+articulation: legato
+dynamics: soft
+measure: [pitch, stability]

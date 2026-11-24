@@ -1,0 +1,28 @@
+id: octave_leap
+kind: vocal
+category: range
+level: 2
+title: {es: "Salto de octava", en: "Octave leap"}
+description:
+  es: "Tónica, octava, tónica. Un salto grande que hay que oír antes de cantarlo; mide afinación en saltos y extiende el rango de a medio tono."
+  en: "Root, octave, root. A big leap you have to hear before singing; it measures pitch on leaps and extends the range a half step at a time."
+steps:
+  es:
+    - "Cantá la tónica en «a», pensá la octava y saltá sin deslizar."
+    - "Arriba, más liviano; volvé a la tónica sin bajar de afinación."
+    - "Pará en cuanto la octava cueste: el rango crece con repeticiones cómodas."
+  en:
+    - "Sing the root on 'a', hear the octave and leap without sliding."
+    - "Lighter on top; come back to the root without going flat."
+    - "Stop as soon as the octave strains: range grows with comfortable repetitions."
+mistakes:
+  es: ["Deslizarse hacia la octava", "Llegar bajo", "Forzar las últimas repeticiones"]
+  en: ["Sliding into the octave", "Landing flat", "Forcing the last repetitions"]
+sound: "a"
+tempo: 80
+pattern: "0:2 12:2 0:2"
+range: full
+roots: {step: 1, direction: up}
+articulation: legato
+dynamics: steady
+measure: [pitch, onset, range]

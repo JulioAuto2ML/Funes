@@ -1,0 +1,25 @@
+id: breath_hiss
+kind: vocal
+category: breath
+level: 1
+title: {es: "Siseo sostenido (sss)", en: "Sustained hiss (sss)"}
+description:
+  es: "Una inspiración baja y una «s» larga y pareja. Entrena a soltar el aire de a poco y con presión constante, que es lo que después sostiene una frase larga."
+  en: "A low breath and a long, even 's'. It trains releasing air slowly at a steady pressure, which is what later carries a long phrase."
+steps:
+  es:
+    - "De pie, hombros sueltos. Inspirá por la nariz en 4 tiempos, sintiendo que se expanden la cintura y las costillas, no el pecho."
+    - "Soltá el aire en una «sss» suave y pareja, sin empujar al final."
+    - "Pará antes de quedarte sin aire. Descansá dos respiraciones y repetí."
+  en:
+    - "Stand, shoulders loose. Breathe in through the nose for 4 counts, feeling the waist and ribs expand, not the chest."
+    - "Let the air out on a soft, even 'sss', without squeezing at the end."
+    - "Stop before you run out. Rest two breaths and repeat."
+mistakes:
+  es: ["Subir los hombros al inspirar", "Un siseo que empieza fuerte y se apaga", "Apretar la garganta o el abdomen al final"]
+  en: ["Raising the shoulders on the breath", "A hiss that starts loud and fades", "Squeezing the throat or belly at the end"]
+sound: "sss"
+pitched: false
+seconds: 20
+repeats: 3
+measure: [duration, stability]

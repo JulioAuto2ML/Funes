@@ -1,0 +1,28 @@
+id: hum_scale
+kind: vocal
+category: warmup
+level: 1
+title: {es: "Escala de 5 notas en «mm»", en: "Five-note scale on 'mm'"}
+description:
+  es: "Tarareo con labios cerrados sobre una escala de cinco notas. Es el calentamiento más suave: las cuerdas vibran con poca presión y se siente la resonancia en la cara."
+  en: "Humming with closed lips over a five-note scale. The gentlest warm-up: the folds vibrate with little pressure and the resonance is felt in the face."
+steps:
+  es:
+    - "Labios cerrados y relajados, dientes separados, lengua apoyada."
+    - "Tarareá las cinco notas subiendo y bajando, legato, a volumen medio-bajo."
+    - "Buscá el cosquilleo en labios y nariz. Si no aparece, aflojá la mandíbula."
+  en:
+    - "Lips closed and relaxed, teeth apart, tongue resting."
+    - "Hum the five notes up and down, legato, medium-soft."
+    - "Look for the buzz on the lips and nose. If it is not there, loosen the jaw."
+mistakes:
+  es: ["Apretar los dientes", "Empujar volumen", "Cortar entre notas"]
+  en: ["Clenching the teeth", "Pushing volume", "Breaking between notes"]
+sound: "mm"
+tempo: 96
+pattern: "0 2 4 5 7 5 4 2 0:2"
+range: comfortable
+roots: {step: 1, direction: up_down}
+articulation: legato
+dynamics: soft
+measure: [pitch, stability]

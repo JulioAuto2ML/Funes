@@ -1,0 +1,28 @@
+id: cooldown_hum
+kind: vocal
+category: cooldown
+level: 1
+title: {es: "Enfriamiento: tarareo descendente", en: "Cool-down: descending hum"}
+description:
+  es: "Deslizamientos cortos hacia abajo en «mm», suaves, en la zona baja de la voz. Devuelve la voz a la de hablar después de practicar."
+  en: "Short downward glides on 'mm', soft, in the lower part of the voice. It brings the voice back to speaking after practice."
+steps:
+  es:
+    - "Labios cerrados, muy suave."
+    - "Deslizate una quinta hacia abajo, como un «mm» de aprobación."
+    - "Terminá hablando unas frases en tu tono normal."
+  en:
+    - "Lips closed, very soft."
+    - "Glide down a fifth, like an approving 'mm'."
+    - "Finish by speaking a few sentences at your normal pitch."
+mistakes:
+  es: ["Hacerlo fuerte", "Ir a lo agudo"]
+  en: ["Doing it loud", "Going high"]
+sound: "mm"
+tempo: 60
+pattern: "7~0:2 r:1"
+range: comfortable
+roots: {step: 1, direction: down}
+articulation: legato
+dynamics: soft
+measure: [glide]
