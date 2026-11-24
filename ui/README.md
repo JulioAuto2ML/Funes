@@ -10,6 +10,9 @@ Served as static files by the C++ server at `/*`.
 | `index.html` | Single-page app shell |
 | `app.js` | All client logic (~743 lines) |
 | `style.css` | All styling |
+| `practice/pitch.js` | Pitch detection (YIN) for the practice view |
+| `practice/score.js` | Scoring a repetition against its notes |
+| `practice/view.js` | The practice view (mic, reference notes, piano roll, range check) |
 
 ## Design
 
@@ -56,6 +59,18 @@ Responsive: at < 860px, sidebars become fixed-position overlays.
 - Source badges colored by origin: user (gold), tool (green), auto (neutral),
   consolidated (neutral)
 - Hover-to-reveal forget button
+
+## Practice view
+
+Singing practice over `practice/` (see `practice/README.md`). The browser
+measures: pitch is detected from the microphone (`practice/pitch.js`, YIN) and
+scored per note (`practice/score.js`: in tune within 30 cents, wobble, onset,
+glide, the messa di voce swell); only the scores reach Funes
+(`POST /api/practice/sessions`). The range check stores the lowest and highest
+steadily held notes, and every exercise is transposed into that range by the
+server. The microphone needs a secure origin — localhost, or HTTPS (on yoda,
+`tailscale serve --https=8443`, tailnet only). Pitch and scoring are tested
+under node (`tests/ui/test_practice.js`, ctest `practice_ui`).
 
 ## Jobs pane
 

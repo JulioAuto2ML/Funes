@@ -181,6 +181,7 @@ file(GLOB FUNES_GENERATED_TOOLS CONFIGURE_DEPENDS src/core/tools/generated/*.cpp
 add_executable(funes
     src/server/main.cpp
     src/server/api.cpp
+    src/server/practice_api.cpp
     src/server/maint_cli.cpp
     src/server/user_cli.cpp
     src/server/local_socket.cpp

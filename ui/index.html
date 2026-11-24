@@ -61,6 +61,8 @@
                 data-i18n-title="nav.jobsTitle" title="Show scheduled cron jobs">Jobs</button>
         <button id="toggle-files" class="ghost" data-i18n="nav.files"
                 data-i18n-title="nav.filesTitle" title="Browse workspace files">Files</button>
+        <button id="toggle-practice" class="ghost" data-i18n="nav.practice"
+                data-i18n-title="nav.practiceTitle" title="Sing: warm-ups and exercises">Practice</button>
         <span id="context-gauge" class="context-gauge" data-i18n-title="nav.contextTitle" title="Context usage" hidden>
           <span class="bar"><span id="context-bar-fill" class="bar-fill"></span></span>
           <span id="context-pct">0%</span>
@@ -138,9 +140,27 @@
         <div id="files-list" class="files-list"></div>
       </aside>
 
+      <!-- Practice view (ui/practice/): covers the panes while open. -->
+      <section id="practice-view" class="practice-view" hidden>
+        <div class="practice-head">
+          <h2 data-i18n="practice.heading">Practice</h2>
+          <span id="practice-range" class="practice-dim"></span>
+          <select id="practice-voice" data-i18n-title="practice.voiceTitle" title="Voice type"></select>
+          <button id="practice-measure" class="ghost" data-i18n="practice.measure">Measure my range</button>
+          <button id="practice-close" class="ghost" data-i18n-title="practice.close" title="Close">✕</button>
+        </div>
+        <div class="practice-body">
+          <nav id="practice-list" class="practice-list"></nav>
+          <div id="practice-main" class="practice-main"></div>
+        </div>
+      </section>
+
     </main>
   </div>
 
   <script src="app.js"></script>
+  <script src="practice/pitch.js"></script>
+  <script src="practice/score.js"></script>
+  <script src="practice/view.js"></script>
 </body>
 </html>

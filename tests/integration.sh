@@ -473,6 +473,36 @@ check "invalid body rejected" "$OUT" '"ok":false'
 OUT=$(curl -s -X POST "$BASE/api/memories" -d '{"text":""}')
 check "empty text rejected" "$OUT" '"ok":false'
 
+# ── practice view (practice_api.h) ───────────────────────────────────────────
+# The library is the repo's practice/; the profile and the session log land in
+# the caller's workspace. No range yet → 409, so the UI asks for one.
+echo "— practice"
+OUT=$(curl -s "$BASE/api/practice/library")
+check "practice: library lists exercises" "$OUT" '"lip_trill_scale"'
+check "practice: library lists voices"    "$OUT" '"baritone"'
+check "practice: shipped library loads"   "$OUT" '"errors":0'
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/practice/exercises/hum_scale")
+check "practice: no range yet is 409" "$CODE" '409'
+OUT=$(curl -s -X PUT "$BASE/api/practice/profile" -d '{"voice":"baritone"}')
+check "practice: default voice saved" "$OUT" '"comfortable":\["A2","D4"\]'
+OUT=$(curl -s "$BASE/api/practice/exercises/hum_scale")
+check "practice: exercise fitted to the range" "$OUT" '"root":"A2"'
+OUT=$(curl -s -X PUT "$BASE/api/practice/profile" -d '{"full":["F2","A4"],"source":"measured"}')
+check "practice: measured range saved"   "$OUT" '"full":\["F2","A4"\]'
+check "practice: measured range dated"   "$OUT" '"measured_at"'
+OUT=$(curl -s -X PUT "$BASE/api/practice/profile" -d '{"full":["C4","E4"],"source":"measured"}')
+check "practice: implausible range refused" "$OUT" '"ok":false'
+OUT=$(curl -s "$BASE/api/practice/profile")
+check "practice: refused range kept the old one" "$OUT" '"full":\["F2","A4"\]'
+OUT=$(curl -s -X POST "$BASE/api/practice/sessions" -d '{"exercise":"hum_scale","scores":{"pitch":82}}')
+check "practice: session saved" "$OUT" '"ok":true'
+OUT=$(curl -s -X POST "$BASE/api/practice/sessions" -d '{"exercise":"../etc","scores":{}}')
+check "practice: unknown exercise refused" "$OUT" '"ok":false'
+SESSIONS=$(cat "$WORKSPACE"/*/practice/sessions.jsonl 2>/dev/null)
+check "practice: session in the caller's workspace" "$SESSIONS" '"pitch":82'
+CODE=$(command curl -s -o /dev/null -w '%{http_code}' "$BASE/api/practice/library")
+check "practice: anonymous refused" "$CODE" '401'
+
 echo "— chat (SSE, plain answer with memory injection)"
 OUT=$(curl -s -N -X POST "$BASE/api/chat" \
       -d '{"message":"hello there","session":"it-session-1"}')

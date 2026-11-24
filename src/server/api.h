@@ -35,6 +35,7 @@
 //   POST   /api/upload-batch         — multipart 'file' (multiple) + optional 'folder'
 //                                       → saves files to a named subfolder, returns a
 //                                       manifest (no content inlined)
+//   GET/PUT/POST /api/practice/*    — the practice view (practice_api.h)
 //   GET    /*                       — static web UI
 //
 // Every route above except the four marked [public] requires authentication.
@@ -131,6 +132,9 @@ public:
                           const EventFn& emit, std::string& error);
     const std::string& default_agent() const { return default_agent_; }
 
+    // The exercise library (practice/); empty leaves /api/practice/* unmounted.
+    void set_practice_dir(std::string dir) { practice_dir_ = std::move(dir); }
+
 private:
     // "aprobar 12" / "rechazar 12" (effects.h): decide the caller's proposal
     // and, on approval, run it as the agent that proposed it, with the
@@ -151,6 +155,7 @@ private:
     std::string   default_agent_;
     std::string   workspace_dir_;
     std::string   service_token_;  // empty = service authentication disabled
+    std::string   practice_dir_;
 
     std::map<std::string, AgentConfig> agents_;
     mutable std::mutex agents_mu_;

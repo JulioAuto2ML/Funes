@@ -4,6 +4,7 @@
 
 #include "funes_config.h"
 #include "api.h"
+#include "practice_api.h"
 #include "../core/guardian.h"
 #include "../core/mcp_pool.h"
 #include "../core/base64.h"
@@ -1298,6 +1299,13 @@ void FunesApi::mount(httplib::Server& srv) {
             {"truncated", truncated}
         });
     });
+
+    // ── practice view ─────────────────────────────────────────────────────────
+    if (!practice_dir_.empty())
+        funes::practice_api::mount(srv,
+            [this](const httplib::Request& req, httplib::Response& res) {
+                return require_auth(req, res);
+            }, practice_dir_, workspace_dir_);
 
     // ── static UI ─────────────────────────────────────────────────────────────
     if (!ui_dir_.empty() && fs::exists(ui_dir_)) {

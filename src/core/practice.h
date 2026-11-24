@@ -83,6 +83,30 @@ std::vector<int> roots(const Exercise& e, Range r);
 // seconds, kind}]}, times in seconds from the exercise's tempo.
 nlohmann::json render(const Exercise& e, int root);
 
+// A singer's range: from voices.yaml until the range check measures it.
+struct Profile {
+    std::string voice;                // a voices.yaml name, or "" when measured
+    Range full, comfortable;
+    std::string source = "default";   // default | measured
+    std::string measured_at;          // ISO date, when measured
+};
+
+// {voice?, full: [low, high], comfortable?: [low, high], source?, measured_at?}
+// → profile; comfortable defaults to comfortable_within(full). "" or what is
+// wrong — a range a person could not sing (outside E1..C7, under an octave wide)
+// is refused rather than fitted.
+std::string profile_from_json(const nlohmann::json& j, Profile& out);
+nlohmann::json profile_to_json(const Profile& p);
+Profile profile_for(const Voice& v);
+
+// The tessitura inside a measured range: a whole tone above the bottom and a
+// minor third below the top, where a voice works without effort.
+Range comfortable_within(Range full);
+
+// An exercise fitted to a singer: {exercise, range: [low, high], reps: [render
+// of each root in order]}. Unpitched exercises have no reps.
+nlohmann::json plan(const Exercise& e, const Profile& p);
+
 struct Library {
     std::vector<Voice> voices;
     std::vector<Exercise> exercises;

@@ -324,6 +324,8 @@ int main(int argc, char** argv) {
     // shadowing earlier ones on a name collision (api.cpp::load_agents).
     const std::string agents_dir = resolve_dir_list(funes::env("FUNES_AGENTS_DIR"), "agents");
     const std::string ui_dir        = resolve_dir(funes::env("FUNES_UI_DIR"), "ui");
+    // Exercise libraries for the practice view (practice/README.md).
+    const std::string practice_dir  = resolve_dir(funes::env("FUNES_PRACTICE_DIR"), "practice");
     const std::string generated_tools_dir = resolve_dir(
         funes::env("FUNES_GENERATED_TOOLS_DIR"), "src/core/tools/generated");
     // The script library: one manifest + one executable file per script, and
@@ -1104,6 +1106,7 @@ int main(int argc, char** argv) {
     // upload-batch (50 MB, api.cpp); anything past that is refused at the
     // socket with a 413.
     srv.set_payload_max_length(64ull * 1024 * 1024);
+    api.set_practice_dir(practice_dir);
     api.mount(srv);
 
     // funes.sock (OS plan phase 3, local_socket.h): the kernel names the

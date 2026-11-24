@@ -13,7 +13,10 @@ choosing today's exercises and saying two useful things about the numbers; it
 is not good at writing notes, so exercises are written here by hand and the
 model only picks them and their parameters.
 
-`src/core/practice.{h,cpp}` loads and validates these files;
+The practice view (`ui/practice/`, `/api/practice/*` in
+`src/server/practice_api.h`) plays them and scores what is sung; a person's
+range and session log live in their workspace (`practice/profile.json`,
+`practice/sessions.jsonl`). `src/core/practice.{h,cpp}` loads and validates these files;
 `tests/test_practice.cpp` checks every shipped exercise against every voice in
 `voices.yaml` (ctest `practice`).
 
