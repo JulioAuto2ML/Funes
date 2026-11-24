@@ -355,7 +355,7 @@ std::optional<UserStore::User> UserStore::resolve_token(const std::string& token
     // The join is what makes a token whose user was deleted resolve to
     // nothing even if foreign keys were somehow off.
     Stmt s(db_, (std::string("SELECT u.") + "id, u.username, u.display_name, u.role, "
-                 "u.permissions, u.created_at "
+                 "u.permissions, u.created_at, u.locale "
                  "FROM auth_tokens t JOIN users u ON u.id = t.user_id "
                  "WHERE t.token = ? AND t.expires_at > datetime('now')").c_str());
     s.bind_text(1, funes::sha256_hex(token));

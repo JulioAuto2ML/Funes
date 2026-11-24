@@ -274,6 +274,13 @@ int test_locale_is_a_preference_not_a_free_text_field() {
     CHECK(!users.set_locale(id, "es-br"));
     CHECK(users.find_by_id(id)->locale == "pt-BR");   // none of them landed
 
+    // The web UI learns its account's language from the session, so the
+    // token lookup carries it too. It did not: every browser user read back
+    // "en", and the UI fell back to English on each reload.
+    const std::string token = users.create_token(id, 30);
+    auto who = users.resolve_token(token);
+    CHECK(who && who->locale == "pt-BR");
+
     // No such user is a refusal, not a silent success.
     CHECK(!users.set_locale(99999, "es"));
 
