@@ -944,3 +944,38 @@ button.ghost:hover { border-color: var(--accent); background: var(--accent-soft)
   cursor: pointer;
 }
 .locale-select:hover { border-color: var(--accent); }
+
+/* ── practice view (ui/practice/) ────────────────────────────────────────── */
+
+.layout.practicing > :not(.practice-view) { display: none; }
+.practice-view[hidden], .practice-controls [hidden] { display: none; }
+.practice-view { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 12px 0; }
+.practice-view select { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 6px; font: inherit; }
+.practice-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.practice-head h2 { margin: 0; font-family: var(--serif); font-size: 20px; }
+.practice-head #practice-close { margin-left: auto; }
+.practice-body { display: flex; gap: 16px; flex: 1; min-height: 0; margin-top: 12px; }
+.practice-list { width: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.practice-list h4 { margin: 12px 0 4px; color: var(--text-dim); font-size: 12px; text-transform: uppercase; }
+.practice-item { text-align: left; background: none; border: 1px solid transparent; color: var(--text);
+                 padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; }
+.practice-item:hover, .practice-item.active { border-color: var(--border); background: var(--bg-raised); }
+.practice-level { color: var(--accent); }
+.practice-main { flex: 1; min-width: 0; overflow-y: auto; }
+.practice-main h3 { font-family: var(--serif); margin: 0 0 6px; }
+.practice-dim, .practice-sound { color: var(--text-dim); }
+.practice-error { color: var(--error); }
+.practice-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.practice-live { font-family: var(--mono); font-size: 20px; color: var(--accent); min-width: 4em; }
+.practice-canvas { width: 100%; height: 240px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; }
+.practice-meter { height: 10px; background: var(--bg-raised); border-radius: 5px; overflow: hidden; }
+.practice-meter > div { height: 100%; width: 0; background: var(--accent); }
+.practice-results table { border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+.practice-results th, .practice-results td { padding: 4px 10px; border-bottom: 1px solid var(--border); text-align: right; }
+.practice-results th:first-child, .practice-results td:first-child { text-align: left; }
+.practice-total td { font-weight: 600; }
+@media (max-width: 860px) {
+  .practice-body { flex-direction: column; }
+  .practice-list { width: auto; max-height: 30vh; }
+}
+.practice-controls button:not(.ghost) { background: var(--accent); color: var(--bg); border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font: inherit; }

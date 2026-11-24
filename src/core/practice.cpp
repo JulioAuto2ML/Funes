@@ -325,6 +325,88 @@ nlohmann::json Exercise::to_json() const {
     return j;
 }
 
+namespace {
+
+// What a human voice can be: E1 (a basso profondo's floor) to C7 (a
+// soprano's whistle). A range outside it is a measuring error.
+constexpr int kLowestVoice = 28, kHighestVoice = 96;
+// Narrower than an octave, the range check missed something: the octave
+// exercises would have no root, and the person would be shown nothing.
+constexpr int kNarrowestRange = 12;
+
+std::string range_from_json(const nlohmann::json& j, Range& out) {
+    if (!j.is_array() || j.size() != 2 || !j[0].is_string() || !j[1].is_string())
+        return "a range is [low, high] as note names";
+    out.low = note_midi(j[0].get<std::string>());
+    out.high = note_midi(j[1].get<std::string>());
+    if (out.low < 0 || out.high < 0) return "not a note name in a range";
+    if (out.low >= out.high) return "a range goes from low to high";
+    return "";
+}
+
+nlohmann::json range_to_json(Range r) {
+    return nlohmann::json::array({midi_name(r.low), midi_name(r.high)});
+}
+
+} // namespace
+
+Range comfortable_within(Range full) {
+    if (full.high - full.low < 17) return full;
+    return {full.low + 2, full.high - 3};
+}
+
+std::string profile_from_json(const nlohmann::json& j, Profile& out) {
+    if (!j.is_object()) return "a profile is an object";
+    Profile p;
+    if (auto err = range_from_json(j.value("full", nlohmann::json()), p.full); !err.empty())
+        return "full: " + err;
+    if (p.full.low < kLowestVoice || p.full.high > kHighestVoice)
+        return "full: outside what a voice can sing (E1 to C7)";
+    if (p.full.high - p.full.low < kNarrowestRange)
+        return "full: narrower than an octave — measure again";
+    if (j.contains("comfortable")) {
+        if (auto err = range_from_json(j["comfortable"], p.comfortable); !err.empty())
+            return "comfortable: " + err;
+        if (p.comfortable.low < p.full.low || p.comfortable.high > p.full.high)
+            return "comfortable lies inside full";
+    } else {
+        p.comfortable = comfortable_within(p.full);
+    }
+    p.voice = j.value("voice", "");
+    p.source = j.value("source", "default");
+    if (p.source != "default" && p.source != "measured")
+        return "source is default or measured";
+    p.measured_at = j.value("measured_at", "");
+    if (p.voice.size() > 32 || p.measured_at.size() > 32) return "voice and measured_at are short";
+    out = std::move(p);
+    return "";
+}
+
+nlohmann::json profile_to_json(const Profile& p) {
+    nlohmann::json j = {
+        {"voice", p.voice}, {"source", p.source},
+        {"full", range_to_json(p.full)}, {"comfortable", range_to_json(p.comfortable)},
+    };
+    if (!p.measured_at.empty()) j["measured_at"] = p.measured_at;
+    return j;
+}
+
+Profile profile_for(const Voice& v) {
+    Profile p;
+    p.voice = v.name;
+    p.full = v.full;
+    p.comfortable = v.comfortable;
+    p.source = "default";
+    return p;
+}
+
+nlohmann::json plan(const Exercise& e, const Profile& p) {
+    Range r = e.range == "full" ? p.full : p.comfortable;
+    auto reps = nlohmann::json::array();
+    for (int root : roots(e, r)) reps.push_back(render(e, root));
+    return {{"exercise", e.to_json()}, {"range", range_to_json(r)}, {"reps", reps}};
+}
+
 Library load_library(const std::string& dir) {
     Library lib;
     std::error_code ec;

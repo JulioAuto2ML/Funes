@@ -290,3 +290,11 @@ add_test(NAME fix_incident COMMAND test_fix_incident)
 add_executable(test_practice test_practice.cpp)
 target_link_libraries(test_practice PRIVATE funes_core)
 add_test(NAME practice COMMAND test_practice ${CMAKE_SOURCE_DIR}/practice)
+
+# The practice view's pitch detection and scoring (ui/practice/*.js) — pure
+# functions, run under node when it is installed. Funes itself needs no node;
+# without it this test is simply not registered.
+find_program(NODE_BIN node)
+if(NODE_BIN)
+    add_test(NAME practice_ui COMMAND ${NODE_BIN} ${CMAKE_SOURCE_DIR}/tests/ui/test_practice.js)
+endif()

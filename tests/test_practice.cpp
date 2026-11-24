@@ -183,6 +183,57 @@ int test_render() {
     return 0;
 }
 
+int test_profile() {
+    Profile p;
+    // A measured range: comfortable is derived, a little inside it.
+    CHECK(profile_from_json({{"full", {"G2", "G4"}}, {"source", "measured"}}, p).empty());
+    CHECK(p.full.low == 43 && p.full.high == 67);
+    CHECK(p.comfortable.low == 45 && p.comfortable.high == 64);
+    CHECK(p.source == "measured");
+    auto j = profile_to_json(p);
+    CHECK(j["full"][0] == "G2" && j["comfortable"][1] == "E4");
+    Profile back;
+    CHECK(profile_from_json(j, back).empty());
+    CHECK(back.comfortable.low == p.comfortable.low && back.comfortable.high == p.comfortable.high);
+
+    // An explicit comfortable range is kept, if it lies inside full.
+    CHECK(profile_from_json({{"voice", "baritone"}, {"full", {"G2", "G4"}},
+                             {"comfortable", {"A2", "D4"}}}, p).empty());
+    CHECK(p.voice == "baritone" && p.comfortable.high == 62);
+    CHECK(!profile_from_json({{"full", {"G2", "G4"}}, {"comfortable", {"F2", "D4"}}}, p).empty());
+
+    CHECK(!profile_from_json({{"full", {"G4", "G2"}}}, p).empty());     // upside down
+    CHECK(!profile_from_json({{"full", {"C4", "F4"}}}, p).empty());     // too narrow to sing a fifth
+    CHECK(!profile_from_json({{"full", {"C0", "C4"}}}, p).empty());     // not a human voice
+    CHECK(!profile_from_json({{"full", "G2-G4"}}, p).empty());
+    CHECK(!profile_from_json({{"full", {"G2", "G4"}}, {"source", "guess"}}, p).empty());
+    CHECK(!profile_from_json(nlohmann::json::array(), p).empty());
+
+    // A default voice becomes a profile.
+    Voice v{"baritone", {43, 67}, {45, 62}};
+    p = profile_for(v);
+    CHECK(p.voice == "baritone" && p.source == "default" && p.comfortable.high == 62);
+    return 0;
+}
+
+int test_plan() {
+    Exercise e;
+    CHECK(parse_exercise(kExercise, e).empty());
+    Profile p = profile_for(Voice{"baritone", {43, 67}, {45, 62}});
+    auto j = plan(e, p);
+    // A comfortable-range exercise walks the comfortable range.
+    CHECK(j["range"][0] == "A2" && j["range"][1] == "D4");
+    CHECK(j["reps"].size() == 21);
+    CHECK(j["reps"][0]["root"] == "A2");
+    CHECK(j["exercise"]["id"] == "hum_scale");
+
+    e.range = "full";
+    j = plan(e, p);
+    CHECK(j["range"][0] == "G2");
+    CHECK(j["reps"][0]["root"] == "G2");
+    return 0;
+}
+
 int test_shipped_library(const std::string& dir) {
     Library lib = load_library(dir);
     for (const auto& err : lib.errors) std::cerr << "practice: " << err << "\n";
@@ -219,6 +270,8 @@ int main(int argc, char** argv) {
     rc |= test_roots();
     rc |= test_exercise_validation();
     rc |= test_render();
+    rc |= test_profile();
+    rc |= test_plan();
     if (argc > 1) rc |= test_shipped_library(argv[1]);
     if (rc == 0) std::cout << "test_practice: all passed\n";
     return rc;
