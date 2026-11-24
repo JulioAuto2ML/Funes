@@ -1,12 +1,24 @@
 # Changing the Model: Can a Small Model Be Taught to Look Facts Up? (and what is still open about how much model a local agent needs)
 
-*Draft 1, 2026-11-22. Paper 2 of 2 (changing the model). It cites paper 1 (`docs/knowledge-offload-paper1-draft.md`), called **P1** below.* Author: Julio Rodriguez Martino (independent). Code, data and notebook: `benchmarks/knowledge-offload/`.
+*Draft 2, 2026-11-24. Paper 2 of 2 (changing the model). It cites paper 1 (`docs/knowledge-offload-paper1-draft.md`), called **P1** below.* Author: Julio Rodriguez Martino (independent). Code, data and notebook: `benchmarks/knowledge-offload/`.
 
-**Conventions.** Every number comes from a committed results table and is cited with its file. A result that does not exist carries a visible marker: `[TBD]`, `[OPEN]` or `[UNVERIFIED]`. This paper has **one experiment with results (E5, a lookup LoRA, one training seed)**, **prerequisite measurements only** for models with knowledge removed, and **open placeholders** for layer ablation (E6) and the agent-in-a-memory-budget question (E7/H7). The title's second question is stated because it is the one this line of work is for; **it is not answered here.**
+Every number in this paper comes from a results table committed in the repository. Where a result does not exist yet, the text says so with a marker in square brackets (TBD, OPEN or UNVERIFIED); Appendix B.5 lists them all. The drafting notes are in Appendix B and are removed before submission.
 
-Drafting notes (status, to-do list, citation audit) are in Appendix B and are removed before submission.
+**What this paper has.** One experiment with results (E5, a lookup LoRA, one training seed). Prerequisite measurements only for models with knowledge removed. Open placeholders for layer ablation (E6) and for the question of an agent inside a memory budget (E7, H7). The title's second question is the one this line of work is for. **It is not answered here.**
 
 ---
+
+## In plain words
+
+**What we asked.** In paper 1, a small model that was given a lookup tool often never used it, and no prompt we tried fixed that at 2B and 0.8B. Can we change the model so that it looks up by itself? We trained a small adapter on 999 lookup examples and tested it on Qwen3.5-2B and 0.8B.
+
+**What we found.**
+- Yes, it looks up. The 2B model with the adapter calls the tool on 0.992 of 1,000 questions, where the same model without it never does. On three kinds of question that were never in training it called the tool every time (244 of 244).
+- The gain comes from the lookup and not from the answer format. The adapter beats a control trained on the same questions and answers, with no lookup call, by 0.705 in accuracy.
+- The adapter has a cost. On grade-school maths, answering closed-book, the 2B model is 0.034 lower, and the control adapter falls by a similar amount. We could not show that the skill is intact, and we did not test why it moves.
+- The adapter did not learn when *not* to look up. On questions whose fact is absent it still hallucinates (0.540 at 2B).
+
+**What we did not do.** We did not test a model built with fewer facts, or layer ablation, or whether a whole agent fits a smaller model. For the first of these we measured only what it takes to run such a model on our machine. Every E5 result is one training seed on one model family, on questions of the same kind as the training questions.
 
 ## Abstract
 
@@ -26,6 +38,31 @@ For models whose pre-training removed facts, we report only what it takes to run
 
 ---
 
+## The map: arms, hypotheses and experiments
+
+Paper 1 asked where a fact should live for a model as released. This paper changes the model. The picture is the same exam as in P1: a closed-book student, and a library the student may visit. In P1 the student was free to go or not, and the small ones did not go. Here we *teach* the student to go.
+
+There are three arms per model size:
+- **base**: the model as released, with no adapter. Its lookup rate under the default prompt is the P1 number (0.000 at 2B and 0.8B).
+- **L1**: the model plus an adapter trained on examples in which the model calls `lookup` and answers from the result. This is the student who was shown how to use the library.
+- **L0**: the model plus an adapter trained on the same questions, the same tools block and the same final answers, but with the answer given directly and no call. This is the control: if L1 beats L0, the gain comes from the lookup and not from learning PopQA's answer format.
+
+We wrote three hypotheses for E5 before training:
+- **H9a**: the adapter makes the model look up (rate at least 0.80 on the 1,000 questions and on the held-out relations).
+- **H9b**: lookup, not format, is what helps (L1 beats L0 by at least +0.10 on accuracy).
+- **H9c**: other skills stay intact (GSM8K closed-book, L1 within ±0.05 of base).
+
+The other numbered items are the plan's. **H4** says that a model with knowledge removed keeps its non-fact skills, and **E1b** is the experiment on LMLM-style models for it. **E6** is layer ablation. **E7** and **H7** ask whether an agent fits a smaller model in a memory budget. Only prerequisites of E1b exist, and E6 and E7 are open.
+
+**Terms.**
+- *LoRA* (low-rank adaptation): a small trained adapter added to a frozen model's weights.
+- *Held-out relation*: a PopQA relation (director, father, screenwriter) that never appears in the training data.
+- *Closed-book*: the model answers from its weights alone.
+- *TOST*: two one-sided tests, used to show that a difference is smaller than a stated margin (equivalence). *Holm correction*: a step-down adjustment of p-values when several hypotheses are tested together.
+- Store, contract, taint, quantisation and the other terms of the arms are defined in the map of P1.
+
+---
+
 ## 1. Introduction
 
 P1 showed that, for released models, putting the facts in a store flattens the size curve, that whether a model *uses* a store depends on a prompt more than on its size, and that a harness contract can force the use at a cost we could not bound. Its last open point is the reason for this paper: a prompt did not make the small quantised models look up (2B IQ4_XS looked up 21% of the time under the contract, 0.8B never), and the plan's real question, **how much model a local agent needs once the facts are elsewhere,** needs a model that already behaves that way. There are three ways to change the model: teach it to look up (a LoRA, E5), build it so that its parameters hold fewer facts (LMLM-style pre-training, E1b/H4), or remove capacity and see what breaks (layer ablation, E6). Only the first was run.
@@ -34,19 +71,15 @@ P1 showed that, for released models, putting the facts in a store flattens the s
 1. A pre-registered test (H9a–c, §4) of whether a LoRA trained on 999 lookup examples makes a 2B and a 0.8B model look up under the unchanged default prompt, with a control that has the same data and no call, and with three relations held out of training (§5.1). Two hypotheses hold and one does not; we report the negative as it is.
 2. The negative-result structure: skills (GSM8K) fall with the recipe, in the control too; the adapter did not learn when *not* to look up.
 3. Prerequisite measurements for running knowledge-removed models on this machine, with their cost (§5.2), clearly separated from any claim about those models.
-4. A protocol for the process (inherited from P1 §4.7) and every committed result, so the E5 tables can be rebuilt without a GPU (§8).
+4. A protocol for the process (inherited from P1 Appendix C) and every committed result, so the E5 tables can be rebuilt without a GPU (§8).
 
 What this paper does *not* claim: that fewer facts live in the weights after E5 (a LoRA changes behaviour, not parameters), anything about LMLM's accuracy, anything about layer ablation, that H7 holds or fails, or that the result carries to other families, other tools or other sizes.
 
-**Terms used in this paper.**
-- *LoRA*: low-rank adaptation, a small trained adapter added to a frozen model's weights. *L1*: the adapter trained on examples that call `lookup`. *L0*: the control adapter trained on the same questions and answers without the call. *Base*: the model without an adapter.
-- *Held-out relation*: a PopQA relation (director, father, screenwriter) that never appears in the training data.
-- *Closed-book*: the model answers from its weights alone. *TOST*: two one-sided tests, used to show that a difference is smaller than a stated margin (equivalence). *Holm correction*: a step-down adjustment of p-values when several hypotheses are tested together.
-- Other terms (store, contract, taint, quantisation) are defined in P1 §1.
-
 ## 2. Related work
 
-Each paper below was read in full text (arXiv PDF); what each one says is recorded in `benchmarks/knowledge-offload/CITATION_AUDIT.md`. We describe each paper by what it does. P1 (§2) covers the work on where facts live in released models and on knowledge editing.
+**The question and the short answer.** Who has already taught a model to query a knowledge base, and what does E5 add? KARLA and MemLLM did, with LoRA. E5 differs in the design (a tool call of the released chat model, held-out relations) and adds two controls we did not find in the texts we read.
+
+For each paper below we read the abstract and the introduction in full text (arXiv PDF) and the passages that bear on our sentence; we did not read every page. What each one says is recorded in `benchmarks/knowledge-offload/CITATION_AUDIT.md`. We describe each paper by what it does. P1 (§2) covers the work on where facts live in released models and on knowledge editing.
 
 **Teaching a model to query a knowledge base after pre-training.** This is the line E5 belongs to. KARLA (Crespin, Suchanek and Holzenberger, arXiv:2606.26807) fine-tunes Qwen3-Base models of 0.6B to 4B parameters with LoRA (rank 64, all attention and MLP projections) on a synthetic corpus generated from a knowledge base (YAGO, PrimeKG). The corpus is interleaved with relation-specific query tokens, and at inference the harness replaces each query with the value found in the base. They report that the 0.6B model with the base beats larger models on factual accuracy, that it works for subjects not seen in training, that it follows base edits that contradict its parametric memory, and that its relation vocabulary is closed by construction (new predicates need more training). MemLLM (Modarressi et al., arXiv:2404.11672) fine-tunes Mistral-7B with LoRA to read and write an explicit memory of relation triples through API calls. KBLaM (Wang et al., arXiv:2410.10450) keeps the model frozen and trains linear adapters that encode each triple as a key and a value vector, injected through a modified attention; it is comparable to in-context learning at a cost linear in the size of the base, and it learns to refuse when the base lacks the answer. Knowledge Objects (Zahn, Chana et al., arXiv:2603.17781) compare facts kept in the prompt with hash-addressed fact tuples.
 
@@ -60,6 +93,8 @@ Each paper below was read in full text (arXiv PDF); what each one says is record
 
 ## 3. Setup
 
+**The question and the short answer.** What is the same as in P1, and what does E5 add? The questions, metric, harness and models are P1's. E5 adds LoRA adapters trained on one GPU, served on the same quantised files as the baselines.
+
 ### 3.1 What is recapped from P1
 Questions: the 1,000 unambiguous PopQA items of P1 §3.1 (stratified by popularity, dataset seed 1); metric `contains`; harness, serving flags and hash-locked model list as in P1 §3.2–3.3, §4.1, §8. The `tool` condition and the default prompt `SYSTEM_TOOL` are those of P1. Base models: Qwen3.5-2B and 0.8B, IQ4_XS GGUF, plus 2B Q8_0 for a transfer row.
 
@@ -72,6 +107,8 @@ Questions: the 1,000 unambiguous PopQA items of P1 §3.1 (stratified by populari
 As P1 §3.6: one RX 9060 XT 16 GB, production 27B stopped for each window by `ko_swap.py`. Training uses a separate environment (`~/lmlm/venv-train`: transformers 5.23.0, peft 0.22.0, accelerate 1.16.0, 15 GB on disk, measured); `flash-linear-attention` and `causal_conv1d` were not installed, so Qwen3.5's linear-attention layers ran the reference PyTorch path (the library warns it is "correct but much slower"); the speed with those kernels was not measured (notebook, 2026-11-20 and 2026-11-21).
 
 ## 4. Methods
+
+**The question and the short answer.** How do we decide that E5 worked? Three tests were fixed before training (H9a to H9c). Each has a written rule, bootstrap intervals over questions, and a Holm-adjusted p-value in the E5 family of three.
 
 ### 4.1 Uncertainty and the pre-registered tests
 All intervals are 95% percentile bootstraps over questions (10,000 resamples, seed 0), paired where two arms answer the same questions. One run per arm, greedy. **Greedy decoding is reproducible on this server in the one repeat measured**: the base model run twice on 500 GSM8K problems (2B IQ4_XS, same server) gave discordance 0.000 and 500 of 500 identical texts (`E5_TABLE.md`). One repeat, one server build; no claim for other builds.
@@ -87,11 +124,13 @@ All intervals are 95% percentile bootstraps over questions (10,000 resamples, se
 The pre-registered confirmatory family of the whole programme is **m = 6 (H1, H2, H3, H4, H5, H7)**. H9a–c are not in it: they were added with the E5 design on 2026-11-20 as **their own family, m = 3**, after the main sweep and before any E5 training. The cut into two papers was decided on **2026-11-22, after the E5 data**; **this paper reports the E5 family's adjusted p-values as its headline for E5 (m = 3)** and also notes that H4 and H7, which would sit with it, are untested (p = 1). With H4 and H7 at p = 1 the E5 adjusted values for H9a and H9b rise only if the family is enlarged to 5 (raw p 0.0001 gives 0.0005 for both; H9c 0.24 × 3 gives 0.72, computed here); all three verdicts are unchanged either way. (This enlargement is shown for transparency and was not pre-registered.)
 
 ### 4.4 How the work was organised
-The protocol of P1 §4.7 (roles, rules of work, files as channels, failures) applies unchanged; see P1. What is specific to E5 is told in §7 item 9 and in `NOTEBOOK.md` (entries of 2026-11-20 to 2026-11-22), including the gates that stopped a run before it started.
+The protocol of P1 Appendix C (roles, rules of work, files as channels, failures) applies unchanged; see P1. What is specific to E5 is told in §7 item 9 and in `NOTEBOOK.md` (entries of 2026-11-20 to 2026-11-22), including the gates that stopped a run before it started.
 
 ## 5. Results
 
 ### 5.1 Teaching the lookup with a LoRA (E5, route C)
+
+**In words.** Can a small adapter make a small model look up by itself? Yes: at 2B it calls the tool on 0.992 of 1,000 questions and on all 244 held-out-relation questions, and the gain over the control is +0.705. Skills are not intact: GSM8K closed-book is 0.034 lower, and the control falls by a similar amount.
 
 P1 (§5.3 and §5.4) showed that whether a small model looks up by itself depends on a prompt, and that the prompt that works at 9B and at 2B Q8_0 does not work at 2B IQ4_XS (21% looked up under the contract) or at 0.8B (0%). E5 asks whether a small LoRA can supply that behaviour without a prompt. Design, written before any training and dated 2026-11-20: `E5_DESIGN.md` (route C, chosen by the author from five options). **What E5 is not:** it changes behaviour, not parameters. It removes no knowledge, so it says nothing about freed capacity and tests nothing of H4 (§5.2 stays open). **It does not replace LMLM.**
 
@@ -102,7 +141,7 @@ P1 (§5.3 and §5.4) showed that whether a small model looks up by itself depend
 - **Checks before the eval cells.** Real chat template against the server's `/apply-template` and token-level mask decode (gates 9a/9b) passed. For each of the four adapters, at eval time: scale 0 reproduces the base replies exactly and scale 1 differs. `verify_e5.py` passed 21 of 21 cells before any statistic was computed. Adapter and base hashes are in `models.lock`.
 - **Cost (measured).** Training wall: 2B L1 1,425 s, L0 1,399 s; 0.8B L1 976 s, L0 896 s; peak 9.34, 8.99, 5.13, 4.79 GiB; six training runs in all (three dev settings of the 2B L1 adapter, one of which is the final 2B L1; then 2B L0, 0.8B L1, 0.8B L0), 7,855 s ≈ 2.2 h, the sum of their six measured walls (1,559 + 1,425 + 1,600 + 1,399 + 976 + 896 s). The eval window took 2 h 44 min. Production was stopped for each window.
 
-**5.1.2 The pre-registered family (Holm m = 3, own family; the main family's m = 6 is unchanged).** Raw p-values come from 10,000 question bootstraps, seed 0, one-sided as in `stats_holm.py`. **The p-value definitions (H9a: the larger of the two parts' shares of resamples at or below 0.80; H9b: share of paired resamples at or below 0; H9c: TOST, the larger of the two one-sided shares) were written in `stats_e5.py` by the coordinator after the data existed and before any number was read; the design fixed the decision rules (below) but not these definitions.** A second session reviewed them and reran the script: its table is reproduced byte for byte.
+**5.1.2 The pre-registered family (Holm m = 3, own family; the main family's m = 6 is unchanged).** Raw p-values come from 10,000 question bootstraps, seed 0, one-sided as in `stats_holm.py`. The p-value definitions are those of §4.2: written after the data existed and before any number was read. A second session reviewed them and reran the script, and its table is reproduced byte for byte.
 
 | test | rule written in the design | result | raw p | Holm adj. p | verdict |
 |---|---|---|---|---|---|
@@ -110,10 +149,16 @@ P1 (§5.3 and §5.4) showed that whether a small model looks up by itself depend
 | H9b lookup, not format | acc(L1) − acc(L0) on `tool`: CI lower bound > 0 and difference ≥ +0.10 | +0.705 [+0.676, +0.733]; L0 looks up 0.000 and answers 0.285, L1 answers 0.990 | 0.0001 | 0.0003 | **holds** |
 | H9c skills intact | GSM8K `closed`, L1 − base, 95% CI inside ±0.05 | −0.034 [−0.074, +0.006] (accuracy 0.726 → 0.692) | 0.24 | 0.24 | **does not hold** |
 
+**In words.** Two of three hold, by wide margins. The third does not, and the data cannot say whether the adapter costs a little maths or nothing.
+
 **5.1.3 Reading the three tests.**
 - **H9a.** Under the default prompt, where the base looks up 0.000 times in 1,000 questions, the adapter looks up 992 times; on the three relations it never saw, 244 of 244. The held-out interval printed by the script is a degenerate [1.000, 1.000], which is not a claim of zero uncertainty; the exact one-sided 95% lower bound for 244 of 244 is about 0.985 (0.025^(1/244), computed by hand, not by the script). The two p-values sit at the bootstrap's floor 1/10,001. 0.8B (reported only, not in the family): lookup 0.995 on all 1,000 (accuracy 0.979) and 0.996 on the held-out.
 - **H9b.** The size of the difference is not informative about learning: L0 never looks up, answers from the weights (0.285 against the base's 0.245 on `tool`), and L1 gets the answer from the store. H9b tests that the gain is not the format; it did, with a margin of +0.705 over the +0.10 bar. A model-side claim would be a mistake: **accuracy of about 0.99 under lookup is the store returning the gold fact** (the 9B under a prompt contract reached 0.991 as well, P1 §5.4), not knowledge in the weights.
-- **H9c does not hold, and it is not a demonstrated loss.** The interval includes zero (upper bound +0.006) but its lower bound (−0.074) is outside the margin, so equivalence is not shown. The 90% interval (−0.068, 0.000, computed with the script's bootstrap code) is also outside −0.05, so the verdict does not depend on how the TOST level is read (the gate "95% CI inside ±0.05" corresponds to one-sided tests at 2.5%, stricter than the "adjusted p < 0.05" gate the script adds; both fail). The margin was **attainable**: the base-vs-base repeat (GSM8K `closed`, 2B IQ4_XS, 500 problems, same server) gave a discordance of 0.000 and **500 of 500 identical generated texts**, so greedy decoding is reproducible here and the 20.2% of problems on which L1 and base disagree (42 problems L1 gets right and base wrong, 59 the other way) come from the adapter, not from noise. The design's attainability condition (discordance ≤ about 0.325) was met, but it is a necessary condition for a true difference of zero only: at the observed discordance of 0.202 the interval half-width is about 0.039, so equivalence to ±0.05 could only have been declared if the point estimate lay within about ±0.011 (a normal-approximation calculation, not a measurement). One repeat, one server build; no claim for other builds or batch sizes.
+- **H9c does not hold, and it is not a demonstrated loss.** In words: the adapter may have cost a few points of maths, or nothing, and our test cannot say which. The interval includes zero (upper bound +0.006) but its lower bound (−0.074) is outside the margin, so equivalence is not shown.
+
+  The 90% interval (−0.068, 0.000, computed with the script's bootstrap code) is also outside −0.05, so the verdict does not depend on how the TOST level is read (the gate "95% CI inside ±0.05" corresponds to one-sided tests at 2.5%, stricter than the "adjusted p < 0.05" gate the script adds; both fail).
+
+  The margin was **attainable**: the base-vs-base repeat (GSM8K `closed`, 2B IQ4_XS, 500 problems, same server) gave a discordance of 0.000 and **500 of 500 identical generated texts**, so greedy decoding is reproducible here and the 20.2% of problems on which L1 and base disagree (42 problems L1 gets right and base wrong, 59 the other way) come from the adapter, not from noise. The design's attainability condition (discordance ≤ about 0.325) was met, but it is a necessary condition for a true difference of zero only: at the observed discordance of 0.202 the interval half-width is about 0.039, so equivalence to ±0.05 could only have been declared if the point estimate lay within about ±0.011 (a normal-approximation calculation, not a measurement). One repeat, one server build; no claim for other builds or batch sizes.
 
 **5.1.4 Reported only (not in the family, no p-values).**
 - **The control moves too, post hoc and exploratory.** Same bootstrap, committed cells, computed after seeing the table, **not pre-registered**: at 2B, L0 − base = −0.016 [−0.052, +0.020] and L1 − L0 = −0.018 [−0.048, +0.012]; at 0.8B, L1 − base = −0.088 [−0.134, −0.044], L0 − base = −0.086 [−0.132, −0.042] and L1 − L0 = −0.002 [−0.032, +0.028] (accuracies 0.436 / 0.348 / 0.350). At 0.8B the whole drop is shared by both arms, so it is not specific to lookup; at 2B the L1 − L0 difference is not distinguishable from zero. Both arms share the same LoRA recipe and anchors, so these data say "this recipe lowers GSM8K `closed` somewhat", and cannot say why. No mechanism is claimed.
@@ -132,6 +177,8 @@ P1 (§5.3 and §5.4) showed that whether a small model looks up by itself depend
 
 ### 5.2 Models with knowledge removed (E1b, H4): prerequisites only
 
+**In words.** Can we even run a knowledge-removed model here, and what would it cost? The released 382M pair runs on this card, but not beside the production model, and pre-training it again would take weeks (an estimate). We measured nothing about whether removing knowledge works.
+
 This section covers the optional second track: whether pre-training or editing that removes facts from a model changes what its parameters do (LMLM and Co-LMLM against their standard twins; layer ablation; a lookup LoRA). **The author decided on 2026-11-17 that this line of work is wanted. The first route, a lookup LoRA, was chosen on 2026-11-20 and is §5.1. The route that changes pre-training (LMLM-style) is not decided, and no experiment on these models has been run.** What exists is a set of prerequisite measurements on one released pair, `LMLM-llama2-382M` and `Standard-llama2-382M`, on the machine of P1 §3.6. They show whether the track is feasible here and at what cost. **They say nothing about whether removing knowledge works, about LMLM's accuracy, or about any of our tasks.** When this route is run, this section is rewritten from its own pre-registration; H4 (non-fact perplexity) belongs here and stays at p = 1 until then (§4.3).
 
 **5.2.1 What was measured (notebook, entries of 2026-11-18 and 2026-11-20; all single runs).**
@@ -142,7 +189,7 @@ This section covers the optional second track: whether pre-training or editing t
 | Environment used instead | torch 2.12.1+rocm7.2, transformers 4.49.0 (pin kept), faiss-cpu 1.16.0, numpy 2.5.5, marisa-trie 1.4.1 (pin 1.2.1 not tried); for training, `trl==0.15.2`, which the repo does not pin and which was chosen by date | measured (`freeze.txt`); **the torch version differs from the authors'** |
 | `LMLM-llama2-382M`, repo example, GPU (RX 9060 XT) | rc 0; 58.3 s for 6 prompts (max 512 new tokens, up to 10 lookups); VRAM peak 3,228,696,576 B (592,822,272 B already in use before, so about +2.64 GB); max RSS 3,289,544 kB | measured, one run |
 | `Standard-llama2-382M`, same example | CPU (the repo's code path): 185.4 s; max RSS 2,697,688 kB; VRAM unchanged | measured; **different device from the row above, so not a model comparison** |
-| Does it fit beside the production 27B? | no: the 27B holds 14,981,218,304 B of the card's 17,095,983,104 B (about 2.1 GB free) and the run needs about 2.64 GB more. A first attempt with the 27B serving ended in the kernel's out-of-memory killer about 40 s in and the machine stopped answering until the author rebooted it (P1 §4.7, item 6); that run produced no result | measured (journal, `vram.log`); any LMLM run needs production stopped |
+| Does it fit beside the production 27B? | no: the 27B holds 14,981,218,304 B of the card's 17,095,983,104 B (about 2.1 GB free) and the run needs about 2.64 GB more. A first attempt with the 27B serving ended in the kernel's out-of-memory killer about 40 s in and the machine stopped answering until the author rebooted it (P1 Appendix C, item 6); that run produced no result | measured (journal, `vram.log`); any LMLM run needs production stopped |
 | Do the lookups happen? | yes: each of the 6 prompts contains 9 `<|db_entity|>…<|db_return|>…<|db_end|>` calls. The database is `dwiki_bio17k` (biographies). The one entity checked against the database (Ko Itakura) returned a plausible entry; for entities not in it, with `fallback_policy top1_anyway` the database returned an unrelated entry with no sign of doubt (Mao: "Paper Tiger"; Fábio A L de Souza: "Master's degree in Jazz Studies") | measured on 6 prompts; **not a rate** |
 | Full database `dwiki6.1M` (54.6M triples) | downloaded, 7,921,290,218 B (equals the Hugging Face tree size); `json.load` under a 12 GB address-space cap fails with `MemoryError` after 13.7 s at max RSS 7,745,484 kB | measured; shows it does not fit under that cap, **not** that it does not fit in the machine's 15.8 GB; loading without the cap, entry count and the FAISS index were **not tested** |
 | Training throughput with the repo's own trainer (`lmlm.training.pretrain`, `pretrain.sh` arguments, tiny-llama2-382M, packing, sequence 1024, gradient checkpointing, bf16, 30 steps, one GPU, 200 MB head slice of the corpus) | batch 8: 5,353 tokens/s (45.9 s); batch 16: 5,675 tokens/s (86.6 s); batch 32: out of memory. VRAM peak 16.07 GB and 16.42 GB (includes 0.6 GB used by other processes) | measured; 30 steps with warm-up, first steps included |
@@ -156,15 +203,24 @@ This section covers the optional second track: whether pre-training or editing t
 
 
 ### 5.3 `[OPEN]` Layer ablation (E6)
+
+**In words.** Not run.
 Whether removing layers that carry recall leaves reasoning intact (the layer-localisation papers of §2 suggest where to look) was not designed in code, not run and not costed: its cost is not measurable without a probe. `[OPEN: scope, the author]`.
 
 ### 5.4 `[OPEN]` Does an agent fit a smaller model? (E7, H7)
+
+**In words.** Not run, and nothing in this paper bears on it.
 The title's question: with the facts in a store, is a model within a memory budget (8 GB) within five points of the 27B on a skill suite of the agent's real jobs? `[TBD: the Funes skill suite does not exist; size sweep with the store; H7]`. Estimated cost after the suite is built: 2–8 h of GPU (notebook, 2026-11-22; an estimate). H7 enters Holm as p = 1 and **nothing in this paper bears on it**. The partial evidence P1 holds (a 0.8B model with a store is above the 27B closed-book on PopQA; the `funes` rows are far below the store at 0.8B and 2B) is about facts, not about the agent's skills.
 
 ## 6. Cost
+
+**The question and the short answer.** What did E5 cost? About 2.2 hours of training and 2 h 44 min of evaluation, all measured. The LMLM numbers are estimates.
 Measured: E5 training wall 1,425 s (2B L1), 1,399 s (2B L0), 976 s (0.8B L1), 896 s (0.8B L0), peak VRAM 9.34, 8.99, 5.13, 4.79 GiB, 7,855 s ≈ 2.2 h of training wall for the six runs (three dev settings of 2B L1, whose setting B is also the final 2B L1, plus 2B L0, 0.8B L1 and 0.8B L0), and a 2 h 44 min eval window (notebook, 2026-11-21); LMLM prerequisites in §5.2. Estimated, not measured: training time had the 3,000 + 1,500 retrain been needed (about 16 h, from a 30-step probe; the retrain was not needed, notebook 2026-11-20); reproducing LMLM's pre-training (§5.2). Not measured: serving VRAM with the adapter beyond what the baselines needed; energy.
 
+
 ## 7. Limitations
+
+**The question and the short answer.** What should a reader discount? Mostly that E5 is one training seed on one family, tested on questions like the training questions.
 1. **One training seed per arm and one repeat.** No variance across training seeds exists. The verdicts of H9a and H9b are far from their bars; H9c's is not, and a second seed could move it either way. Second seed: explicit future work.
 2. **In distribution.** Eval questions share PopQA's templates and popularity profile with training. The held-out relations and set P exist to expose this partly; `director` and `screenwriter` are close to relations that were trained (`producer`, `author`, `composer`), so `father` (50 items, all looked up) is the clean held-out relation.
 3. **Accuracy under lookup is the store's, not the model's.** A reader must not read 0.99 as knowledge in the weights.
@@ -173,19 +229,16 @@ Measured: E5 training wall 1,425 s (2B L1), 1,399 s (2B L0), 976 s (0.8B L1), 89
 6. **The 0.8B set of cells and `transfer_bases` were assumptions that the author confirmed after the fact** (notebook, 2026-11-21).
 7. **One model family, one tool,** one prompt for training. Other wordings are reported only for L1.
 8. **Per-question E5 payloads exist on yoda only** (64 MB); the committed cell JSONs and tables are enough for the statistics but not for every audit.
-9. **The same family reviewed itself,** as in P1 §4.7; E5 went through its own gates (data builder review, chat-template and mask checks, scale-0 identity per adapter, a verifier before any statistic) and the review by the author of this draft, a model.
+9. **The same family reviewed itself,** as in P1 Appendix C; E5 went through its own gates (data builder review, chat-template and mask checks, scale-0 identity per adapter, a verifier before any statistic) and the review by the author of this draft, a model.
 10. **Knowledge-removed models: prerequisites only.** The 382M LMLM pair complete biographies rather than follow instructions; they bear on whether masking changes the parameters, not on whether an agent could run on one.
 11. **Post-hoc elements.** The p-value definitions of §4.2 and the exploratory bootstrap of L0 and L1 in §5.1.4 were written after the data existed; the Holm family split of §4.3 after the data too.
 
 ## 8. Reproducibility
+
+**The question and the short answer.** Can the tables be rebuilt? Yes, from the committed cell files and without a GPU. The adapters' weights and the per-question payloads are not committed.
 **Released with the paper:** the harness and `E5_DESIGN.md`, `e5_build.py`, `e5_train.py`, `stats_e5.py`, `verify_e5.py`, `e5_paraphrase_templates.json` (hashed before training: `c455152a07209788b9fd46ab2c8c4dfe5edf99debad040035289821ae553b6a9`, which is the canonical sha256 computed by the design session and recorded by the coordinator before training; recheck with `e5_build.py --templates-sha256`), `models.lock` with the adapter entries, every committed cell JSON and `E5_TABLE.md` (sha256 `ee79f63c0fc24e6dd498f6cee6e93a5ed4bd23e9e105c265dc4de9bfad0284af`), and the gate files `results/e5/gate_*.json`. A figure can be rebuilt from the JSON without a GPU. **Not released / not committed:** training data files (rebuilt deterministically by `e5_build.py` from `data/popqa_test.tsv`; the manifest records every file's sha256), the per-question payloads (yoda), the adapters' weights beyond their hashes `[TBD: decide whether to release the four GGUF adapters, 10.8–16.8 MB each]`. The environment of P1 §8 applies, including its `[UNVERIFIED]` power cap. Windows: `results/ko_swap-*.log` and the notebook entries of 2026-11-20 and 2026-11-21.
 
 ---
-
-*Count (grep of this file, 2026-11-22): 8 `[TBD` tags, 7 `[OPEN`, 6 `[UNVERIFIED` (these include mentions in status tables and the format example in the header); recount with grep.*
-
----
-
 ## Appendix B. Drafting notes (remove before submission)
 
 ### B.1 Status of the sections
@@ -221,3 +274,24 @@ Measured: E5 training wall 1,425 s (2B L1), 1,399 s (2B L0), 976 s (0.8B L1), 89
 
 ### B.4 Citations
 As in P1 Appendix B.4. All papers of §2 were read in full text on 2026-11-22; `CITATION_AUDIT.md` records the result. The audit changed the related work of this paper in one important way: KARLA (2606.26807), a LoRA fine-tune of Qwen3-Base models that emits knowledge-base queries, is a closer relative of E5 than MemLLM, which an earlier draft called "the closest published relative". The LMLM repository's own figure of about 8 H100-days for the 382M model was not checked `[UNVERIFIED]`.
+
+
+### B.5 Index of markers
+
+Every marker in the body, with the section it sits in (marker text shortened, brackets removed so that a grep counts only the real ones). Counts by grep of the whole file, 2026-11-24: 6 TBD, 5 OPEN, 4 UNVERIFIED; they include the mentions in the headings, status and to-do tables.
+
+- 2. Related work: UNVERIFIED: no literature search beyond the papers above was made; web search is not permitted in this track
+- 5.1 Teaching the lookup with a LoRA (E5, route C): TBD: a second training seed
+- 5.1 Teaching the lookup with a LoRA (E5, route C): TBD: a held-out relation of a different kind, or a different tool
+- 5.1 Teaching the lookup with a LoRA (E5, route C): TBD: the cause of the GSM8K shift, if the author wants it known: it would need an ablation not run
+- 5.2 Models with knowledge removed (E1b, H4): prere: UNVERIFIED
+- 5.2 Models with knowledge removed (E1b, H4): prere: TBD: LMLM and Standard evaluated on a task of ours; the full database loaded without a cap and its FAISS index; the training throughput at a batch size that mat
+- 5.3 OPEN Layer ablation (E6): OPEN
+- 5.3 OPEN Layer ablation (E6): OPEN: scope, the author
+- 5.4 OPEN Does an agent fit a smaller model? (E7, H: OPEN
+- 5.4 OPEN Does an agent fit a smaller model? (E7, H: TBD: the Funes skill suite does not exist; size sweep with the store; H7
+- 8. Reproducibility: TBD: decide whether to release the four GGUF adapters, 10.8–16.8 MB each
+- 8. Reproducibility: UNVERIFIED
+- B.1 Status of the sections: OPEN
+- B.1 Status of the sections: OPEN
+- B.4 Citations: UNVERIFIED
