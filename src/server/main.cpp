@@ -47,6 +47,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <thread>
@@ -889,7 +890,16 @@ int main(int argc, char** argv) {
         // fail_after 2: a job that runs every minute (the TV's) fails now and
         // then when the TV does not answer; two checks in a row is a job that
         // is broken, not one that had a bad minute.
-        po.builtins.push_back({"jobs", 120, 2, [&memory]() {
+        // fail_after 2 counts probe rounds, and every round of this probe sees
+        // the same last run — so it never filtered a single bad run of a
+        // 15-minute job (2026-11-28: Open-Meteo unreachable once → WhatsApp
+        // notice + «aprobar» to re-run a job that runs again in minutes).
+        // So frequent jobs (next run under an hour away) are held to two
+        // *distinct* failed runs in a row; slower ones (a daily newsletter)
+        // still report the first.
+        struct JobStreak { int64_t last_run_at = 0; int fails = 0; };
+        auto streaks = std::make_shared<std::map<int64_t, JobStreak>>();
+        po.builtins.push_back({"jobs", 120, 2, [&memory, streaks]() {
             std::vector<funes::incidents::CheckResult> checks;
             const int64_t now = static_cast<int64_t>(std::time(nullptr));
             for (const auto& j : memory.list_cron_jobs(-1)) {
@@ -897,7 +907,15 @@ int main(int argc, char** argv) {
                 // A one-shot job never runs again: its failure is news for a
                 // day, then it stops being reported (and its incident closes).
                 if (j.done_at && now - j.done_at > 86400) continue;
-                const bool ok = j.last_status == "ok";
+                bool ok = j.last_status == "ok";
+                JobStreak& st = (*streaks)[j.id];
+                if (st.last_run_at != j.last_run_at) {
+                    st.last_run_at = j.last_run_at;
+                    st.fails = ok ? 0 : st.fails + 1;
+                }
+                const bool frequent = !j.once && j.next_run_at > 0 &&
+                                      j.next_run_at - j.last_run_at < 3600;
+                if (!ok && frequent && st.fails < 2) ok = true;   // one bad run: wait for the next
                 checks.push_back({"jobs:" + std::to_string(j.id), ok, "warning",
                                   "Scheduled job #" + std::to_string(j.id) + " '" + j.name + "' " +
                                       (ok ? "ran fine" : "failed its last run"),
